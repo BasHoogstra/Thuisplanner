@@ -696,27 +696,8 @@ body.shopping-mode .toast{bottom:20px;}
   <div style="display:flex;align-items:center;gap:12px;padding:16px;border-bottom:1px solid var(--border);flex-shrink:0;">
     <button id="closeVakantiesBtn" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">&#8592;</button>
     <h2 style="margin:0;font-size:18px;flex:1;">&#x2708;&#xFE0F; Vakanties</h2>
-    <button id="openNieuweVakantieBtn" style="background:var(--accent);color:#fff;border:none;border-radius:50%;width:34px;height:34px;font-size:22px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;">+</button>
   </div>
   <div style="overflow-y:auto;flex:1;padding:16px;" id="vakantiesContent"></div>
-</div>
-
-<div class="full-overlay" id="nieuweVakantieOverlay">
-  <div style="display:flex;align-items:center;gap:12px;padding:16px;border-bottom:1px solid var(--border);flex-shrink:0;">
-    <button id="closeNieuweVakantieBtn" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">&#8592;</button>
-    <h2 style="margin:0;font-size:18px;">Nieuwe vakantie</h2>
-  </div>
-  <div style="overflow-y:auto;flex:1;padding:16px;">
-    <label class="form-label">Naam</label>
-    <input id="nvNaam" type="text" class="form-input" placeholder="bijv. Zomervakantie 2026">
-    <label class="form-label">Bestemming</label>
-    <input id="nvDest" type="text" class="form-input" placeholder="bijv. Kroatie">
-    <label class="form-label">Vertrekdatum</label>
-    <input id="nvStart" type="date" class="form-input">
-    <label class="form-label">Terugkomstdatum</label>
-    <input id="nvEnd" type="date" class="form-input">
-    <button id="saveNieuweVakantieBtn" style="margin-top:14px;width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;">Vakantie opslaan</button>
-  </div>
 </div>
 
 <div class="full-overlay" id="garantiesOverlay">
@@ -777,7 +758,7 @@ var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','z
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},backlog:[],onderhoud:[],garanties:[],vakanties:[]};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},backlog:[],onderhoud:[],garanties:[],vakantie:null};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -1489,8 +1470,7 @@ function renderMeerStats(){
   document.getElementById('backlogSub').textContent=bl>0?bl+' idee'+(bl===1?'':'ën'):'Ideeën & ooit-lijst';
   var garExp=(data.garanties||[]).filter(function(g){return g.verloopt&&daysUntil(g.verloopt)<=90&&daysUntil(g.verloopt)>=0;}).length;
   document.getElementById('garantiesSub').textContent=garExp>0?garExp+' verloopt binnenkort':'Verloopdata bijhouden';
-  var vakGepland=(data.vakanties||[]).filter(function(v){return v.status==='gepland';}).length;
-  if(document.getElementById('vakantiesSub'))document.getElementById('vakantiesSub').textContent=vakGepland>0?vakGepland+' gepland':'Paklijst & to-do';
+  if(document.getElementById('vakantiesSub')){var vPak=data.vakantie?Object.values(data.vakantie.paklijst||{}).flat():[];var vDone=vPak.filter(function(i){return i.done;}).length;document.getElementById('vakantiesSub').textContent=vPak.length>0?vDone+'/'+vPak.length+' ingepakt':'Paklijst & to-do';}
 }
 
 document.getElementById('openBestellingen').addEventListener('click',function(){document.getElementById('bestellingenOverlay').classList.add('open');updateBestWieLabels();renderBestellingen();});
@@ -1753,281 +1733,174 @@ renderVandaag();
 renderCalendar();
 })();
 
-var VAK_CATS = ['Kleding','Toilettas','Documenten','Elektronica','Overig'];
-var VAK_PERSONS = ['Bas','Sanne','Lynn','Lois'];
+// ── VAKANTIES (nieuwe versie: vaste pagina per persoon) ──────────────────────
+var VAK_PERSONS = ['Bas', 'Sanne', 'Lynn', 'Lois'];
+var VAK_PERSONS_DISPLAY = {'Bas':'Bas','Sanne':'Sanne','Lynn':'Lynn','Lois':'Loïs'};
 
+function getVak() {
+  if (!data.vakantie) {
+    data.vakantie = { paklijst: {}, todos: [], notes: '' };
+    VAK_PERSONS.forEach(function(p){ data.vakantie.paklijst[p] = []; });
+  }
+  VAK_PERSONS.forEach(function(p){
+    if (!data.vakantie.paklijst[p]) data.vakantie.paklijst[p] = [];
+  });
+  return data.vakantie;
+}
 
 function renderVakanties() {
   var el = document.getElementById('vakantiesContent');
   if (!el) return;
-  var vaks = data.vakanties || [];
-  if (vaks.length === 0) {
-    el.innerHTML = '<p style="color:var(--muted);text-align:center;margin-top:40px">Nog geen vakanties. Tik op + om er een toe te voegen.</p>';
-    return;
-  }
-  var html = '<div class="vak-list">';
-  for (var i = 0; i < vaks.length; i++) {
-    var v = vaks[i];
-    var today2 = new Date(); today2.setHours(0,0,0,0);
-    var start = v.startDate ? new Date(v.startDate) : null;
-    var countdown = '';
-    if (start && v.status === 'gepland') {
-      var diff = Math.ceil((start - today2) / 86400000);
-      if (diff > 0) countdown = '<div class="vak-countdown">Nog ' + diff + ' dag' + (diff===1?'':'en') + '!</div>';
-      else if (diff === 0) countdown = '<div class="vak-countdown">Vandaag vertrek!</div>';
-    }
-    var dateStr = '';
-    if (v.startDate) dateStr = v.startDate.split('-').reverse().join('-');
-    if (v.endDate) dateStr += ' - ' + v.endDate.split('-').reverse().join('-');
-    var badge = v.status === 'geweest'
-      ? '<span class="vak-card-badge vak-badge-geweest">Geweest</span>'
-      : '<span class="vak-card-badge vak-badge-gepland">Gepland</span>';
-    html += '<div class="vak-card">'
-      + '<div class="vak-card-header" onclick="toggleVakDetail(\'' + v.id + '\')">'
-      + '<div class="vak-card-icon">✈</div>'
-      + '<div class="vak-card-info">'
-      + '<div class="vak-card-name">' + esc(v.naam||'') + '</div>'
-      + '<div class="vak-card-dest">' + esc(v.bestemming||'') + (dateStr ? ' · ' + dateStr : '') + '</div>'
-      + countdown
-      + '</div>'
-      + badge
-      + '</div>'
-      + '<div class="vak-detail" id="vd_' + v.id + '">'
-      + renderVakDetail(v)
+  var vak = getVak();
+  var activeTab = vak._tab || 'paklijst';
+
+  var tabs = [
+    ['paklijst', 'Paklijst'],
+    ['todos', 'To-do'],
+    ['notes', 'Notities']
+  ];
+
+  var html = '<div class="vak-tabs">';
+  tabs.forEach(function(t) {
+    html += '<button class="vak-tab' + (activeTab === t[0] ? ' active' : '') + '" onclick="setVakMainTab(\'' + t[0] + '\')">' + t[1] + '</button>';
+  });
+  html += '</div>';
+
+  // PAKLIJST
+  html += '<div class="vak-panel' + (activeTab === 'paklijst' ? ' active' : '') + '">';
+  VAK_PERSONS.forEach(function(p) {
+    var items = vak.paklijst[p] || [];
+    var done = items.filter(function(i){return i.done;}).length;
+    html += '<div class="pak-person-section">'
+      + '<div class="pak-person-header">'
+      + '<span class="pak-person-name">' + VAK_PERSONS_DISPLAY[p] + '</span>'
+      + '<span class="pak-person-count">' + done + '/' + items.length + '</span>'
+      + '</div>';
+    items.forEach(function(item) {
+      html += '<div class="pak-item-simple">'
+        + '<div class="pak-chk' + (item.done ? ' checked' : '') + '" onclick="togglePakItem(\'' + p + '\',\'' + item.id + '\')">' + (item.done ? '&#x2713;' : '') + '</div>'
+        + '<span class="pak-item-lbl' + (item.done ? ' done' : '') + '">' + esc(item.text) + '</span>'
+        + '<button class="pak-item-del" onclick="delPakItem2(\'' + p + '\',\'' + item.id + '\')">&#x2715;</button>'
+        + '</div>';
+    });
+    html += '<div class="pak-add-simple">'
+      + '<input id="pakIn_' + p + '" type="text" placeholder="Item toevoegen..." onkeydown="if(event.key===\'Enter\')addPakItem2(\'' + p + '\')">'
+      + '<button onclick="addPakItem2(\'' + p + '\')">+</button>'
       + '</div>'
       + '</div>';
-  }
+  });
   html += '</div>';
+
+  // TO-DO
+  html += '<div class="vak-panel' + (activeTab === 'todos' ? ' active' : '') + '">';
+  var todos = vak.todos || [];
+  todos.forEach(function(t) {
+    html += '<div class="todo-item">'
+      + '<div class="todo-check' + (t.done ? ' checked' : '') + '" onclick="toggleVakTodo2(\'' + t.id + '\')">' + (t.done ? '&#x2713;' : '') + '</div>'
+      + '<div class="todo-text' + (t.done ? ' done' : '') + '">' + esc(t.text) + '</div>'
+      + '<button class="todo-del" onclick="delVakTodo2(\'' + t.id + '\')">&#x2715;</button>'
+      + '</div>';
+  });
+  html += '<div class="todo-add-row">'
+    + '<input id="vakTodoIn" type="text" placeholder="To-do toevoegen..." onkeydown="if(event.key===\'Enter\')addVakTodo2()">'
+    + '<button onclick="addVakTodo2()">+</button>'
+    + '</div>'
+    + '</div>';
+
+  // NOTITIES
+  html += '<div class="vak-panel' + (activeTab === 'notes' ? ' active' : '') + '">'
+    + '<textarea class="vak-notes" placeholder="Notities voor de vakantie..." onchange="saveVakNotes2(this.value)">' + esc(vak.notes || '') + '</textarea>'
+    + '</div>';
+
+  // Reset knop
+  html += '<button class="vak-reset-btn" onclick="resetVakantie()">&#x21BA; Reset alles voor nieuwe vakantie</button>';
+
   el.innerHTML = html;
 }
 
-function renderVakDetail(v) {
-  var activeTab = v._tab || 'paklijst';
-
-  var tabHtml = '<div class="vak-tabs">'
-    + '<button class="vak-tab' + (activeTab==='paklijst'?' active':'') + '" onclick="setVakTab(\'' + v.id + '\',\'paklijst\')">Paklijst</button>'
-    + '<button class="vak-tab' + (activeTab==='todos'?' active':'') + '" onclick="setVakTab(\'' + v.id + '\',\'todos\')">To-do</button>'
-    + '<button class="vak-tab' + (activeTab==='notes'?' active':'') + '" onclick="setVakTab(\'' + v.id + '\',\'notes\')">Notities</button>'
-    + '</div>';
-
-  var pakHtml = '';
-  for (var ci = 0; ci < VAK_CATS.length; ci++) {
-    var cat = VAK_CATS[ci];
-    var items = (v.paklijst||[]).filter(function(i){return i.cat===cat;});
-    if (!items.length) continue;
-    pakHtml += '<div class="pak-cat-label">' + cat + '</div>';
-    for (var ii = 0; ii < items.length; ii++) {
-      var item = items[ii];
-      var allDone = VAK_PERSONS.every(function(p){return item.perPersoon && item.perPersoon[p];});
-      pakHtml += '<div class="pak-item">'
-        + '<div class="pak-item-row">'
-        + '<span class="pak-item-text"' + (allDone?' style="text-decoration:line-through;color:var(--done)"':'') + '>' + esc(item.text) + '</span>'
-        + '<button class="pak-item-del" onclick="delPakItem(\'' + v.id + '\',\'' + item.id + '\')">&#x1F5D1;</button>'
-        + '</div>'
-        + '<div class="pak-persons">';
-      for (var pi = 0; pi < VAK_PERSONS.length; pi++) {
-        var p = VAK_PERSONS[pi];
-        var checked = item.perPersoon && item.perPersoon[p];
-        pakHtml += '<span class="pak-person-check' + (checked?' checked':'') + '" onclick="togglePakPerson(\'' + v.id + '\',\'' + item.id + '\',\'' + p + '\')">' + (checked?'✓ ':'') + p + '</span>';
-      }
-      pakHtml += '</div></div>';
-    }
-  }
-  pakHtml += '<div class="pak-add-row">'
-    + '<input id="pakTxt_' + v.id + '" type="text" placeholder="Item toevoegen..." onkeydown="if(event.key===\'Enter\')addPakItem(\'' + v.id + '\')">'
-    + '<select id="pakCat_' + v.id + '">'
-    + '<option>Kleding</option><option>Toilettas</option><option>Documenten</option><option>Elektronica</option><option>Overig</option>'
-    + '</select>'
-    + '<button onclick="addPakItem(\'' + v.id + '\')">+</button>'
-    + '</div>';
-
-  var todoHtml = '';
-  var todos = v.todos || [];
-  for (var ti = 0; ti < todos.length; ti++) {
-    var t = todos[ti];
-    todoHtml += '<div class="todo-item">'
-      + '<div class="todo-check' + (t.done?' checked':'') + '" onclick="toggleVakTodo(\'' + v.id + '\',\'' + t.id + '\')">' + (t.done?'✓':'') + '</div>'
-      + '<div class="todo-text' + (t.done?' done':'') + '">' + esc(t.text) + '</div>'
-      + '<button class="todo-del" onclick="delVakTodo(\'' + v.id + '\',\'' + t.id + '\')">&#x1F5D1;</button>'
-      + '</div>';
-  }
-  todoHtml += '<div class="todo-add-row">'
-    + '<input id="todoTxt_' + v.id + '" type="text" placeholder="To-do toevoegen..." onkeydown="if(event.key===\'Enter\')addVakTodo(\'' + v.id + '\')">'
-    + '<button onclick="addVakTodo(\'' + v.id + '\')">+</button>'
-    + '</div>';
-
-  var notesHtml = '<textarea class="vak-notes" placeholder="Notities..." onchange="saveVakNotes(\'' + v.id + '\',this.value)">' + esc(v.notes||'') + '</textarea>';
-
-  var ctrlHtml = '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">'
-    + '<button style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;" onclick="toggleVakStatus(\'' + v.id + '\')">'
-    + (v.status==='geweest' ? 'Markeer gepland' : 'Markeer geweest')
-    + '</button>'
-    + '<button class="vak-del-btn" onclick="delVakantie(\'' + v.id + '\')">Verwijder vakantie</button>'
-    + '</div>';
-
-  var p1 = '<div class="vak-panel' + (activeTab==='paklijst'?' active':'') + '">' + pakHtml + '</div>';
-  var p2 = '<div class="vak-panel' + (activeTab==='todos'?' active':'') + '">' + todoHtml + '</div>';
-  var p3 = '<div class="vak-panel' + (activeTab==='notes'?' active':'') + '">' + notesHtml + '</div>';
-
-  return tabHtml + p1 + p2 + p3 + ctrlHtml;
-}
-
-function toggleVakDetail(id) {
-  var el = document.getElementById('vd_' + id);
-  if (!el) return;
-  if (el.classList.contains('open')) { el.classList.remove('open'); }
-  else {
-    document.querySelectorAll('.vak-detail.open').forEach(function(d){d.classList.remove('open');});
-    el.classList.add('open');
-  }
-}
-
-function setVakTab(vakId, tab) {
-  var v = (data.vakanties||[]).find(function(x){return x.id===vakId;});
-  if (!v) return;
-  v._tab = tab;
-  var detail = document.getElementById('vd_' + vakId);
-  if (detail) { detail.innerHTML = renderVakDetail(v); }
-}
-
-function addPakItem(vakId) {
-  var txt = document.getElementById('pakTxt_' + vakId);
-  var cat = document.getElementById('pakCat_' + vakId);
-  if (!txt || !txt.value.trim()) return;
-  var v = (data.vakanties||[]).find(function(x){return x.id===vakId;});
-  if (!v) return;
-  if (!v.paklijst) v.paklijst = [];
-  var pp = {};
-  for (var i = 0; i < VAK_PERSONS.length; i++) { pp[VAK_PERSONS[i]] = false; }
-  v.paklijst.push({id:uid(), text:txt.value.trim(), cat: cat ? cat.value : 'Overig', perPersoon: pp});
-  txt.value = '';
-  saveToServer();
-  var detail = document.getElementById('vd_' + vakId);
-  if (detail) { detail.innerHTML = renderVakDetail(v); }
-}
-
-function delPakItem(vakId, itemId) {
-  var v = (data.vakanties||[]).find(function(x){return x.id===vakId;});
-  if (!v) return;
-  v.paklijst = (v.paklijst||[]).filter(function(i){return i.id!==itemId;});
-  saveToServer();
-  var detail = document.getElementById('vd_' + vakId);
-  if (detail) { detail.innerHTML = renderVakDetail(v); }
-}
-
-function togglePakPerson(vakId, itemId, person) {
-  var v = (data.vakanties||[]).find(function(x){return x.id===vakId;});
-  if (!v) return;
-  var item = (v.paklijst||[]).find(function(i){return i.id===itemId;});
-  if (!item) return;
-  if (!item.perPersoon) { item.perPersoon = {}; for (var i=0;i<VAK_PERSONS.length;i++){item.perPersoon[VAK_PERSONS[i]]=false;} }
-  item.perPersoon[person] = !item.perPersoon[person];
-  saveToServer();
-  var detail = document.getElementById('vd_' + vakId);
-  if (detail) { detail.innerHTML = renderVakDetail(v); }
-}
-
-function addVakTodo(vakId) {
-  var txt = document.getElementById('todoTxt_' + vakId);
-  if (!txt || !txt.value.trim()) return;
-  var v = (data.vakanties||[]).find(function(x){return x.id===vakId;});
-  if (!v) return;
-  if (!v.todos) v.todos = [];
-  v.todos.push({id:uid(), text:txt.value.trim(), done:false});
-  txt.value = '';
-  saveToServer();
-  var detail = document.getElementById('vd_' + vakId);
-  if (detail) { detail.innerHTML = renderVakDetail(v); }
-}
-
-function toggleVakTodo(vakId, todoId) {
-  var v = (data.vakanties||[]).find(function(x){return x.id===vakId;});
-  if (!v) return;
-  var t2 = (v.todos||[]).find(function(x){return x.id===todoId;});
-  if (t2) t2.done = !t2.done;
-  saveToServer();
-  var detail = document.getElementById('vd_' + vakId);
-  if (detail) { detail.innerHTML = renderVakDetail(v); }
-}
-
-function delVakTodo(vakId, todoId) {
-  var v = (data.vakanties||[]).find(function(x){return x.id===vakId;});
-  if (!v) return;
-  v.todos = (v.todos||[]).filter(function(t2){return t2.id!==todoId;});
-  saveToServer();
-  var detail = document.getElementById('vd_' + vakId);
-  if (detail) { detail.innerHTML = renderVakDetail(v); }
-}
-
-function saveVakNotes(vakId, val) {
-  var v = (data.vakanties||[]).find(function(x){return x.id===vakId;});
-  if (!v) return;
-  v.notes = val;
-  saveToServer();
-}
-
-function toggleVakStatus(vakId) {
-  var v = (data.vakanties||[]).find(function(x){return x.id===vakId;});
-  if (!v) return;
-  v.status = (v.status==='geweest') ? 'gepland' : 'geweest';
-  saveToServer();
+function setVakMainTab(tab) {
+  var vak = getVak();
+  vak._tab = tab;
   renderVakanties();
-  var det = document.getElementById('vd_' + vakId);
-  if (det) { det.innerHTML = renderVakDetail(v); det.classList.add('open'); }
 }
 
-function delVakantie(vakId) {
-  if (!confirm('Vakantie verwijderen?')) return;
-  data.vakanties = (data.vakanties||[]).filter(function(v){return v.id!==vakId;});
+function addPakItem2(person) {
+  var inp = document.getElementById('pakIn_' + person);
+  if (!inp || !inp.value.trim()) return;
+  var vak = getVak();
+  vak.paklijst[person].push({ id: uid(), text: inp.value.trim(), done: false });
+  inp.value = '';
   saveToServer();
   renderVakanties();
 }
 
-function saveNieuweVakantie() {
-  var naam = document.getElementById('nvNaam').value.trim();
-  if (!naam) { alert('Geef de vakantie een naam'); return; }
-  if (!data.vakanties) data.vakanties = [];
-  data.vakanties.push({
-    id: uid(),
-    naam: naam,
-    bestemming: document.getElementById('nvDest').value.trim(),
-    startDate: document.getElementById('nvStart').value,
-    endDate: document.getElementById('nvEnd').value,
-    status: 'gepland',
-    paklijst: [],
-    todos: [],
-    notes: ''
+function delPakItem2(person, itemId) {
+  var vak = getVak();
+  vak.paklijst[person] = vak.paklijst[person].filter(function(i){ return i.id !== itemId; });
+  saveToServer();
+  renderVakanties();
+}
+
+function togglePakItem(person, itemId) {
+  var vak = getVak();
+  var item = vak.paklijst[person].find(function(i){ return i.id === itemId; });
+  if (item) item.done = !item.done;
+  saveToServer();
+  renderVakanties();
+}
+
+function addVakTodo2() {
+  var inp = document.getElementById('vakTodoIn');
+  if (!inp || !inp.value.trim()) return;
+  var vak = getVak();
+  if (!vak.todos) vak.todos = [];
+  vak.todos.push({ id: uid(), text: inp.value.trim(), done: false });
+  inp.value = '';
+  saveToServer();
+  renderVakanties();
+}
+
+function toggleVakTodo2(todoId) {
+  var vak = getVak();
+  var t = (vak.todos || []).find(function(x){ return x.id === todoId; });
+  if (t) t.done = !t.done;
+  saveToServer();
+  renderVakanties();
+}
+
+function delVakTodo2(todoId) {
+  var vak = getVak();
+  vak.todos = (vak.todos || []).filter(function(t){ return t.id !== todoId; });
+  saveToServer();
+  renderVakanties();
+}
+
+function saveVakNotes2(val) {
+  var vak = getVak();
+  vak.notes = val;
+  saveToServer();
+}
+
+function resetVakantie() {
+  if (!confirm('Alle vinkjes wissen voor de volgende vakantie? De items blijven staan.')) return;
+  var vak = getVak();
+  VAK_PERSONS.forEach(function(p) {
+    (vak.paklijst[p] || []).forEach(function(i){ i.done = false; });
   });
+  (vak.todos || []).forEach(function(t){ t.done = false; });
   saveToServer();
-  document.getElementById('nieuweVakantieOverlay').classList.remove('open');
-  document.getElementById('vakantiesOverlay').classList.add('open');
   renderVakanties();
 }
 
-// Vakantie event wiring
-document.getElementById('openVakanties').addEventListener('click',function(){
+document.getElementById('openVakanties').addEventListener('click', function() {
   document.getElementById('vakantiesOverlay').classList.add('open');
   renderVakanties();
   renderMeerStats();
 });
-document.getElementById('closeVakantiesBtn').addEventListener('click',function(){
+document.getElementById('closeVakantiesBtn').addEventListener('click', function() {
   document.getElementById('vakantiesOverlay').classList.remove('open');
   renderMeerStats();
 });
-document.getElementById('openNieuweVakantieBtn').addEventListener('click',function(){
-  document.getElementById('nvNaam').value='';
-  document.getElementById('nvDest').value='';
-  document.getElementById('nvStart').value='';
-  document.getElementById('nvEnd').value='';
-  document.getElementById('vakantiesOverlay').classList.remove('open');
-  document.getElementById('nieuweVakantieOverlay').classList.add('open');
-});
-document.getElementById('closeNieuweVakantieBtn').addEventListener('click',function(){
-  document.getElementById('nieuweVakantieOverlay').classList.remove('open');
-  document.getElementById('vakantiesOverlay').classList.add('open');
-  renderVakanties();
-});
-document.getElementById('saveNieuweVakantieBtn').addEventListener('click', saveNieuweVakantie);
 
 </script>
 </body>
