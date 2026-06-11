@@ -429,7 +429,7 @@ body.shopping-mode .toast{bottom:20px;}
       <input type="text" id="boodschapInput" placeholder="Toevoegen aan lijst…" maxlength="200">
       <button id="boodschapAddBtn">+</button>
     </div>
-    <div class="boodschappen-cat-row" id="boodCatRow"></div>
+
     <div class="boodschappen-list" id="boodschappenList"></div>
     <div class="boodschappen-actions">
       <button class="winkelmodus-btn" id="winkelModusBtn">🛒 Winkelmodus</button>
@@ -870,7 +870,6 @@ function init(){
     setSync('','Wacht op installatie…');
   }
   updateAssigneeLabels();updateGreeting();
-  initBoodCatRow();
 }
 
 document.getElementById('setupSubmitBtn').addEventListener('click',function(){
@@ -1400,35 +1399,25 @@ function initBoodCatRow(){
 
 function renderBoodschappen(){
   var list=document.getElementById('boodschappenList');list.innerHTML='';
-  var items=(data.boodschappen||[]).filter(function(b){return !boodCatFilter||b.cat===boodCatFilter;});
-  if(!items.length){var e=document.createElement('div');e.className='empty-msg';e.textContent='De lijst is leeg.';list.appendChild(e);return;}
-  // Group by category
-  var groups={};
-  items.forEach(function(b){var c=b.cat||'Overig';if(!groups[c])groups[c]=[];groups[c].push(b);});
-  var catOrder=boodCatFilter?[boodCatFilter]:BOOD_CATS.filter(function(c){return groups[c];});
-  catOrder.forEach(function(catName){
-    if(!groups[catName])return;
-    if(!boodCatFilter&&Object.keys(groups).length>1){var lbl=document.createElement('div');lbl.className='bood-group-label';lbl.textContent=catName;list.appendChild(lbl);}
-    groups[catName].forEach(function(b){
-      var item=document.createElement('div');item.className='boodschap-item';
-      var sbg=document.createElement('div');sbg.className='boodschap-swipe-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
-      var check=document.createElement('div');check.className='boodschap-check'+(b.done?' checked':'');check.textContent=b.done?'✓':'';
-      check.addEventListener('click',function(){b.done=!b.done;saveToServer();renderBoodschappen();});
-      var body=document.createElement('div');body.style='flex:1;min-width:0;';
-      var txt=document.createElement('div');txt.className='boodschap-text'+(b.done?' done':'');txt.textContent=b.text;
-      body.appendChild(txt);
-      if(b.addedBy){var meta=document.createElement('div');meta.className='boodschap-meta';meta.textContent='door '+b.addedBy;body.appendChild(meta);}
-      var del=document.createElement('button');del.className='boodschap-del';del.textContent='✕';
-      del.addEventListener('click',function(){var idx=data.boodschappen.indexOf(b);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();});
-      item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
-      addSwipe(item,function(){var idx=data.boodschappen.indexOf(b);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();});
-    });
+  var items=data.boodschappen||[];
+  var undone=items.filter(function(b){return !b.done;});
+  var done=items.filter(function(b){return b.done;});
+  var sorted=undone.concat(done);
+  if(!sorted.length){var e=document.createElement('div');e.className='empty-msg';e.style='grid-column:1/-1';e.textContent='De lijst is leeg.';list.appendChild(e);return;}
+  sorted.forEach(function(b){
+    var item=document.createElement('div');item.className='boodschap-item';
+    var sbg=document.createElement('div');sbg.className='boodschap-swipe-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
+    var check=document.createElement('div');check.className='boodschap-check'+(b.done?' checked':'');check.textContent=b.done?'✓':'';
+    check.addEventListener('click',function(){b.done=!b.done;saveToServer();renderBoodschappen();});
+    var body=document.createElement('div');body.style='flex:1;min-width:0;';
+    var txt=document.createElement('div');txt.className='boodschap-text'+(b.done?' done':'');txt.textContent=b.text;
+    body.appendChild(txt);
+    if(b.addedBy){var meta=document.createElement('div');meta.className='boodschap-meta';meta.textContent='door '+b.addedBy;body.appendChild(meta);}
+    var del=document.createElement('button');del.className='boodschap-del';del.textContent='✕';
+    del.addEventListener('click',function(){var idx=data.boodschappen.indexOf(b);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();});
+    item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
+    addSwipe(item,function(){var idx=data.boodschappen.indexOf(b);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();});
   });
-  // Uncategorized
-  if(groups['Overig']&&!boodCatFilter&&catOrder.indexOf('Overig')===-1){
-    var lbl2=document.createElement('div');lbl2.className='bood-group-label';lbl2.textContent='Overig';list.appendChild(lbl2);
-    groups['Overig'].forEach(function(b){/* same render */});
-  }
 }
 
 function addBoodschap(){
