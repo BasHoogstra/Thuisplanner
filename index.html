@@ -1221,6 +1221,7 @@ function renderVandaag(){
       var idx=data.recurringDone[tk].indexOf(r.id);
       if(idx>-1)data.recurringDone[tk].splice(idx,1);else data.recurringDone[tk].push(r.id);
       saveToServer();renderVandaag();
+      var allT2=(data.tasks[tk]||[]);var rec2=(data.recurring||[]).filter(function(r2){return recAppliesToDate(r2,tk);});var rd2=(data.recurringDone&&data.recurringDone[tk])||[];var tot=allT2.length+rec2.length;var dn=allT2.filter(function(x){return x.done;}).length+rd2.length;if(tot>0&&dn===tot)launchConfetti();
     });
     var body=document.createElement('div');body.className='vandaag-task-body';
     var txt=document.createElement('div');txt.className='vandaag-task-text'+(isDone?' done':'');txt.textContent=cat.emoji+' ↻ '+r.text;
