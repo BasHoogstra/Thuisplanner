@@ -570,6 +570,7 @@ body.shopping-mode .toast{bottom:20px;}
         </select>
       </div>
       <input type="text" id="bestNewNote" placeholder="Notitie / bestelnummer (optioneel)" maxlength="200">
+      <input type="url" id="bestNewTracking" placeholder="Track & trace link (optioneel)" style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;background:var(--bg);color:var(--text);margin-bottom:8px;font-family:inherit;" autocapitalize="off" spellcheck="false">
       <div class="setup-error" id="bestError"></div>
       <button style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;" id="bestAddBtn">Toevoegen</button>
     </div>
@@ -1538,8 +1539,8 @@ document.getElementById('bestAddBtn').addEventListener('click',function(){
   var text=document.getElementById('bestNewText').value.trim();var err=document.getElementById('bestError');err.textContent='';
   if(!text){err.textContent='Vul een omschrijving in.';return;}
   if(!data.bestellingen)data.bestellingen=[];
-  data.bestellingen.push({id:uid(),text:text,status:'open',category:document.getElementById('bestNewCat').value,assignedTo:document.getElementById('bestNewWie').value||null,addedDate:todayKey(),expectedDate:document.getElementById('bestExpected').value||null,note:document.getElementById('bestNewNote').value.trim()||null});
-  document.getElementById('bestNewText').value='';document.getElementById('bestExpected').value='';document.getElementById('bestNewNote').value='';
+  data.bestellingen.push({id:uid(),text:text,status:'open',category:document.getElementById('bestNewCat').value,assignedTo:document.getElementById('bestNewWie').value||null,addedDate:todayKey(),expectedDate:document.getElementById('bestExpected').value||null,note:document.getElementById('bestNewNote').value.trim()||null,tracking:document.getElementById('bestNewTracking').value.trim()||null});
+  document.getElementById('bestNewText').value='';document.getElementById('bestExpected').value='';document.getElementById('bestNewNote').value='';document.getElementById('bestNewTracking').value='';
   saveToServer();renderBestellingen();
 });
 document.getElementById('bestNewText').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('bestAddBtn').click();});
@@ -1557,8 +1558,10 @@ function renderBestellingen(){
       var body=document.createElement('div');body.className='best-body';
       var name=document.createElement('div');name.className='best-name';name.textContent=cat.emoji+' '+b.text;
       var meta=document.createElement('div');meta.className='best-meta';
-      var parts=[];if(b.addedDate)parts.push('Toegevoegd: '+formatDateShort(b.addedDate));if(b.expectedDate)parts.push('Verwacht: '+formatDateShort(b.expectedDate));if(b.assignedTo){var al=assignLabel(b.assignedTo);if(al)parts.push('Voor: '+al);}if(b.note)parts.push('📝 '+b.note);
-      meta.textContent=parts.join(' · ');body.appendChild(name);if(parts.length)body.appendChild(meta);
+      var parts=[];if(b.addedDate)parts.push('Toegevoegd: '+formatDateShort(b.addedDate));
+      if(b.expectedDate){var dl=daysUntil(b.expectedDate);var dstr=dl<0?'Was verwacht: '+formatDateShort(b.expectedDate):dl===0?'Verwacht: vandaag!':dl===1?'Verwacht: morgen':'Verwacht: '+formatDateShort(b.expectedDate);parts.push(dstr);}if(b.assignedTo){var al=assignLabel(b.assignedTo);if(al)parts.push('Voor: '+al);}if(b.note)parts.push('📝 '+b.note);
+      meta.textContent=parts.join(' · ');
+      if(b.tracking){var tlink=document.createElement('a');tlink.href=b.tracking;tlink.target='_blank';tlink.textContent='📦 Track & trace';tlink.style.cssText='font-size:11px;color:var(--accent);font-weight:600;display:inline-block;margin-top:4px;text-decoration:none;';body.appendChild(tlink);}body.appendChild(name);if(parts.length)body.appendChild(meta);
       var del=document.createElement('button');del.className='best-del';del.textContent='✕';
       del.addEventListener('click',function(){var idx=data.bestellingen.indexOf(b);if(idx>-1)data.bestellingen.splice(idx,1);saveToServer();renderBestellingen();});
       item.appendChild(statusBtn);item.appendChild(body);item.appendChild(del);list.appendChild(item);
