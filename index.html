@@ -550,6 +550,7 @@ body.shopping-mode .toast{bottom:20px;}
       <button id="boodschapAddBtn">+</button>
     </div>
 
+    <div class="boodschappen-cat-row" id="boodCatRow"></div>
     <div class="boodschappen-list" id="boodschappenList"></div>
     <div class="boodschappen-actions">
       <button class="winkelmodus-btn" id="winkelModusBtn">🛒 Winkelmodus</button>
@@ -1751,7 +1752,7 @@ document.getElementById('sheetOverlay').addEventListener('click',function(e){if(
 
 // === BOODSCHAPPEN ===
 function initBoodCatRow(){
-  var row=document.getElementById('boodCatRow');row.innerHTML='';
+  var row=document.getElementById('boodCatRow');if(!row)return;row.innerHTML='';
   var all=document.createElement('button');all.className='bood-cat-btn active';all.textContent='Alles';
   all.addEventListener('click',function(){boodCatFilter='';document.querySelectorAll('.bood-cat-btn').forEach(function(b){b.classList.remove('active');});all.classList.add('active');renderBoodschappen();});
   row.appendChild(all);
