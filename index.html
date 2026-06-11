@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#7a6cf0">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Thuisplanner">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%237a6cf0'/><text y='.9em' font-size='75' x='12'>🏠</text></svg>">
 <title>Thuisplanner</title>
@@ -378,6 +378,14 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .fab{position:fixed;bottom:calc(80px + env(safe-area-inset-bottom) + 16px);right:20px;width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;border:none;font-size:28px;font-weight:300;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.22);display:none;align-items:center;justify-content:center;z-index:65;transition:transform .15s;}
 .fab:active{transform:scale(.92);}
 .full-overlay.open .fab{display:flex;}
+
+.ios-install-banner{display:none;position:fixed;bottom:calc(64px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:448px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px 14px;box-shadow:0 4px 20px rgba(0,0,0,.18);z-index:50;align-items:center;gap:10px;}
+.ios-install-banner.show{display:flex;}
+.ios-install-icon{font-size:28px;flex-shrink:0;}
+.ios-install-text{flex:1;font-size:12px;color:var(--text);line-height:1.4;}
+.ios-install-text strong{display:block;font-size:13px;margin-bottom:1px;}
+.ios-install-close{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px;flex-shrink:0;}
+
 .add-sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:66;display:none;opacity:0;transition:opacity .2s;}
 .add-sheet-backdrop.open{display:block;opacity:1;}
 .add-sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:480px;background:var(--card);border-radius:20px 20px 0 0;z-index:67;padding:0 0 calc(env(safe-area-inset-bottom) + 16px);max-height:90vh;overflow-y:auto;transition:transform .28s cubic-bezier(.32,1,.23,1);}
@@ -882,6 +890,14 @@ body.shopping-mode .toast{bottom:20px;}
   <div class="add-sheet-body" id="addSheetBody"></div>
 </div>
 
+<div class="ios-install-banner" id="iosInstallBanner">
+  <div class="ios-install-icon">🏠</div>
+  <div class="ios-install-text">
+    <strong>Installeer als app</strong>
+    Tik op <strong>&#x2BAD;</strong> en kies "Zet op beginscherm" voor de beste ervaring
+  </div>
+  <button class="ios-install-close" id="iosInstallClose">✕</button>
+</div>
 <div class="toast" id="toast"></div>
 <script>
 (function(){
@@ -2405,6 +2421,25 @@ function applyWeather(json){
   var windDir=cur.winddir16Point;
   if(wind>10){document.getElementById('weatherFeels').textContent='💨 '+wind+' km/h';}
 }
+
+
+// iOS install banner
+(function(){
+  var isIos=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  var isStandalone=window.navigator.standalone===true;
+  var dismissed=localStorage.getItem('iosBannerDismissed');
+  if(isIos&&!isStandalone&&!dismissed){
+    setTimeout(function(){document.getElementById('iosInstallBanner').classList.add('show');},1500);
+  }
+  document.getElementById('iosInstallClose').addEventListener('click',function(){
+    document.getElementById('iosInstallBanner').classList.remove('show');
+    localStorage.setItem('iosBannerDismissed','1');
+  });
+})();
+
+// Offline indicator
+window.addEventListener('online',function(){showToast('Verbinding hersteld ✓');});
+window.addEventListener('offline',function(){showToast('Je bent offline — wijzigingen worden niet opgeslagen');});
 
 })();
 </script>
