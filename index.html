@@ -11,7 +11,7 @@
 <title>Thuisplanner</title>
 <style>
 :root{
-  --bg:#f7f5f2;--card:#fff;--accent:#7a6cf0;--accent-light:#ece9fd;
+  --bg:#f7f5f2;--card:#fff;--accent:#7a6cf0;--accent-light:#ece9fd;--accent-rgb:122,108,240;
   --text:#2b2b33;--muted:#8a8a96;--border:#e6e3df;--done:#b9b6c9;
   --danger:#e0607a;--weekend:#f0eefc;--overdue:#fdecea;--green:#27ae60;
 }
@@ -37,6 +37,12 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 6px;cursor:pointer;border:none;background:none;color:var(--muted);font-size:10px;font-weight:600;gap:3px;}
 .nav-item .nav-icon{font-size:20px;line-height:1;}
 .nav-item.active{color:var(--accent);}
+.theme-swatches{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;}
+.theme-swatch{width:36px;height:36px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s;}
+.theme-swatch.active{border-color:#333;transform:scale(1.15);}
+.foto-thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-top:4px;}
+.foto-upload-btn{display:inline-block;padding:6px 12px;background:var(--accent-light);color:var(--accent);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1px dashed var(--accent);}
+.foto-preview{width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px;display:block;}
 .nav-badge{position:absolute;top:4px;right:calc(50% - 18px);background:var(--danger);color:#fff;border-radius:10px;font-size:9px;font-weight:700;padding:1px 5px;min-width:16px;text-align:center;pointer-events:none;}
 .nav-item{position:relative;}
 .view{display:none;flex:1;}
@@ -554,10 +560,17 @@ body.shopping-mode .toast{bottom:20px;}
 <!-- BESTELLINGEN -->
 <div class="full-overlay" id="bestellingenOverlay">
   <div class="full-header"><button class="icon-btn" id="closeBestellingenBtn">✕</button><h2>📦 Bestellingen</h2></div>
+  <div style="display:flex;gap:8px;padding:10px 16px 0;background:var(--card);border-bottom:1px solid var(--border);">
+    <button class="view-tab active" id="bestTabOpen" style="font-size:12px;padding:6px;">Open</button>
+    <button class="view-tab" id="bestTabArchief" style="font-size:12px;padding:6px;">Archief</button>
+  </div>
   <div class="full-body">
     <div class="best-add-card">
       <h3>Nieuwe bestelling</h3>
       <input type="text" id="bestNewText" placeholder="Wat heb je besteld?" maxlength="200">
+      <label class="field-label">Besteldatum</label>
+      <input type="date" id="bestOrderDate">
+      <label class="field-label">Verwachte leverdatum</label>
       <input type="date" id="bestExpected">
       <div class="meta-row" style="margin-bottom:8px;">
         <select class="meta-select" id="bestNewCat">
@@ -652,6 +665,9 @@ body.shopping-mode .toast{bottom:20px;}
         <option value="regelen">📋 Regelen</option><option value="financien">💰 Financiën</option>
       </select>
       <input type="text" id="ondNote" placeholder="Notitie (optioneel)" maxlength="200">
+      <label class="field-label">Foto (optioneel)</label>
+      <label class="foto-upload-btn">📷 Foto kiezen <input type="file" id="ondFotoInput" accept="image/*" style="display:none;"></label>
+      <img id="ondFotoPreview" class="foto-preview" style="display:none;" alt="">
       <div class="setup-error" id="ondError"></div>
       <button class="add-card-btn" id="ondAddBtn">Toevoegen</button>
     </div>
@@ -713,6 +729,9 @@ body.shopping-mode .toast{bottom:20px;}
       <input type="date" id="garVerloopt">
       <input type="text" id="garWinkel" placeholder="Winkel / leverancier (optioneel)" maxlength="100">
       <input type="text" id="garNote" placeholder="Serienummer / notitie (optioneel)" maxlength="200">
+      <label class="field-label">Foto / bonnetje (optioneel)</label>
+      <label class="foto-upload-btn">📷 Foto kiezen <input type="file" id="garFotoInput" accept="image/*" style="display:none;"></label>
+      <img id="garFotoPreview" class="foto-preview" style="display:none;" alt="">
       <div class="setup-error" id="garError"></div>
       <button class="add-card-btn" id="garAddBtn">Toevoegen</button>
     </div>
@@ -724,6 +743,16 @@ body.shopping-mode .toast{bottom:20px;}
 <div class="full-overlay" id="instellingenOverlay">
   <div class="full-header"><button class="icon-btn" id="closeInstellingenBtn">✕</button><h2>⚙️ Instellingen</h2></div>
   <div class="full-body">
+    <div class="add-card">
+      <h3>Themakleur</h3>
+      <div class="theme-swatches" id="themeSwatches">
+        <div class="theme-swatch" data-accent="#7a6cf0" data-light="#ece9fd" style="background:#7a6cf0;" title="Paars"></div>
+        <div class="theme-swatch" data-accent="#27ae60" data-light="#e0f5e9" style="background:#27ae60;" title="Groen"></div>
+        <div class="theme-swatch" data-accent="#e67e22" data-light="#fdebd0" style="background:#e67e22;" title="Oranje"></div>
+        <div class="theme-swatch" data-accent="#e84393" data-light="#fde8f3" style="background:#e84393;" title="Roze"></div>
+        <div class="theme-swatch" data-accent="#3498db" data-light="#d6eaf8" style="background:#3498db;" title="Blauw"></div>
+      </div>
+    </div>
     <div class="add-card">
       <h3>Namen</h3>
       <input type="text" id="settingsMyName" placeholder="Jouw naam" maxlength="20">
@@ -791,9 +820,32 @@ function showUndoToast(msg,undoFn){
   clearTimeout(showUndoToast._t);
   showUndoToast._t=setTimeout(function(){e.classList.remove('show');e.innerHTML='';},4000);
 }
+function haptic(){try{if(navigator.vibrate)navigator.vibrate(50);}catch(e){}}
+function resizeImageToBase64(file,maxPx,cb){
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var img=new Image();
+    img.onload=function(){
+      var w=img.width,h=img.height,scale=Math.min(1,maxPx/Math.max(w,h));
+      var canvas=document.createElement('canvas');canvas.width=Math.round(w*scale);canvas.height=Math.round(h*scale);
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      cb(canvas.toDataURL('image/jpeg',0.75));
+    };img.src=ev.target.result;
+  };reader.readAsDataURL(file);
+}
+var _garFotoB64=null,_ondFotoB64=null;
 function personColor(assignedTo){if(!assignedTo||assignedTo==='')return null;if(assignedTo==='me')return 'var(--accent)';if(assignedTo==='partner')return '#e67e22';return null;}
 function nowTime(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());}
 function showToast(m){var e=document.getElementById('toast');e.textContent=m;e.classList.add('show');clearTimeout(showToast._t);showToast._t=setTimeout(function(){e.classList.remove('show');},2400);}
+function applyTheme(accent,light){
+  document.documentElement.style.setProperty('--accent',accent);
+  document.documentElement.style.setProperty('--accent-light',light);
+  document.querySelector('meta[name="theme-color"]').content=accent;
+}
+(function(){
+  var sa=localStorage.getItem('plannerAccent'),sl=localStorage.getItem('plannerAccentLight');
+  if(sa&&sl)applyTheme(sa,sl);
+})();
 function setSync(s,t){var d=document.getElementById('syncDot'),e=document.getElementById('syncText');d.className='sync-dot'+(s==='busy'?' busy':s==='err'?' err':'');e.textContent=t;}
 function assignLabel(v){if(!v||v==='')return '';if(v==='me')return myName||'Ik';if(v==='partner')return partnerName||'Partner';return v;}
 function getCat(c){return CATS[c]||CATS.overig;}
@@ -989,7 +1041,28 @@ document.getElementById('settingsSaveBtn').addEventListener('click',function(){
   document.getElementById('instellingenOverlay').classList.remove('open');
   showToast('Instellingen opgeslagen!');
 });
+document.getElementById('themeSwatches').addEventListener('click',function(e){
+  var sw=e.target.closest('.theme-swatch');if(!sw)return;
+  var acc=sw.dataset.accent,lgt=sw.dataset.light;
+  applyTheme(acc,lgt);
+  localStorage.setItem('plannerAccent',acc);localStorage.setItem('plannerAccentLight',lgt);
+  document.querySelectorAll('.theme-swatch').forEach(function(s){s.classList.toggle('active',s===sw);});
+});
+// Mark active swatch on open
+document.getElementById('settingsBtn').addEventListener('click',function(){
+  var cur=localStorage.getItem('plannerAccent')||'#7a6cf0';
+  document.querySelectorAll('.theme-swatch').forEach(function(s){s.classList.toggle('active',s.dataset.accent===cur);});
+},true);
 
+// Foto previews
+document.getElementById('garFotoInput').addEventListener('change',function(){
+  var f=this.files[0];if(!f)return;
+  resizeImageToBase64(f,600,function(b64){_garFotoB64=b64;var p=document.getElementById('garFotoPreview');p.src=b64;p.style.display='block';});
+});
+document.getElementById('ondFotoInput').addEventListener('change',function(){
+  var f=this.files[0];if(!f)return;
+  resizeImageToBase64(f,600,function(b64){_ondFotoB64=b64;var p=document.getElementById('ondFotoPreview');p.src=b64;p.style.display='block';});
+});
 // PWA install
 window.addEventListener('beforeinstallprompt',function(e){
   e.preventDefault();pwaPrompt=e;
@@ -1074,7 +1147,7 @@ function renderVandaag(){
     var item=document.createElement('div');item.className='vandaag-task';
     var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Overslaan';item.appendChild(sbg);
     var check=document.createElement('div');check.className='vandaag-check'+(isDone?' checked':'');check.textContent=isDone?'✓':'';
-    check.addEventListener('click',function(){
+    check.addEventListener('click',function(){haptic();
       if(!data.recurringDone)data.recurringDone={};
       if(!data.recurringDone[tk])data.recurringDone[tk]=[];
       var idx=data.recurringDone[tk].indexOf(r.id);
@@ -1558,19 +1631,30 @@ function updateBestWieLabels(){document.getElementById('bestWieMe').textContent=
 var STATUS_NEXT={open:'besteld',besteld:'geleverd',geleverd:'open'};
 var STATUS_LABEL={open:'🕐 Open',besteld:'📦 Besteld',geleverd:'✅ Geleverd'};
 var STATUS_ORDER=['open','besteld','geleverd'];
+document.getElementById('bestTabOpen').addEventListener('click',function(){
+  document.getElementById('bestTabOpen').classList.add('active');
+  document.getElementById('bestTabArchief').classList.remove('active');
+  renderBestellingen();
+});
+document.getElementById('bestTabArchief').addEventListener('click',function(){
+  document.getElementById('bestTabArchief').classList.add('active');
+  document.getElementById('bestTabOpen').classList.remove('active');
+  renderBestellingen();
+});
 document.getElementById('bestAddBtn').addEventListener('click',function(){
   var text=document.getElementById('bestNewText').value.trim();var err=document.getElementById('bestError');err.textContent='';
   if(!text){err.textContent='Vul een omschrijving in.';return;}
   if(!data.bestellingen)data.bestellingen=[];
-  data.bestellingen.push({id:uid(),text:text,status:'open',category:document.getElementById('bestNewCat').value,assignedTo:document.getElementById('bestNewWie').value||null,addedDate:todayKey(),expectedDate:document.getElementById('bestExpected').value||null,note:document.getElementById('bestNewNote').value.trim()||null,tracking:document.getElementById('bestNewTracking').value.trim()||null});
-  document.getElementById('bestNewText').value='';document.getElementById('bestExpected').value='';document.getElementById('bestNewNote').value='';document.getElementById('bestNewTracking').value='';
+  data.bestellingen.push({id:uid(),text:text,status:'open',category:document.getElementById('bestNewCat').value,assignedTo:document.getElementById('bestNewWie').value||null,addedDate:document.getElementById('bestOrderDate').value||todayKey(),expectedDate:document.getElementById('bestExpected').value||null,note:document.getElementById('bestNewNote').value.trim()||null,tracking:document.getElementById('bestNewTracking').value.trim()||null});
+  document.getElementById('bestNewText').value='';document.getElementById('bestOrderDate').value='';document.getElementById('bestExpected').value='';document.getElementById('bestNewNote').value='';document.getElementById('bestNewTracking').value='';
   saveToServer();renderBestellingen();
 });
 document.getElementById('bestNewText').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('bestAddBtn').click();});
 function renderBestellingen(){
   var list=document.getElementById('bestList');list.innerHTML='';
-  var items=data.bestellingen||[];
-  if(!items.length){var e=document.createElement('div');e.className='empty-msg';e.textContent='Nog geen bestellingen.';list.appendChild(e);return;}
+  var bestTab=document.getElementById('bestTabOpen').classList.contains('active')?'open':'archief';
+  var items=(data.bestellingen||[]).filter(function(b){return bestTab==='open'?b.status!=='geleverd':b.status==='geleverd';});
+  if(!items.length){var e=document.createElement('div');e.className='empty-msg';e.innerHTML='<div style="font-size:28px;margin-bottom:6px">'+(bestTab==='open'?'📦':'✅')+'</div><div>'+(bestTab==='open'?'Geen open bestellingen':'Archief is leeg')+'</div>';list.appendChild(e);return;}
   STATUS_ORDER.forEach(function(status){
     var group=items.filter(function(b){return b.status===status;});if(!group.length)return;
     var label=document.createElement('div');label.className='best-group-label';label.textContent=STATUS_LABEL[status]+' ('+group.length+')';list.appendChild(label);
@@ -1643,7 +1727,7 @@ document.getElementById('ondAddBtn').addEventListener('click',function(){
   if(!text){err.textContent='Vul een omschrijving in.';return;}
   if(!data.onderhoud)data.onderhoud=[];
   var intervalDays=parseInt(document.getElementById('ondInterval').value,10);
-  data.onderhoud.push({id:uid(),text:text,lastDone:document.getElementById('ondLastDone').value||null,intervalDays:intervalDays,intervalLabel:OND_LABELS[intervalDays]||'Elk jaar',category:document.getElementById('ondCat').value,note:document.getElementById('ondNote').value.trim()||null,log:[]});
+  data.onderhoud.push({id:uid(),text:text,lastDone:document.getElementById('ondLastDone').value||null,intervalDays:intervalDays,intervalLabel:OND_LABELS[intervalDays]||'Elk jaar',category:document.getElementById('ondCat').value,note:document.getElementById('ondNote').value.trim()||null,foto:_ondFotoB64||null,log:[]});_ondFotoB64=null;document.getElementById('ondFotoPreview').style.display='none';document.getElementById('ondFotoInput').value='';
   document.getElementById('ondNewText').value='';document.getElementById('ondLastDone').value='';document.getElementById('ondNote').value='';
   saveToServer();renderOnderhoud();
 });
@@ -1678,6 +1762,7 @@ function renderOnderhoud(){
       saveToServer();renderOnderhoud();showToast('✓ Klaar! Volgende over '+o.intervalDays+' dagen.');
     });
     var delBtn=document.createElement('button');delBtn.className='ond-del-btn';delBtn.textContent='Verwijder';
+    if(o.foto){var oth=document.createElement('img');oth.className='foto-thumb';oth.src=o.foto;oth.addEventListener('click',function(){window.open(o.foto,'_blank');});item.appendChild(oth);}
     delBtn.addEventListener('click',function(){var idx=data.onderhoud.indexOf(o);if(idx>-1)data.onderhoud.splice(idx,1);saveToServer();renderOnderhoud();});
     actions.appendChild(doneBtn);actions.appendChild(delBtn);item.appendChild(actions);
     // Logboek
@@ -1746,7 +1831,7 @@ document.getElementById('garAddBtn').addEventListener('click',function(){
   var text=document.getElementById('garNewText').value.trim();var err=document.getElementById('garError');err.textContent='';
   if(!text){err.textContent='Vul een naam in.';return;}
   if(!data.garanties)data.garanties=[];
-  data.garanties.push({id:uid(),text:text,gekocht:document.getElementById('garGekocht').value||null,verloopt:document.getElementById('garVerloopt').value||null,winkel:document.getElementById('garWinkel').value.trim()||null,note:document.getElementById('garNote').value.trim()||null,foto:null});
+  data.garanties.push({id:uid(),text:text,gekocht:document.getElementById('garGekocht').value||null,verloopt:document.getElementById('garVerloopt').value||null,winkel:document.getElementById('garWinkel').value.trim()||null,note:document.getElementById('garNote').value.trim()||null,foto:_garFotoB64||null});_garFotoB64=null;document.getElementById('garFotoPreview').style.display='none';document.getElementById('garFotoInput').value='';
   document.getElementById('garNewText').value='';document.getElementById('garGekocht').value='';document.getElementById('garVerloopt').value='';document.getElementById('garWinkel').value='';document.getElementById('garNote').value='';
   saveToServer();renderGaranties();
 });
@@ -1764,6 +1849,7 @@ function renderGaranties(){
     var badge=document.createElement('div');badge.className='gar-exp-badge '+(status==='verlopen'?'verlopen':status==='soon'?'soon':'ok');
     if(days===null)badge.textContent='Geen datum';else if(days<0)badge.textContent='Verlopen';else if(days===0)badge.textContent='Vandaag!';else badge.textContent='Nog '+days+'d';
     var del=document.createElement('button');del.className='gar-del-btn';del.textContent='✕';
+    if(g.foto){var thumb=document.createElement('img');thumb.className='foto-thumb';thumb.src=g.foto;thumb.addEventListener('click',function(){window.open(g.foto,'_blank');});item.appendChild(thumb);}
     del.addEventListener('click',function(){var idx=data.garanties.indexOf(g);if(idx>-1)data.garanties.splice(idx,1);saveToServer();renderGaranties();});
     header.appendChild(name);header.appendChild(badge);header.appendChild(del);item.appendChild(header);
     var meta=document.createElement('div');meta.className='gar-meta';
