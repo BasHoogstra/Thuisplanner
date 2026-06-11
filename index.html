@@ -2,7 +2,8 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#7a6cf0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,6 +21,7 @@
     --bg:#18161f;--card:#232130;--accent:#9b8fff;--accent-light:#2d2a45;
     --text:#e8e4f4;--muted:#7a7690;--border:#3a3650;--done:#5a5670;
     --danger:#f07090;--weekend:#201e30;--overdue:#2a1825;--green:#4ecb7a;
+    color-scheme:dark;
   }
 }
 *{box-sizing:border-box;}
@@ -40,7 +42,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .nav-item.active{color:var(--accent);}
 .theme-swatches{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;}
 .theme-swatch{width:36px;height:36px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s;}
-.theme-swatch.active{border-color:#333;transform:scale(1.15);}
+.theme-swatch.active{border-color:var(--text);transform:scale(1.15);}
 .foto-thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-top:4px;}
 .foto-upload-btn{display:inline-block;padding:6px 12px;background:var(--accent-light);color:var(--accent);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1px dashed var(--accent);}
 .foto-preview{width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px;display:block;}
@@ -57,7 +59,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 /* VANDAAG */
 .vandaag-greeting{padding:0;}
 
-.weather-bar{display:flex;align-items:center;gap:10px;padding:6px 16px 12px;background:linear-gradient(135deg,var(--accent-light) 0%,var(--card) 100%);border-bottom:1px solid var(--border);}
+.weather-bar{display:flex;align-items:center;gap:10px;padding:6px 16px 12px;background:linear-gradient(135deg,var(--accent-light) 0%,var(--card) 60%);border-bottom:1px solid var(--border);}
 .weather-icon{font-size:36px;line-height:1;flex-shrink:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.12));}
 .weather-info{flex:1;min-width:0;}
 .weather-temp{font-size:24px;font-weight:800;color:var(--text);line-height:1;}
@@ -394,7 +396,7 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .add-sheet-body{padding:0 16px 8px;}
 .add-sheet-title{font-size:16px;font-weight:700;margin:0 0 14px;}
 
-.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2b2b33;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:200;max-width:90%;text-align:center;}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a24;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:200;max-width:90%;text-align:center;}
 .toast.show{opacity:1;}
 body.shopping-mode .toast{bottom:20px;}
 </style>
@@ -849,11 +851,11 @@ body.shopping-mode .toast{bottom:20px;}
     <div class="add-card">
       <h3>Themakleur</h3>
       <div class="theme-swatches" id="themeSwatches">
-        <div class="theme-swatch" data-accent="#7a6cf0" data-light="#ece9fd" style="background:#7a6cf0;" title="Paars"></div>
-        <div class="theme-swatch" data-accent="#27ae60" data-light="#e0f5e9" style="background:#27ae60;" title="Groen"></div>
-        <div class="theme-swatch" data-accent="#e67e22" data-light="#fdebd0" style="background:#e67e22;" title="Oranje"></div>
-        <div class="theme-swatch" data-accent="#e84393" data-light="#fde8f3" style="background:#e84393;" title="Roze"></div>
-        <div class="theme-swatch" data-accent="#3498db" data-light="#d6eaf8" style="background:#3498db;" title="Blauw"></div>
+        <div class="theme-swatch" data-accent="#7a6cf0" data-light="#ece9fd" data-accent-dark="#9b8fff" data-light-dark="#2d2a45" style="background:#7a6cf0;" title="Paars"></div>
+        <div class="theme-swatch" data-accent="#27ae60" data-light="#e0f5e9" data-accent-dark="#4ecb7a" data-light-dark="#1a3d2a" style="background:#27ae60;" title="Groen"></div>
+        <div class="theme-swatch" data-accent="#e67e22" data-light="#fdebd0" data-accent-dark="#f0984a" data-light-dark="#3d2b10" style="background:#e67e22;" title="Oranje"></div>
+        <div class="theme-swatch" data-accent="#e84393" data-light="#fde8f3" data-accent-dark="#f06ab0" data-light-dark="#3d1428" style="background:#e84393;" title="Roze"></div>
+        <div class="theme-swatch" data-accent="#3498db" data-light="#d6eaf8" data-accent-dark="#5ab4f0" data-light-dark="#0d2c42" style="background:#3498db;" title="Blauw"></div>
       </div>
     </div>
     <div class="add-card">
@@ -962,14 +964,25 @@ var _garFotoB64=null,_ondFotoB64=null;
 function personColor(assignedTo){if(!assignedTo||assignedTo==='')return null;if(assignedTo==='me')return 'var(--accent)';if(assignedTo==='partner')return '#e67e22';return null;}
 function nowTime(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());}
 function showToast(m){var e=document.getElementById('toast');e.textContent=m;e.classList.add('show');clearTimeout(showToast._t);showToast._t=setTimeout(function(){e.classList.remove('show');},2400);}
-function applyTheme(accent,light){
-  document.documentElement.style.setProperty('--accent',accent);
-  document.documentElement.style.setProperty('--accent-light',light);
-  document.querySelector('meta[name="theme-color"]').content=accent;
+function isDarkMode(){return window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches;}
+function applyTheme(accent,light,accentDark,lightDark){
+  var dark=isDarkMode();
+  var a=dark&&accentDark?accentDark:accent;
+  var l=dark&&lightDark?lightDark:light;
+  document.documentElement.style.setProperty('--accent',a);
+  document.documentElement.style.setProperty('--accent-light',l);
+  document.querySelector('meta[name="theme-color"]').content=a;
+}
+function reapplyTheme(){
+  var acc=localStorage.getItem('plannerAccent');
+  var lgt=localStorage.getItem('plannerAccentLight');
+  var acd=localStorage.getItem('plannerAccentDark');
+  var lgd=localStorage.getItem('plannerAccentLightDark');
+  if(acc&&lgt)applyTheme(acc,lgt,acd,lgd);
 }
 (function(){
-  var sa=localStorage.getItem('plannerAccent'),sl=localStorage.getItem('plannerAccentLight');
-  if(sa&&sl)applyTheme(sa,sl);
+  reapplyTheme();
+  window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',reapplyTheme);
 })();
 function setSync(s,t){var d=document.getElementById('syncDot'),e=document.getElementById('syncText');d.className='sync-dot'+(s==='busy'?' busy':s==='err'?' err':'');e.textContent=t;}
 function assignLabel(v){if(!v||v==='')return '';if(v==='me')return myName||'Ik';if(v==='partner')return partnerName||'Partner';return v;}
@@ -1171,9 +1184,10 @@ document.getElementById('settingsSaveBtn').addEventListener('click',function(){
 });
 document.getElementById('themeSwatches').addEventListener('click',function(e){
   var sw=e.target.closest('.theme-swatch');if(!sw)return;
-  var acc=sw.dataset.accent,lgt=sw.dataset.light;
-  applyTheme(acc,lgt);
+  var acc=sw.dataset.accent,lgt=sw.dataset.light,acd=sw.dataset.accentDark||'',lgd=sw.dataset.lightDark||'';
+  applyTheme(acc,lgt,acd,lgd);
   localStorage.setItem('plannerAccent',acc);localStorage.setItem('plannerAccentLight',lgt);
+  localStorage.setItem('plannerAccentDark',acd);localStorage.setItem('plannerAccentLightDark',lgd);
   document.querySelectorAll('.theme-swatch').forEach(function(s){s.classList.toggle('active',s===sw);});
 });
 // Mark active swatch on open
