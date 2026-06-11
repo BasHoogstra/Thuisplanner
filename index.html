@@ -69,6 +69,9 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .weather-bar.loading .weather-icon{font-size:24px;opacity:.5;}
 
 .progress-ring-wrap{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;}
+
+.progress-ring-wrap{transition:background .8s ease;}
+
 .greeting-text h2{margin:0 0 2px;font-size:20px;font-weight:700;}
 .greeting-text p{margin:0;font-size:13px;color:var(--muted);}
 .progress-ring-svg{flex-shrink:0;}
@@ -172,6 +175,16 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .vaste-bood-chip:active{opacity:.7;}
 .vaste-bood-del{background:none;border:none;color:var(--accent);font-size:14px;cursor:pointer;padding:0 0 0 2px;line-height:1;}
 .vaste-bood-add{display:flex;align-items:center;gap:5px;white-space:nowrap;background:var(--card);color:var(--muted);border:1px dashed var(--border);border-radius:20px;padding:6px 12px;font-size:13px;cursor:pointer;flex-shrink:0;}
+
+.heatmap-section{padding:16px;}
+.heatmap-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
+.heatmap-grid{display:flex;gap:3px;overflow-x:auto;padding-bottom:4px;}
+.heatmap-col{display:flex;flex-direction:column;gap:3px;}
+.heatmap-cell{width:12px;height:12px;border-radius:2px;flex-shrink:0;}
+.heatmap-month-labels{display:flex;gap:3px;margin-bottom:4px;overflow-x:auto;}
+.heatmap-month-label{font-size:9px;color:var(--muted);width:12px;text-align:center;}
+.heatmap-legend{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:10px;color:var(--muted);}
+.heatmap-legend-cells{display:flex;gap:3px;}
 .week-day-row{padding:12px 16px;border-bottom:1px solid var(--border);}
 .week-day-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .week-day-name{font-size:13px;font-weight:700;}
@@ -868,6 +881,14 @@ body.shopping-mode .toast{bottom:20px;}
       <input type="text" id="settingsCity" placeholder="Bijv. Utrecht of Amsterdam" maxlength="60" autocomplete="off">
       <button class="add-card-btn" id="settingsSaveBtn">Opslaan</button>
     </div>
+      <div class="add-card" id="qrCard" style="display:none;">
+      <h3>Deel met je partner</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Scan deze QR-code met de telefoon van je partner om dezelfde planner te openen.</p>
+      <div style="text-align:center;">
+        <img id="qrCodeImg" src="" alt="QR code" style="width:180px;height:180px;border-radius:12px;border:1px solid var(--border);">
+      </div>
+      <p style="font-size:11px;color:var(--muted);text-align:center;margin:8px 0 0;">Of kopieer de link via Vandaag → Kopieer link</p>
+    </div>
   </div>
 </div>
 
@@ -1169,6 +1190,7 @@ document.getElementById('settingsBtn').addEventListener('click',function(){
   document.getElementById('settingsPartnerName').value=partnerName;
   document.getElementById('settingsCity').value=localStorage.getItem('plannerCity')||'';
   document.getElementById('instellingenOverlay').classList.add('open');
+  showQrCode();
 });
 document.getElementById('closeInstellingenBtn').addEventListener('click',function(){document.getElementById('instellingenOverlay').classList.remove('open');});
 document.getElementById('settingsSaveBtn').addEventListener('click',function(){
@@ -1825,6 +1847,10 @@ function renderWeekOverzicht(){
   var wkStr=DAY_NAMES[0]+' '+days[0].date.getDate()+' – '+DAY_NAMES[6]+' '+days[6].date.getDate()+' '+MONTH_NAMES[days[6].date.getMonth()];
   sumEl.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:4px;">'+wkStr+'</div><div style="font-size:24px;font-weight:800;color:var(--accent);">'+totalDone+' taken</div><div style="font-size:13px;color:var(--muted);">afgerond deze week</div>';
   body.appendChild(sumEl);
+  // Heatmap
+  renderHeatmap(body);
+  // Divider
+  var div=document.createElement('div');div.style.cssText='padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--border);margin-top:8px;';div.textContent='Deze week';body.appendChild(div);
   days.forEach(function(day){
     var row=document.createElement('div');row.className='week-day-row'+(day.key===todayKey()?' today-row':'');
     var hdr=document.createElement('div');hdr.className='week-day-header';
@@ -2454,6 +2480,131 @@ function applyWeather(json){
 // Offline indicator
 window.addEventListener('online',function(){showToast('Verbinding hersteld ✓');});
 window.addEventListener('offline',function(){showToast('Je bent offline — wijzigingen worden niet opgeslagen');});
+
+
+// === DYNAMISCHE ACHTERGROND ===
+var TIME_THEMES=[
+  {from:5, to:8,  bg:'linear-gradient(135deg,#ffe8c8 0%,#ffd4a3 40%,#fffaf5 100%)',label:'🌅'},
+  {from:8, to:12, bg:'linear-gradient(135deg,#e8f4fd 0%,#d4edfc 40%,#f5faff 100%)',label:'☀️'},
+  {from:12,to:17, bg:'linear-gradient(135deg,#e8f4fd 0%,#cce8fb 30%,#f0f8ff 100%)',label:'🌤'},
+  {from:17,to:20, bg:'linear-gradient(135deg,#ffe0c8 0%,#ffc4a0 30%,#fff5f0 100%)',label:'🌇'},
+  {from:20,to:24, bg:'linear-gradient(135deg,#1e1b30 0%,#2d2a45 40%,#3a3660 100%)',label:'🌙'},
+  {from:0, to:5,  bg:'linear-gradient(135deg,#1a1830 0%,#232040 40%,#2e2b50 100%)',label:'🌙'},
+];
+function applyTimeBg(){
+  var h=new Date().getHours();
+  var theme=TIME_THEMES.find(function(t){return h>=t.from&&h<t.to;})||TIME_THEMES[0];
+  var el=document.querySelector('.progress-ring-wrap');
+  if(el)el.style.background=theme.bg;
+  // night mode: text wit maken
+  var wrap=document.querySelector('.progress-ring-wrap');
+  if(wrap){
+    var isNight=(h>=20||h<5);
+    wrap.style.color=isNight?'#e8e4f4':'';
+    var h2=wrap.querySelector('#greetingText'),p=wrap.querySelector('#greetingDate');
+    if(h2)h2.style.color=isNight?'#e8e4f4':'';
+    if(p)p.style.color=isNight?'rgba(232,228,244,.7)':'';
+  }
+}
+applyTimeBg();
+setInterval(applyTimeBg,60000);
+
+
+function renderHeatmap(container){
+  var section=document.createElement('div');section.className='heatmap-section';
+  var title=document.createElement('div');title.className='heatmap-title';title.textContent='Activiteit afgelopen 3 maanden';
+  section.appendChild(title);
+
+  // Build 91 days back
+  var days=[];
+  for(var i=90;i>=0;i--){
+    var d=new Date(today);d.setDate(today.getDate()-i);
+    var k=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+    var cnt=(data.tasks[k]||[]).filter(function(t){return t.done;}).length;
+    var rd=(data.recurringDone&&data.recurringDone[k])||[];
+    cnt+=rd.length;
+    days.push({key:k,date:d,cnt:cnt});
+  }
+
+  // Pad front to start on Monday
+  var firstDay=(days[0].date.getDay()+6)%7; // 0=Mon
+  var padded=[];
+  for(var p=0;p<firstDay;p++)padded.push(null);
+  padded=padded.concat(days);
+  // Pad end to complete week
+  while(padded.length%7!==0)padded.push(null);
+
+  var weeks=[];
+  for(var w=0;w<padded.length/7;w++)weeks.push(padded.slice(w*7,(w+1)*7));
+
+  var maxCnt=Math.max.apply(null,days.map(function(d){return d.cnt;}));
+
+  function cellColor(cnt){
+    if(cnt===0)return 'var(--border)';
+    var pct=Math.min(cnt/Math.max(maxCnt,4),1);
+    if(pct<.25)return 'rgba(var(--accent-rgb),.25)';
+    if(pct<.5) return 'rgba(var(--accent-rgb),.5)';
+    if(pct<.75)return 'rgba(var(--accent-rgb),.75)';
+    return 'var(--accent)';
+  }
+
+  // Month labels row
+  var monthRow=document.createElement('div');monthRow.className='heatmap-month-labels';
+  var lastMonth=-1;
+  weeks.forEach(function(week){
+    var lbl=document.createElement('div');lbl.className='heatmap-month-label';
+    var firstReal=week.find(function(d){return d;});
+    if(firstReal&&firstReal.date.getMonth()!==lastMonth){
+      lbl.textContent=MONTH_NAMES[firstReal.date.getMonth()].slice(0,3);
+      lastMonth=firstReal.date.getMonth();
+    }
+    monthRow.appendChild(lbl);
+  });
+  section.appendChild(monthRow);
+
+  var grid=document.createElement('div');grid.className='heatmap-grid';
+  weeks.forEach(function(week){
+    var col=document.createElement('div');col.className='heatmap-col';
+    week.forEach(function(day){
+      var cell=document.createElement('div');cell.className='heatmap-cell';
+      if(day){
+        cell.style.background=cellColor(day.cnt);
+        cell.title=day.key+(day.cnt>0?' — '+day.cnt+' gedaan':'');
+      } else {
+        cell.style.opacity='0';
+      }
+      col.appendChild(cell);
+    });
+    grid.appendChild(col);
+  });
+  section.appendChild(grid);
+
+  // Legend
+  var legend=document.createElement('div');legend.className='heatmap-legend';
+  legend.textContent='Minder ';
+  var lc=document.createElement('div');lc.className='heatmap-legend-cells';
+  [0,.25,.5,.75,1].forEach(function(p){
+    var lCell=document.createElement('div');lCell.className='heatmap-cell';
+    lCell.style.background=p===0?'var(--border)':'rgba(var(--accent-rgb),'+p+')';
+    lc.appendChild(lCell);
+  });
+  legend.appendChild(lc);
+  legend.appendChild(document.createTextNode(' Meer'));
+  section.appendChild(legend);
+  container.appendChild(section);
+}
+
+
+// QR-code genereren
+function showQrCode(){
+  var card=document.getElementById('qrCard');
+  var img=document.getElementById('qrCodeImg');
+  if(!dbUrl||!plannerKey){card.style.display='none';return;}
+  var link=buildShareLink();
+  img.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=000000&bgcolor=ffffff&data='+encodeURIComponent(link);
+  card.style.display='block';
+}
+
 
 })();
 </script>
