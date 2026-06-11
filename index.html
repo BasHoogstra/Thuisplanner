@@ -1177,7 +1177,7 @@ function doShare(){
   else prompt('Kopieer en stuur naar je vriendin:',link);
 }
 document.getElementById('shareBtn').addEventListener('click',doShare);
-document.getElementById('copyLinkBtn').addEventListener('click',doShare);
+var _clb=document.getElementById('copyLinkBtn');if(_clb)_clb.addEventListener('click',doShare);
 
 // Bottom nav
 document.querySelectorAll('.nav-item').forEach(function(btn){
