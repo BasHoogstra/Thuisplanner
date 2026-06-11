@@ -463,10 +463,7 @@ body.shopping-mode .toast{bottom:20px;}
     <input type="text" id="partnerBannerInput" placeholder="Partner" maxlength="20">
     <button id="nameBannerSave">OK</button>
   </div>
-  <div class="share-bar" id="shareBar" style="display:none;">
-    <span>Stuur deze link naar je vriendin.</span>
-    <button id="copyLinkBtn">Kopieer link</button>
-  </div>
+  <div class="share-bar" id="shareBar" style="display:none;"></div>
 
   <!-- VANDAAG -->
   <div class="view active" id="vandaagView">
@@ -1045,7 +1042,7 @@ function loadFromServer(isInitial){
     if(!inc.notitieboek)inc.notitieboek='';
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
-    if(s!==lastKnownJSON){detectChanges(data,inc);data=inc;lastKnownJSON=s;renderAll();scheduleReminders();}
+    if(s!==lastKnownJSON&&!_pendingSave){detectChanges(data,inc);data=inc;lastKnownJSON=s;renderAll();scheduleReminders();}
     setSync('','Bijgewerkt · '+nowTime());
     document.getElementById('shareBar').style.display='flex';
     document.getElementById('refreshBtn').style.display='';
@@ -1057,15 +1054,17 @@ function loadFromServer(isInitial){
   });
 }
 
+var _pendingSave=false;
 function saveToServer(){
   if(!dbUrl)return;
   clearTimeout(saveTimer);
+  _pendingSave=true;
   saveTimer=setTimeout(function(){
     setSync('busy','Opslaan…');
     var body=JSON.stringify(data);lastKnownJSON=body;
     fetch(dataUrl(),{method:'PUT',headers:{'Content-Type':'application/json'},body:body})
-      .then(function(r){if(!r.ok)throw new Error();setSync('','Opgeslagen · '+nowTime());})
-      .catch(function(){setSync('err','Opslaan mislukt.');});
+      .then(function(r){if(!r.ok)throw new Error();_pendingSave=false;setSync('','Opgeslagen · '+nowTime());})
+      .catch(function(){_pendingSave=false;setSync('err','Opslaan mislukt.');});
   },350);
 }
 
@@ -2228,7 +2227,7 @@ function renderVakanties(){
   addInput.style.cssText='flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;background:var(--card);color:var(--text);';
   var addBtn=document.createElement('button');addBtn.textContent='+';
   addBtn.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:20px;font-weight:600;cursor:pointer;';
-  addBtn.addEventListener('click',function(){var naam=addInput.value.trim();if(!naam)return;if(!data.vakanties)data.vakanties=[];var nv={id:uid(),naam:naam,paklijst:{Bas:[],Sanne:[],Lynn:[],Lois:[]},todos:[],notes:''};data.vakanties.push(nv);addInput.value='';activeVakId=nv.id;saveToServer();renderVakanties();renderMeerStats();});
+  addBtn.addEventListener('click',function(){var naam=addInput.value.trim();if(!naam)return;if(!data.vakanties)data.vakanties=[];var nv={id:uid(),naam:naam,startDatum:'',paklijst:{Bas:[],Sanne:[],Lynn:[],Lois:[]},todos:[],notes:''};data.vakanties.push(nv);addInput.value='';activeVakId=nv.id;saveToServer();renderVakanties();renderMeerStats();});
   addInput.addEventListener('keydown',function(e){if(e.key==='Enter')addBtn.click();});
   addBar.appendChild(addInput);addBar.appendChild(addBtn);content.appendChild(addBar);
   if(!vakanties.length){var empty=document.createElement('div');empty.style.cssText='text-align:center;color:var(--muted);padding:30px;font-size:14px;';empty.textContent='Nog geen vakanties. Voeg er een toe hierboven!';content.appendChild(empty);return;}
@@ -2252,6 +2251,25 @@ function renderVakanties(){
   var delVakBtn=document.createElement('button');delVakBtn.textContent='Verwijder';
   delVakBtn.style.cssText='background:none;border:1px solid var(--danger);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;color:var(--danger);';
   delVakBtn.addEventListener('click',function(){if(!confirm('Vakantie "'+activeVak.naam+'" verwijderen?'))return;var idx=data.vakanties.indexOf(activeVak);if(idx>-1)data.vakanties.splice(idx,1);activeVakId=data.vakanties.length?data.vakanties[0].id:null;saveToServer();renderVakanties();renderMeerStats();});
+  // Datum + countdown
+  var dateRow=document.createElement('div');dateRow.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:10px;';
+  var dateLabel=document.createElement('label');dateLabel.textContent='✈️ Vertrekdatum:';dateLabel.style.cssText='font-size:12px;color:var(--muted);white-space:nowrap;';
+  var dateInp=document.createElement('input');dateInp.type='date';dateInp.value=activeVak.startDatum||'';
+  dateInp.style.cssText='border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:14px;background:var(--card);color:var(--text);flex:1;';
+  (function(vak){dateInp.addEventListener('change',function(){vak.startDatum=dateInp.value;saveToServer();renderVakanties();});})(activeVak);
+  dateRow.appendChild(dateLabel);dateRow.appendChild(dateInp);
+  // Countdown badge
+  if(activeVak.startDatum){
+    var today=new Date();today.setHours(0,0,0,0);
+    var dep=new Date(activeVak.startDatum);dep.setHours(0,0,0,0);
+    var diff=Math.round((dep-today)/(1000*60*60*24));
+    var badge=document.createElement('div');
+    if(diff>0){badge.textContent='🗓 Nog '+diff+' dag'+(diff===1?'':'en');badge.style.cssText='background:var(--accent);color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:700;white-space:nowrap;';}
+    else if(diff===0){badge.textContent='✈️ Vandaag!';badge.style.cssText='background:#27ae60;color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:700;white-space:nowrap;';}
+    else{badge.textContent='🏖 Bezig!';badge.style.cssText='background:#e67e22;color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:700;white-space:nowrap;';}
+    dateRow.appendChild(badge);
+  }
+  content.appendChild(dateRow);
   delBar.appendChild(vakTitle);delBar.appendChild(resetBtn);delBar.appendChild(delVakBtn);content.appendChild(delBar);
   // Sub tabs
   if(!activeVak._tab)activeVak._tab='paklijst';
@@ -2265,16 +2283,23 @@ function renderVakanties(){
   });
   content.appendChild(subNav);
   if(activeVak._tab==='paklijst'){
+    var pakGrid=document.createElement('div');pakGrid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:12px;';
     ['Bas','Sanne','Lynn','Lois'].forEach(function(person){
       var displayName=person==='Lois'?'Loïs':person;
       var items=activeVak.paklijst[person]||(activeVak.paklijst[person]=[]);
-      var sec=document.createElement('div');sec.style.cssText='margin-bottom:20px;';
+      var sec=document.createElement('div');sec.style.cssText='min-width:0;';
       var hdr=document.createElement('div');hdr.style.cssText='font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;';hdr.textContent=displayName;sec.appendChild(hdr);
       var addRow=document.createElement('div');addRow.style.cssText='display:flex;gap:6px;margin-bottom:8px;';
       var inp=document.createElement('input');inp.type='text';inp.placeholder='Item toevoegen…';
-      inp.style.cssText='flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--bg);color:var(--text);';
+      inp.style.cssText='flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:16px;background:var(--bg);color:var(--text);';
       var aib=document.createElement('button');aib.textContent='+';aib.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 12px;font-size:18px;cursor:pointer;';
-      (function(p,list,input,btn){btn.addEventListener('click',function(){var t=input.value.trim();if(!t)return;list.push({id:uid(),text:t,done:false});input.value='';saveToServer();renderVakanties();});input.addEventListener('keydown',function(e){if(e.key==='Enter')btn.click();});})(person,items,inp,aib);
+      (function(p,list,input,btn){
+  var _busy=false;
+  function doAdd(){if(_busy)return;var t=input.value.trim();if(!t)return;_busy=true;list.push({id:uid(),text:t,done:false});input.value='';saveToServer();renderVakanties();_busy=false;}
+  btn.addEventListener('click',doAdd);
+  btn.addEventListener('touchend',function(e){e.preventDefault();doAdd();});
+  input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doAdd();}});
+})(person,items,inp,aib);
       addRow.appendChild(inp);addRow.appendChild(aib);sec.appendChild(addRow);
       var sortedItems=items.slice().sort(function(a,b){return (a.done?1:0)-(b.done?1:0);});
       sortedItems.forEach(function(item){
@@ -2287,14 +2312,21 @@ function renderVakanties(){
         row.appendChild(chk);row.appendChild(txt);row.appendChild(del);sec.appendChild(row);
       });
       if(!items.length){var em=document.createElement('div');em.style.cssText='font-size:12px;color:var(--muted);padding:4px 2px;';em.textContent='Geen items.';sec.appendChild(em);}
-      content.appendChild(sec);
+      pakGrid.appendChild(sec);
     });
+    content.appendChild(pakGrid);
   } else if(activeVak._tab==='todos'){
     var addRow=document.createElement('div');addRow.style.cssText='display:flex;gap:8px;margin-bottom:12px;';
     var inp=document.createElement('input');inp.type='text';inp.placeholder='To-do toevoegen…';
-    inp.style.cssText='flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;background:var(--card);color:var(--text);';
+    inp.style.cssText='flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:16px;background:var(--card);color:var(--text);';
     var aBtn=document.createElement('button');aBtn.textContent='+';aBtn.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:20px;cursor:pointer;';
-    (function(vak,input,btn){btn.addEventListener('click',function(){var t=input.value.trim();if(!t)return;if(!vak.todos)vak.todos=[];vak.todos.push({id:uid(),text:t,done:false});input.value='';saveToServer();renderVakanties();});input.addEventListener('keydown',function(e){if(e.key==='Enter')btn.click();});})(activeVak,inp,aBtn);
+    (function(vak,input,btn){
+  var _busy=false;
+  function doAdd(){if(_busy)return;var t=input.value.trim();if(!t)return;_busy=true;if(!vak.todos)vak.todos=[];vak.todos.push({id:uid(),text:t,done:false});input.value='';saveToServer();renderVakanties();_busy=false;}
+  btn.addEventListener('click',doAdd);
+  btn.addEventListener('touchend',function(e){e.preventDefault();doAdd();});
+  input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doAdd();}});
+})(activeVak,inp,aBtn);
     addRow.appendChild(inp);addRow.appendChild(aBtn);content.appendChild(addRow);
     if(!(activeVak.todos||[]).length){var em=document.createElement('div');em.style.cssText='text-align:center;color:var(--muted);padding:20px;font-size:13px;';em.textContent='Nog geen to-dos.';content.appendChild(em);}
     (activeVak.todos||[]).forEach(function(todo){
