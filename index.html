@@ -146,6 +146,10 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .boodschappen-actions button{flex:1;min-width:120px;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--card);font-size:13px;font-weight:600;cursor:pointer;color:var(--text);}
 .winkelmodus-btn{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;}
 
+/* Boodschappen 2-kolommen */
+.boodschappen-list{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px;}
+.bood-group-label{grid-column:1/-1;}
+.boodschap-item{padding:10px 12px;border-radius:12px;margin-bottom:0;}
 /* Shopping mode */
 body.shopping-mode .bottom-nav{display:none;}
 body.shopping-mode header{display:none;}
@@ -531,6 +535,11 @@ body.shopping-mode .toast{bottom:20px;}
           </select>
         </div>
         <label class="multiday-toggle"><input type="checkbox" id="multiDayToggle"> Taak over meerdere dagen</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:13px;color:var(--muted);">
+          <span>🔔</span>
+          <input type="time" id="newTaskReminder" style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;background:var(--bg);color:var(--text);" title="Herinneringstijd (optioneel)">
+          <span style="font-size:12px;">Herinnering (optioneel)</span>
+        </div>
         <div class="multiday-dates" id="multiDayDates" style="display:none;">
           <input type="date" id="mdStartDate"><input type="date" id="mdEndDate">
         </div>
@@ -765,6 +774,7 @@ function weekday(k){var p=k.split('-').map(Number);return(new Date(p[0],p[1]-1,p
 function keyToDate(k){var p=k.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);}
 function compareDates(a,b){return a<b?-1:a>b?1:0;}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function personColor(assignedTo){if(!assignedTo||assignedTo==='')return null;if(assignedTo==='me')return 'var(--accent)';if(assignedTo==='partner')return '#e67e22';return null;}
 function nowTime(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());}
 function showToast(m){var e=document.getElementById('toast');e.textContent=m;e.classList.add('show');clearTimeout(showToast._t);showToast._t=setTimeout(function(){e.classList.remove('show');},2400);}
 function setSync(s,t){var d=document.getElementById('syncDot'),e=document.getElementById('syncText');d.className='sync-dot'+(s==='busy'?' busy':s==='err'?' err':'');e.textContent=t;}
@@ -797,7 +807,7 @@ function loadFromServer(isInitial){
     if(!inc.notitieboek)inc.notitieboek='';
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
-    if(s!==lastKnownJSON){data=inc;lastKnownJSON=s;renderAll();}
+    if(s!==lastKnownJSON){data=inc;lastKnownJSON=s;renderAll();scheduleReminders();}
     setSync('','Gesynchroniseerd · '+nowTime());
     document.getElementById('shareBar').style.display='flex';
     document.getElementById('refreshBtn').style.display='';
@@ -1047,7 +1057,7 @@ function renderVandaag(){
 
   dayTasks.forEach(function(t){
     var cat=getCat(t.category);
-    var item=document.createElement('div');item.className='vandaag-task prio-'+(t.priority||'normaal');
+    var item=document.createElement('div');item.className='vandaag-task prio-'+(t.priority||'normaal');var vpc=personColor(t.assignedTo);if(vpc)item.style.borderLeftColor=vpc.replace('var(--accent)','#7a6cf0');
     var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
     var check=document.createElement('div');check.className='vandaag-check'+(t.done?' checked':'');check.textContent=t.done?'✓':'';
     check.addEventListener('click',function(){t.done=!t.done;saveToServer();renderVandaag();renderCalendar();});
@@ -1136,7 +1146,7 @@ function renderMonth(){
     if(recT.length)icons.textContent+='↻';
     top.appendChild(num);if(icons.textContent)top.appendChild(icons);cell.appendChild(top);
     var dots=document.createElement('div');dots.className='day-dots';
-    dayTasks.forEach(function(t){var dot=document.createElement('div');dot.className='cat-dot';dot.style.background=getCat(t.category).color;dots.appendChild(dot);});
+    dayTasks.forEach(function(t){var dot=document.createElement('div');dot.className='cat-dot';var pc=personColor(t.assignedTo);dot.style.background=pc||getCat(t.category).color;if(pc)dot.style.outline='1.5px solid #fff';dots.appendChild(dot);});
     recT.forEach(function(r){var dot=document.createElement('div');dot.className='cat-dot';dot.style.background=getCat(r.category).color;dots.appendChild(dot);});
     cell.appendChild(dots);
     if(dayTasks.length){var cnt=document.createElement('div');cnt.className='day-count';var done=dayTasks.filter(function(t){return t.done;}).length;cnt.textContent=done+'/'+dayTasks.length;cell.appendChild(cnt);}
@@ -1215,7 +1225,7 @@ function renderWeek(){
         var check=document.createElement('div');check.className='week-check'+(t.done?' checked':'');check.textContent=t.done?'✓':'';
         (function(task){check.addEventListener('click',function(){task.done=!task.done;saveToServer();renderWeek();});})(t);
         var txt=document.createElement('span');txt.className='week-task-text'+(t.done?' done':'');txt.textContent=cat.emoji+' '+t.text;
-        var dot=document.createElement('div');dot.className='week-cat-dot';dot.style.background=cat.color;
+        var dot=document.createElement('div');dot.className='week-cat-dot';var wpc=personColor(t.assignedTo);dot.style.background=wpc||cat.color;
         row.appendChild(check);row.appendChild(txt);row.appendChild(dot);body.appendChild(row);
       });
     }
@@ -1363,8 +1373,8 @@ function addTask(){
     saveToServer();renderMdTasks();renderCalendar();
   } else {
     if(!openDateKey)return;if(!data.tasks[openDateKey])data.tasks[openDateKey]=[];
-    data.tasks[openDateKey].push({id:uid(),text:text,done:false,category:cat,priority:prio,assignedTo:assignee||null,author:myName||null,orderStatus:null});
-    input.value='';saveToServer();renderSheetTasks();renderCalendar();renderVandaag();
+    var reminderTime=document.getElementById('newTaskReminder').value||null;data.tasks[openDateKey].push({id:uid(),text:text,done:false,category:cat,priority:prio,assignedTo:assignee||null,author:myName||null,orderStatus:null,reminder:reminderTime?{date:openDateKey,time:reminderTime}:null});
+    input.value='';document.getElementById('newTaskReminder').value='';saveToServer();renderSheetTasks();renderCalendar();renderVandaag();
   }
   input.focus();
 }
@@ -1722,6 +1732,35 @@ function renderGaranties(){
 init();
 renderVandaag();
 renderCalendar();
+
+// === HERINNERINGEN (NOTIFICATIES) ===
+function requestNotifPermission(){
+  if(!('Notification' in window))return;
+  if(Notification.permission==='default')Notification.requestPermission();
+}
+function scheduleReminders(){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  var now=new Date();
+  var todayKey2=dateKey(now.getFullYear(),now.getMonth(),now.getDate());
+  Object.keys(data.tasks||{}).forEach(function(dk){
+    if(dk<todayKey2)return; // skip past
+    (data.tasks[dk]||[]).forEach(function(t){
+      if(!t.reminder||t.done)return;
+      if(t.reminder.date!==dk)return;
+      var parts=t.reminder.time.split(':');
+      var remTime=new Date(dk.split('-')[0],dk.split('-')[1]-1,dk.split('-')[2],parts[0],parts[1]);
+      var msLeft=remTime-now;
+      if(msLeft>0&&msLeft<24*60*60*1000){
+        clearTimeout(t._reminderTimer);
+        t._reminderTimer=setTimeout(function(){
+          if(t.done)return;
+          new Notification('Thuisplanner herinnering',{body:t.text,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%237a6cf0"/><text y=".9em" font-size="75" x="12">🏠</text></svg>'});
+        },msLeft);
+      }
+    });
+  });
+}
+requestNotifPermission();
 
 // === VAKANTIES ===
 var activeVakId=null;
