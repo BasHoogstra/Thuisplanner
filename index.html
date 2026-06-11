@@ -36,10 +36,11 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:#9ad6a6;display:inline-block;flex-shrink:0;}
 .sync-dot.busy{background:#f0c36c;}.sync-dot.err{background:var(--danger);}
 .refresh-btn{background:none;border:none;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;padding:0;margin-left:auto;}
-.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--card);border-top:1px solid var(--border);display:flex;z-index:40;padding-bottom:env(safe-area-inset-bottom);}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px 8px;cursor:pointer;border:none;background:none;color:var(--muted);font-size:10px;font-weight:600;gap:3px;min-height:56px;}
-.nav-item .nav-icon{font-size:20px;line-height:1;}
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--card);border-top:1px solid var(--border);display:flex;z-index:40;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -2px 16px rgba(0,0,0,.06);}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px 8px;cursor:pointer;border:none;background:none;color:var(--muted);font-size:10px;font-weight:600;gap:3px;min-height:56px;transition:color .18s;}
+.nav-item .nav-icon{font-size:20px;line-height:1;transition:transform .18s;}.nav-item.active .nav-icon{transform:scale(1.12);}
 .nav-item.active{color:var(--accent);}
+.nav-item.active .nav-icon{background:var(--accent-light);border-radius:12px;padding:4px 10px;display:block;}
 .theme-swatches{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;}
 .theme-swatch{width:36px;height:36px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s;}
 .theme-swatch.active{border-color:var(--text);transform:scale(1.15);}
@@ -82,7 +83,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .vandaag-greeting h2{margin:0 0 2px;font-size:20px;font-weight:700;}
 .vandaag-greeting p{margin:0;font-size:13px;color:var(--muted);}
 .stat-chips{display:flex;gap:8px;padding:12px 16px;overflow-x:auto;}
-.stat-chip{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;align-items:center;min-width:72px;flex-shrink:0;}
+.stat-chip{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;align-items:center;min-width:72px;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,.05);}
 .stat-chip .chip-num{font-size:22px;font-weight:700;line-height:1;}
 .stat-chip .chip-label{font-size:10px;color:var(--muted);font-weight:600;margin-top:3px;text-align:center;}
 .stat-chip.highlight{background:var(--accent-light);border-color:var(--accent);}
@@ -96,7 +97,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .quick-add-row input{flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:16px;background:var(--card);color:var(--text);}
 .quick-add-row input:focus{outline:none;border-color:var(--accent);}
 .quick-add-row button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:20px;font-weight:600;cursor:pointer;}
-.vandaag-task{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px;border-left:3px solid var(--border);position:relative;overflow:hidden;transition:transform .15s,opacity .15s;}
+.vandaag-task{display:flex;align-items:center;gap:10px;padding:12px 12px;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:8px;border-left:3px solid var(--border);position:relative;overflow:hidden;transition:transform .15s,opacity .15s;box-shadow:0 1px 4px rgba(0,0,0,.06);}
 .vandaag-task.prio-hoog{border-left-color:var(--danger);}
 .vandaag-task.swiping{transition:none;}
 .swipe-del-bg{position:absolute;right:0;top:0;bottom:0;background:var(--danger);display:flex;align-items:center;justify-content:flex-end;padding:0 16px;color:#fff;font-size:13px;font-weight:700;opacity:0;transition:opacity .1s;pointer-events:none;border-radius:0 12px 12px 0;}
@@ -105,9 +106,9 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .vandaag-check.pop{animation:checkPop .25s cubic-bezier(.36,1.6,.3,1) both;}
 @keyframes checkPop{0%{transform:scale(1)}40%{transform:scale(1.45)}100%{transform:scale(1)}}
 .vandaag-task-body{flex:1;min-width:0;}
-.vandaag-task-text{font-size:14px;line-height:1.3;}
+.vandaag-task-text{font-size:15px;line-height:1.35;font-weight:500;}
 .vandaag-task-text.done{text-decoration:line-through;color:var(--done);}
-.vandaag-task-meta{font-size:11px;color:var(--muted);margin-top:2px;}
+.vandaag-task-meta{font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:.01em;}
 .vandaag-empty{font-size:13px;color:var(--muted);text-align:center;padding:14px;background:var(--card);border-radius:12px;border:1px dashed var(--border);}
 .upcoming-strip{display:flex;gap:8px;overflow-x:auto;padding:0 16px 16px;}
 .upcoming-day{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;min-width:90px;flex-shrink:0;cursor:pointer;}
@@ -231,12 +232,21 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .winkelmodus-exit button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;}
 
 /* MEER */
-.meer-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px;}
-.meer-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 14px;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:90px;}
-.meer-card:active{background:var(--accent-light);border-color:var(--accent);}
-.meer-card-icon{font-size:26px;line-height:1;}
-.meer-card-title{font-size:14px;font-weight:700;}
-.meer-card-sub{font-size:11px;color:var(--muted);line-height:1.3;}
+.meer-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 16px;}
+.meer-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px 14px;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:96px;box-shadow:0 2px 8px rgba(0,0,0,.07);transition:transform .14s,box-shadow .14s;position:relative;overflow:hidden;}
+.meer-card:active{transform:scale(.97);box-shadow:0 1px 3px rgba(0,0,0,.08);}
+.meer-card-icon{font-size:28px;line-height:1;}
+.meer-card-title{font-size:14px;font-weight:700;margin-top:2px;}
+.meer-card-sub{font-size:11px;color:var(--muted);line-height:1.3;margin-top:auto;padding-top:4px;}
+.meer-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:18px 18px 0 0;opacity:.8;}
+.meer-card-bestellen::before{background:linear-gradient(90deg,#3498db,#5ab4f0);}
+.meer-card-onderhoud::before{background:linear-gradient(90deg,#e67e22,#f0984a);}
+.meer-card-notitieboek::before{background:linear-gradient(90deg,#f5a623,#ffd166);}
+.meer-card-backlog::before{background:linear-gradient(90deg,#8e44ad,#b87cde);}
+.meer-card-vakanties::before{background:linear-gradient(90deg,#27ae60,#4ecb7a);}
+.meer-card-garanties::before{background:linear-gradient(90deg,#e84393,#f06ab0);}
+.meer-card-vastetaken::before{background:linear-gradient(90deg,#7a6cf0,#9b8fff);}
+.meer-card-weekoverzicht::before{background:linear-gradient(90deg,#16a085,#1abc9c);}
 
 /* OVERLAYS */
 .overlay{position:fixed;inset:0;background:rgba(20,18,30,.5);display:none;align-items:flex-end;justify-content:center;z-index:50;}
@@ -553,42 +563,42 @@ body.shopping-mode .toast{bottom:20px;}
   <!-- MEER -->
   <div class="view" id="meerView">
     <div class="meer-grid">
-      <div class="meer-card" id="openBestellingen">
+      <div class="meer-card meer-card-bestellen" id="openBestellingen">
         <div class="meer-card-icon">📦</div>
         <div class="meer-card-title">Bestellingen</div>
         <div class="meer-card-sub" id="bestellingenSub">Bijhouden wat je hebt besteld</div>
       </div>
-      <div class="meer-card" id="openOnderhoud">
+      <div class="meer-card meer-card-onderhoud" id="openOnderhoud">
         <div class="meer-card-icon">🔧</div>
         <div class="meer-card-title">Onderhoud</div>
         <div class="meer-card-sub" id="onderhoudSub">Huis- en onderhoudstaken</div>
       </div>
-      <div class="meer-card" id="openNotitieboek">
+      <div class="meer-card meer-card-notitieboek" id="openNotitieboek">
         <div class="meer-card-icon">📝</div>
         <div class="meer-card-title">Notitieboek</div>
         <div class="meer-card-sub">Gedeelde notities</div>
       </div>
-      <div class="meer-card" id="openBacklog">
+      <div class="meer-card meer-card-backlog" id="openBacklog">
         <div class="meer-card-icon">📋</div>
         <div class="meer-card-title">Backlog</div>
         <div class="meer-card-sub" id="backlogSub">Ideeën & ooit-lijst</div>
       </div>
-      <div class="meer-card" id="openVakanties">
+      <div class="meer-card meer-card-vakanties" id="openVakanties">
         <div class="meer-card-icon">&#x2708;&#xFE0F;</div>
         <div class="meer-card-title">Vakanties</div>
         <div class="meer-card-sub" id="vakantiesSub">Paklijst &amp; to-do</div>
       </div>
-      <div class="meer-card" id="openGaranties">
+      <div class="meer-card meer-card-garanties" id="openGaranties">
         <div class="meer-card-icon">📄</div>
         <div class="meer-card-title">Garanties</div>
         <div class="meer-card-sub" id="garantiesSub">Verloopdata bijhouden</div>
       </div>
-      <div class="meer-card" id="openVasteTaken">
+      <div class="meer-card meer-card-vastetaken" id="openVasteTaken">
         <div class="meer-card-icon">↻</div>
         <div class="meer-card-title">Vaste taken</div>
         <div class="meer-card-sub">Wekelijks & maandelijks</div>
       </div>
-      <div class="meer-card" id="openWeekOverzicht">
+      <div class="meer-card meer-card-weekoverzicht" id="openWeekOverzicht">
         <div class="meer-card-icon">📊</div>
         <div class="meer-card-title">Weekoverzicht</div>
         <div class="meer-card-sub" id="weekOverzichtSub">Wat heb je gedaan?</div>
