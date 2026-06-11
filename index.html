@@ -56,6 +56,16 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 /* VANDAAG */
 .vandaag-greeting{padding:0;}
+
+.weather-bar{display:flex;align-items:center;gap:10px;padding:6px 16px 12px;background:linear-gradient(135deg,var(--accent-light) 0%,var(--card) 100%);border-bottom:1px solid var(--border);}
+.weather-icon{font-size:36px;line-height:1;flex-shrink:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.12));}
+.weather-info{flex:1;min-width:0;}
+.weather-temp{font-size:24px;font-weight:800;color:var(--text);line-height:1;}
+.weather-desc{font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.weather-loc{font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:3px;}
+.weather-feels{font-size:12px;color:var(--muted);}
+.weather-bar.loading .weather-icon{font-size:24px;opacity:.5;}
+
 .progress-ring-wrap{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;}
 .greeting-text h2{margin:0 0 2px;font-size:20px;font-weight:700;}
 .greeting-text p{margin:0;font-size:13px;color:var(--muted);}
@@ -443,6 +453,15 @@ body.shopping-mode .toast{bottom:20px;}
           <text class="progress-ring-label" x="28" y="36" style="font-size:7px;" id="progressRingDen">/0</text>
         </svg>
       </div>
+    </div>
+    <div class="weather-bar loading" id="weatherBar">
+      <div class="weather-icon" id="weatherIcon">🌤</div>
+      <div class="weather-info">
+        <div class="weather-temp" id="weatherTemp">—°</div>
+        <div class="weather-desc" id="weatherDesc">Weer laden…</div>
+        <div class="weather-loc" id="weatherLoc">📍 <span id="weatherLocText">Locatie instellen in ⚙️</span></div>
+      </div>
+      <div class="weather-feels" id="weatherFeels"></div>
     </div>
     <div class="stat-chips" id="statChips"></div>
     <div class="vandaag-section">
@@ -833,6 +852,10 @@ body.shopping-mode .toast{bottom:20px;}
       <h3>Namen</h3>
       <input type="text" id="settingsMyName" placeholder="Jouw naam" maxlength="20">
       <input type="text" id="settingsPartnerName" placeholder="Naam partner" maxlength="20">
+    </div>
+    <div class="add-card">
+      <h3>Locatie voor weer</h3>
+      <input type="text" id="settingsCity" placeholder="Bijv. Utrecht of Amsterdam" maxlength="60" autocomplete="off">
       <button class="add-card-btn" id="settingsSaveBtn">Opslaan</button>
     </div>
   </div>
@@ -1115,14 +1138,17 @@ document.querySelectorAll('.nav-item').forEach(function(btn){
 document.getElementById('settingsBtn').addEventListener('click',function(){
   document.getElementById('settingsMyName').value=myName;
   document.getElementById('settingsPartnerName').value=partnerName;
+  document.getElementById('settingsCity').value=localStorage.getItem('plannerCity')||'';
   document.getElementById('instellingenOverlay').classList.add('open');
 });
 document.getElementById('closeInstellingenBtn').addEventListener('click',function(){document.getElementById('instellingenOverlay').classList.remove('open');});
 document.getElementById('settingsSaveBtn').addEventListener('click',function(){
   var mn=document.getElementById('settingsMyName').value.trim();
   var pn=document.getElementById('settingsPartnerName').value.trim();
+  var ct=document.getElementById('settingsCity').value.trim();
   if(mn){myName=mn;localStorage.setItem('plannerMyName',mn);}
   if(pn){partnerName=pn;localStorage.setItem('plannerPartnerName',pn);}
+  if(ct){localStorage.setItem('plannerCity',ct);_weatherCache=null;loadWeather();}
   updateAssigneeLabels();updateGreeting();
   document.getElementById('instellingenOverlay').classList.remove('open');
   showToast('Instellingen opgeslagen!');
@@ -1228,7 +1254,7 @@ function launchConfetti(){
 }
 
 function renderVandaag(){
-  updateGreeting();
+  updateGreeting();loadWeather();
   var tk=todayKey();
   var dayTasksRaw=data.tasks[tk]||[];var prioOrder={hoog:0,normaal:1,laag:2};var dayTasks=dayTasksRaw.slice().sort(function(a,b){return (prioOrder[a.priority||'normaal']||1)-(prioOrder[b.priority||'normaal']||1);});
   var recToday=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,tk);});
@@ -2320,6 +2346,65 @@ autoFocusOverlay('onderhoudOverlay','ondNewText');
 autoFocusOverlay('garantiesOverlay','garNewText');
 autoFocusOverlay('backlogOverlay','backlogNewText');
 autoFocusOverlay('recurringOverlay','recNewText');
+
+
+// === WEERSWIDGET ===
+var WEATHER_CODES={
+  113:'☀️',116:'⛅',119:'☁️',122:'☁️',143:'🌫️',176:'🌦️',179:'🌨️',182:'🌧️',185:'🌧️',
+  200:'⛈️',227:'❄️',230:'❄️',248:'🌫️',260:'🌫️',263:'🌦️',266:'🌦️',281:'🌧️',284:'🌧️',
+  293:'🌦️',296:'🌦️',299:'🌧️',302:'🌧️',305:'🌧️',308:'🌧️',311:'🌧️',314:'🌧️',
+  317:'🌨️',320:'🌨️',323:'🌨️',326:'🌨️',329:'❄️',332:'❄️',335:'❄️',338:'❄️',
+  350:'🌧️',353:'🌦️',356:'🌧️',359:'🌧️',362:'🌨️',365:'🌨️',368:'🌨️',371:'❄️',374:'🌨️',377:'🌧️',
+  386:'⛈️',389:'⛈️',392:'⛈️',395:'⛈️'
+};
+var WEATHER_DESC={
+  113:'Zonnig',116:'Half bewolkt',119:'Bewolkt',122:'Zwaar bewolkt',143:'Nevelig',
+  176:'Lokale regen',179:'Lokale sneeuw',182:'IJzel',185:'IJzel',200:'Onweer',
+  227:'Lichte sneeuw',230:'Sneeuw',248:'Mist',260:'Mist',263:'Motregen',266:'Motregen',
+  281:'IJzel',284:'IJzel',293:'Lichte regen',296:'Lichte regen',299:'Regen',302:'Regen',
+  305:'Zware regen',308:'Zware regen',311:'IJzige regen',314:'IJzige regen',
+  317:'Lichte sneeuwregen',320:'Sneeuwregen',323:'Lichte sneeuwval',326:'Sneeuwval',
+  329:'Matige sneeuw',332:'Zware sneeuw',335:'Matige sneeuw',338:'Zware sneeuw',
+  350:'IJshagel',353:'Lichte bui',356:'Regenbui',359:'Zware bui',362:'Sneeuwbui',
+  365:'Sneeuwbui',368:'Lichte sneeuwbui',371:'Zware sneeuwbui',374:'IJshagelbui',377:'IJshagelbui',
+  386:'Onweersbui',389:'Zware onweersbui',392:'Onweersbui met sneeuw',395:'Zware sneeuwonweer'
+};
+var _weatherCache=null,_weatherCacheTime=0,_weatherCity='';
+function loadWeather(){
+  var city=localStorage.getItem('plannerCity')||'';
+  if(!city){document.getElementById('weatherBar').classList.add('loading');return;}
+  document.getElementById('weatherLocText').textContent=city;
+  var now=Date.now();
+  if(_weatherCache&&_weatherCity===city&&now-_weatherCacheTime<1800000){applyWeather(_weatherCache);return;}
+  fetch('https://wttr.in/'+encodeURIComponent(city)+'?format=j1')
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(json){
+      _weatherCache=json;_weatherCacheTime=Date.now();_weatherCity=city;
+      applyWeather(json);
+    })
+    .catch(function(){
+      document.getElementById('weatherDesc').textContent='Weer niet beschikbaar';
+      document.getElementById('weatherBar').classList.remove('loading');
+    });
+}
+function applyWeather(json){
+  var cur=json.current_condition[0];
+  var code=parseInt(cur.weatherCode);
+  var temp=cur.temp_C+'°';
+  var feels=cur.FeelsLikeC+'°';
+  var icon=WEATHER_CODES[code]||'🌡️';
+  var desc=WEATHER_DESC[code]||cur.weatherDesc[0].value;
+  var city=json.nearest_area[0].areaName[0].value;
+  document.getElementById('weatherIcon').textContent=icon;
+  document.getElementById('weatherTemp').textContent=temp;
+  document.getElementById('weatherDesc').textContent=desc+' · voelt als '+feels;
+  document.getElementById('weatherLocText').textContent=city;
+  document.getElementById('weatherBar').classList.remove('loading');
+  // Wind info
+  var wind=parseInt(cur.windspeedKmph);
+  var windDir=cur.winddir16Point;
+  if(wind>10){document.getElementById('weatherFeels').textContent='💨 '+wind+' km/h';}
+}
 
 })();
 </script>
