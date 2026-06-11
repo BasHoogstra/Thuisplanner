@@ -86,6 +86,8 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .swipe-del-bg{position:absolute;right:0;top:0;bottom:0;background:var(--danger);display:flex;align-items:center;justify-content:flex-end;padding:0 16px;color:#fff;font-size:13px;font-weight:700;opacity:0;transition:opacity .1s;pointer-events:none;border-radius:0 12px 12px 0;}
 .vandaag-check{width:22px;height:22px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:10px;color:#fff;}
 .vandaag-check.checked{background:var(--accent);}
+.vandaag-check.pop{animation:checkPop .25s cubic-bezier(.36,1.6,.3,1) both;}
+@keyframes checkPop{0%{transform:scale(1)}40%{transform:scale(1.45)}100%{transform:scale(1)}}
 .vandaag-task-body{flex:1;min-width:0;}
 .vandaag-task-text{font-size:14px;line-height:1.3;}
 .vandaag-task-text.done{text-decoration:line-through;color:var(--done);}
@@ -851,7 +853,10 @@ function showUndoToast(msg,undoFn){
   clearTimeout(showUndoToast._t);
   showUndoToast._t=setTimeout(function(){e.classList.remove('show');e.innerHTML='';},4000);
 }
-function haptic(){try{if(navigator.vibrate)navigator.vibrate(50);}catch(e){}}
+function haptic(el){
+  try{if(navigator.vibrate)navigator.vibrate(50);}catch(e){}
+  if(el){el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');el.addEventListener('animationend',function(){el.classList.remove('pop');},{once:true});}
+}
 function resizeImageToBase64(file,maxPx,cb){
   var reader=new FileReader();
   reader.onload=function(ev){
@@ -1215,7 +1220,7 @@ function renderVandaag(){
     var item=document.createElement('div');item.className='vandaag-task';
     var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Overslaan';item.appendChild(sbg);
     var check=document.createElement('div');check.className='vandaag-check'+(isDone?' checked':'');check.textContent=isDone?'✓':'';
-    check.addEventListener('click',function(){haptic();
+    check.addEventListener('click',function(){haptic(check);
       if(!data.recurringDone)data.recurringDone={};
       if(!data.recurringDone[tk])data.recurringDone[tk]=[];
       var idx=data.recurringDone[tk].indexOf(r.id);
@@ -1251,7 +1256,7 @@ function renderVandaag(){
     var item=document.createElement('div');item.className='vandaag-task prio-'+(t.priority||'normaal');var vpc=personColor(t.assignedTo);if(vpc)item.style.borderLeftColor=vpc.replace('var(--accent)','#7a6cf0');
     var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
     var check=document.createElement('div');check.className='vandaag-check'+(t.done?' checked':'');check.textContent=t.done?'✓':'';
-    check.addEventListener('click',function(){haptic();t.done=!t.done;saveToServer();renderVandaag();renderCalendar();
+    check.addEventListener('click',function(){haptic(check);t.done=!t.done;saveToServer();renderVandaag();renderCalendar();
     if(t.done){var tk2=todayKey();var allT=(data.tasks[tk2]||[]);var rec2=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,tk2);});var rd2=(data.recurringDone&&data.recurringDone[tk2])||[];var tot=allT.length+rec2.length;var dn=allT.filter(function(x){return x.done;}).length+rd2.length;if(tot>0&&dn===tot)launchConfetti();}
     });
     var body=document.createElement('div');body.className='vandaag-task-body';
