@@ -807,8 +807,8 @@ function loadFromServer(isInitial){
     if(!inc.notitieboek)inc.notitieboek='';
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
-    if(s!==lastKnownJSON){data=inc;lastKnownJSON=s;renderAll();scheduleReminders();}
-    setSync('','Gesynchroniseerd · '+nowTime());
+    if(s!==lastKnownJSON){detectChanges(data,inc);data=inc;lastKnownJSON=s;renderAll();scheduleReminders();}
+    setSync('','Bijgewerkt · '+nowTime());
     document.getElementById('shareBar').style.display='flex';
     document.getElementById('refreshBtn').style.display='';
   }).catch(function(err){
@@ -832,6 +832,39 @@ function saveToServer(){
 }
 
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&dbUrl)loadFromServer(false);});
+
+function detectChanges(oldData,newData){
+  if(!oldData||!lastKnownJSON||lastKnownJSON==='{}')return;
+  var msgs=[];
+  // New tasks
+  var taskCount=0,taskAuthor=null;
+  Object.keys(newData.tasks||{}).forEach(function(dk){
+    var oldIds=((oldData.tasks||{})[dk]||[]).map(function(t){return t.id;});
+    ((newData.tasks||{})[dk]||[]).forEach(function(t){
+      if(oldIds.indexOf(t.id)===-1){taskCount++;if(t.author&&t.author!==myName)taskAuthor=t.author;}
+    });
+  });
+  if(taskCount>0&&taskAuthor)msgs.push(taskAuthor+' voegde '+taskCount+' taak'+(taskCount===1?'':'en')+' toe');
+  // New boodschappen
+  var oldBoodIds=(oldData.boodschappen||[]).map(function(b){return b.id;});
+  var newBood=(newData.boodschappen||[]).filter(function(b){return oldBoodIds.indexOf(b.id)===-1;});
+  var boodBy={};
+  newBood.forEach(function(b){if(b.addedBy&&b.addedBy!==myName){boodBy[b.addedBy]=(boodBy[b.addedBy]||0)+1;}});
+  Object.keys(boodBy).forEach(function(n){msgs.push(n+' voegde '+boodBy[n]+' boodschap'+(boodBy[n]===1?'':'pen')+' toe');});
+  // New bestellingen
+  var oldBestIds=(oldData.bestellingen||[]).map(function(b){return b.id;});
+  var newBest=(newData.bestellingen||[]).filter(function(b){return oldBestIds.indexOf(b.id)===-1;});
+  if(newBest.length>0){var ba=newBest.find(function(b){return b.addedBy&&b.addedBy!==myName;});if(ba)msgs.push(ba.addedBy+' voegde een bestelling toe');}
+  if(msgs.length>0)showToast(msgs.join(' · '));
+}
+
+var autoSyncTimer=null;
+function startAutoSync(){
+  clearInterval(autoSyncTimer);
+  autoSyncTimer=setInterval(function(){
+    if(dbUrl&&document.visibilityState==='visible')loadFromServer(false);
+  },15000);
+}
 document.getElementById('refreshBtn').addEventListener('click',function(){if(dbUrl)loadFromServer(false);});
 
 function getParam(n){return new URL(window.location.href).searchParams.get(n);}
@@ -864,7 +897,7 @@ function init(){
     window.history.replaceState({},'',u.toString());
     document.getElementById('setupOverlay').style.display='none';
     if(!myName)document.getElementById('nameBanner').style.display='flex';
-    loadFromServer(true);
+    loadFromServer(true);startAutoSync();
   } else {
     document.getElementById('setupOverlay').style.display='flex';
     setSync('','Wacht op installatie…');
@@ -989,7 +1022,7 @@ function addSwipe(el,onDelete){
 function renderVandaag(){
   updateGreeting();
   var tk=todayKey();
-  var dayTasks=data.tasks[tk]||[];
+  var dayTasksRaw=data.tasks[tk]||[];var prioOrder={hoog:0,normaal:1,laag:2};var dayTasks=dayTasksRaw.slice().sort(function(a,b){return (prioOrder[a.priority||'normaal']||1)-(prioOrder[b.priority||'normaal']||1);});
   var recToday=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,tk);});
   var recDone=(data.recurringDone&&data.recurringDone[tk])||[];
   var mdToday=(data.multiDayTasks||[]).filter(function(md){return md.startDate<=tk&&md.endDate>=tk;});
@@ -1070,7 +1103,22 @@ function renderVandaag(){
     var vReactions=t.reactions||{};
     var vKeys=Object.keys(vReactions).filter(function(e){return vReactions[e].length>0;});
     if(vKeys.length>0){var vRow=document.createElement('div');vRow.className='task-reactions';vKeys.forEach(function(emoji){var rb=document.createElement('button');var isMine=vReactions[emoji].indexOf(myName||'ik')>-1;rb.className='reaction-btn'+(isMine?' mine':'');rb.textContent=emoji+' ';var cnt=document.createElement('span');cnt.className='reaction-count';cnt.textContent=vReactions[emoji].length;rb.appendChild(cnt);(function(em,task){rb.addEventListener('click',function(){if(!task.reactions)task.reactions={};if(!task.reactions[em])task.reactions[em]=[];var idx=task.reactions[em].indexOf(myName||'ik');if(idx>-1)task.reactions[em].splice(idx,1);else task.reactions[em].push(myName||'ik');if(task.reactions[em].length===0)delete task.reactions[em];saveToServer();renderVandaag();});})(emoji,t);vRow.appendChild(rb);});body.appendChild(vRow);}
-    item.appendChild(check);item.appendChild(body);container.appendChild(item);
+    var editBtn=document.createElement('button');editBtn.textContent='✎';editBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 5px;flex-shrink:0;';
+    (function(task,taskKey){editBtn.addEventListener('click',function(){
+      var newText=prompt('Taak bewerken:',task.text);
+      if(newText&&newText.trim()&&newText.trim()!==task.text){task.text=newText.trim();saveToServer();renderVandaag();}
+    });})(t,tk);
+    item.appendChild(check);item.appendChild(body);item.appendChild(editBtn);container.appendChild(item);
+    var snoozeBtn=document.createElement('button');snoozeBtn.textContent='💤';snoozeBtn.title='Snooze';snoozeBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 5px;flex-shrink:0;';
+    (function(task,fromKey){snoozeBtn.addEventListener('click',function(){
+      var choice=prompt('Snooze naar: 1=Morgen, 2=Overmorgen, 3=Volgende week');
+      var days=[1,2,7][parseInt(choice)-1];if(!days)return;
+      var nd=addDays(keyToDate(fromKey),days);var toKey=dateKey(nd.getFullYear(),nd.getMonth(),nd.getDate());
+      if(!data.tasks[fromKey])return;var idx=data.tasks[fromKey].indexOf(task);if(idx===-1)return;
+      data.tasks[fromKey].splice(idx,1);if(!data.tasks[toKey])data.tasks[toKey]=[];data.tasks[toKey].push(task);
+      saveToServer();renderVandaag();renderCalendar();showToast('Versnoozed naar '+formatDateShort(toKey));
+    });})(t,tk);
+    item.insertBefore(snoozeBtn,item.lastChild);
     addSwipe(item,function(){
       var arr=data.tasks[tk];var idx=arr.indexOf(t);if(idx>-1)arr.splice(idx,1);
       saveToServer();renderVandaag();renderCalendar();
