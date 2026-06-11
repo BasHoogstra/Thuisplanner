@@ -153,6 +153,22 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .boodschappen-cat-row{display:flex;gap:6px;padding:0 16px 10px;overflow-x:auto;}
 .bood-cat-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--card);font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);flex-shrink:0;}
 .bood-cat-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.vaste-bood-row{display:flex;gap:8px;overflow-x:auto;padding:10px 16px 2px;scrollbar-width:none;-ms-overflow-style:none;flex-shrink:0;}
+.vaste-bood-row::-webkit-scrollbar{display:none;}
+.vaste-bood-chip{display:flex;align-items:center;gap:5px;white-space:nowrap;background:var(--accent-light);color:var(--accent);border:1px solid var(--accent);border-radius:20px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;}
+.vaste-bood-chip:active{opacity:.7;}
+.vaste-bood-del{background:none;border:none;color:var(--accent);font-size:14px;cursor:pointer;padding:0 0 0 2px;line-height:1;}
+.vaste-bood-add{display:flex;align-items:center;gap:5px;white-space:nowrap;background:var(--card);color:var(--muted);border:1px dashed var(--border);border-radius:20px;padding:6px 12px;font-size:13px;cursor:pointer;flex-shrink:0;}
+.week-day-row{padding:12px 16px;border-bottom:1px solid var(--border);}
+.week-day-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.week-day-name{font-size:13px;font-weight:700;}
+.week-day-count{font-size:11px;color:var(--muted);background:var(--bg);border-radius:10px;padding:2px 8px;}
+.week-task-item{font-size:13px;color:var(--text);padding:3px 0;display:flex;align-items:center;gap:6px;}
+.week-task-item::before{content:'✓';color:var(--accent);font-weight:700;font-size:11px;}
+.week-day-row.today-row .week-day-name{color:var(--accent);}
+.week-bar{height:4px;background:var(--accent-light);border-radius:4px;margin-bottom:6px;}
+.week-bar-fill{height:4px;background:var(--accent);border-radius:4px;transition:width .4s ease;}
+.week-empty{font-size:12px;color:var(--muted);font-style:italic;}
 .boodschappen-list{padding:0 16px;}
 .bood-group-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;}
 .boodschap-item{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:7px;position:relative;overflow:hidden;transition:transform .15s;}
@@ -462,6 +478,7 @@ body.shopping-mode .toast{bottom:20px;}
 
   <!-- BOODSCHAPPEN -->
   <div class="view" id="boodschappenView">
+    <div class="vaste-bood-row" id="vasteBoodRow"></div>
     <div class="winkelmodus-exit">
       <span>🛒 Winkelmodus</span>
       <button id="exitWinkelBtn">✕ Afsluiten</button>
@@ -515,6 +532,11 @@ body.shopping-mode .toast{bottom:20px;}
         <div class="meer-card-icon">↻</div>
         <div class="meer-card-title">Vaste taken</div>
         <div class="meer-card-sub">Wekelijks & maandelijks</div>
+      </div>
+      <div class="meer-card" id="openWeekOverzicht">
+        <div class="meer-card-icon">📊</div>
+        <div class="meer-card-title">Weekoverzicht</div>
+        <div class="meer-card-sub" id="weekOverzichtSub">Wat heb je gedaan?</div>
       </div>
     </div>
     <div style="padding:0 16px 8px;">
@@ -591,6 +613,10 @@ body.shopping-mode .toast{bottom:20px;}
 </div>
 
 <!-- BESTELLINGEN -->
+<div class="full-overlay" id="weekOverzichtOverlay">
+  <div class="full-header"><button class="icon-btn" id="closeWeekOverzichtBtn">✕</button><h2>📊 Weekoverzicht</h2></div>
+  <div class="full-body" id="weekOverzichtBody"></div>
+</div>
 <div class="full-overlay" id="bestellingenOverlay">
   <div class="full-header"><button class="icon-btn" id="closeBestellingenBtn">✕</button><h2>📦 Bestellingen</h2></div>
   <div style="display:flex;gap:8px;padding:10px 16px 0;background:var(--card);border-bottom:1px solid var(--border);">
@@ -821,7 +847,7 @@ var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','z
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},backlog:[],onderhoud:[],garanties:[],vakanties:[]};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[]};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -908,7 +934,7 @@ function loadFromServer(isInitial){
   fetch(dataUrl()).then(function(r){if(!r.ok)throw new Error('status:'+r.status);return r.json();}).then(function(json){
     var inc=json||{};
     ['tasks','notes','recurringDone'].forEach(function(k){if(!inc[k])inc[k]={};});
-    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties'].forEach(function(k){if(!inc[k])inc[k]=[];});
+    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen'].forEach(function(k){if(!inc[k])inc[k]=[];});
     if(!inc.notitieboek)inc.notitieboek='';
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
@@ -1628,6 +1654,7 @@ function initBoodCatRow(){
 }
 
 function renderBoodschappen(){
+  renderVasteBoodschappen();
   var list=document.getElementById('boodschappenList');list.innerHTML='';
   var items=data.boodschappen||[];
   var undone=items.filter(function(b){return !b.done;});
@@ -1676,6 +1703,61 @@ document.getElementById('exitWinkelBtn').addEventListener('click',function(){
 });
 
 // === MEER STATS ===
+
+// === VASTE BOODSCHAPPEN ===
+function renderVasteBoodschappen(){
+  var row=document.getElementById('vasteBoodRow');row.innerHTML='';
+  var items=data.vasteBoodschappen||[];
+  items.forEach(function(vb){
+    var chip=document.createElement('div');chip.className='vaste-bood-chip';
+    var lbl=document.createElement('span');lbl.textContent=vb.text;
+    var del=document.createElement('button');del.className='vaste-bood-del';del.textContent='✕';del.title='Verwijder uit favorieten';
+    del.addEventListener('click',function(e){e.stopPropagation();var idx=data.vasteBoodschappen.indexOf(vb);if(idx>-1)data.vasteBoodschappen.splice(idx,1);saveToServer();renderVasteBoodschappen();});
+    chip.appendChild(lbl);chip.appendChild(del);
+    chip.addEventListener('click',function(e){if(e.target===del)return;if(!data.boodschappen)data.boodschappen=[];var already=data.boodschappen.some(function(b){return !b.done&&b.text.toLowerCase()===vb.text.toLowerCase();});if(already){showToast(vb.text+' staat al op de lijst');return;}data.boodschappen.push({id:uid(),text:vb.text,done:false,cat:'Overig',addedBy:myName||null,addedDate:todayKey()});saveToServer();renderBoodschappen();showToast(vb.text+' toegevoegd ✓');});
+    row.appendChild(chip);
+  });
+  // + Toevoegen knop
+  var add=document.createElement('div');add.className='vaste-bood-add';add.textContent='+ Favoriet';
+  add.addEventListener('click',function(){var t=prompt('Vast boodschapitem toevoegen:');if(!t||!t.trim())return;if(!data.vasteBoodschappen)data.vasteBoodschappen=[];if(data.vasteBoodschappen.some(function(x){return x.text.toLowerCase()===t.trim().toLowerCase();})){showToast('Staat al in je favorieten');return;}data.vasteBoodschappen.push({id:uid(),text:t.trim()});saveToServer();renderVasteBoodschappen();showToast(t.trim()+' opgeslagen als favoriet');});
+  row.appendChild(add);
+}
+
+// === WEEKOVERZICHT ===
+function renderWeekOverzicht(){
+  var body=document.getElementById('weekOverzichtBody');body.innerHTML='';
+  var mon=getMonday(today);
+  var totalDone=0,maxPerDay=0;
+  var days=[];
+  for(var i=0;i<7;i++){
+    var d=new Date(mon);d.setDate(mon.getDate()+i);
+    var k=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+    var tasks=(data.tasks[k]||[]).filter(function(t){return t.done;});
+    var rd=(data.recurringDone&&data.recurringDone[k])||[];
+    var recTasks=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,k)&&rd.indexOf(r.id)>-1;});
+    var cnt=tasks.length+recTasks.length;
+    totalDone+=cnt;if(cnt>maxPerDay)maxPerDay=cnt;
+    days.push({key:k,date:d,tasks:tasks,recTasks:recTasks,cnt:cnt});
+  }
+  // Summary
+  var sumEl=document.createElement('div');
+  sumEl.style.cssText='padding:16px;background:var(--accent-light);border-bottom:1px solid var(--border);';
+  var wkStr=DAY_NAMES[0]+' '+days[0].date.getDate()+' – '+DAY_NAMES[6]+' '+days[6].date.getDate()+' '+MONTH_NAMES[days[6].date.getMonth()];
+  sumEl.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:4px;">'+wkStr+'</div><div style="font-size:24px;font-weight:800;color:var(--accent);">'+totalDone+' taken</div><div style="font-size:13px;color:var(--muted);">afgerond deze week</div>';
+  body.appendChild(sumEl);
+  days.forEach(function(day){
+    var row=document.createElement('div');row.className='week-day-row'+(day.key===todayKey()?' today-row':'');
+    var hdr=document.createElement('div');hdr.className='week-day-header';
+    var nm=document.createElement('div');nm.className='week-day-name';nm.textContent=DAY_FULL[weekday(day.key)]+' '+day.date.getDate()+' '+MONTH_NAMES[day.date.getMonth()].slice(0,3);
+    var cnt=document.createElement('div');cnt.className='week-day-count';cnt.textContent=day.cnt+' gedaan';
+    hdr.appendChild(nm);hdr.appendChild(cnt);row.appendChild(hdr);
+    if(maxPerDay>0){var bar=document.createElement('div');bar.className='week-bar';var fill=document.createElement('div');fill.className='week-bar-fill';fill.style.width=Math.round(day.cnt/maxPerDay*100)+'%';bar.appendChild(fill);row.appendChild(bar);}
+    if(day.cnt===0){var em=document.createElement('div');em.className='week-empty';em.textContent='Niets afgerond';row.appendChild(em);}
+    else{day.tasks.forEach(function(t){var el=document.createElement('div');el.className='week-task-item';el.textContent=t.text;row.appendChild(el);});day.recTasks.forEach(function(r){var el=document.createElement('div');el.className='week-task-item';el.textContent='↻ '+r.text;row.appendChild(el);});}
+    body.appendChild(row);
+  });
+}
+
 function renderMeerStats(){
   var openBest=(data.bestellingen||[]).filter(function(b){return b.status!=='geleverd';}).length;
   document.getElementById('bestellingenSub').textContent=openBest>0?openBest+' open bestelling'+(openBest===1?'':'en'):'Bijhouden wat je hebt besteld';
@@ -1691,6 +1773,8 @@ function renderMeerStats(){
   document.getElementById('garantiesSub').textContent=garExp>0?garExp+' verloopt binnenkort':'Verloopdata bijhouden';
   var vakCount=(data.vakanties||[]).length;
   document.getElementById('vakantiesSub').textContent=vakCount>0?vakCount+' profiel'+(vakCount===1?'':'en'):'Paklijst & to-do';
+  var mon2=getMonday(today);var weekDone=0;for(var wi=0;wi<7;wi++){var wd2=new Date(mon2);wd2.setDate(mon2.getDate()+wi);var wk2=dateKey(wd2.getFullYear(),wd2.getMonth(),wd2.getDate());weekDone+=(data.tasks[wk2]||[]).filter(function(t){return t.done;}).length+((data.recurringDone&&data.recurringDone[wk2])||[]).length;}
+  document.getElementById('weekOverzichtSub').textContent=weekDone>0?weekDone+' taken gedaan deze week':'Wat heb je gedaan?';
 }
 
 document.getElementById('openBestellingen').addEventListener('click',function(){document.getElementById('bestellingenOverlay').classList.add('open');updateBestWieLabels();renderBestellingen();});
@@ -1709,6 +1793,8 @@ document.getElementById('closeOnderhoudBtn').addEventListener('click',function()
 document.getElementById('closeNotitieboekBtn').addEventListener('click',function(){document.getElementById('notitieboekOverlay').classList.remove('open');});
 document.getElementById('closeBacklogBtn').addEventListener('click',function(){document.getElementById('backlogOverlay').classList.remove('open');renderMeerStats();});
 document.getElementById('closeGarantiesBtn').addEventListener('click',function(){document.getElementById('garantiesOverlay').classList.remove('open');renderMeerStats();});
+document.getElementById('openWeekOverzicht').addEventListener('click',function(){document.getElementById('weekOverzichtOverlay').classList.add('open');renderWeekOverzicht();});
+document.getElementById('closeWeekOverzichtBtn').addEventListener('click',function(){document.getElementById('weekOverzichtOverlay').classList.remove('open');renderMeerStats();});
 document.getElementById('closeRecurringBtn').addEventListener('click',function(){document.getElementById('recurringOverlay').classList.remove('open');});
 
 // === BESTELLINGEN ===
@@ -2008,7 +2094,7 @@ function addSwipeDownClose(overlayId, closeFn){
     if(dy>80){closeFn();}
   },{passive:true});
 }
-['bestellingenOverlay','onderhoudOverlay','notitieboekOverlay','backlogOverlay','garantiesOverlay','recurringOverlay','vakantiesOverlay','instellingenOverlay'].forEach(function(id){
+['bestellingenOverlay','onderhoudOverlay','notitieboekOverlay','backlogOverlay','garantiesOverlay','recurringOverlay','vakantiesOverlay','instellingenOverlay','weekOverzichtOverlay'].forEach(function(id){
   addSwipeDownClose(id,function(){
     var el=document.getElementById(id);if(el)el.classList.remove('open');
     renderMeerStats();
