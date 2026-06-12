@@ -607,6 +607,18 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a24;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:200;max-width:90%;text-align:center;}
 .toast.show{opacity:1;}
+.bood-section-header{display:flex;align-items:center;gap:6px;padding:12px 16px 4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+.bood-section-header:first-child{padding-top:6px;}
+.meer-card-maaltijd::before{background:linear-gradient(90deg,#f39c12,#fdcb6e);}
+.maaltijd-week{display:flex;flex-direction:column;gap:8px;padding:4px 0;}
+.maaltijd-dag{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;}
+.maaltijd-dag.today-dag{border-color:var(--accent);}
+.maaltijd-dag-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.maaltijd-dag-naam{font-size:14px;font-weight:700;color:var(--text);}
+.maaltijd-dag-badge{font-size:11px;color:var(--muted);background:var(--bg);border-radius:20px;padding:2px 8px;}
+.maaltijd-sel{width:100%;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box;}
+.maaltijd-vrij{width:100%;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box;margin-top:6px;}
+.maaltijd-bood-btn{width:100%;margin-top:14px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;}
 body.shopping-mode .toast{bottom:20px;}
 </style>
 </head>
@@ -834,6 +846,12 @@ body.shopping-mode .toast{bottom:20px;}
         <div class="meer-card-icon">👨‍🍳</div>
         <div class="meer-card-title">Recepten</div>
         <div class="meer-card-sub" id="receptenSub">Favoriete recepten & links</div>
+      </div>
+
+      <div class="meer-card meer-card-maaltijd" id="openMaaltijdplanner">
+        <div class="meer-card-icon">🍽</div>
+        <div class="meer-card-title">Maaltijdplanner</div>
+        <div class="meer-card-sub" id="maaltijdSub">Plan je weekmaaltijden</div>
       </div>
 
       <div class="meer-card" id="openZoeken" style="background:linear-gradient(135deg,#00b894,#55efc4);">
@@ -1128,6 +1146,16 @@ body.shopping-mode .toast{bottom:20px;}
 </div>
 
 <!-- RECEPTEN -->
+<!-- MAALTIJDPLANNER -->
+<div class="full-overlay" id="maaltijdOverlay">
+  <div class="full-header"><button class="icon-btn" id="closeMaaltijdBtn">✕</button><h2>🍽 Maaltijdplanner</h2></div>
+  <div class="full-body">
+    <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Plan de maaltijden voor deze week. Selecteer een recept of typ vrij.</p>
+    <div class="maaltijd-week" id="maaltijdWeek"></div>
+    <button class="maaltijd-bood-btn" id="maaltijdNaarBoodBtn">🛒 Genereer boodschappenlijst van ingrediënten</button>
+  </div>
+</div>
+
 <div class="full-overlay" id="receptenOverlay">
   <div class="full-header"><button class="icon-btn" id="closeReceptenBtn">✕</button><h2>👨‍🍳 Recepten</h2></div>
   <div class="full-body">
@@ -1155,6 +1183,7 @@ body.shopping-mode .toast{bottom:20px;}
       </select>
       <input type="url" id="receptLink" placeholder="Link naar recept (optioneel)" maxlength="500">
       <input type="text" id="receptNotitie" placeholder="Notitie (bijv. 4 personen, 30 min)" maxlength="200">
+      <textarea id="receptIngredienten" placeholder="Ingrediënten (kommagescheiden, bijv: pasta, ui, knoflook, tomaat)" style="width:100%;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;background:var(--bg);color:var(--text);resize:vertical;min-height:60px;box-sizing:border-box;margin-bottom:8px;font-family:inherit;"></textarea>
       <div class="setup-error" id="receptError"></div>
       <button class="add-card-btn" id="receptAddBtn">Toevoegen</button>
     </div>
@@ -1286,14 +1315,14 @@ body.shopping-mode .toast{bottom:20px;}
 (function(){
 'use strict';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#7a6cf0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
-var BOOD_CATS=['Groente & fruit','Zuivel','Vlees & vis','Brood & bakkerij','Drogisterij','Schoonmaak','Diepvries','Overig'];
+var BOOD_CATS=['Groente & fruit','Zuivel','Vlees & vis','Brood & bakkerij','Houdbaar & Droog','Drogisterij','Schoonmaak','Diepvries','Overig'];
 var MONTH_NAMES=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
 var DAY_NAMES=['ma','di','wo','do','vr','za','zo'];
 var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[]};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{}};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -1392,7 +1421,7 @@ function loadFromServer(isInitial){
   fetch(dataUrl()).then(function(r){if(!r.ok)throw new Error('status:'+r.status);return r.json();}).then(function(json){
     var inc=json||{};
     ['tasks','notes','recurringDone'].forEach(function(k){if(!inc[k])inc[k]={};});
-    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten'].forEach(function(k){if(!inc[k])inc[k]=[];});
+    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};
     if(!inc.notitieboek)inc.notitieboek='';
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
@@ -1775,7 +1804,7 @@ function renderVandaag(){
   if(rn)rn.textContent=doneCount;if(rd)rd.textContent='/'+totalCount;
   if(openBest>0)makeChip(openBest,'Bestellingen',true,function(){document.getElementById('bestellingenOverlay').classList.add('open');updateBestWieLabels();renderBestellingen();});
   if(backlogCount>0)makeChip(backlogCount,'Backlog',false,function(){document.getElementById('backlogOverlay').classList.add('open');renderBacklog();});
-  if(ondDue>0)makeChip(ondDue,'Onderhoud',true,function(){document.getElementById('onderhoudOverlay').classList.add('open');renderOnderhoud();});
+  if(ondDue>0){var ondFirst=(data.onderhoud||[]).filter(function(o){if(!o.lastDone)return true;var due=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);return due<=new Date(today.getTime()+14*24*60*60*1000);})[0];makeChip(ondDue,ondDue===1&&ondFirst?'🔧 '+ondFirst.text.substr(0,24)+(ondFirst.text.length>24?'…':''):'🔧 Onderhoud',true,function(){document.getElementById('onderhoudOverlay').classList.add('open');renderOnderhoud();});}
 
   // Focus taak
   var highPrio=dayTasks.filter(function(t){return !t.done&&t.priority==='hoog';})[0]
@@ -1904,17 +1933,17 @@ function renderVandaag(){
     });})(t,tk);
     return item;
   }
-  if(hasPeriods){
-    // Render ungrouped first, then period sections
-    tasksByPeriod.other.forEach(function(t){container.appendChild(renderOnePeriodTask(t));});
-    PERIODS.forEach(function(p){
-      if(!tasksByPeriod[p.key].length)return;
-      var lbl=document.createElement('div');lbl.className='period-section-label';lbl.textContent=p.label;container.appendChild(lbl);
+  // Altijd periode-secties tonen (zelfs leeg) voor dagstructuur
+  tasksByPeriod.other.forEach(function(t){container.appendChild(renderOnePeriodTask(t));});
+  PERIODS.forEach(function(p){
+    var lbl=document.createElement('div');lbl.className='period-section-label';lbl.textContent=p.label;
+    container.appendChild(lbl);
+    if(tasksByPeriod[p.key].length){
       tasksByPeriod[p.key].forEach(function(t){container.appendChild(renderOnePeriodTask(t));});
-    });
-  } else {
-    dayTasks.forEach(function(t){container.appendChild(renderOnePeriodTask(t));});
-  }
+    } else {
+      var ph=document.createElement('div');ph.style.cssText='font-size:12px;color:var(--muted);padding:2px 0 6px;opacity:.6;';ph.textContent='Geen taken';container.appendChild(ph);
+    }
+  });
 
   if(container.children.length===0){var e=document.createElement('div');e.className='vandaag-empty';e.innerHTML='<div style="font-size:32px;margin-bottom:8px">🎉</div><div>Geen taken voor vandaag!</div>';container.appendChild(e);}
   // Nav badges
@@ -2308,13 +2337,14 @@ function checkRecurringSuggestion(text){
 
 // Feature 3: auto-categorize boodschappen
 var BOOD_AUTO={
-  'Groente & fruit':['appel','peer','banaan','druif','aardbei','tomaat','komkommer','sla','sla','wortel','ui','knoflook','paprika','broccoli','bloemkool','courgette','spinazie','avocado','citroen','limoen','sinaasappel','mango','ananas','meloen','kiwi','aardappel','radijs','prei','venkel','asperge','champignon','fruit','groente'],
-  'Zuivel':['melk','kaas','boter','yoghurt','kwark','room','slagroom','vla','pudding','karnemelk','botervloot','smeerkaas','mozzarella','parmezaan','brie','camembert','cheddar','zuivel'],
-  'Vlees & vis':['kip','vlees','gehakt','biefstuk','zalm','tonijn','garnalen','vis','worst','spek','bacon','ham','kalkoen','lam','varken','rundvlees','schnitzel','hamburger','slavink'],
-  'Brood & bakkerij':['brood','wit brood','bruin brood','volkoren','bolletje','stokbrood','croissant','muffin','cake','koek','beschuit','crackers','knäckebröd','roggebrood','baguette'],
-  'Drogisterij':['shampoo','conditioner','tandpasta','tandenborstel','zeep','douchegel','deodorant','scheerschuim','scheermesje','watten','pleisters','paracetamol','ibuprofen','vitamine','zonnebrand','lippenbalsem','oogdruppels'],
-  'Schoonmaak':['wasmiddel','afwasmiddel','schoonmaakmiddel','vaatwastabletten','wc-blokje','toiletreiniger','bleek','soda','azijn','allesreiniger','glas','ramen','vloer','dweil','spons','doekje','vuilniszak','prullenbak','afvalzak'],
-  'Diepvries':['diepvries','pizza','patat','friet','ijs','sorbet','diepvriesgroente','garnalen','visstaaf','frikandel','kroket','loempia']
+  'Groente & fruit':['appel','peer','banaan','druif','aardbei','tomaat','komkommer','sla','wortel','ui','sjalot','knoflook','paprika','broccoli','bloemkool','courgette','spinazie','avocado','citroen','limoen','sinaasappel','mandarijn','mango','ananas','meloen','kiwi','aardappel','radijs','prei','venkel','asperge','champignon','portobello','mais','sperzieboon','doperwt','erwt','bospeen','rucola','radicchio','ijsberg','andijvie','boerenkool','spruitje','rode kool','witte kool','paksoi','biet','pastinaak','knolselderij','peterselie','basilicum','munt','bieslook','dille','tijm','rozemarijn','pruim','nectarine','perzik','kers','bosbes','framboos','braam','cranberry','papaja','guave','watermeloen','groente','fruit','rauw','vers'],
+  'Zuivel':['melk','halfvolle','volle melk','kaas','gouda','belegen','jong','extra belegen','cheddar','brie','camembert','feta','mozzarella','parmezaan','gruyère','ricotta','mascarpone','roomkaas','smeerkaas','boter','margarine','halvarine','yoghurt','griekse','skyr','kwark','biogarde','room','slagroom','crème fraîche','creme fraiche','vla','pudding','karnemelk','zuivel','ei','eieren'],
+  'Vlees & vis':['kip','kipfilet','kipschnitzel','drumstick','vleugel','gehakt','rundergehakt','biefstuk','entrecote','ossenhaas','ribkarbonade','kotelet','varkenslap','tartaar','lam','slavink','worst','rookworst','leverworst','chorizo','salami','pastrami','pepperoni','ham','rookvlees','spek','bacon','kalkoen','vlees','zalm','tonijn','makreel','haring','kabeljauw','forel','tilapia','heek','schelvis','sardien','ansjovis','garnaal','garnalen','inktvis','mossel','surimi','visstick','vis'],
+  'Brood & bakkerij':['brood','volkoren','meergranen','bruinbrood','witbrood','bolletje','stokbrood','baguette','ciabatta','bagel','wrap','pita','naan','pistolet','krentenbol','rogge','spelt','croissant','muffin','cake','ontbijtkoek','stroopwafel','speculaas','pannenkoek','wafel','beschuit','knäckebröd','toast','broodje','bakkerij'],
+  'Houdbaar & Droog':['pasta','spaghetti','macaroni','penne','fusilli','tagliatelle','noodles','rijst','basmati','zilvervlies','couscous','quinoa','bulgur','olie','olijfolie','zonnebloemolie','kokosolie','sesamolie','azijn','balsamico','saus','tomatensaus','pastasaus','ketchup','mosterd','mayonaise','sambal','ketjap','sojasaus','tabasco','sriracha','worcester','bouillon','soep','tomatenblokjes','tomatenpuree','kokosmelk','kikkererwten','linzen','kidneybonen','witte bonen','bonen','mais blik','maïs blik','pindakaas','notenpasta','amandelpasta','jam','marmelade','honing','siroop','suiker','basterdsuiker','rietsuiker','bloem','zelfrijzend','maizena','bakpoeder','vanille','chocolade','cacao','nutella','hagelslag','stroop','cornflakes','muesli','havermout','granola','crackers','rijstwafels','chips','noten','amandelen','cashew','walnoten','pistache','pinda','rozijnen','dadels','gedroogde vruchten','thee','koffie','espresso','cola','sap','appelsap','sinaasappelsap','limonade','frisdrank','water','mineraalwater','sportdrank','wijn','bier','cider','zout','peper','paprikapoeder','kerriepoeder','komijn','kaneel','nootmuskaat','oregano','basilicumpoeder','laurier','knoflookpoeder','uienpoeder','kurkuma','gember'],
+  'Drogisterij':['shampoo','conditioner','tandpasta','tandenborstel','elektrische tand','zeep','handzeep','douchegel','badschuim','deodorant','scheerschuim','scheergel','scheermesje','scheerapparaat','watten','wattenstokje','pleisters','verband','paracetamol','ibuprofen','aspirine','vitaminen','vitamine','supplement','zonnebrand','lippenbalsem','lippenstift','mascara','foundation','make-up','makeup','nagellak','oogdruppels','neusdruppels','parfum','aftershave','bodymilk','handcreme','gezichtscrème','serum','toner','reinigingsmelk','gezichtsmasker','toiletpapier','wc-papier','tissues','maandverband','tampon','incontinentie','luier','babydoekjes','babylotion'],
+  'Schoonmaak':['wasmiddel','wasverzachter','vlekkenverwijderaar','afwasmiddel','vaatwastablet','vaatwastabletten','spoelmiddel','schoonmaakmiddel','allesreiniger','badkamerreiniger','toiletreiniger','wc-blokje','toiletblokje','bleekwater','bleek','soda','citroenzuur','ontkalkingsmiddel','glazenwasser','vloer','dweil','mop','spons','schuurspons','doekje','microvezeldoek','vuilniszak','afvalzak','prullenbak','ziplock','aluminiumfolie','huishoudfolie','keukenpapier','keukenrol'],
+  'Diepvries':['diepvries','pizza','patat','friet','ijs','roomijs','sorbet','yoghurt ijs','diepvriesgroente','diepvries','spinazieblokje','broccoli blokjes','erwten','garnalen diepvries','visstaaf','frikandel','kroket','bitterbal','kaassoufflé','loempia','kipnugget','nugget','satéballetje','vegaburger','bladerdeeg','filodeeg','brooddeeg','fruitsorbets']
 };
 function autoBoodCat(text){
   var lower=text.toLowerCase();
@@ -2462,7 +2492,8 @@ function renderBoodschappen(){
   var done=items.filter(function(b){return b.done;});
   var sorted=undone.concat(done);
   if(!sorted.length){var e=document.createElement('div');e.className='empty-msg';e.style='grid-column:1/-1';e.innerHTML='<div style="font-size:28px;margin-bottom:6px">🛒</div><div>De lijst is leeg</div>';list.appendChild(e);return;}
-  sorted.forEach(function(b){
+  var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Zuivel':'🧀','Vlees & vis':'🥩','Brood & bakkerij':'🍞','Houdbaar & Droog':'🥫','Drogisterij':'🧴','Schoonmaak':'🧹','Diepvries':'🧊','Overig':'🛒'};
+  function renderBoodItem(b){
     var item=document.createElement('div');item.className='boodschap-item';
     var sbg=document.createElement('div');sbg.className='boodschap-swipe-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
     var check=document.createElement('div');check.className='boodschap-check'+(b.done?' checked':'');check.textContent=b.done?'✓':'';
@@ -2472,7 +2503,6 @@ function renderBoodschappen(){
         if(!data.boodschappenHistory)data.boodschappenHistory=[];
         var norm=b.text.toLowerCase().trim();
         data.boodschappenHistory.push({text:b.text,norm:norm,date:todayKey()});
-        // prune history older than 56 days
         var cutoff=dateKey(addDays(today,-56).getFullYear(),addDays(today,-56).getMonth(),addDays(today,-56).getDate());
         data.boodschappenHistory=data.boodschappenHistory.filter(function(h){return h.date>=cutoff;});
       }
@@ -2486,7 +2516,26 @@ function renderBoodschappen(){
     del.addEventListener('click',function(){var idx=data.boodschappen.indexOf(b);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();});
     item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
     (function(item2,b2){addSwipe(item2,function(){var idx=data.boodschappen.indexOf(b2);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();showUndoToast(b2.text+' verwijderd',function(){data.boodschappen.splice(idx,0,b2);saveToServer();renderBoodschappen();});});})(item,b);
-  });
+  }
+  if(boodCatFilter){
+    // Filtered: flat list
+    sorted.filter(function(b){return b.cat===boodCatFilter;}).forEach(function(b){renderBoodItem(b);});
+  } else {
+    // Groepeer per afdeling in winkel-volgorde
+    var groups={};
+    sorted.forEach(function(b){var cat=b.cat||'Overig';if(!groups[cat])groups[cat]=[];groups[cat].push(b);});
+    var catOrder=BOOD_CATS.concat(Object.keys(groups).filter(function(c){return BOOD_CATS.indexOf(c)===-1;}));
+    catOrder.forEach(function(cat){
+      if(!groups[cat]||!groups[cat].length)return;
+      var hdr=document.createElement('div');hdr.className='bood-section-header';
+      hdr.textContent=(BOOD_CAT_ICONS[cat]||'🛒')+' '+cat;
+      list.appendChild(hdr);
+      // Undone first, then done within category
+      var catUndone=groups[cat].filter(function(b){return !b.done;});
+      var catDone=groups[cat].filter(function(b){return b.done;});
+      catUndone.concat(catDone).forEach(function(b){renderBoodItem(b);});
+    });
+  }
 }
 
 function addBoodschap(){
@@ -2618,6 +2667,8 @@ function renderMeerStats(){
   document.getElementById('huisgeheugenSub').textContent=ghCount>0?ghCount+' log-item'+(ghCount===1?'':'s'):'Alles wat is afgerond';
   var recCount=(data.recepten||[]).length;
   document.getElementById('receptenSub').textContent=recCount>0?recCount+' recept'+(recCount===1?'':'en'):'Favoriete recepten & links';
+  var maaltijdCount=Object.keys(data.maaltijdplan||{}).filter(function(k){var e=data.maaltijdplan[k];return e&&(e.receptId||e.tekst);}).length;
+  var maaltijdEl=document.getElementById('maaltijdSub');if(maaltijdEl)maaltijdEl.textContent=maaltijdCount>0?maaltijdCount+' dag'+(maaltijdCount===1?'':'en')+' gepland':'Plan je weekmaaltijden';
   document.getElementById('kluisSub').textContent=kluisUrgent>0?kluisUrgent+' item'+(kluisUrgent===1?'':'s')+' verloopt binnenkort':'Paspoort, verzekering, abonnement…';
   setCardBadge('openKluis',kluisUrgent,'#6c5ce7');
   var mon2=getMonday(today);var weekDone=0;for(var wi=0;wi<7;wi++){var wd2=new Date(mon2);wd2.setDate(mon2.getDate()+wi);var wk2=dateKey(wd2.getFullYear(),wd2.getMonth(),wd2.getDate());weekDone+=(data.tasks[wk2]||[]).filter(function(t){return t.done;}).length+((data.recurringDone&&data.recurringDone[wk2])||[]).length;}
@@ -3076,8 +3127,10 @@ document.getElementById('receptAddBtn').addEventListener('click',function(){
   if(!naam){err.textContent='Vul een naam in.';return;}
   if(!data.recepten)data.recepten=[];
   var link=document.getElementById('receptLink').value.trim();
-  data.recepten.push({id:uid(),naam:naam,categorie:document.getElementById('receptCat').value,link:link||null,notitie:document.getElementById('receptNotitie').value.trim()||null});
-  document.getElementById('receptNaam').value='';document.getElementById('receptLink').value='';document.getElementById('receptNotitie').value='';
+  var ingredRaw=document.getElementById('receptIngredienten').value.trim();
+  var ingredArr=ingredRaw?ingredRaw.split(',').map(function(s){return s.trim();}).filter(Boolean):[];
+  data.recepten.push({id:uid(),naam:naam,categorie:document.getElementById('receptCat').value,link:link||null,notitie:document.getElementById('receptNotitie').value.trim()||null,ingredienten:ingredArr});
+  document.getElementById('receptNaam').value='';document.getElementById('receptLink').value='';document.getElementById('receptNotitie').value='';document.getElementById('receptIngredienten').value='';
   saveToServer();renderRecepten();
   document.getElementById('receptenSub').textContent=(data.recepten.length)+' recept'+(data.recepten.length===1?'':'en');
   showToast(naam+' opgeslagen ✓');
@@ -3096,6 +3149,22 @@ function renderRecepten(){
     card.appendChild(del);card.appendChild(ico);card.appendChild(naam);
     if(r.notitie){var meta=document.createElement('div');meta.className='recept-card-meta';meta.textContent=r.notitie;card.appendChild(meta);}
     if(r.link){var a=document.createElement('a');a.className='recept-link-btn';a.href=r.link;a.target='_blank';a.textContent='🔗 Recept openen';a.addEventListener('click',function(e){e.stopPropagation();});card.appendChild(a);}
+    if(r.ingredienten&&r.ingredienten.length){
+      var bBtn=document.createElement('button');
+      bBtn.style.cssText='display:block;margin-top:6px;width:100%;background:var(--accent-light);color:var(--accent);border:none;border-radius:8px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;text-align:left;';
+      bBtn.textContent='🛒 '+r.ingredienten.length+' ingrediënten naar lijst';
+      (function(ri){bBtn.addEventListener('click',function(e){e.stopPropagation();
+        var added=0;
+        ri.ingredienten.forEach(function(ing){
+          if(!ing)return;
+          var already=(data.boodschappen||[]).some(function(b){return !b.done&&b.text.toLowerCase()===ing.toLowerCase();});
+          if(!already){if(!data.boodschappen)data.boodschappen=[];data.boodschappen.push({id:uid(),text:ing,done:false,cat:autoBoodCat(ing)||'Overig',addedBy:myName||null,addedDate:todayKey()});added++;}
+        });
+        if(added){saveToServer();showToast(added+' ingrediënten toegevoegd ✓');}
+        else showToast('Alle ingrediënten staan al op de lijst');
+      });})(r);
+      card.appendChild(bBtn);
+    }
     grid.appendChild(card);
   });
 }
@@ -3104,6 +3173,79 @@ document.getElementById('openRecepten').addEventListener('click',function(){
 });
 document.getElementById('closeReceptenBtn').addEventListener('click',function(){document.getElementById('receptenOverlay').classList.remove('open');});
 fabOpenOverlay('receptFab','.add-card:has(#receptNaam)','#receptNaam');
+
+// === MAALTIJDPLANNER ===
+var MAALTIJD_DAGEN=['ma','di','wo','do','vr','za','zo'];
+var MAALTIJD_LABELS={ma:'Maandag',di:'Dinsdag',wo:'Woensdag',do:'Donderdag',vr:'Vrijdag',za:'Zaterdag',zo:'Zondag'};
+function getMaaltijdWeekKey(){var mon=getMonday(today);return dateKey(mon.getFullYear(),mon.getMonth(),mon.getDate());}
+function renderMaaltijdplanner(){
+  var container=document.getElementById('maaltijdWeek');if(!container)return;container.innerHTML='';
+  if(!data.maaltijdplan)data.maaltijdplan={};
+  var plan=data.maaltijdplan;
+  var mon=getMonday(today);
+  var recepten=data.recepten||[];
+  MAALTIJD_DAGEN.forEach(function(dag,i){
+    var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i);
+    var dk=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+    var isToday=dk===todayKey();
+    var entry=plan[dk]||{};
+    var card=document.createElement('div');card.className='maaltijd-dag'+(isToday?' today-dag':'');
+    var hdr=document.createElement('div');hdr.className='maaltijd-dag-header';
+    var naam=document.createElement('div');naam.className='maaltijd-dag-naam';naam.textContent=(isToday?'⭐ ':'')+MAALTIJD_LABELS[dag];
+    var badge=document.createElement('div');badge.className='maaltijd-dag-badge';badge.textContent=d.getDate()+'/'+(d.getMonth()+1);
+    hdr.appendChild(naam);hdr.appendChild(badge);card.appendChild(hdr);
+    var sel=document.createElement('select');sel.className='maaltijd-sel';
+    var optLeeg=document.createElement('option');optLeeg.value='';optLeeg.textContent='— Nog niet gepland —';sel.appendChild(optLeeg);
+    var optVrij=document.createElement('option');optVrij.value='__vrij__';optVrij.textContent='✏️ Vrij invullen…';sel.appendChild(optVrij);
+    recepten.forEach(function(r){var opt=document.createElement('option');opt.value=r.id;opt.textContent=(RECEPT_ICONS[r.categorie]||'🍽')+' '+r.naam;sel.appendChild(opt);});
+    if(entry.type==='recept'&&entry.receptId)sel.value=entry.receptId;
+    else if(entry.type==='vrij')sel.value='__vrij__';
+    card.appendChild(sel);
+    var vrijInput=document.createElement('input');vrijInput.className='maaltijd-vrij';vrijInput.placeholder='Wat eten jullie?';vrijInput.maxLength=100;
+    vrijInput.style.display=entry.type==='vrij'?'':'none';
+    if(entry.type==='vrij')vrijInput.value=entry.tekst||'';
+    card.appendChild(vrijInput);
+    (function(dk2,sel2,vi2){
+      sel2.addEventListener('change',function(){
+        if(!data.maaltijdplan)data.maaltijdplan={};
+        if(sel2.value===''){delete data.maaltijdplan[dk2];vi2.style.display='none';}
+        else if(sel2.value==='__vrij__'){data.maaltijdplan[dk2]={type:'vrij',tekst:vi2.value||''};vi2.style.display='';}
+        else{var r=(data.recepten||[]).filter(function(r){return r.id===sel2.value;})[0];data.maaltijdplan[dk2]={type:'recept',receptId:sel2.value,naam:r?r.naam:'',ingredienten:r&&r.ingredienten?r.ingredienten:[]};vi2.style.display='none';}
+        saveToServer();
+      });
+      vi2.addEventListener('input',function(){
+        if(!data.maaltijdplan)data.maaltijdplan={};
+        if(!data.maaltijdplan[dk2]||data.maaltijdplan[dk2].type!=='vrij')data.maaltijdplan[dk2]={type:'vrij'};
+        data.maaltijdplan[dk2].tekst=vi2.value;saveToServer();
+      });
+    })(dk,sel,vrijInput);
+    container.appendChild(card);
+  });
+}
+document.getElementById('openMaaltijdplanner').addEventListener('click',function(){
+  document.getElementById('maaltijdOverlay').classList.add('open');
+  renderMaaltijdplanner();
+});
+document.getElementById('closeMaaltijdBtn').addEventListener('click',function(){
+  document.getElementById('maaltijdOverlay').classList.remove('open');
+  renderMeerStats();
+});
+document.getElementById('maaltijdNaarBoodBtn').addEventListener('click',function(){
+  if(!data.maaltijdplan)return;
+  var added=0;var seen={};
+  Object.keys(data.maaltijdplan).forEach(function(dk){
+    var e=data.maaltijdplan[dk];if(!e)return;
+    var ings=e.ingredienten||[];
+    if(e.type==='recept'&&!ings.length){var r=(data.recepten||[]).filter(function(r){return r.id===e.receptId;})[0];if(r)ings=r.ingredienten||[];}
+    ings.forEach(function(ing){
+      if(!ing)return;var k=ing.toLowerCase();if(seen[k])return;seen[k]=true;
+      var already=(data.boodschappen||[]).some(function(b){return !b.done&&b.text.toLowerCase()===k;});
+      if(!already){if(!data.boodschappen)data.boodschappen=[];data.boodschappen.push({id:uid(),text:ing,done:false,cat:autoBoodCat(ing)||'Overig',addedBy:myName||null,addedDate:todayKey()});added++;}
+    });
+  });
+  if(added){saveToServer();showToast(added+' ingrediënten toegevoegd aan boodschappenlijst ✓');}
+  else showToast('Geen nieuwe ingrediënten — voeg recepten met ingrediënten toe aan je plan');
+});
 
 // === BRIEFJES OP DE KOELKAST ===
 function renderBriefjes(){
@@ -3446,7 +3588,7 @@ function addSwipeDownClose(overlayId, closeFn){
     if(dy>80){closeFn();}
   },{passive:true});
 }
-['bestellingenOverlay','onderhoudOverlay','notitieboekOverlay','backlogOverlay','garantiesOverlay','recurringOverlay','vakantiesOverlay','instellingenOverlay','weekOverzichtOverlay'].forEach(function(id){
+['bestellingenOverlay','onderhoudOverlay','notitieboekOverlay','backlogOverlay','garantiesOverlay','recurringOverlay','vakantiesOverlay','instellingenOverlay','weekOverzichtOverlay','maaltijdOverlay'].forEach(function(id){
   addSwipeDownClose(id,function(){
     var el=document.getElementById(id);if(el)el.classList.remove('open');
     renderMeerStats();
