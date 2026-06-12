@@ -663,15 +663,8 @@ body.shopping-mode .toast{bottom:20px;}
         <span>Vandaag</span>
         <button class="vandaag-open-btn" id="openTodayBtn">Dag openen ›</button>
       </div>
-      <div class="quick-add-row">
-        <input type="text" id="quickAddInput" placeholder="Snelle taak toevoegen…" maxlength="200">
-        <button id="quickAddBtn">+</button>
-      </div>
-      <div class="date-shortcuts">
-        <button class="date-shortcut active" data-offset="0">📅 Vandaag</button>
-        <button class="date-shortcut" data-offset="1">Morgen</button>
-        <button class="date-shortcut" data-offset="2">Overmorgen</button>
-        <button class="date-shortcut" data-offset="7">Volgend week</button>
+      <div class="quick-add-row" id="vandaagZoekRow" style="margin-bottom:10px;">
+        <input type="search" id="vandaagZoekInput" placeholder="🔍 Zoek door alles…" autocomplete="off" readonly style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:15px;background:var(--card);color:var(--text);cursor:pointer;">
       </div>
       <div id="vandaagTasks"></div>
     </div>
@@ -1853,23 +1846,15 @@ document.getElementById('openTodayBtn').addEventListener('click',function(){open
 
 // Quick add
 var quickAddOffset=0;
-function quickAdd(){
-  var input=document.getElementById('quickAddInput');
-  var text=input.value.trim();if(!text)return;
-  var d=addDays(today,quickAddOffset);
-  var tk=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
-  if(!data.tasks[tk])data.tasks[tk]=[];
-  data.tasks[tk].push({id:uid(),text:text,done:false,category:'regelen',priority:'normaal',assignedTo:null,author:myName||null,orderStatus:null});
-  input.value='';saveToServer();renderVandaag();renderCalendar();input.focus();var lbl=quickAddOffset===0?'Vandaag':quickAddOffset===1?'Morgen':quickAddOffset===7?'Volgend week':'Overmorgen';showToast('Taak '+lbl.toLowerCase()+' toegevoegd!');
-}
-document.getElementById('quickAddBtn').addEventListener('click',quickAdd);
-document.getElementById('quickAddInput').addEventListener('keydown',function(e){if(e.key==='Enter')quickAdd();});
-document.querySelectorAll('.date-shortcut').forEach(function(btn){
-  btn.addEventListener('click',function(){
-    quickAddOffset=parseInt(btn.dataset.offset);
-    document.querySelectorAll('.date-shortcut').forEach(function(b){b.classList.toggle('active',b===btn);});
-    document.getElementById('quickAddInput').focus();
-  });
+// Vandaag zoekbalk → open zoeken overlay
+document.getElementById('vandaagZoekInput').addEventListener('click',function(){
+  document.getElementById('zoekenOverlay').classList.add('open');
+  setTimeout(function(){var zi=document.getElementById('zoekInput');zi.focus();},100);
+});
+document.getElementById('vandaagZoekInput').addEventListener('focus',function(){
+  this.blur();
+  document.getElementById('zoekenOverlay').classList.add('open');
+  setTimeout(function(){document.getElementById('zoekInput').focus();},100);
 });
 
 // === KALENDER ===
