@@ -307,6 +307,15 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .add-row input{flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:15px;background:var(--bg);color:var(--text);}
 .add-row input:focus{outline:none;border-color:var(--accent);}
 .add-row button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 17px;font-size:22px;font-weight:600;cursor:pointer;}
+.autocomplete-list{background:var(--card);border:1px solid var(--border);border-radius:10px;margin:0 0 7px;overflow:hidden;display:none;}
+.autocomplete-item{padding:10px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border);}
+.autocomplete-item:last-child{border-bottom:none;}
+.autocomplete-item:active{background:var(--accent-light);}
+.season-banner{margin:0 16px 10px;padding:10px 14px;border-radius:12px;font-size:13px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);}
+.season-banner-close{margin-left:auto;background:none;border:none;font-size:16px;cursor:pointer;color:var(--muted);padding:0 2px;}
+.week-score-banner{margin:10px 16px 0;padding:12px 16px;background:var(--accent-light);border:1.5px solid var(--accent);border-radius:14px;font-size:14px;font-weight:600;display:none;align-items:center;gap:10px;}
+.week-score-banner.visible{display:flex;}
+.week-score-close{margin-left:auto;background:none;border:none;font-size:16px;cursor:pointer;color:var(--muted);}
 .meta-row{display:flex;gap:6px;margin-bottom:7px;flex-wrap:wrap;}
 .meta-select{flex:1;min-width:90px;border:1px solid var(--border);border-radius:8px;padding:7px 8px;font-size:13px;background:var(--bg);color:var(--text);}
 .meta-select:focus{outline:none;border-color:var(--accent);}
@@ -484,6 +493,14 @@ body.shopping-mode .toast{bottom:20px;}
   <div class="ptr-indicator" id="ptrIndicator">
     <div class="ptr-spinner" id="ptrSpinner" style="display:none;"></div>
     <span id="ptrLabel">↓ Trek om te vernieuwen</span>
+  </div>
+  <div class="season-banner" id="seasonBanner" style="display:none;">
+    <span id="seasonBannerText"></span>
+    <button class="season-banner-close" id="seasonBannerClose" title="Sluiten">✕</button>
+  </div>
+  <div class="week-score-banner" id="weekScoreBanner">
+    <span id="weekScoreText"></span>
+    <button class="week-score-close" id="weekScoreClose">✕</button>
   </div>
   <div class="name-banner" id="nameBanner" style="display:none;">
     <span>👤 Naam:</span>
@@ -674,9 +691,10 @@ body.shopping-mode .toast{bottom:20px;}
       </div>
       <div class="add-section">
         <div class="add-row">
-          <input type="text" id="newTaskInput" placeholder="Nieuwe taak…" maxlength="200">
+          <input type="text" id="newTaskInput" placeholder="Nieuwe taak…" maxlength="200" autocomplete="off">
           <button id="addTaskBtn">+</button>
         </div>
+        <div class="autocomplete-list" id="autocompleteList"></div>
         <div class="meta-row">
           <select class="meta-select" id="newTaskCat">
             <option value="huis">🏠 Huis</option><option value="samen">💜 Samen</option>
@@ -1964,8 +1982,13 @@ function addTask(){
     saveToServer();renderMdTasks();renderCalendar();
   } else {
     if(!openDateKey)return;if(!data.tasks[openDateKey])data.tasks[openDateKey]=[];
+    var normText=text.toLowerCase().trim();
+    var isDup=(data.tasks[openDateKey]||[]).some(function(t){return t.text.toLowerCase().trim()===normText;});
+    if(isDup){showToast('⚠️ "'+text+'" staat al op deze dag.');document.getElementById('autocompleteList').style.display='none';return;}
     var reminderTime=document.getElementById('newTaskReminder').value||null;data.tasks[openDateKey].push({id:uid(),text:text,done:false,category:cat,priority:prio,assignedTo:assignee||null,author:myName||null,orderStatus:null,reminder:reminderTime?{date:openDateKey,time:reminderTime}:null});
-    input.value='';document.getElementById('newTaskReminder').value='';saveToServer();renderSheetTasks();renderCalendar();renderVandaag();
+    input.value='';document.getElementById('newTaskReminder').value='';
+    var acl=document.getElementById('autocompleteList');if(acl)acl.style.display='none';
+    saveToServer();renderSheetTasks();renderCalendar();renderVandaag();
     checkRecurringSuggestion(text);
     updateSmartDayHint(openDateKey);
   }
@@ -2456,6 +2479,106 @@ function renderGaranties(){
     list.appendChild(item);
   });
 }
+
+// ── Taak-autocomplete ────────────────────────────────────────
+(function(){
+  var inp=document.getElementById('newTaskInput');
+  var list=document.getElementById('autocompleteList');
+  if(!inp||!list)return;
+
+  function getTaskHistory(){
+    var seen={};var results=[];
+    Object.keys(data.tasks||{}).forEach(function(k){
+      (data.tasks[k]||[]).forEach(function(t){
+        var n=t.text.trim().toLowerCase();
+        if(!seen[n]){seen[n]=true;results.push(t.text.trim());}
+      });
+    });
+    return results;
+  }
+
+  function showSuggestions(val){
+    list.innerHTML='';
+    if(!val||val.length<2){list.style.display='none';return;}
+    var lower=val.toLowerCase();
+    var matches=getTaskHistory().filter(function(t){return t.toLowerCase().indexOf(lower)>-1&&t.toLowerCase()!==lower;}).slice(0,4);
+    if(!matches.length){list.style.display='none';return;}
+    matches.forEach(function(m){
+      var item=document.createElement('div');item.className='autocomplete-item';item.textContent=m;
+      item.addEventListener('mousedown',function(e){e.preventDefault();inp.value=m;list.style.display='none';inp.focus();});
+      item.addEventListener('touchend',function(e){e.preventDefault();inp.value=m;list.style.display='none';inp.focus();});
+      list.appendChild(item);
+    });
+    list.style.display='';
+  }
+
+  inp.addEventListener('input',function(){showSuggestions(this.value);});
+  inp.addEventListener('blur',function(){setTimeout(function(){list.style.display='none';},150);});
+  inp.addEventListener('focus',function(){if(this.value.length>=2)showSuggestions(this.value);});
+})();
+
+// ── Seizoensgebonden suggesties ───────────────────────────────
+(function(){
+  var SEASONS=[
+    {months:[2],emoji:'🌱',key:'lente_start',text:'Het is maart — tijd om de tuin op te ruimen na de winter?'},
+    {months:[3],emoji:'🌷',key:'lente_april',text:'April: perfecte maand voor schilderwerk buiten en tuinieren.'},
+    {months:[4],emoji:'🌿',key:'lente_mei',text:'Mei: is de CV-ketel al nagekeken voor volgend seizoen?'},
+    {months:[8],emoji:'🍂',key:'herfst_sept',text:'September: denk aan het reinigen van dakgoten voor de herfst.'},
+    {months:[9],emoji:'🍁',key:'herfst_okt',text:'Oktober: tijd om winterbanden te zetten en de tuin klaar te maken!'},
+    {months:[10],emoji:'❄️',key:'winter_nov',text:'November: check je rookmelders en CO-melder voor de winter.'},
+    {months:[11],emoji:'🎄',key:'winter_dec',text:'December: verwarmingsketel klaar voor de kou?'},
+    {months:[5,6],emoji:'☀️',key:'zomer',text:'Zomer: vergeet airco/ventilatie niet te controleren.'}
+  ];
+  var m=new Date().getMonth();
+  var match=SEASONS.find(function(s){return s.months.indexOf(m)>-1;});
+  if(!match)return;
+  var stored=localStorage.getItem('seasonDismissed_'+match.key);
+  if(stored)return;
+  var banner=document.getElementById('seasonBanner');
+  var txt=document.getElementById('seasonBannerText');
+  var close=document.getElementById('seasonBannerClose');
+  if(!banner||!txt)return;
+  txt.textContent=match.emoji+' '+match.text;
+  banner.style.background='var(--accent-light)';
+  banner.style.borderColor='var(--accent)';
+  banner.style.display='flex';
+  close.addEventListener('click',function(){
+    localStorage.setItem('seasonDismissed_'+match.key,'1');
+    banner.style.display='none';
+  });
+})();
+
+// ── Week-eindscore ────────────────────────────────────────────
+(function(){
+  var now=new Date();
+  var isFriday=now.getDay()===5;
+  if(!isFriday)return;
+  var dismissed=localStorage.getItem('weekScoreDismissed_'+dateKey(now.getFullYear(),now.getMonth(),now.getDate()));
+  if(dismissed)return;
+  setTimeout(function(){
+    var mon=getMonday(now);
+    var total=0,done=0;
+    for(var i=0;i<7;i++){
+      var d=addDays(mon,i);var k=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+      var tasks=data.tasks[k]||[];
+      total+=tasks.length;
+      done+=tasks.filter(function(t){return t.done;}).length;
+    }
+    if(total<3)return;
+    var pct=Math.round(done/total*100);
+    var emoji=pct>=90?'🏆':pct>=70?'🎉':pct>=50?'👍':'💪';
+    var banner=document.getElementById('weekScoreBanner');
+    var txt=document.getElementById('weekScoreText');
+    var close=document.getElementById('weekScoreClose');
+    if(!banner||!txt)return;
+    txt.textContent=emoji+' Deze week '+done+' van '+total+' taken gedaan ('+pct+'%)!';
+    banner.classList.add('visible');
+    close.addEventListener('click',function(){
+      localStorage.setItem('weekScoreDismissed_'+dateKey(now.getFullYear(),now.getMonth(),now.getDate()),'1');
+      banner.classList.remove('visible');
+    });
+  },1200);
+})();
 
 // Boot
 init();
