@@ -959,19 +959,17 @@ body.shopping-mode .toast{bottom:20px;}
   </div>
 
   <!-- GEWOONTETRACKER OVERLAY -->
-  <div class="overlay" id="gewoontenOverlay">
-    <div class="overlay-panel">
-      <div class="overlay-header">
-        <h2>🔁 Gewoonten</h2>
-        <button class="overlay-close" id="closeGewoontenBtn">✕</button>
-      </div>
-      <div id="gewoontenList" style="margin-bottom:12px;max-height:55vh;overflow-y:auto;"></div>
-      <div class="quick-add-row" style="margin-top:4px;">
-        <input type="text" id="gewoonteInput" placeholder="Nieuwe gewoonte (bijv. 10 min lezen)…" maxlength="80" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:15px;background:var(--card);color:var(--text);">
-        <button class="primary-btn" id="addGewoonteBtn" style="padding:10px 18px;font-size:16px;flex-shrink:0;">+</button>
-      </div>
-    </div>
+<div class="full-overlay" id="gewoontenOverlay">
+  <div class="overlay-header" style="padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+    <button id="closeGewoontenBtn" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">&#8592;</button>
+    <h2 style="margin:0;font-size:17px;font-weight:700;flex:1;">🔁 Gewoonten</h2>
   </div>
+  <div style="overflow-y:auto;flex:1;padding:16px;" id="gewoontenList"></div>
+  <div class="quick-add-row" style="padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0;">
+    <input type="text" id="gewoonteInput" placeholder="Nieuwe gewoonte (bijv. 10 min lezen)…" maxlength="80" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:15px;background:var(--card);color:var(--text);">
+    <button class="primary-btn" id="addGewoonteBtn" style="padding:10px 18px;font-size:16px;flex-shrink:0;">+</button>
+  </div>
+</div>
 
   <nav class="bottom-nav">
     <button class="nav-item active" data-view="vandaagView"><span class="nav-icon">🏠</span>Vandaag</button>
