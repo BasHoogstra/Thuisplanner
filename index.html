@@ -913,7 +913,7 @@ body.shopping-mode .toast{bottom:20px;}
           <select class="meta-select" id="newTaskCat">
             <option value="huis">🏠 Huis</option><option value="samen">💜 Samen</option>
             <option value="boodschappen">🛒 Boodschappen</option><option value="onderhoud">🔧 Onderhoud</option>
-            <option value="regelen">📋 Regelen</option><option value="financien">💰 Financiën</option>
+            <option value="regelen">📋 Regelen</option><option value="financien">💰 Financiën</option><option value="sport">🏃 Sport</option>
           </select>
           <select class="meta-select" id="newTaskPrio">
             <option value="normaal">⚪ Normaal</option><option value="hoog">🔴 Hoog</option><option value="laag">🔵 Laag</option>
@@ -968,7 +968,7 @@ body.shopping-mode .toast{bottom:20px;}
         <select class="meta-select" id="bestNewCat">
           <option value="huis">🏠 Huis</option><option value="boodschappen">🛒 Boodschappen</option>
           <option value="onderhoud">🔧 Onderhoud</option><option value="regelen">📋 Regelen</option>
-          <option value="financien">💰 Financiën</option><option value="samen">💜 Samen</option>
+          <option value="financien">💰 Financiën</option><option value="sport">🏃 Sport</option><option value="samen">💜 Samen</option>
         </select>
         <select class="meta-select" id="bestNewWie">
           <option value="">👥 Iedereen</option>
@@ -1026,7 +1026,7 @@ body.shopping-mode .toast{bottom:20px;}
         <select class="meta-select" id="recNewCat">
           <option value="huis">🏠 Huis</option><option value="samen">💜 Samen</option>
           <option value="boodschappen">🛒 Boodschappen</option><option value="onderhoud">🔧 Onderhoud</option>
-          <option value="regelen">📋 Regelen</option><option value="financien">💰 Financiën</option>
+          <option value="regelen">📋 Regelen</option><option value="financien">💰 Financiën</option><option value="sport">🏃 Sport</option>
         </select>
         <select class="meta-select" id="recNewPrio">
           <option value="normaal">⚪ Normaal</option><option value="hoog">🔴 Hoog</option><option value="laag">🔵 Laag</option>
@@ -1055,7 +1055,7 @@ body.shopping-mode .toast{bottom:20px;}
       <input type="date" id="ondLastDone">
       <select class="meta-select" id="ondCat" style="width:100%;margin-bottom:8px;">
         <option value="onderhoud">🔧 Onderhoud</option><option value="huis">🏠 Huis</option>
-        <option value="regelen">📋 Regelen</option><option value="financien">💰 Financiën</option>
+        <option value="regelen">📋 Regelen</option><option value="financien">💰 Financiën</option><option value="sport">🏃 Sport</option>
       </select>
       <input type="text" id="ondNote" placeholder="Notitie (optioneel)" maxlength="200">
       <label class="field-label">Foto (optioneel)</label>
@@ -1089,7 +1089,7 @@ body.shopping-mode .toast{bottom:20px;}
         <select class="meta-select" id="backlogNewCat">
           <option value="huis">🏠 Huis</option><option value="samen">💜 Samen</option>
           <option value="onderhoud">🔧 Onderhoud</option><option value="regelen">📋 Regelen</option>
-          <option value="financien">💰 Financiën</option>
+          <option value="financien">💰 Financiën</option><option value="sport">🏃 Sport</option>
         </select>
         <select class="meta-select" id="backlogNewPrio">
           <option value="normaal">⚪ Normaal</option><option value="hoog">🔴 Hoog</option><option value="laag">🔵 Laag</option>
@@ -1314,7 +1314,7 @@ body.shopping-mode .toast{bottom:20px;}
 <script>
 (function(){
 'use strict';
-var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#7a6cf0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
+var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#7a6cf0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Zuivel','Vlees & vis','Brood & bakkerij','Houdbaar & Droog','Drogisterij','Schoonmaak','Diepvries','Overig'];
 var MONTH_NAMES=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
 var DAY_NAMES=['ma','di','wo','do','vr','za','zo'];
