@@ -68,18 +68,26 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 /* VANDAAG */
 .vandaag-greeting{padding:0;}
-.compact-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 12px;gap:12px;background:var(--card);border-bottom:1px solid var(--border);}
+.compact-header{display:flex;align-items:center;justify-content:space-between;padding:22px 18px 30px;gap:12px;background:linear-gradient(150deg,var(--accent) 0%,rgba(var(--accent-rgb),.65) 100%);border-bottom:none;border-radius:0 0 32px 32px;box-shadow:0 6px 24px rgba(var(--accent-rgb),.25);}
 .compact-header-left{flex:1;min-width:0;}
 .compact-header-right{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;}
-.compact-greeting{font-size:18px;font-weight:700;line-height:1.2;}
-.compact-date{font-size:12px;color:var(--muted);margin-top:2px;}
-.compact-weather{display:flex;align-items:center;gap:5px;margin-top:8px;font-size:13px;color:var(--text);}
-.compact-weather span:first-child{font-size:20px;}
-.compact-weather-desc{color:var(--muted);font-size:12px;}
-.compact-stat-badges{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:60px;}
-.stat-badge{background:var(--accent-light);color:var(--accent);border-radius:10px;padding:2px 7px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.compact-greeting{font-size:23px;font-weight:800;line-height:1.2;color:#fff;}
+.compact-date{font-size:13px;color:rgba(255,255,255,.72);margin-top:3px;}
+.compact-weather{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:14px;color:rgba(255,255,255,.9);}
+.compact-weather span:first-child{font-size:22px;}
+.compact-weather-desc{color:rgba(255,255,255,.68);font-size:12px;}
+.compact-stat-badges{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:140px;}
+.stat-badge{background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.28);border-radius:20px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
 
 .weather-bar{}.weather-icon{}.weather-info{}.weather-temp{}.weather-desc{}.weather-loc{}.weather-feels{}.weather-bar.loading .weather-icon{}
+/* Vandaag v51 polish */
+#vandaagView .vandaag-section:first-of-type{margin-top:18px;}
+.vandaag-task:active{transform:scale(.985);}
+.upcoming-day:active{transform:scale(.95);}
+.prio-hoog .vandaag-check{border-color:var(--danger);}
+.prio-hoog .vandaag-check.checked{background:var(--danger);border-color:var(--danger);}
+.vandaag-task-meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:4px;}
+
 
 .progress-ring-wrap{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;}
 
@@ -99,9 +107,9 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .stat-chip .chip-num{font-size:22px;font-weight:700;line-height:1;}
 .stat-chip .chip-label{font-size:10px;color:var(--muted);font-weight:600;margin-top:3px;text-align:center;}
 .stat-chip.highlight{background:var(--accent-light);border-color:var(--accent);}
-.vandaag-section{margin:0 16px 14px;}
-.vandaag-section-title{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.03em;padding:4px 0 8px;display:flex;align-items:center;justify-content:space-between;}
-.vandaag-open-btn{background:none;border:none;color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;padding:0;}
+.vandaag-section{margin:14px 16px 14px;}
+.vandaag-section-title{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;padding:2px 0 10px;display:flex;align-items:center;justify-content:space-between;}
+.vandaag-open-btn{background:var(--accent-light);color:var(--accent);border:none;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;}
 .date-shortcuts{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
 .date-shortcut{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;}
 .date-shortcut.active{background:var(--accent);color:#fff;border-color:var(--accent);}
@@ -109,25 +117,26 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .quick-add-row input{flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:16px;background:var(--card);color:var(--text);}
 .quick-add-row input:focus{outline:none;border-color:var(--accent);}
 .quick-add-row button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:20px;font-weight:600;cursor:pointer;}
-.vandaag-task{display:flex;align-items:center;gap:10px;padding:12px 12px;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:8px;border-left:3px solid var(--border);position:relative;overflow:hidden;transition:transform .15s,opacity .15s;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.vandaag-task{display:flex;align-items:center;gap:12px;padding:14px 14px;background:var(--card);border:none;border-radius:18px;margin-bottom:10px;border-left:4px solid var(--border);position:relative;overflow:hidden;transition:transform .15s,opacity .15s;box-shadow:0 2px 10px rgba(0,0,0,.07);}
 .vandaag-task.prio-hoog{border-left-color:var(--danger);}
 .vandaag-task.swiping{transition:none;}
 .swipe-del-bg{position:absolute;right:0;top:0;bottom:0;background:var(--danger);display:flex;align-items:center;justify-content:flex-end;padding:0 16px;color:#fff;font-size:13px;font-weight:700;opacity:0;transition:opacity .1s;pointer-events:none;border-radius:0 12px 12px 0;}
-.vandaag-check{width:28px;height:28px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:13px;color:#fff;min-width:44px;min-height:44px;width:44px;height:44px;}
-.vandaag-check.checked{background:var(--accent);}
+.vandaag-check{width:40px;height:40px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:14px;color:#fff;min-width:40px;min-height:40px;background:transparent;transition:background .15s,border-color .15s;}
+.vandaag-check.checked{background:var(--accent);border-color:var(--accent);}
 .vandaag-check.pop{animation:checkPop .25s cubic-bezier(.36,1.6,.3,1) both;}
 @keyframes checkPop{0%{transform:scale(1)}40%{transform:scale(1.45)}100%{transform:scale(1)}}
 .vandaag-task-body{flex:1;min-width:0;}
-.vandaag-task-text{font-size:15px;line-height:1.35;font-weight:500;}
+.vandaag-task-text{font-size:15px;line-height:1.4;font-weight:600;}
 .vandaag-task-text.done{text-decoration:line-through;color:var(--done);}
 .vandaag-task-meta{font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:.01em;}
 .vandaag-empty{font-size:13px;color:var(--muted);text-align:center;padding:14px;background:var(--card);border-radius:12px;border:1px dashed var(--border);}
-.upcoming-strip{display:flex;gap:8px;overflow-x:auto;padding:0 16px 16px;}
-.upcoming-day{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:10px 12px;min-width:100px;flex-shrink:0;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.05);}
-.upcoming-day.has-tasks{border-color:var(--accent);}
+.upcoming-strip{display:flex;gap:8px;overflow-x:auto;padding:0 0 12px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.upcoming-strip::-webkit-scrollbar{display:none;}
+.upcoming-day{background:var(--card);border:1.5px solid var(--border);border-radius:18px;padding:12px 14px;min-width:88px;flex-shrink:0;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:transform .1s;}
+.upcoming-day.has-tasks{border-color:var(--accent);background:var(--accent-light);}
 .upcoming-day-name{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;}
-.upcoming-day-date{font-size:17px;font-weight:700;margin-bottom:4px;}
-.upcoming-day-count{font-size:11px;font-weight:600;color:var(--accent);margin-bottom:4px;}
+.upcoming-day-date{font-size:19px;font-weight:800;margin-bottom:4px;}
+.upcoming-day-count{font-size:11px;font-weight:700;color:var(--accent);margin-bottom:4px;}
 .upcoming-day-dots{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:3px;}
 .upcoming-dot{width:7px;height:7px;border-radius:50%;}
 .upcoming-day-tasks{font-size:10px;color:var(--muted);line-height:1.4;}
@@ -461,7 +470,7 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .period-row{display:flex;gap:6px;margin:0 0 8px;flex-wrap:wrap;}
 .period-btn{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:20px;padding:5px 10px;font-size:12px;cursor:pointer;flex-shrink:0;transition:all .15s;}
 .period-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
-.period-section-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:10px 0 5px;display:flex;align-items:center;gap:5px;}
+.period-section-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:14px 0 6px;display:flex;align-items:center;gap:6px;border-top:1px solid var(--border);margin-top:4px;}
 .period-section-label.first{padding-top:4px;}
 .streak-badge{font-size:11px;font-weight:700;color:#e67e22;background:rgba(230,126,34,.12);border-radius:10px;padding:2px 7px;margin-left:6px;display:inline-block;}
 .voeg-alles-btn{white-space:nowrap;background:var(--accent-light);color:var(--accent);border:1.5px solid var(--accent);border-radius:20px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;}
