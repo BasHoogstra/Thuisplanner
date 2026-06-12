@@ -1066,10 +1066,24 @@ function saveToServer(){
     fetch(dataUrl(),{method:'PUT',headers:{'Content-Type':'application/json'},body:body})
       .then(function(r){if(!r.ok)throw new Error();_pendingSave=false;setSync('','Opgeslagen · '+nowTime());})
       .catch(function(){_pendingSave=false;setSync('err','Opslaan mislukt.');});
-  },350);
+  },80);
 }
 
-document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&dbUrl)loadFromServer(false);});
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'&&dbUrl){
+    loadFromServer(false);
+  } else if(document.visibilityState==='hidden'&&dbUrl&&_pendingSave){
+    // iOS kan fetch afkappen — stuur direct via sendBeacon als fallback
+    clearTimeout(saveTimer);
+    var body=JSON.stringify(data);
+    if(navigator.sendBeacon){
+      navigator.sendBeacon(dataUrl()+'?method=PUT',new Blob([body],{type:'application/json'}));
+    } else {
+      fetch(dataUrl(),{method:'PUT',headers:{'Content-Type':'application/json'},body:body,keepalive:true}).catch(function(){});
+    }
+    _pendingSave=false;lastKnownJSON=body;
+  }
+});
 
 function detectChanges(oldData,newData){
   if(!oldData||!lastKnownJSON||lastKnownJSON==='{}')return;
