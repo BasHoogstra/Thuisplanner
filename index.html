@@ -2654,9 +2654,7 @@ function renderBoodschappen(){
     var catOrder=BOOD_CATS.concat(Object.keys(groups).filter(function(c){return BOOD_CATS.indexOf(c)===-1;}));
     catOrder.forEach(function(cat){
       if(!groups[cat]||!groups[cat].length)return;
-      var hdr=document.createElement('div');hdr.className='bood-section-header';
-      hdr.textContent=(BOOD_CAT_ICONS[cat]||'🛒')+' '+cat;
-      list.appendChild(hdr);
+
       // Undone first, then done within category
       var catUndone=groups[cat].filter(function(b){return !b.done;});
       var catDone=groups[cat].filter(function(b){return b.done;});
