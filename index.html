@@ -82,6 +82,24 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .weather-bar{}.weather-icon{}.weather-info{}.weather-temp{}.weather-desc{}.weather-loc{}.weather-feels{}.weather-bar.loading .weather-icon{}
 /* Vandaag v51 polish */
 
+/* ── Gezins-DNA ── */
+.dna-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;}
+.dna-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 14px 12px;position:relative;overflow:hidden;}
+.dna-card-wide{grid-column:1/-1;}
+.dna-card-accent{border-color:var(--accent);}
+.dna-card-emoji{font-size:26px;margin-bottom:6px;display:block;}
+.dna-card-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;}
+.dna-card-value{font-size:20px;font-weight:800;color:var(--text);line-height:1.2;margin-bottom:2px;}
+.dna-card-sub{font-size:12px;color:var(--muted);line-height:1.4;}
+.dna-bar-wrap{height:6px;background:var(--border);border-radius:3px;margin-top:8px;overflow:hidden;}
+.dna-bar-fill{height:100%;border-radius:3px;background:var(--accent);transition:width .6s ease;}
+.dna-insight-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+.dna-insight-row:last-child{border-bottom:none;}
+.dna-insight-icon{font-size:20px;flex-shrink:0;width:32px;text-align:center;}
+.dna-insight-text{flex:1;font-size:13px;color:var(--text);line-height:1.4;}
+.dna-insight-val{font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap;}
+.dna-section-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:12px 0 8px;}
+
 /* ── Briefing ── */
 .briefing-wrap{max-width:480px;margin:0 auto;}
 .briefing-masthead{text-align:center;padding:8px 0 14px;}
@@ -835,6 +853,11 @@ body.shopping-mode .toast{bottom:20px;}
         <div class="meer-card-icon">📋</div>
         <div class="meer-card-title">Backlog</div>
         <div class="meer-card-sub" id="backlogSub">Ideeën & ooit-lijst</div>
+      </div>
+      <div class="meer-card" id="openGezinsDNA" style="background:linear-gradient(135deg,#6c5ce7,#fd79a8);grid-column:1/-1;">
+        <div class="meer-card-icon" style="filter:brightness(10);">🧬</div>
+        <div class="meer-card-title" style="color:#fff;">Gezins-DNA</div>
+        <div class="meer-card-sub" style="color:rgba(255,255,255,.8);">Wat zegt onze data over ons?</div>
       </div>
       <div class="meer-card meer-card-kluis" id="openKluis">
         <div class="meer-card-icon">🔐</div>
@@ -3842,6 +3865,215 @@ function renderGaranties(){
 })();
 
 
+
+// ══════════════════════════════════════════════
+// GEZINS-DNA ANALYSE
+// ══════════════════════════════════════════════
+var DAG_KORT=['Zo','Ma','Di','Wo','Do','Vr','Za'];
+var DAG_LANG=['Zondag','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag'];
+
+function computeDNA(){
+  var result={};
+
+  // ── Taken per persoon (huisgeheugen) ────────
+  var taakAuteurs={};
+  (data.huisgeheugen||[]).forEach(function(h){
+    if(h.type==='taak'&&h.auteur){
+      taakAuteurs[h.auteur]=(taakAuteurs[h.auteur]||0)+1;
+    }
+  });
+  result.taakAuteurs=taakAuteurs;
+  result.totalTaken=Object.values(taakAuteurs).reduce(function(s,n){return s+n;},0);
+  var topPersoon=Object.keys(taakAuteurs).sort(function(a,b){return taakAuteurs[b]-taakAuteurs[a];})[0];
+  result.topPersoon=topPersoon;result.topPersoonAantal=taakAuteurs[topPersoon]||0;
+
+  // ── Taken per weekdag ────────────────────────
+  var tasksByDay=[0,0,0,0,0,0,0];
+  Object.keys(data.tasks||{}).forEach(function(dk){
+    var done=(data.tasks[dk]||[]).filter(function(t){return t.done;}).length;
+    if(done>0){
+      var d=new Date(dk.replace(/(\d{4})(\d{2})(\d{2})/,'$1-$2-$3'));
+      if(!isNaN(d))tasksByDay[d.getDay()]+=done;
+    }
+  });
+  var maxTaskDay=tasksByDay.indexOf(Math.max.apply(null,tasksByDay));
+  result.productiefsteDag=DAG_LANG[maxTaskDay];
+  result.tasksByDay=tasksByDay;
+
+  // ── Boodschappen per weekdag ─────────────────
+  var boodsByDay=[0,0,0,0,0,0,0];
+  (data.boodschappenHistory||[]).forEach(function(h){
+    if(h.date){
+      var d=new Date(h.date.replace(/(\d{4})(\d{2})(\d{2})/,'$1-$2-$3'));
+      if(!isNaN(d))boodsByDay[d.getDay()]++;
+    }
+  });
+  var maxBoodDay=boodsByDay.indexOf(Math.max.apply(null,boodsByDay));
+  result.boodschappenDag=DAG_LANG[maxBoodDay];
+  result.boodsByDay=boodsByDay;
+  result.totalBoodschappen=(data.boodschappenHistory||[]).length;
+
+  // ── Populairste boodschappencat ──────────────
+  var catCount={};
+  (data.boodschappen||[]).concat(data.boodschappenHistory||[]).forEach(function(b){
+    var c=b.cat||'Overig';catCount[c]=(catCount[c]||0)+1;
+  });
+  var topCat=Object.keys(catCount).sort(function(a,b){return catCount[b]-catCount[a];})[0];
+  result.topCat=topCat;result.topCatAantal=catCount[topCat]||0;
+
+  // ── Meest geplande maaltijd ──────────────────
+  var maaltijdCount={};
+  Object.values(data.maaltijdplan||{}).forEach(function(mp){
+    var naam=mp.naam||mp.tekst||'';
+    if(naam){maaltijdCount[naam]=(maaltijdCount[naam]||0)+1;}
+  });
+  var topMaaltijd=Object.keys(maaltijdCount).sort(function(a,b){return maaltijdCount[b]-maaltijdCount[a];})[0];
+  result.topMaaltijd=topMaaltijd;result.topMaaltijdAantal=maaltijdCount[topMaaltijd]||0;
+  result.totalMaaltijden=Object.keys(maaltijdCount).length;
+
+  // ── Beste gewoonte streak ────────────────────
+  var bestStreak=0,bestStreakNaam='';
+  (data.gewoonten||[]).forEach(function(gw){
+    var streak=0;var ck=new Date(today.getTime());
+    while(streak<365){
+      var k2=dateKey(ck.getFullYear(),ck.getMonth(),ck.getDate());
+      var d2=(data.gewoontenDone&&data.gewoontenDone[k2])||[];
+      if(d2.indexOf(gw.id)>-1){streak++;ck=addDays(ck,-1);}else break;
+    }
+    if(streak>bestStreak){bestStreak=streak;bestStreakNaam=(gw.icon||'🔁')+' '+gw.text;}
+  });
+  result.bestStreak=bestStreak;result.bestStreakNaam=bestStreakNaam;
+
+  // ── Onderhoud trouwste taak ──────────────────
+  var onderhoudDone=(data.huisgeheugen||[]).filter(function(h){return h.type==='onderhoud';}).length;
+  result.onderhoudDone=onderhoudDone;
+
+  // ── Langst actief (dagen met data) ──────────
+  var allDays=new Set(Object.keys(data.tasks||{}).filter(function(k){return (data.tasks[k]||[]).length>0;}));
+  result.actieveDagen=allDays.size;
+
+  // ── Aantal recepten & maaltijden ─────────────
+  result.aantalRecepten=(data.recepten||[]).length;
+
+  return result;
+}
+
+function renderGezinsDNA(){
+  var dna=computeDNA();
+  var grid=document.getElementById('dnaGrid');grid.innerHTML='';
+
+  function makeCard(emoji,label,value,sub,wide,accent,barPct){
+    var card=document.createElement('div');
+    card.className='dna-card'+(wide?' dna-card-wide':'')+(accent?' dna-card-accent':'');
+    card.innerHTML='<span class="dna-card-emoji">'+emoji+'</span>'
+      +'<div class="dna-card-label">'+label+'</div>'
+      +'<div class="dna-card-value">'+value+'</div>'
+      +'<div class="dna-card-sub">'+sub+'</div>';
+    if(barPct!==undefined){
+      var bw=document.createElement('div');bw.className='dna-bar-wrap';
+      var bf=document.createElement('div');bf.className='dna-bar-fill';bf.style.width='0%';
+      bw.appendChild(bf);card.appendChild(bw);
+      setTimeout(function(){bf.style.width=barPct+'%';},100);
+    }
+    grid.appendChild(card);
+    return card;
+  }
+
+  function makeSectionTitle(title){
+    var d=document.createElement('div');d.className='dna-section-title dna-card-wide';d.textContent=title;
+    grid.appendChild(d);
+  }
+
+  function makeInsightCard(rows,wide){
+    var card=document.createElement('div');
+    card.className='dna-card'+(wide?' dna-card-wide':'');
+    rows.forEach(function(r){
+      var row=document.createElement('div');row.className='dna-insight-row';
+      row.innerHTML='<div class="dna-insight-icon">'+r.icon+'</div>'
+        +'<div class="dna-insight-text">'+r.text+'</div>'
+        +'<div class="dna-insight-val">'+r.val+'</div>';
+      card.appendChild(row);
+    });
+    grid.appendChild(card);
+  }
+
+  // ── Totalen ──────────────────────────────────
+  makeSectionTitle('📊 Totaal opgebouwd');
+  makeCard('✅','Taken afgerond',dna.totalTaken||0,'In het huisgeheugen',false,dna.totalTaken>10);
+  makeCard('🛒','Boodschappen gedaan',dna.totalBoodschappen||0,'Producten afgevinkt',false,false);
+  makeCard('🍽','Maaltijden gepland',dna.totalMaaltijden||0,'Unieke maaltijden',false,false);
+  makeCard('📅','Actieve dagen',dna.actieveDagen||0,'Dagen met taken',false,false);
+
+  // ── Patronen ─────────────────────────────────
+  makeSectionTitle('🔍 Jullie patronen');
+
+  if(dna.boodschappenDag&&dna.totalBoodschappen>3){
+    var maxBood=Math.max.apply(null,dna.boodsByDay)||1;
+    var boodPct=Math.round((dna.boodsByDay[DAG_LANG.indexOf(dna.boodschappenDag)]||0)/maxBood*100);
+    makeCard('🛒','Boodschappendag',dna.boodschappenDag,'Jullie shoppen hier het meest',false,true,boodPct);
+  }
+
+  if(dna.productiefsteDag&&dna.totalTaken>5){
+    var maxTask=Math.max.apply(null,dna.tasksByDay)||1;
+    var taskPct=Math.round((dna.tasksByDay[DAG_LANG.indexOf(dna.productiefsteDag)]||0)/maxTask*100);
+    makeCard('⚡','Productiefste dag',dna.productiefsteDag,'Meeste taken afgerond',false,true,taskPct);
+  }
+
+  if(dna.topCat){
+    makeCard('📦','Populairste categorie',dna.topCat,dna.topCatAantal+' keer op de lijst',false,false);
+  }
+
+  // ── Per persoon ───────────────────────────────
+  var auteurs=Object.keys(dna.taakAuteurs||{});
+  if(auteurs.length>0){
+    makeSectionTitle('👥 Per persoon');
+    var maxTaken=Math.max.apply(null,Object.values(dna.taakAuteurs))||1;
+    var persPRows=auteurs.sort(function(a,b){return dna.taakAuteurs[b]-dna.taakAuteurs[a];}).map(function(a){
+      var n=dna.taakAuteurs[a];
+      var pct=Math.round(n/maxTaken*100);
+      return {icon:'👤',text:a,val:n+' taak'+(n===1?'':'en')};
+    });
+    if(dna.topPersoon){
+      makeCard('🏆','Meeste taken afgerond',dna.topPersoon,dna.topPersoonAantal+' taken in het logboek',false,true,100);
+    }
+    if(persPRows.length>1){makeInsightCard(persPRows,false);}
+  }
+
+  // ── Favorieten ───────────────────────────────
+  if(dna.topMaaltijd||dna.bestStreak||dna.aantalRecepten){
+    makeSectionTitle('❤️ Favorieten & records');
+    if(dna.topMaaltijd){
+      makeCard('🍽','Favoriet recept',dna.topMaaltijd,dna.topMaaltijdAantal+'x gepland',true,true);
+    }
+    if(dna.bestStreak>0){
+      makeCard('🔥','Langste gewoonte-streak',dna.bestStreak+' dagen',dna.bestStreakNaam,false,dna.bestStreak>=7);
+    }
+    if(dna.aantalRecepten>0){
+      makeCard('👨‍🍳','Receptenverzameling',dna.aantalRecepten+' recepten','In de kookbibliotheek',false,false);
+    }
+    if(dna.onderhoudDone>0){
+      makeCard('🔧','Onderhoud bijgehouden',dna.onderhoudDone,'Keer een taak afgerond',false,false);
+    }
+  }
+
+  // ── Lege staat ───────────────────────────────
+  if(dna.totalTaken===0&&dna.totalBoodschappen===0){
+    grid.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;grid-column:1/-1;">'
+      +'<div style="font-size:40px;margin-bottom:12px;">🧬</div>'
+      +'<div style="font-weight:700;margin-bottom:8px;">Nog te weinig data</div>'
+      +'<div>Gebruik de planner een tijdje en kom dan terug — dan zien jullie hier echte inzichten.</div>'
+      +'</div>';
+  }
+}
+
+document.getElementById('openGezinsDNA').addEventListener('click',function(){
+  document.getElementById('gezinsDnaOverlay').classList.add('open');
+  renderGezinsDNA();
+});
+document.getElementById('closeGezinsDnaBtn').addEventListener('click',function(){
+  document.getElementById('gezinsDnaOverlay').classList.remove('open');
+});
+
 // ══════════════════════════════════════════════
 // DAGELIJKSE BRIEFING
 // ══════════════════════════════════════════════
@@ -4656,6 +4888,18 @@ function showQrCode(){
 
 })();
 </script>
+
+<!-- ══ GEZINS-DNA ══ -->
+<div class="full-overlay" id="gezinsDnaOverlay">
+  <div class="overlay-panel" style="max-height:92vh;overflow-y:auto;">
+    <div class="overlay-header">
+      <h2>🧬 Gezins-DNA</h2>
+      <button class="overlay-close" id="closeGezinsDnaBtn">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 16px;">Wat onze data over jullie vertelt.</p>
+    <div id="dnaGrid"></div>
+  </div>
+</div>
 
 <!-- ══ DAGELIJKSE BRIEFING ══ -->
 <div class="full-overlay" id="briefingOverlay" style="display:none;z-index:200;overflow-y:auto;background:var(--bg);padding:20px 16px 40px;">
