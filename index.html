@@ -180,6 +180,10 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .boodschappen-add{display:flex;gap:8px;padding:0 16px 8px;}
 .boodschappen-add input{flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:16px;background:var(--card);color:var(--text);}
 .boodschappen-add input:focus{outline:none;border-color:var(--accent);}
+.smart-hint{margin:0 16px 8px;padding:8px 12px;background:var(--accent-light);border:1.5px solid var(--accent);border-radius:10px;font-size:12px;color:var(--text);display:none;gap:8px;align-items:center;flex-wrap:wrap;}
+.smart-hint.visible{display:flex;}
+.smart-hint-text{flex:1;}
+.smart-hint-btn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
 .boodschappen-add button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 16px;font-size:22px;font-weight:600;cursor:pointer;}
 .boodschappen-cat-row{display:flex;gap:6px;padding:0 16px 10px;overflow-x:auto;}
 .bood-cat-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--card);font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);flex-shrink:0;}
@@ -663,6 +667,10 @@ body.shopping-mode .toast{bottom:20px;}
       <div class="tasks-section">
         <div class="sec-label">✅ Taken</div>
         <div id="taskList"></div>
+      </div>
+      <div class="smart-hint" id="smartDayHint">
+        <span class="smart-hint-text" id="smartDayHintText"></span>
+        <button class="smart-hint-btn" id="smartDayHintBtn" style="display:none;"></button>
       </div>
       <div class="add-section">
         <div class="add-row">
@@ -1721,6 +1729,7 @@ function openDay(key){
   document.getElementById('mdEndDate').value=dateKey(nd.getFullYear(),nd.getMonth(),nd.getDate());
   document.getElementById('notesArea').value=(data.notes&&data.notes[key])||'';
   renderRecurring();renderMdTasks();renderSheetTasks();
+  updateSmartDayHint(key);
   document.getElementById('sheetOverlay').classList.add('open');
   setTimeout(function(){document.getElementById('newTaskInput').focus();},50);
 }
@@ -1830,6 +1839,118 @@ function moveTask(task,fromKey,toKey){
   arr.splice(idx,1);if(!data.tasks[toKey])data.tasks[toKey]=[];data.tasks[toKey].push(task);
   saveToServer();renderSheetTasks();renderCalendar();renderVandaag();showToast('Verplaatst naar '+formatDateShort(toKey));
 }
+// ── Smart helpers ────────────────────────────────────────────
+
+// Feature 2 & 5: best day + busy day hint
+function updateSmartDayHint(key){
+  var hint=document.getElementById('smartDayHint');
+  var hintText=document.getElementById('smartDayHintText');
+  var hintBtn=document.getElementById('smartDayHintBtn');
+  if(!hint||!key){if(hint)hint.classList.remove('visible');return;}
+  var mon=getMonday(keyToDate(key));
+  var dayCounts=[];
+  for(var i=0;i<7;i++){
+    var d=addDays(mon,i);var k=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+    var n=(data.tasks[k]||[]).length;
+    dayCounts.push({key:k,day:DAY_NAMES[i],count:n});
+  }
+  var cur=dayCounts.find(function(x){return x.key===key;});
+  var curCount=cur?cur.count:0;
+  if(curCount>=4){
+    var quieter=dayCounts.filter(function(x){return x.key!==key&&x.count<curCount;})
+      .sort(function(a,b){return a.count-b.count;})[0];
+    if(quieter){
+      hintText.textContent='📅 Drukke dag ('+curCount+' taken). '+quieter.day+' is rustiger ('+quieter.count+').';
+      hintBtn.textContent='Ga naar '+quieter.day;hintBtn.style.display='';
+      hintBtn.onclick=function(){closeSheet();openDay(quieter.key);};
+      hint.classList.add('visible');return;
+    }
+  }
+  hint.classList.remove('visible');
+}
+
+// Feature 1: recurring suggestion
+function checkRecurringSuggestion(text){
+  var norm=text.toLowerCase().trim();
+  var weeksSeen={};
+  Object.keys(data.tasks||{}).forEach(function(k){
+    (data.tasks[k]||[]).forEach(function(t){
+      if(t.text.toLowerCase().trim()===norm){
+        var d=keyToDate(k);
+        var w=Math.floor((d-new Date(d.getFullYear(),0,1))/(7*24*60*60*1000));
+        weeksSeen[d.getFullYear()+'_'+w]=true;
+      }
+    });
+  });
+  if(Object.keys(weeksSeen).length>=3){
+    showToast('💡 "'+text+'" staat al 3× — terugkerende taak maken?',5000,function(){
+      document.getElementById('openTodayBtn').click();
+      setTimeout(function(){
+        document.querySelectorAll('.nav-item').forEach(function(b){if(b.dataset.view==='meerView')b.click();});
+        setTimeout(function(){document.getElementById('openRecurring')&&document.getElementById('openRecurring').click();},300);
+      },200);
+    });
+  }
+}
+
+// Feature 3: auto-categorize boodschappen
+var BOOD_AUTO={
+  'Groente & fruit':['appel','peer','banaan','druif','aardbei','tomaat','komkommer','sla','sla','wortel','ui','knoflook','paprika','broccoli','bloemkool','courgette','spinazie','avocado','citroen','limoen','sinaasappel','mango','ananas','meloen','kiwi','aardappel','radijs','prei','venkel','asperge','champignon','fruit','groente'],
+  'Zuivel':['melk','kaas','boter','yoghurt','kwark','room','slagroom','vla','pudding','karnemelk','botervloot','smeerkaas','mozzarella','parmezaan','brie','camembert','cheddar','zuivel'],
+  'Vlees & vis':['kip','vlees','gehakt','biefstuk','zalm','tonijn','garnalen','vis','worst','spek','bacon','ham','kalkoen','lam','varken','rundvlees','schnitzel','hamburger','slavink'],
+  'Brood & bakkerij':['brood','wit brood','bruin brood','volkoren','bolletje','stokbrood','croissant','muffin','cake','koek','beschuit','crackers','knäckebröd','roggebrood','baguette'],
+  'Drogisterij':['shampoo','conditioner','tandpasta','tandenborstel','zeep','douchegel','deodorant','scheerschuim','scheermesje','watten','pleisters','paracetamol','ibuprofen','vitamine','zonnebrand','lippenbalsem','oogdruppels'],
+  'Schoonmaak':['wasmiddel','afwasmiddel','schoonmaakmiddel','vaatwastabletten','wc-blokje','toiletreiniger','bleek','soda','azijn','allesreiniger','glas','ramen','vloer','dweil','spons','doekje','vuilniszak','prullenbak','afvalzak'],
+  'Diepvries':['diepvries','pizza','patat','friet','ijs','sorbet','diepvriesgroente','garnalen','visstaaf','frikandel','kroket','loempia']
+};
+function autoBoodCat(text){
+  var lower=text.toLowerCase();
+  var cats=Object.keys(BOOD_AUTO);
+  for(var i=0;i<cats.length;i++){
+    var words=BOOD_AUTO[cats[i]];
+    for(var j=0;j<words.length;j++){
+      if(lower.indexOf(words[j])>-1)return cats[i];
+    }
+  }
+  return null;
+}
+
+// Feature 4: onderhoud smart interval
+var OND_SMART=[
+  {words:['cv','ketel','verwarm','boiler'],interval:365},
+  {words:['dakgoot','goot','regenpijp'],interval:365},
+  {words:['rook','co-melder','co melder','rookmelder','koolmonoxide'],interval:365},
+  {words:['airco','airconditioner','warmtepomp'],interval:365},
+  {words:['ventilatie','wtw','mechanische ventilatie'],interval:180},
+  {words:['filter','luchtfilter','wasmachine filter'],interval:90},
+  {words:['schoorst','open haard','haardvuur'],interval:365},
+  {words:['schilderwerk','verf','buitengevel'],interval:1825},
+  {words:['dak','dakpan','dakbeschot'],interval:730},
+  {words:['tuin','gras','gazon','heggen','snoei'],interval:30},
+  {words:['gevel','voeg','voegwerk'],interval:1825},
+  {words:['afvoer','riool','ontstopp'],interval:365},
+  {words:['band','autoband','winterband','zomerband'],interval:180}
+];
+(function(){
+  var inp=document.getElementById('ondNewText');if(!inp)return;
+  inp.addEventListener('input',function(){
+    var v=this.value.toLowerCase();
+    for(var i=0;i<OND_SMART.length;i++){
+      var words=OND_SMART[i].words;
+      for(var j=0;j<words.length;j++){
+        if(v.indexOf(words[j])>-1){
+          var sel=document.getElementById('ondInterval');
+          if(sel&&sel.value!==String(OND_SMART[i].interval)){
+            sel.value=String(OND_SMART[i].interval);
+            showToast('💡 Interval automatisch ingesteld: '+OND_LABELS[OND_SMART[i].interval]);
+          }
+          return;
+        }
+      }
+    }
+  });
+})();
+
 function addTask(){
   var input=document.getElementById('newTaskInput');var text=input.value.trim();if(!text)return;
   var isMulti=document.getElementById('multiDayToggle').checked;
@@ -1845,6 +1966,8 @@ function addTask(){
     if(!openDateKey)return;if(!data.tasks[openDateKey])data.tasks[openDateKey]=[];
     var reminderTime=document.getElementById('newTaskReminder').value||null;data.tasks[openDateKey].push({id:uid(),text:text,done:false,category:cat,priority:prio,assignedTo:assignee||null,author:myName||null,orderStatus:null,reminder:reminderTime?{date:openDateKey,time:reminderTime}:null});
     input.value='';document.getElementById('newTaskReminder').value='';saveToServer();renderSheetTasks();renderCalendar();renderVandaag();
+    checkRecurringSuggestion(text);
+    updateSmartDayHint(openDateKey);
   }
   input.focus();
 }
@@ -1946,8 +2069,10 @@ function renderBoodschappen(){
 function addBoodschap(){
   var input=document.getElementById('boodschapInput');var text=input.value.trim();if(!text)return;
   if(!data.boodschappen)data.boodschappen=[];
-  var cat=boodCatFilter||'Overig';
+  var cat=boodCatFilter||(autoBoodCat(text))||'Overig';
+  var wasAuto=!boodCatFilter&&autoBoodCat(text);
   data.boodschappen.push({id:uid(),text:text,done:false,cat:cat,addedBy:myName||null,addedDate:todayKey()});
+  if(wasAuto)showToast('📦 Onder "'+cat+'" geplaatst');
   input.value='';saveToServer();renderBoodschappen();input.focus();
 }
 document.getElementById('boodschapAddBtn').addEventListener('click',addBoodschap);
