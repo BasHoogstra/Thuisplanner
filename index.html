@@ -1348,7 +1348,7 @@ var selectedPeriod='';
 var planPickerItem=null,notitieboekTimer=null;
 var boodCatFilter='';
 var boodWinkelFilter='';
-var BOOD_WINKELS=['AH','Lidl','Jumbo','Markt'];
+var BOOD_WINKELS=['AH','Vomar','Slager','Action'];
 var wakeLock=null;
 var pwaPrompt=null;
 
@@ -2522,7 +2522,7 @@ function initBoodCatRow(){
 
 function initBoodWinkelRow(){
   var row=document.getElementById('boodWinkelRow');if(!row)return;row.innerHTML='';
-  var WICONS={AH:'🔴',Lidl:'🟡',Jumbo:'🟠',Markt:'🌿'};
+  var WICONS={AH:'🔵',Vomar:'🔴',Slager:'🟤',Action:'🟡'};
   var all=document.createElement('button');all.className='bood-cat-btn active';all.dataset.winkel='';all.textContent='🏪 Alle';
   all.addEventListener('click',function(){boodWinkelFilter='';document.querySelectorAll('[data-winkel]').forEach(function(b){b.classList.remove('active');});all.classList.add('active');renderBoodschappen();});
   row.appendChild(all);
@@ -2630,7 +2630,7 @@ function renderBoodschappen(){
     })(b);
     // Winkel chip
     if(b.winkel){(function(bi){
-      var WICONS2={AH:'🔴',Lidl:'🟡',Jumbo:'🟠',Markt:'🌿'};
+      var WICONS2={AH:'🔵',Vomar:'🔴',Slager:'🟤',Action:'🟡'};
       var wchip=document.createElement('div');wchip.style='font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:1px 7px;display:inline-flex;align-items:center;gap:2px;margin-left:4px;color:var(--muted);white-space:nowrap;cursor:pointer;';
       wchip.textContent=(WICONS2[bi.winkel]||'🏪')+' '+bi.winkel;
       wchip.title='Winkel: '+bi.winkel;
