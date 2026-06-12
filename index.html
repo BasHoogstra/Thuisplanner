@@ -59,15 +59,18 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 /* VANDAAG */
 .vandaag-greeting{padding:0;}
+.compact-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 12px;gap:12px;background:var(--card);border-bottom:1px solid var(--border);}
+.compact-header-left{flex:1;min-width:0;}
+.compact-header-right{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;}
+.compact-greeting{font-size:18px;font-weight:700;line-height:1.2;}
+.compact-date{font-size:12px;color:var(--muted);margin-top:2px;}
+.compact-weather{display:flex;align-items:center;gap:5px;margin-top:8px;font-size:13px;color:var(--text);}
+.compact-weather span:first-child{font-size:20px;}
+.compact-weather-desc{color:var(--muted);font-size:12px;}
+.compact-stat-badges{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:60px;}
+.stat-badge{background:var(--accent-light);color:var(--accent);border-radius:10px;padding:2px 7px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;}
 
-.weather-bar{display:flex;align-items:center;gap:10px;padding:6px 16px 12px;background:linear-gradient(135deg,var(--accent-light) 0%,var(--card) 60%);border-bottom:1px solid var(--border);}
-.weather-icon{font-size:36px;line-height:1;flex-shrink:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.12));}
-.weather-info{flex:1;min-width:0;}
-.weather-temp{font-size:24px;font-weight:800;color:var(--text);line-height:1;}
-.weather-desc{font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.weather-loc{font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:3px;}
-.weather-feels{font-size:12px;color:var(--muted);}
-.weather-bar.loading .weather-icon{font-size:24px;opacity:.5;}
+.weather-bar{}.weather-icon{}.weather-info{}.weather-temp{}.weather-desc{}.weather-loc{}.weather-feels{}.weather-bar.loading .weather-icon{}
 
 .progress-ring-wrap{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;}
 
@@ -88,7 +91,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .stat-chip .chip-label{font-size:10px;color:var(--muted);font-weight:600;margin-top:3px;text-align:center;}
 .stat-chip.highlight{background:var(--accent-light);border-color:var(--accent);}
 .vandaag-section{margin:0 16px 14px;}
-.vandaag-section-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
+.vandaag-section-title{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.03em;padding:4px 0 8px;display:flex;align-items:center;justify-content:space-between;}
 .vandaag-open-btn{background:none;border:none;color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;padding:0;}
 .date-shortcuts{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
 .date-shortcut{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;}
@@ -467,33 +470,29 @@ body.shopping-mode .toast{bottom:20px;}
 
   <!-- VANDAAG -->
   <div class="view active" id="vandaagView">
-    <div class="vandaag-greeting">
-      <div class="progress-ring-wrap">
-        <div class="greeting-text">
-          <h2 id="greetingText">Goedemorgen!</h2>
-          <p id="greetingDate"></p>
+    <div class="compact-header" id="compactHeader">
+      <div class="compact-header-left">
+        <div class="compact-greeting" id="greetingText">Goedemorgen!</div>
+        <div class="compact-date" id="greetingDate"></div>
+        <div class="compact-weather" id="weatherBar">
+          <span id="weatherIcon">🌤</span>
+          <span id="weatherTemp">—°</span>
+          <span id="weatherDesc" class="compact-weather-desc">Laden…</span>
         </div>
-        <svg class="progress-ring-svg" width="56" height="56" viewBox="0 0 56 56" id="progressRingSvg">
+        <div id="weatherLoc" style="display:none;"><span id="weatherLocText"></span></div>
+        <div id="weatherFeels" style="display:none;"></div>
+      </div>
+      <div class="compact-header-right">
+        <svg class="progress-ring-svg" width="52" height="52" viewBox="0 0 56 56" id="progressRingSvg">
           <circle class="progress-ring-bg" cx="28" cy="28" r="22"/>
           <circle class="progress-ring-fg" cx="28" cy="28" r="22" id="progressRingFg"
-            transform="rotate(-90 28 28)"
-            stroke-dasharray="138.2"
-            stroke-dashoffset="138.2"/>
+            transform="rotate(-90 28 28)" stroke-dasharray="138.2" stroke-dashoffset="138.2"/>
           <text class="progress-ring-label" x="28" y="27" id="progressRingNum">0</text>
           <text class="progress-ring-label" x="28" y="36" style="font-size:7px;" id="progressRingDen">/0</text>
         </svg>
+        <div class="compact-stat-badges" id="statChips"></div>
       </div>
     </div>
-    <div class="weather-bar loading" id="weatherBar">
-      <div class="weather-icon" id="weatherIcon">🌤</div>
-      <div class="weather-info">
-        <div class="weather-temp" id="weatherTemp">—°</div>
-        <div class="weather-desc" id="weatherDesc">Weer laden…</div>
-        <div class="weather-loc" id="weatherLoc">📍 <span id="weatherLocText">Locatie instellen in ⚙️</span></div>
-      </div>
-      <div class="weather-feels" id="weatherFeels"></div>
-    </div>
-    <div class="stat-chips" id="statChips"></div>
     <div class="vandaag-section">
       <div class="vandaag-section-title">
         <span>Vandaag</span>
@@ -1348,11 +1347,10 @@ function renderVandaag(){
 
   var chips=document.getElementById('statChips');chips.innerHTML='';
   function makeChip(num,label,hl,onclick){
-    var c=document.createElement('div');c.className='stat-chip'+(hl?' highlight':'');
-    if(onclick){c.style.cursor='pointer';c.addEventListener('click',onclick);}
-    var n=document.createElement('div');n.className='chip-num';n.textContent=num;
-    var l=document.createElement('div');l.className='chip-label';l.textContent=label;
-    c.appendChild(n);c.appendChild(l);chips.appendChild(c);
+    var c=document.createElement('div');c.className='stat-badge';
+    if(onclick)c.addEventListener('click',onclick);
+    c.textContent=num+' '+label;
+    chips.appendChild(c);
   }
   // Progress ring
   var circ=138.2,fg=document.getElementById('progressRingFg');
@@ -1382,7 +1380,7 @@ function renderVandaag(){
     });
     var body=document.createElement('div');body.className='vandaag-task-body';
     var txt=document.createElement('div');txt.className='vandaag-task-text'+(isDone?' done':'');txt.textContent=cat.emoji+' ↻ '+r.text;
-    var meta=document.createElement('div');meta.className='vandaag-task-meta';meta.textContent='Vaste taak';
+    var meta=document.createElement('div');meta.className='vandaag-task-meta';meta.innerHTML='<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:.7;margin-right:4px;vertical-align:middle;"></span>Vaste taak';
     body.appendChild(txt);body.appendChild(meta);item.appendChild(check);item.appendChild(body);container.appendChild(item);
     addSwipe(item,function(){
       if(!data.recurringDone)data.recurringDone={};
@@ -1399,7 +1397,7 @@ function renderVandaag(){
     check.addEventListener('click',function(){md.done=!md.done;saveToServer();renderVandaag();renderCalendar();});
     var body=document.createElement('div');body.className='vandaag-task-body';
     var txt=document.createElement('div');txt.className='vandaag-task-text'+(md.done?' done':'');txt.textContent=cat.emoji+' '+md.text;
-    var meta=document.createElement('div');meta.className='vandaag-task-meta';meta.textContent='t/m '+formatDateShort(md.endDate);
+    var meta=document.createElement('div');meta.className='vandaag-task-meta';meta.innerHTML='<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#27ae60;opacity:.7;margin-right:4px;vertical-align:middle;"></span>t/m '+formatDateShort(md.endDate);
     body.appendChild(txt);body.appendChild(meta);item.appendChild(check);item.appendChild(body);container.appendChild(item);
   });
 
