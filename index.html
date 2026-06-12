@@ -1392,7 +1392,7 @@ var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','z
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{}};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[]};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -1493,7 +1493,7 @@ function loadFromServer(isInitial){
   fetch(dataUrl()).then(function(r){if(!r.ok)throw new Error('status:'+r.status);return r.json();}).then(function(json){
     var inc=json||{};
     ['tasks','notes','recurringDone'].forEach(function(k){if(!inc[k])inc[k]={};});
-    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};if(!inc.boodCatOverrides||typeof inc.boodCatOverrides!=='object'||Array.isArray(inc.boodCatOverrides))inc.boodCatOverrides={};if(!inc.gewoonten||!Array.isArray(inc.gewoonten))inc.gewoonten=[];if(!inc.gewoontenDone||typeof inc.gewoontenDone!=='object'||Array.isArray(inc.gewoontenDone))inc.gewoontenDone={};
+    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};if(!inc.boodCatOverrides||typeof inc.boodCatOverrides!=='object'||Array.isArray(inc.boodCatOverrides))inc.boodCatOverrides={};if(!inc.gewoonten||!Array.isArray(inc.gewoonten))inc.gewoonten=[];if(!inc.gewoontenDone||typeof inc.gewoontenDone!=='object'||Array.isArray(inc.gewoontenDone))inc.gewoontenDone={};if(!inc.vakantiePersonen||!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];
     if(!inc.notitieboek)inc.notitieboek='';
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
@@ -3863,6 +3863,7 @@ function addSwipeDownClose(overlayId, closeFn){
 // === VAKANTIES ===
 var activeVakId=null;
 function getVakanties(){if(!data.vakanties)data.vakanties=[];return data.vakanties;}
+function getVakantiePersonen(){if(!data.vakantiePersonen||!data.vakantiePersonen.length)data.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];return data.vakantiePersonen;}
 function renderVakanties(){
   var content=document.getElementById('vakantiesContent');content.innerHTML='';
   var vakanties=getVakanties();
@@ -3871,7 +3872,7 @@ function renderVakanties(){
   addInput.style.cssText='flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;background:var(--card);color:var(--text);';
   var addBtn=document.createElement('button');addBtn.textContent='+';
   addBtn.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 14px;font-size:20px;font-weight:600;cursor:pointer;';
-  addBtn.addEventListener('click',function(){var naam=addInput.value.trim();if(!naam)return;if(!data.vakanties)data.vakanties=[];var nv={id:uid(),naam:naam,startDatum:'',paklijst:{Bas:[],Sanne:[],Lynn:[],Lois:[]},todos:[],notes:''};data.vakanties.push(nv);addInput.value='';activeVakId=nv.id;saveToServer();renderVakanties();renderMeerStats();});
+  addBtn.addEventListener('click',function(){var naam=addInput.value.trim();if(!naam)return;if(!data.vakanties)data.vakanties=[];var pak={};getVakantiePersonen().forEach(function(p){pak[p]=[];});var nv={id:uid(),naam:naam,startDatum:'',paklijst:pak,todos:[],notes:''};data.vakanties.push(nv);addInput.value='';activeVakId=nv.id;saveToServer();renderVakanties();renderMeerStats();});
   addInput.addEventListener('keydown',function(e){if(e.key==='Enter')addBtn.click();});
   addBar.appendChild(addInput);addBar.appendChild(addBtn);content.appendChild(addBar);
   if(!vakanties.length){var empty=document.createElement('div');empty.style.cssText='text-align:center;color:var(--muted);padding:30px;font-size:14px;';empty.textContent='Nog geen vakanties. Voeg er een toe hierboven!';content.appendChild(empty);return;}
@@ -3891,7 +3892,7 @@ function renderVakanties(){
   var vakTitle=document.createElement('span');vakTitle.style.cssText='flex:1;font-size:16px;font-weight:700;';vakTitle.textContent=activeVak.naam;
   var resetBtn=document.createElement('button');resetBtn.textContent='Reset afvinkjes';
   resetBtn.style.cssText='background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;color:var(--muted);';
-  resetBtn.addEventListener('click',function(){['Bas','Sanne','Lynn','Lois'].forEach(function(p){(activeVak.paklijst[p]||[]).forEach(function(item){item.done=false;});});(activeVak.todos||[]).forEach(function(t){t.done=false;});saveToServer();renderVakanties();showToast('Afvinkjes gereset!');});
+  resetBtn.addEventListener('click',function(){getVakantiePersonen().forEach(function(p){(activeVak.paklijst[p]||[]).forEach(function(item){item.done=false;});});(activeVak.todos||[]).forEach(function(t){t.done=false;});saveToServer();renderVakanties();showToast('Afvinkjes gereset!');});
   var delVakBtn=document.createElement('button');delVakBtn.textContent='Verwijder';
   delVakBtn.style.cssText='background:none;border:1px solid var(--danger);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;color:var(--danger);';
   delVakBtn.addEventListener('click',function(){if(!confirm('Vakantie "'+activeVak.naam+'" verwijderen?'))return;var idx=data.vakanties.indexOf(activeVak);if(idx>-1)data.vakanties.splice(idx,1);activeVakId=data.vakanties.length?data.vakanties[0].id:null;saveToServer();renderVakanties();renderMeerStats();});
@@ -3974,9 +3975,42 @@ function renderVakanties(){
       });
     } else {var em=document.createElement('div');em.style.cssText='text-align:center;color:var(--muted);padding:20px;font-size:13px;';em.textContent='Nog geen uitgaven geboekt.';content.appendChild(em);}
   } else if(activeVak._tab==='paklijst'){
+    // ── Personen beheren ─────────────────────────────
+    var persRow=document.createElement('div');
+    persRow.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;';
+    var persLabel=document.createElement('span');persLabel.style.cssText='font-size:12px;color:var(--muted);';persLabel.textContent='Personen:';
+    persRow.appendChild(persLabel);
+    getVakantiePersonen().forEach(function(p){
+      var chip=document.createElement('div');chip.style.cssText='display:inline-flex;align-items:center;gap:4px;background:var(--accent-light);color:var(--accent);border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700;';
+      chip.textContent=p;
+      var rem=document.createElement('button');rem.textContent='×';rem.style.cssText='background:none;border:none;color:var(--accent);cursor:pointer;font-size:14px;line-height:1;padding:0 0 0 4px;font-weight:700;';
+      (function(name){rem.addEventListener('click',function(){
+        if(data.vakantiePersonen.length<=1){showToast('Minimaal één persoon vereist');return;}
+        if(!confirm(name+' verwijderen uit de paklijsten?'))return;
+        var idx=data.vakantiePersonen.indexOf(name);if(idx>-1)data.vakantiePersonen.splice(idx,1);
+        saveToServer();renderVakanties();
+      });})(p);
+      chip.appendChild(rem);persRow.appendChild(chip);
+    });
+    // Toevoegen
+    var addPersInp=document.createElement('input');addPersInp.type='text';addPersInp.placeholder='+ Naam';
+    addPersInp.style.cssText='border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;background:var(--card);color:var(--text);width:80px;';
+    addPersInp.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){
+        var n=addPersInp.value.trim();if(!n)return;
+        if(data.vakantiePersonen.indexOf(n)>-1){showToast(n+' staat er al bij');return;}
+        data.vakantiePersonen.push(n);
+        // Voeg lege paklijst toe aan alle vakanties
+        (data.vakanties||[]).forEach(function(vak){if(!vak.paklijst[n])vak.paklijst[n]=[];});
+        addPersInp.value='';saveToServer();renderVakanties();
+      }
+    });
+    persRow.appendChild(addPersInp);
+    content.appendChild(persRow);
+
     var pakGrid=document.createElement('div');pakGrid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:12px;';
-    ['Bas','Sanne','Lynn','Lois'].forEach(function(person){
-      var displayName=person==='Lois'?'Loïs':person;
+    getVakantiePersonen().forEach(function(person){
+      var displayName=person;
       var items=activeVak.paklijst[person]||(activeVak.paklijst[person]=[]);
       var sec=document.createElement('div');sec.style.cssText='min-width:0;';
       var hdr=document.createElement('div');hdr.style.cssText='font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;';hdr.textContent=displayName;sec.appendChild(hdr);
