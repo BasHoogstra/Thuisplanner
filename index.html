@@ -35,6 +35,11 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .sync-row{padding:4px 16px 6px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;background:var(--card);border-bottom:1px solid var(--border);}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:#9ad6a6;display:inline-block;flex-shrink:0;}
 .sync-dot.busy{background:#f0c36c;}.sync-dot.err{background:var(--danger);}
+.ptr-indicator{display:flex;align-items:center;justify-content:center;height:0;overflow:hidden;transition:height .15s;font-size:13px;color:var(--muted);gap:8px;background:var(--bg);}
+.ptr-indicator.pulling{height:44px;}
+.ptr-indicator.loading{height:44px;}
+.ptr-spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
 .refresh-btn{background:none;border:none;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;padding:0;margin-left:auto;}
 .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--card);border-top:1px solid var(--border);display:flex;z-index:40;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -2px 16px rgba(0,0,0,.06);}
 .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px 8px;cursor:pointer;border:none;background:none;color:var(--muted);font-size:10px;font-weight:600;gap:3px;min-height:56px;transition:color .18s;}
@@ -465,6 +470,10 @@ body.shopping-mode .toast{bottom:20px;}
     <span class="sync-dot" id="syncDot"></span>
     <span id="syncText">Verbinden…</span>
     <button class="refresh-btn" id="refreshBtn" style="display:none;">↻ Vernieuwen</button>
+  </div>
+  <div class="ptr-indicator" id="ptrIndicator">
+    <div class="ptr-spinner" id="ptrSpinner" style="display:none;"></div>
+    <span id="ptrLabel">↓ Trek om te vernieuwen</span>
   </div>
   <div class="name-banner" id="nameBanner" style="display:none;">
     <span>👤 Naam:</span>
@@ -1123,6 +1132,60 @@ function startAutoSync(){
   },15000);
 }
 document.getElementById('refreshBtn').addEventListener('click',function(){if(dbUrl)loadFromServer(false);});
+
+// ── Pull-to-refresh ──────────────────────────────────────────
+(function(){
+  var PTR_THRESH=62;
+  var _startY=0,_pulling=false,_triggered=false;
+  var ind=document.getElementById('ptrIndicator');
+  var lbl=document.getElementById('ptrLabel');
+  var spn=document.getElementById('ptrSpinner');
+
+  function atTop(){
+    var av=document.querySelector('.view.active');
+    return !av||av.scrollTop<=0;
+  }
+
+  document.addEventListener('touchstart',function(e){
+    if(!atTop())return;
+    _startY=e.touches[0].clientY;
+    _pulling=false;_triggered=false;
+  },{passive:true});
+
+  document.addEventListener('touchmove',function(e){
+    if(_triggered)return;
+    var dy=e.touches[0].clientY-_startY;
+    if(dy>8&&atTop()){
+      _pulling=true;
+      ind.classList.add('pulling');
+      spn.style.display='none';
+      lbl.style.display='';
+      if(dy>PTR_THRESH){
+        lbl.textContent='↑ Loslaten om te vernieuwen';
+      } else {
+        lbl.textContent='↓ Trek om te vernieuwen';
+      }
+    } else if(dy<=0){
+      _pulling=false;
+      ind.classList.remove('pulling');
+    }
+  },{passive:true});
+
+  document.addEventListener('touchend',function(e){
+    if(!_pulling)return;
+    var dy=(e.changedTouches[0]?e.changedTouches[0].clientY:_startY)-_startY;
+    ind.classList.remove('pulling');
+    if(dy>PTR_THRESH&&dbUrl&&!_triggered){
+      _triggered=true;
+      ind.classList.add('loading');
+      spn.style.display='';
+      lbl.style.display='none';
+      loadFromServer(false);
+      setTimeout(function(){ind.classList.remove('loading');spn.style.display='none';lbl.textContent='↓ Trek om te vernieuwen';lbl.style.display='';_triggered=false;},900);
+    }
+    _pulling=false;
+  },{passive:true});
+})();
 
 function getParam(n){return new URL(window.location.href).searchParams.get(n);}
 function buildShareLink(){var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);return u.toString();}
