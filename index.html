@@ -1446,6 +1446,54 @@ body.shopping-mode .toast{bottom:20px;}
   <button class="ios-install-close" id="iosInstallClose">✕</button>
 </div>
 <div class="toast" id="toast"></div>
+<!-- ══ GEZINS-DNA ══ -->
+<div class="full-overlay" id="gezinsDnaOverlay">
+  <div class="overlay-panel" style="max-height:92vh;overflow-y:auto;">
+    <div class="overlay-header">
+      <h2>🧬 Gezins-DNA</h2>
+      <button class="overlay-close" id="closeGezinsDnaBtn">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 16px;">Wat onze data over jullie vertelt.</p>
+    <div id="dnaGrid" class="dna-grid"></div>
+  </div>
+</div>
+
+<!-- ══ DAGELIJKSE BRIEFING ══ -->
+<div class="full-overlay" id="briefingOverlay" style="display:none;z-index:200;overflow-y:auto;background:var(--bg);padding:20px 16px 40px;">
+  <div class="briefing-wrap">
+    <div class="briefing-masthead">
+      <div class="briefing-logo">📰 DE THUISPLANNER</div>
+      <div class="briefing-dateline" id="briefingDateline"></div>
+      <div class="briefing-rule"></div>
+    </div>
+    <div id="briefingBody"></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="briefing-start-btn" id="briefingStartBtn">Dag starten →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ WAT ETEN WE OVERLAY ══ -->
+<div class="overlay" id="watEtenWeOverlay">
+  <div class="overlay-panel" style="text-align:center;padding:32px 24px;">
+    <button class="overlay-close" id="closeWatEtenWeBtn" style="position:absolute;top:16px;right:16px;">✕</button>
+    <div style="font-size:36px;margin-bottom:8px;">🎲</div>
+    <h2 style="font-size:22px;font-weight:800;margin:0 0 6px;">Wat eten we?</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 24px;">Druk op spin en wij kiezen voor jullie!</p>
+    <div class="spinner-drum" id="spinnerDrum">
+      <div class="spinner-item" id="spinnerItem">—</div>
+    </div>
+    <button class="spinner-btn" id="spinnerBtn">🎲 Spin!</button>
+    <div id="spinnerResult" style="display:none;margin-top:16px;">
+      <div class="spinner-result-name" id="spinnerResultName"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;">
+        <button class="primary-btn" id="spinnerPlanBtn" style="font-size:13px;padding:10px 18px;">📅 Plan voor vanavond</button>
+        <button style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px 18px;font-size:13px;cursor:pointer;color:var(--text);" id="spinnerAgainBtn">Opnieuw 🔄</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
 'use strict';
@@ -4912,54 +4960,6 @@ function showQrCode(){
 
 })();
 </script>
-
-<!-- ══ GEZINS-DNA ══ -->
-<div class="full-overlay" id="gezinsDnaOverlay">
-  <div class="overlay-panel" style="max-height:92vh;overflow-y:auto;">
-    <div class="overlay-header">
-      <h2>🧬 Gezins-DNA</h2>
-      <button class="overlay-close" id="closeGezinsDnaBtn">✕</button>
-    </div>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 16px;">Wat onze data over jullie vertelt.</p>
-    <div id="dnaGrid" class="dna-grid"></div>
-  </div>
-</div>
-
-<!-- ══ DAGELIJKSE BRIEFING ══ -->
-<div class="full-overlay" id="briefingOverlay" style="display:none;z-index:200;overflow-y:auto;background:var(--bg);padding:20px 16px 40px;">
-  <div class="briefing-wrap">
-    <div class="briefing-masthead">
-      <div class="briefing-logo">📰 DE THUISPLANNER</div>
-      <div class="briefing-dateline" id="briefingDateline"></div>
-      <div class="briefing-rule"></div>
-    </div>
-    <div id="briefingBody"></div>
-    <div style="display:flex;gap:10px;margin-top:20px;">
-      <button class="briefing-start-btn" id="briefingStartBtn">Dag starten →</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ WAT ETEN WE OVERLAY ══ -->
-<div class="overlay" id="watEtenWeOverlay">
-  <div class="overlay-panel" style="text-align:center;padding:32px 24px;">
-    <button class="overlay-close" id="closeWatEtenWeBtn" style="position:absolute;top:16px;right:16px;">✕</button>
-    <div style="font-size:36px;margin-bottom:8px;">🎲</div>
-    <h2 style="font-size:22px;font-weight:800;margin:0 0 6px;">Wat eten we?</h2>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 24px;">Druk op spin en wij kiezen voor jullie!</p>
-    <div class="spinner-drum" id="spinnerDrum">
-      <div class="spinner-item" id="spinnerItem">—</div>
-    </div>
-    <button class="spinner-btn" id="spinnerBtn">🎲 Spin!</button>
-    <div id="spinnerResult" style="display:none;margin-top:16px;">
-      <div class="spinner-result-name" id="spinnerResultName"></div>
-      <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;">
-        <button class="primary-btn" id="spinnerPlanBtn" style="font-size:13px;padding:10px 18px;">📅 Plan voor vanavond</button>
-        <button style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px 18px;font-size:13px;cursor:pointer;color:var(--text);" id="spinnerAgainBtn">Opnieuw 🔄</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>
