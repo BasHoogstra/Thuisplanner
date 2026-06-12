@@ -843,6 +843,7 @@ body.shopping-mode .toast{bottom:20px;}
     <button class="nav-item active" data-view="vandaagView"><span class="nav-icon">🏠</span>Vandaag</button>
     <button class="nav-item" data-view="kalenderView"><span class="nav-icon">📅</span>Kalender</button>
     <button class="nav-item" data-view="boodschappenView"><span class="nav-icon">🛒</span>Boodschappen</button>
+    <button class="nav-item" id="navGeheugenBtn"><span class="nav-icon">🧠</span>Geheugen</button>
     <button class="nav-item" data-view="meerView"><span class="nav-icon">☰</span>Meer</button>
   </nav>
 </div>
@@ -1590,7 +1591,23 @@ document.getElementById('shareBtn').addEventListener('click',doShare);
 var _clb=document.getElementById('copyLinkBtn');if(_clb)_clb.addEventListener('click',doShare);
 
 // Bottom nav
-var _navOrder=['vandaagView','kalenderView','boodschappenView','meerView'];
+var _navOrder=['vandaagView','kalenderView','boodschappenView','meerView']; // Geheugen is overlay, not in swipe order
+document.getElementById('navGeheugenBtn').addEventListener('click',function(){
+  document.getElementById('huisgeheugenOverlay').classList.add('open');
+  renderHuisgeheugen('');
+  document.getElementById('geheugenZoek').value='';
+  // Highlight nav button while overlay open
+  document.querySelectorAll('.nav-item').forEach(function(b){b.classList.remove('active');});
+  this.classList.add('active');
+});
+// Deactivate nav highlight when overlay closes
+document.getElementById('closeHuisgeheugenBtn').addEventListener('click',function(){
+  document.getElementById('huisgeheugenOverlay').classList.remove('open');
+  // Restore active nav to vandaag
+  document.querySelectorAll('.nav-item').forEach(function(b){b.classList.remove('active');});
+  var vb=document.querySelector('[data-view="vandaagView"]');if(vb)vb.classList.add('active');
+});
+
 document.querySelectorAll('.nav-item').forEach(function(btn){
   btn.addEventListener('click',function(){
     var curActive=document.querySelector('.view.active');
