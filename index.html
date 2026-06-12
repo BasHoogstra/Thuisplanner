@@ -81,6 +81,35 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 .weather-bar{}.weather-icon{}.weather-info{}.weather-temp{}.weather-desc{}.weather-loc{}.weather-feels{}.weather-bar.loading .weather-icon{}
 /* Vandaag v51 polish */
+
+/* ── Briefing ── */
+.briefing-wrap{max-width:480px;margin:0 auto;}
+.briefing-masthead{text-align:center;padding:8px 0 14px;}
+.briefing-logo{font-family:Georgia,serif;font-size:22px;font-weight:700;letter-spacing:.05em;color:var(--text);}
+.briefing-dateline{font-size:12px;color:var(--muted);margin-top:4px;letter-spacing:.04em;}
+.briefing-rule{border:none;border-top:3px solid var(--text);margin:10px 0 0;opacity:.15;}
+.briefing-section{border-bottom:1px solid var(--border);padding:14px 0;}
+.briefing-section:last-child{border-bottom:none;}
+.briefing-section-label{font-family:Georgia,serif;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.briefing-headline{font-family:Georgia,serif;font-size:19px;font-weight:700;line-height:1.3;color:var(--text);margin-bottom:4px;}
+.briefing-sub{font-size:13px;color:var(--muted);line-height:1.6;}
+.briefing-task-list{margin:6px 0 0;padding:0;list-style:none;}
+.briefing-task-list li{font-size:13px;color:var(--text);padding:3px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;}
+.briefing-task-list li:last-child{border-bottom:none;}
+.briefing-weather-row{display:flex;align-items:center;gap:12px;}
+.briefing-weather-icon{font-size:36px;}
+.briefing-temp{font-family:Georgia,serif;font-size:32px;font-weight:700;color:var(--text);}
+.briefing-weather-info{flex:1;}
+.briefing-quote{font-family:Georgia,serif;font-size:16px;font-style:italic;line-height:1.6;color:var(--text);padding:4px 0 4px 14px;border-left:3px solid var(--accent);}
+.briefing-bday{display:flex;align-items:center;gap:10px;padding:6px 0;}
+.briefing-start-btn{flex:1;background:var(--accent);color:#fff;border:none;border-radius:14px;padding:16px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;}
+
+/* ── Spinner ── */
+.spinner-drum{background:var(--bg);border:2px solid var(--accent);border-radius:16px;padding:16px;margin:0 auto 20px;max-width:280px;min-height:64px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+.spinner-item{font-family:Georgia,serif;font-size:20px;font-weight:700;color:var(--text);text-align:center;line-height:1.3;transition:transform .05s;padding:0 8px;}
+.spinner-btn{background:var(--accent);color:#fff;border:none;border-radius:14px;padding:14px 32px;font-size:17px;font-weight:700;cursor:pointer;font-family:inherit;}
+.spinner-result-name{font-family:Georgia,serif;font-size:24px;font-weight:700;color:var(--accent);}
+
 .vanavond-strip{display:flex;align-items:center;gap:12px;margin:0 16px 10px;background:var(--card);border-radius:16px;padding:12px 16px;border-left:4px solid var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.07);cursor:pointer;}
 .vanavond-icon{font-size:22px;flex-shrink:0;}
 .vanavond-body{flex:1;}
@@ -718,7 +747,7 @@ body.shopping-mode .toast{bottom:20px;}
       <span>✈️</span>
     </div>
     <div class="verval-banner" id="vervalBanner"></div>
-    <div id="vanavondEten" class="vanavond-strip" style="display:none;" onclick="document.getElementById('maaltijdOverlay').classList.add('open');renderMaaltijdplanner();">
+    <div id="vanavondEten" class="vanavond-strip" style="display:none;cursor:pointer;" onclick="document.getElementById('maaltijdOverlay').classList.add('open');renderMaaltijdplanner();">
       <span class="vanavond-icon">🍽</span>
       <div class="vanavond-body">
         <div class="vanavond-label">Vanavond</div>
@@ -726,10 +755,16 @@ body.shopping-mode .toast{bottom:20px;}
       </div>
       <span class="vanavond-arrow">›</span>
     </div>
+    <button id="openWatEtenWeBtn" onclick="openWatEtenWe();" style="display:flex;align-items:center;gap:10px;margin:0 16px 12px;background:linear-gradient(135deg,var(--accent),rgba(var(--accent-rgb),.65));color:#fff;border:none;border-radius:16px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;width:calc(100% - 32px);box-shadow:0 2px 10px rgba(var(--accent-rgb),.3);">
+      <span style="font-size:22px;">🎲</span>
+      <span style="flex:1;text-align:left;">Wat eten we vanavond?</span>
+      <span style="opacity:.8;">›</span>
+    </button>
     <div class="vandaag-section">
       <div class="vandaag-section-title">
         <span>Vandaag</span>
         <button class="vandaag-open-btn" id="openTodayBtn">Dag openen ›</button>
+        <button class="vandaag-open-btn" onclick="showBriefing(true);" style="margin-left:6px;">📰 Briefing</button>
       </div>
       <div class="quick-add-row" id="vandaagZoekRow" style="margin-bottom:10px;">
         <input type="search" id="vandaagZoekInput" placeholder="🔍 Zoek door alles…" autocomplete="off" readonly style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:15px;background:var(--card);color:var(--text);cursor:pointer;">
@@ -1392,7 +1427,7 @@ var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','z
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[]};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[]};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -1493,7 +1528,7 @@ function loadFromServer(isInitial){
   fetch(dataUrl()).then(function(r){if(!r.ok)throw new Error('status:'+r.status);return r.json();}).then(function(json){
     var inc=json||{};
     ['tasks','notes','recurringDone'].forEach(function(k){if(!inc[k])inc[k]={};});
-    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};if(!inc.boodCatOverrides||typeof inc.boodCatOverrides!=='object'||Array.isArray(inc.boodCatOverrides))inc.boodCatOverrides={};if(!inc.gewoonten||!Array.isArray(inc.gewoonten))inc.gewoonten=[];if(!inc.gewoontenDone||typeof inc.gewoontenDone!=='object'||Array.isArray(inc.gewoontenDone))inc.gewoontenDone={};if(!inc.vakantiePersonen||!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];
+    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};if(!inc.boodCatOverrides||typeof inc.boodCatOverrides!=='object'||Array.isArray(inc.boodCatOverrides))inc.boodCatOverrides={};if(!inc.gewoonten||!Array.isArray(inc.gewoonten))inc.gewoonten=[];if(!inc.gewoontenDone||typeof inc.gewoontenDone!=='object'||Array.isArray(inc.gewoontenDone))inc.gewoontenDone={};if(!inc.vakantiePersonen||!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];if(!inc.verjaardagen||!Array.isArray(inc.verjaardagen))inc.verjaardagen=[];
     if(!inc.notitieboek)inc.notitieboek='';
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
@@ -3806,11 +3841,257 @@ function renderGaranties(){
   },1200);
 })();
 
+
+// ══════════════════════════════════════════════
+// DAGELIJKSE BRIEFING
+// ══════════════════════════════════════════════
+var DAGELIJKSE_QUOTES=[
+  'Een goede dag begint met een goed plan.',
+  'Samen sterk, samen slim.',
+  'Kleine stappen leiden tot grote resultaten.',
+  'Het beste moment om te beginnen is nu.',
+  'Thuis is waar het hart is.',
+  'Elke dag is een nieuw begin.',
+  'Samen lachen maakt alles lichter.',
+  'Georganiseerd leven, meer genieten.',
+  'Het gezin dat samenwerkt, komt verder.',
+  'Vandaag is een cadeau — dat is waarom het "heden" heet.',
+  'Zorg goed voor jezelf, dan zorg je goed voor anderen.',
+  'Grote dingen beginnen klein.',
+  'Een opgeruimd huis is een opgeruimd hoofd.',
+  'De beste investering is tijd met je gezin.',
+  'Plannen maakt dromen werkelijkheid.',
+  'Goed voorbereid is half gewonnen.',
+  'Liefde zit in de kleine dingen van elke dag.',
+  'Maak van vandaag iets moois.',
+];
+var DAG_NAMEN_LANG=['Zondag','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag'];
+var MAAND_NAMEN_LANG=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+
+function getDailyQuote(){
+  var d=new Date();
+  var idx=(d.getFullYear()*366+d.getMonth()*31+d.getDate())%DAGELIJKSE_QUOTES.length;
+  return DAGELIJKSE_QUOTES[idx];
+}
+
+function showBriefing(force){
+  var todayStr=todayKey();
+  if(!force && localStorage.getItem('briefingShown')===todayStr) return;
+  // Wacht tot data geladen is
+  if(!dbUrl){setTimeout(function(){showBriefing(force);},500);return;}
+  localStorage.setItem('briefingShown',todayStr);
+
+  var overlay=document.getElementById('briefingOverlay');
+  var body=document.getElementById('briefingBody');
+  var dateline=document.getElementById('briefingDateline');
+  var d=new Date();
+  dateline.textContent=DAG_NAMEN_LANG[d.getDay()]+' '+d.getDate()+' '+MAAND_NAMEN_LANG[d.getMonth()]+' '+d.getFullYear();
+
+  body.innerHTML='';
+  var tk=todayKey();
+
+  // ── Weer ──────────────────────────────────
+  var icon=document.getElementById('weatherIcon')&&document.getElementById('weatherIcon').textContent||'🌤';
+  var temp=document.getElementById('weatherTemp')&&document.getElementById('weatherTemp').textContent||'—°';
+  var desc=document.getElementById('weatherDesc')&&document.getElementById('weatherDesc').textContent||'';
+  var city=document.getElementById('weatherLocText')&&document.getElementById('weatherLocText').textContent||'';
+  var wSec=document.createElement('div');wSec.className='briefing-section';
+  var wLbl=document.createElement('div');wLbl.className='briefing-section-label';wLbl.textContent='Het weer'+( city?' in '+city:'');
+  var wRow=document.createElement('div');wRow.className='briefing-weather-row';
+  var wIcon=document.createElement('div');wIcon.className='briefing-weather-icon';wIcon.textContent=icon;
+  var wTemp=document.createElement('div');wTemp.className='briefing-temp';wTemp.textContent=temp;
+  var wInfo=document.createElement('div');wInfo.className='briefing-weather-info';
+  wInfo.innerHTML='<div style="font-size:14px;color:var(--text);">'+desc+'</div>';
+  wRow.appendChild(wIcon);wRow.appendChild(wTemp);wRow.appendChild(wInfo);
+  wSec.appendChild(wLbl);wSec.appendChild(wRow);body.appendChild(wSec);
+
+  // ── Taken vandaag ─────────────────────────
+  var dayTasks=(data.tasks[tk]||[]).filter(function(t){return !t.done;});
+  var recToday2=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,tk);});
+  var rdToday=(data.recurringDone&&data.recurringDone[tk])||[];
+  var recOpen=recToday2.filter(function(r){return rdToday.indexOf(r.id)===-1;});
+  var totalOpen=dayTasks.length+recOpen.length;
+  var gwList=data.gewoonten||[];
+  var gwDone=(data.gewoontenDone&&data.gewoontenDone[tk])||[];
+  var gwOpen=gwList.filter(function(g){return gwDone.indexOf(g.id)===-1;}).length;
+
+  var tSec=document.createElement('div');tSec.className='briefing-section';
+  var tLbl=document.createElement('div');tLbl.className='briefing-section-label';tLbl.textContent='Vandaag op de planning';
+  var tHead=document.createElement('div');tHead.className='briefing-headline';
+  if(totalOpen===0)tHead.textContent='🎉 Niets op de planning!';
+  else tHead.textContent=totalOpen+' taak'+(totalOpen===1?'':'en')+(gwOpen>0?' · '+gwOpen+' gewoont'+(gwOpen===1?'':'en'):'');
+  tSec.appendChild(tLbl);tSec.appendChild(tHead);
+  if(totalOpen>0){
+    var ul=document.createElement('ul');ul.className='briefing-task-list';
+    var allOpen=dayTasks.map(function(t){return t.text;}).concat(recOpen.map(function(r){return '↻ '+r.text;})).slice(0,4);
+    allOpen.forEach(function(txt){var li=document.createElement('li');li.innerHTML='<span style="color:var(--accent);font-size:14px;">●</span> '+txt;ul.appendChild(li);});
+    if(totalOpen>4){var li=document.createElement('li');li.style.color='var(--muted)';li.textContent='… en '+(totalOpen-4)+' meer';ul.appendChild(li);}
+    tSec.appendChild(ul);
+  }
+  body.appendChild(tSec);
+
+  // ── Vanavond eten ────────────────────────
+  var mp=data.maaltijdplan&&data.maaltijdplan[tk];
+  var maaltijdNaam='';
+  if(mp){
+    if(mp.type==='vrij')maaltijdNaam=mp.tekst||'';
+    else if(mp.type==='recept'){
+      maaltijdNaam=mp.naam||'';
+      if(!maaltijdNaam){var rr=(data.recepten||[]).find(function(r){return r.id===mp.receptId;});if(rr)maaltijdNaam=rr.naam;}
+    }
+  }
+  var mSec=document.createElement('div');mSec.className='briefing-section';
+  var mLbl=document.createElement('div');mLbl.className='briefing-section-label';mLbl.textContent='Vanavond op tafel';
+  var mHead=document.createElement('div');mHead.className='briefing-headline';
+  mHead.textContent=maaltijdNaam?'🍽 '+maaltijdNaam:'Nog niet gepland — druk op spin!';
+  if(!maaltijdNaam){mHead.style.cursor='pointer';mHead.style.color='var(--accent)';mHead.addEventListener('click',function(){closeBriefing();openWatEtenWe();});}
+  mSec.appendChild(mLbl);mSec.appendChild(mHead);body.appendChild(mSec);
+
+  // ── Verjaardagen ─────────────────────────
+  var todayMMDD=(d.getMonth()+1+'').padStart(2,'0')+'-'+(d.getDate()+'').padStart(2,'0');
+  var bdToday=(data.verjaardagen||[]).filter(function(b){return b.datum===todayMMDD;});
+  var bd3=(data.verjaardagen||[]).filter(function(b){
+    var bDate=new Date(d.getFullYear(),parseInt(b.datum.split('-')[0])-1,parseInt(b.datum.split('-')[1]));
+    if(bDate<d)bDate=new Date(d.getFullYear()+1,parseInt(b.datum.split('-')[0])-1,parseInt(b.datum.split('-')[1]));
+    var diff=Math.round((bDate-d)/(1000*60*60*24));
+    return diff>0&&diff<=7;
+  });
+  if(bdToday.length||bd3.length){
+    var bSec=document.createElement('div');bSec.className='briefing-section';
+    var bLbl=document.createElement('div');bLbl.className='briefing-section-label';bLbl.textContent='Verjaardagen';
+    bSec.appendChild(bLbl);
+    bdToday.forEach(function(b){
+      var row=document.createElement('div');row.className='briefing-bday';
+      row.innerHTML='<span style="font-size:24px;">🎂</span><div><div style="font-size:16px;font-weight:700;">Vandaag jarig: '+b.naam+'!</div><div style="font-size:12px;color:var(--muted);">Vergeet niet te feliciteren 🎉</div></div>';
+      bSec.appendChild(row);
+    });
+    bd3.forEach(function(b){
+      var bDate=new Date(d.getFullYear(),parseInt(b.datum.split('-')[0])-1,parseInt(b.datum.split('-')[1]));
+      if(bDate<d)bDate=new Date(d.getFullYear()+1,parseInt(b.datum.split('-')[0])-1,parseInt(b.datum.split('-')[1]));
+      var diff=Math.round((bDate-d)/(1000*60*60*24));
+      var row=document.createElement('div');row.className='briefing-bday';
+      row.innerHTML='<span style="font-size:20px;">🎈</span><div style="font-size:13px;color:var(--muted);">'+b.naam+' is over '+diff+' dag'+(diff===1?'':'en')+' jarig</div>';
+      bSec.appendChild(row);
+    });
+    body.appendChild(bSec);
+  }
+
+  // ── Vakantie countdown ───────────────────
+  var nextVak=(data.vakanties||[]).filter(function(v){return v.startDatum&&v.startDatum>tk;}).sort(function(a,b){return a.startDatum<b.startDatum?-1:1;})[0];
+  if(nextVak){
+    var vdays=Math.round((new Date(nextVak.startDatum)-d)/(1000*60*60*24));
+    var vSec=document.createElement('div');vSec.className='briefing-section';
+    var vLbl=document.createElement('div');vLbl.className='briefing-section-label';vLbl.textContent='Vakantie';
+    var vHead=document.createElement('div');vHead.className='briefing-headline';
+    vHead.textContent=(vdays===1?'Morgen':'Nog '+vdays+' dagen')+': ✈️ '+nextVak.naam;
+    vSec.appendChild(vLbl);vSec.appendChild(vHead);body.appendChild(vSec);
+  }
+
+  // ── Quote ────────────────────────────────
+  var qSec=document.createElement('div');qSec.className='briefing-section';
+  var qLbl=document.createElement('div');qLbl.className='briefing-section-label';qLbl.textContent='Quote van de dag';
+  var qText=document.createElement('div');qText.className='briefing-quote';qText.textContent='"'+getDailyQuote()+'"';
+  qSec.appendChild(qLbl);qSec.appendChild(qText);body.appendChild(qSec);
+
+  // ── Verjaardagen beheren ─────────────────
+  var addSec=document.createElement('div');addSec.className='briefing-section';
+  var addLbl=document.createElement('div');addLbl.className='briefing-section-label';addLbl.textContent='Verjaardagen beheren';
+  addSec.appendChild(addLbl);
+  (data.verjaardagen||[]).forEach(function(b){
+    var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;';
+    var nameEl=document.createElement('span');nameEl.style.flex='1';nameEl.textContent='🎂 '+b.naam+' ('+b.datum+')';
+    var del=document.createElement('button');del.textContent='✕';del.style.cssText='background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;';
+    (function(bd){del.addEventListener('click',function(){var i=data.verjaardagen.indexOf(bd);if(i>-1)data.verjaardagen.splice(i,1);saveToServer();showBriefing(true);});})(b);
+    row.appendChild(nameEl);row.appendChild(del);addSec.appendChild(row);
+  });
+  var addRow=document.createElement('div');addRow.style.cssText='display:flex;gap:8px;margin-top:8px;';
+  var nameInp=document.createElement('input');nameInp.placeholder='Naam';nameInp.style.cssText='flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--text);';
+  var datInp=document.createElement('input');datInp.type='text';datInp.placeholder='MM-DD';datInp.maxLength=5;datInp.style.cssText='width:70px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--text);';
+  var addBdBtn=document.createElement('button');addBdBtn.textContent='+';addBdBtn.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:16px;cursor:pointer;';
+  addBdBtn.addEventListener('click',function(){
+    var n=nameInp.value.trim(),dt=datInp.value.trim();
+    if(!n||!/^\d{2}-\d{2}$/.test(dt)){showToast('Vul naam en datum in (bijv. 06-15)');return;}
+    if(!data.verjaardagen)data.verjaardagen=[];
+    data.verjaardagen.push({id:uid(),naam:n,datum:dt});
+    nameInp.value='';datInp.value='';saveToServer();showBriefing(true);
+  });
+  addRow.appendChild(nameInp);addRow.appendChild(datInp);addRow.appendChild(addBdBtn);
+  addSec.appendChild(addRow);body.appendChild(addSec);
+
+  overlay.style.display='flex';overlay.style.flexDirection='column';
+  overlay.scrollTop=0;
+}
+
+function closeBriefing(){
+  document.getElementById('briefingOverlay').style.display='none';
+}
+document.getElementById('briefingStartBtn').addEventListener('click',closeBriefing);
+
+// ══════════════════════════════════════════════
+// WAT ETEN WE — SPINNER
+// ══════════════════════════════════════════════
+var _spinnerTimeout=null;
+function openWatEtenWe(){
+  var recepten=data.recepten||[];
+  if(!recepten.length){showToast('Voeg eerst recepten toe in de Meer-tab 👨‍🍳');return;}
+  document.getElementById('watEtenWeOverlay').classList.add('open');
+  document.getElementById('spinnerResult').style.display='none';
+  document.getElementById('spinnerItem').textContent=recepten[0].naam;
+  document.getElementById('spinnerBtn').style.display='';
+}
+function openWatEtenWeFromBtn(){openWatEtenWe();}
+
+document.getElementById('closeWatEtenWeBtn').addEventListener('click',function(){
+  document.getElementById('watEtenWeOverlay').classList.remove('open');
+  if(_spinnerTimeout)clearTimeout(_spinnerTimeout);
+});
+
+document.getElementById('spinnerBtn').addEventListener('click',function(){
+  var recepten=data.recepten||[];if(!recepten.length)return;
+  var btn=this;btn.disabled=true;
+  document.getElementById('spinnerResult').style.display='none';
+  var item=document.getElementById('spinnerItem');
+  var total=60,step=0,delay=40;
+  var chosen=recepten[Math.floor(Math.random()*recepten.length)];
+  function spin(){
+    var r=recepten[Math.floor(Math.random()*recepten.length)];
+    item.textContent=r.naam;
+    step++;
+    if(step<total){
+      delay=40+Math.pow(step/total,2)*220;
+      _spinnerTimeout=setTimeout(spin,delay);
+    } else {
+      item.textContent=chosen.naam;
+      document.getElementById('spinnerResultName').textContent=chosen.naam;
+      document.getElementById('spinnerResult').style.display='block';
+      btn.disabled=false;
+      if(navigator.vibrate)navigator.vibrate([50,30,100]);
+      // Plan-knop
+      (function(rec){
+        document.getElementById('spinnerPlanBtn').onclick=function(){
+          var tk2=todayKey();
+          if(!data.maaltijdplan)data.maaltijdplan={};
+          data.maaltijdplan[tk2]={type:'recept',receptId:rec.id,naam:rec.naam,ingredienten:rec.ingredienten||[]};
+          saveToServer();renderVandaag();
+          document.getElementById('watEtenWeOverlay').classList.remove('open');
+          showToast('✓ '+rec.naam+' gepland voor vanavond!');
+        };
+      })(chosen);
+    }
+  }
+  spin();
+});
+
+document.getElementById('spinnerAgainBtn').addEventListener('click',function(){
+  document.getElementById('spinnerBtn').click();
+});
+
 // Boot
 init();
 initBoodCatRow();initBoodWinkelRow();
 renderVandaag();
 renderCalendar();
+setTimeout(function(){showBriefing(false);},800);
 
 // === HERINNERINGEN (NOTIFICATIES) ===
 function requestNotifPermission(){
@@ -4375,5 +4656,42 @@ function showQrCode(){
 
 })();
 </script>
+
+<!-- ══ DAGELIJKSE BRIEFING ══ -->
+<div class="full-overlay" id="briefingOverlay" style="display:none;z-index:200;overflow-y:auto;background:var(--bg);padding:20px 16px 40px;">
+  <div class="briefing-wrap">
+    <div class="briefing-masthead">
+      <div class="briefing-logo">📰 DE THUISPLANNER</div>
+      <div class="briefing-dateline" id="briefingDateline"></div>
+      <div class="briefing-rule"></div>
+    </div>
+    <div id="briefingBody"></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="briefing-start-btn" id="briefingStartBtn">Dag starten →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ WAT ETEN WE OVERLAY ══ -->
+<div class="overlay" id="watEtenWeOverlay">
+  <div class="overlay-panel" style="text-align:center;padding:32px 24px;">
+    <button class="overlay-close" id="closeWatEtenWeBtn" style="position:absolute;top:16px;right:16px;">✕</button>
+    <div style="font-size:36px;margin-bottom:8px;">🎲</div>
+    <h2 style="font-size:22px;font-weight:800;margin:0 0 6px;">Wat eten we?</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 24px;">Druk op spin en wij kiezen voor jullie!</p>
+    <div class="spinner-drum" id="spinnerDrum">
+      <div class="spinner-item" id="spinnerItem">—</div>
+    </div>
+    <button class="spinner-btn" id="spinnerBtn">🎲 Spin!</button>
+    <div id="spinnerResult" style="display:none;margin-top:16px;">
+      <div class="spinner-result-name" id="spinnerResultName"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;">
+        <button class="primary-btn" id="spinnerPlanBtn" style="font-size:13px;padding:10px 18px;">📅 Plan voor vanavond</button>
+        <button style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px 18px;font-size:13px;cursor:pointer;color:var(--text);" id="spinnerAgainBtn">Opnieuw 🔄</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
