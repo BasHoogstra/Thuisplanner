@@ -401,13 +401,29 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .add-card-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;}
 
 /* Onderhoud */
-.ond-item{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:8px;border-left:4px solid var(--border);}
+.ond-item{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px 14px;margin-bottom:8px;border-left:4px solid var(--border);}
 .ond-item.due-soon{border-left-color:#f39c12;background:#fffbf0;}.ond-item.overdue-item{border-left-color:var(--danger);background:var(--overdue);}
 @media(prefers-color-scheme:dark){.ond-item.due-soon{background:#2a2310;}.ond-item.overdue-item{background:#2a1825;}}
 .ond-header{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
 .ond-name{font-size:15px;font-weight:600;flex:1;}
-.ond-due{font-size:12px;font-weight:700;}.ond-due.due-soon{color:#e67e22;}.ond-due.overdue-item{color:var(--danger);}.ond-due.ok{color:var(--green);}
+.ond-due{font-size:12px;font-weight:700;}.ond-due.soon{color:#e67e22;}.ond-due.overdue{color:var(--danger);}.ond-due.ok{color:var(--green);}
 .ond-meta{font-size:12px;color:var(--muted);}
+.ond-prog-wrap{margin:7px 0 4px;}
+.ond-prog-bg{height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.ond-prog-fill{height:100%;border-radius:3px;transition:width .4s;}
+.ond-prog-label{font-size:10px;color:var(--muted);margin-top:2px;}
+.ond-section-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:8px 2px 4px;}
+.focus-task-banner{margin:0 16px 12px;padding:12px 14px;border-radius:14px;border-left:4px solid var(--accent);background:var(--accent-light);display:none;}
+.focus-task-banner.visible{display:block;}
+.focus-task-label{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+.focus-task-text{font-size:15px;font-weight:700;}
+.vak-banner{margin:0 16px 10px;padding:10px 14px;border-radius:12px;background:var(--accent);color:#fff;display:none;align-items:center;gap:10px;cursor:pointer;}
+.vak-banner.visible{display:flex;}
+.vak-banner-text{flex:1;font-size:13px;font-weight:600;}
+.gar-prog-wrap{margin:6px 0 3px;}
+.gar-prog-bg{height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.gar-prog-fill{height:100%;border-radius:3px;transition:width .4s;}
+.backlog-section-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:8px 2px 4px;border-bottom:1px solid var(--border);margin-bottom:6px;}
 .ond-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
 .ond-done-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;}
 .ond-del-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--muted);cursor:pointer;}
@@ -437,9 +453,27 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .gar-foto-btn{background:var(--bg);border:1px dashed var(--border);border-radius:10px;padding:8px 14px;font-size:13px;color:var(--muted);cursor:pointer;text-align:center;margin-top:6px;}
 
 /* Notitieboek */
-.notitieboek-area{width:100%;border:1px solid var(--border);border-radius:12px;padding:14px;font-size:15px;background:var(--card);color:var(--text);resize:none;font-family:inherit;min-height:300px;line-height:1.6;}
+.notitieboek-area{width:100%;border:1px solid var(--border);border-radius:12px;padding:14px;font-size:15px;background:var(--card);color:var(--text);resize:none;font-family:inherit;min-height:140px;line-height:1.6;}
 .notitieboek-area:focus{outline:none;border-color:var(--accent);}
 .notitieboek-meta{font-size:12px;color:var(--muted);margin-top:8px;}
+.notitie-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px;}
+.notitie-card-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.notitie-titel{flex:1;font-size:15px;font-weight:700;border:none;background:transparent;color:var(--text);font-family:inherit;outline:none;padding:0;}
+.notitie-titel::placeholder{color:var(--muted);}
+.notitie-del{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 4px;flex-shrink:0;}
+.notitie-meta{font-size:10px;color:var(--muted);margin-top:6px;}
+.notitie-add-btn{width:100%;padding:12px;border-radius:12px;border:1.5px dashed var(--border);background:none;color:var(--muted);font-size:14px;cursor:pointer;margin-bottom:10px;}
+.notitie-add-btn:active{background:var(--accent-light);}
+.budget-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.budget-row:last-child{border-bottom:none;}
+.budget-desc{flex:1;font-size:14px;}
+.budget-amount{font-size:14px;font-weight:700;color:var(--danger);}
+.budget-del{background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;}
+.budget-totals{background:var(--accent-light);border-radius:12px;padding:12px 14px;margin-bottom:14px;}
+.budget-total-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;}
+.budget-total-row:last-child{margin-bottom:0;font-weight:700;font-size:14px;}
+.budget-prog-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px;}
+.budget-prog-fill{height:100%;border-radius:4px;background:var(--accent);transition:width .4s;}
 
 /* Setup */
 .setup-overlay{position:fixed;inset:0;background:var(--bg);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -555,6 +589,14 @@ body.shopping-mode .toast{bottom:20px;}
         </svg>
         <div class="compact-stat-badges" id="statChips"></div>
       </div>
+    </div>
+    <div class="vak-banner" id="vakBanner">
+      <span id="vakBannerText" class="vak-banner-text"></span>
+      <span>✈️</span>
+    </div>
+    <div class="focus-task-banner" id="focusTaskBanner">
+      <div class="focus-task-label">⚡ Focus taak vandaag</div>
+      <div class="focus-task-text" id="focusTaskText"></div>
     </div>
     <div class="vandaag-section">
       <div class="vandaag-section-title">
@@ -873,9 +915,9 @@ body.shopping-mode .toast{bottom:20px;}
 <!-- NOTITIEBOEK -->
 <div class="full-overlay" id="notitieboekOverlay">
   <div class="full-header"><button class="icon-btn" id="closeNotitieboekBtn">✕</button><h2>📝 Gedeeld notitieboek</h2></div>
-  <div class="full-body">
-    <textarea class="notitieboek-area" id="notitieboekArea" placeholder="Schrijf hier alles wat jullie willen onthouden…"></textarea>
-    <div class="notitieboek-meta" id="notitieboekMeta"></div>
+  <div class="full-body" id="notitieboekBody">
+    <button class="notitie-add-btn" id="notitieAddBtn">+ Nieuwe notitie</button>
+    <div id="notitieList"></div>
   </div>
 </div>
 
@@ -1012,7 +1054,7 @@ var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','z
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[]};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[]};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -1110,7 +1152,7 @@ function loadFromServer(isInitial){
   fetch(dataUrl()).then(function(r){if(!r.ok)throw new Error('status:'+r.status);return r.json();}).then(function(json){
     var inc=json||{};
     ['tasks','notes','recurringDone'].forEach(function(k){if(!inc[k])inc[k]={};});
-    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory'].forEach(function(k){if(!inc[k])inc[k]=[];});
+    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities'].forEach(function(k){if(!inc[k])inc[k]=[];});
     if(!inc.notitieboek)inc.notitieboek='';
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
@@ -1494,6 +1536,22 @@ function renderVandaag(){
   if(backlogCount>0)makeChip(backlogCount,'Backlog',false,function(){document.getElementById('backlogOverlay').classList.add('open');renderBacklog();});
   if(ondDue>0)makeChip(ondDue,'Onderhoud',true,function(){document.getElementById('onderhoudOverlay').classList.add('open');renderOnderhoud();});
 
+  // Focus taak
+  var highPrio=dayTasks.filter(function(t){return !t.done&&t.priority==='hoog';})[0]
+    ||dayTasks.filter(function(t){return !t.done;})[0];
+  var fb=document.getElementById('focusTaskBanner');var ft=document.getElementById('focusTaskText');
+  if(fb&&ft){if(highPrio){fb.classList.add('visible');ft.textContent=highPrio.text;}else{fb.classList.remove('visible');}}
+  // Vakantie banner
+  var vb=document.getElementById('vakBanner');var vbt=document.getElementById('vakBannerText');
+  if(vb&&vbt){
+    var nextVak=(data.vakanties||[]).filter(function(v){return v.startDatum&&v.startDatum>=tk;}).sort(function(a,b){return a.startDatum<b.startDatum?-1:1;})[0];
+    if(nextVak){
+      var vdays=Math.round((new Date(nextVak.startDatum)-new Date(tk))/(1000*60*60*24));
+      vb.classList.add('visible');
+      vbt.textContent=vdays===0?'Vandaag vertrek: '+nextVak.naam:vdays===1?'Morgen vertrek: '+nextVak.naam:'Nog '+vdays+' dagen: '+nextVak.naam;
+      vb.onclick=function(){document.querySelectorAll('.nav-item').forEach(function(b){if(b.dataset.view==='meerView')b.click();});setTimeout(function(){document.getElementById('vakantiesOverlay')&&document.getElementById('vakantiesOverlay').classList.add('open');if(typeof renderVakanties==='function')renderVakanties();},300);};
+    } else {vb.classList.remove('visible');}
+  }
   var container=document.getElementById('vandaagTasks');container.innerHTML='';
 
   recToday.forEach(function(r){
@@ -2273,9 +2331,7 @@ document.getElementById('openBestellingen').addEventListener('click',function(){
 document.getElementById('openOnderhoud').addEventListener('click',function(){document.getElementById('onderhoudOverlay').classList.add('open');renderOnderhoud();});
 document.getElementById('openNotitieboek').addEventListener('click',function(){
   document.getElementById('notitieboekOverlay').classList.add('open');
-  document.getElementById('notitieboekArea').value=data.notitieboek||'';
-  var m=data.notitieboekMeta||{};
-  document.getElementById('notitieboekMeta').textContent=m.editedBy?'Bewerkt door '+m.editedBy+(m.editedAt?' om '+m.editedAt:''):'';
+  renderNotities();
 });
 document.getElementById('openBacklog').addEventListener('click',function(){document.getElementById('backlogOverlay').classList.add('open');renderBacklog();});
 document.getElementById('openGaranties').addEventListener('click',function(){document.getElementById('garantiesOverlay').classList.add('open');renderGaranties();});
@@ -2399,22 +2455,48 @@ function renderOnderhoud(){
   var items=data.onderhoud||[];
   if(!items.length){var e=document.createElement('div');e.className='empty-msg';e.textContent='Nog geen onderhoudstaken.';list.appendChild(e);return;}
   var now=new Date(today.getFullYear(),today.getMonth(),today.getDate());
-  items.forEach(function(o){
+  // Compute status & sort
+  var enriched=items.map(function(o){
+    var dueDate=null,daysLeft=null,status='ok',pct=0;
+    if(o.lastDone){
+      dueDate=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);
+      daysLeft=Math.round((dueDate-now)/(1000*60*60*24));
+      if(daysLeft<0)status='overdue';else if(daysLeft<=30)status='soon';
+      var elapsed=o.intervalDays-daysLeft;pct=Math.min(100,Math.max(0,Math.round(elapsed/o.intervalDays*100)));
+    } else {status='overdue';pct=100;}
+    return {o:o,dueDate:dueDate,daysLeft:daysLeft,status:status,pct:pct};
+  });
+  enriched.sort(function(a,b){var order={overdue:0,soon:1,ok:2};return (order[a.status]-order[b.status])||((a.daysLeft||0)-(b.daysLeft||0));});
+  var lastSection='';
+  enriched.forEach(function(e){
+    var o=e.o,daysLeft=e.daysLeft,status=e.status,pct=e.pct;
+    var sectionLabel=status==='overdue'?'Actie vereist':status==='soon'?'Binnenkort':'Op schema';
+    if(sectionLabel!==lastSection){
+      var sl=document.createElement('div');sl.className='ond-section-label';
+      sl.textContent=(status==='overdue'?'🔴':status==='soon'?'🟠':'🟢')+' '+sectionLabel;
+      list.appendChild(sl);lastSection=sectionLabel;
+    }
     var cat=getCat(o.category);
-    var dueDate=null,daysLeft=null,status='ok';
-    if(o.lastDone){dueDate=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);daysLeft=Math.round((dueDate-now)/(1000*60*60*24));if(daysLeft<0)status='overdue';else if(daysLeft<=30)status='soon';}
-    else status='overdue';
     var item=document.createElement('div');item.className='ond-item'+(status==='soon'?' due-soon':status==='overdue'?' overdue-item':'');
     var header=document.createElement('div');header.className='ond-header';
     var name=document.createElement('div');name.className='ond-name';name.textContent=cat.emoji+' '+o.text;
     var due=document.createElement('div');due.className='ond-due '+status;
-    if(status==='overdue')due.textContent=daysLeft!==null?Math.abs(daysLeft)+' dagen te laat':'Nog nooit gedaan';
-    else if(status==='soon')due.textContent='Over '+daysLeft+' dag'+(daysLeft===1?'':'en');
-    else due.textContent='Over '+daysLeft+' dag'+(daysLeft===1?'':'en');
+    if(status==='overdue')due.textContent=daysLeft!==null?Math.abs(daysLeft)+' dg te laat':'Nooit gedaan';
+    else if(status==='soon')due.textContent='Over '+daysLeft+'d';
+    else due.textContent='Over '+daysLeft+'d';
     header.appendChild(name);header.appendChild(due);item.appendChild(header);
     var meta=document.createElement('div');meta.className='ond-meta';
     var parts=[o.intervalLabel||'Elk jaar'];if(o.lastDone)parts.push('Laatste: '+formatDateShort(o.lastDone));if(o.note)parts.push(o.note);
     meta.textContent=parts.join(' · ');item.appendChild(meta);
+    // Progress bar
+    var pw=document.createElement('div');pw.className='ond-prog-wrap';
+    var pb=document.createElement('div');pb.className='ond-prog-bg';
+    var pf=document.createElement('div');pf.className='ond-prog-fill';
+    var barColor=status==='overdue'?'var(--danger)':status==='soon'?'#f39c12':'var(--green)';
+    pf.style.cssText='width:'+pct+'%;background:'+barColor;
+    var pl=document.createElement('div');pl.className='ond-prog-label';
+    pl.textContent=pct+'% van interval verstreken';
+    pb.appendChild(pf);pw.appendChild(pb);pw.appendChild(pl);item.appendChild(pw);
     var actions=document.createElement('div');actions.className='ond-actions';
     var doneBtn=document.createElement('button');doneBtn.className='ond-done-btn';doneBtn.textContent='✓ Nu gedaan';
     doneBtn.addEventListener('click',function(){
@@ -2441,15 +2523,37 @@ function renderOnderhoud(){
 }
 
 // === NOTITIEBOEK ===
-document.getElementById('notitieboekArea').addEventListener('input',function(){
-  clearTimeout(notitieboekTimer);var self=this;
-  notitieboekTimer=setTimeout(function(){
-    data.notitieboek=self.value;if(!data.notitieboekMeta)data.notitieboekMeta={};
-    var now=new Date();
-    data.notitieboekMeta={editedBy:myName||'onbekend',editedAt:pad(now.getHours())+':'+pad(now.getMinutes())+' '+now.getDate()+' '+MONTH_NAMES[now.getMonth()].slice(0,3)};
-    document.getElementById('notitieboekMeta').textContent='Bewerkt door '+data.notitieboekMeta.editedBy+' om '+data.notitieboekMeta.editedAt;
-    saveToServer();
-  },800);
+function renderNotities(){
+  if(!data.notities)data.notities=[];
+  // Migrate old notitieboek
+  if(data.notitieboek&&data.notitieboek.trim()&&!data._notitiesMigrated){
+    data.notities.unshift({id:uid(),titel:'Notitieboek',tekst:data.notitieboek,editedBy:'',editedAt:''});
+    data.notitieboek='';data._notitiesMigrated=true;saveToServer();
+  }
+  var list=document.getElementById('notitieList');if(!list)return;list.innerHTML='';
+  data.notities.forEach(function(n,idx){
+    var card=document.createElement('div');card.className='notitie-card';
+    var hdr=document.createElement('div');hdr.className='notitie-card-header';
+    var titel=document.createElement('input');titel.className='notitie-titel';titel.type='text';titel.placeholder='Titel notitie…';titel.value=n.titel||'';
+    titel.addEventListener('input',function(){n.titel=this.value;clearTimeout(titel._t);titel._t=setTimeout(saveToServer,600);});
+    var del=document.createElement('button');del.className='notitie-del';del.textContent='🗑';
+    (function(ni){del.addEventListener('click',function(){if(confirm('Notitie "'+( n.titel||'Naamloos')+'" verwijderen?')){data.notities.splice(ni,1);saveToServer();renderNotities();}});})(idx);
+    hdr.appendChild(titel);hdr.appendChild(del);card.appendChild(hdr);
+    var ta=document.createElement('textarea');ta.className='notitieboek-area';ta.placeholder='Schrijf hier…';ta.value=n.tekst||'';
+    ta.style.minHeight='100px';
+    (function(note){ta.addEventListener('input',function(){note.tekst=this.value;clearTimeout(ta._t);ta._t=setTimeout(function(){
+      var now=new Date();note.editedBy=myName||'';note.editedAt=pad(now.getHours())+':'+pad(now.getMinutes());saveToServer();renderNotities();
+    },800);});})(n);
+    card.appendChild(ta);
+    if(n.editedBy||n.editedAt){var meta=document.createElement('div');meta.className='notitie-meta';meta.textContent=(n.editedBy?'Bewerkt door '+n.editedBy:'')+(n.editedAt?' om '+n.editedAt:'');card.appendChild(meta);}
+    list.appendChild(card);
+  });
+}
+document.getElementById('notitieAddBtn').addEventListener('click',function(){
+  if(!data.notities)data.notities=[];
+  data.notities.push({id:uid(),titel:'',tekst:'',editedBy:'',editedAt:''});
+  saveToServer();renderNotities();
+  setTimeout(function(){var cards=document.querySelectorAll('.notitie-card');var last=cards[cards.length-1];if(last){last.querySelector('.notitie-titel').focus();last.scrollIntoView({behavior:'smooth'});}},100);
 });
 
 // === BACKLOG ===
@@ -2465,15 +2569,23 @@ function renderBacklog(){
   var list=document.getElementById('backlogList');list.innerHTML='';
   var items=data.backlog||[];
   if(!items.length){var e=document.createElement('div');e.className='empty-msg';e.textContent='Nog geen ideeën.';list.appendChild(e);return;}
-  items.forEach(function(b){
-    var cat=getCat(b.category);var item=document.createElement('div');item.className='backlog-item prio-'+(b.priority||'normaal');
-    var body=document.createElement('div');body.className='backlog-body';
-    var txt=document.createElement('div');txt.className='backlog-text';txt.textContent=cat.emoji+' '+b.text;
-    var meta=document.createElement('div');meta.className='backlog-meta';meta.textContent=cat.label+(b.addedDate?' · '+formatDateShort(b.addedDate):'');
-    body.appendChild(txt);body.appendChild(meta);
-    var planBtn=document.createElement('button');planBtn.className='backlog-plan-btn';planBtn.textContent='📅 Inplannen';planBtn.addEventListener('click',function(){openPlanPicker(b);});
-    var del=document.createElement('button');del.className='backlog-del-btn';del.textContent='✕';del.addEventListener('click',function(){var idx=data.backlog.indexOf(b);if(idx>-1)data.backlog.splice(idx,1);saveToServer();renderBacklog();});
-    item.appendChild(body);item.appendChild(planBtn);item.appendChild(del);list.appendChild(item);
+  var groups={hoog:[],normaal:[],laag:[]};
+  items.forEach(function(b){var p=b.priority||'normaal';if(!groups[p])groups[p]=[];groups[p].push(b);});
+  var groupMeta={hoog:{label:'Hoog',emoji:'🔴'},normaal:{label:'Normaal',emoji:'⚪'},laag:{label:'Laag',emoji:'🔵'}};
+  ['hoog','normaal','laag'].forEach(function(prio){
+    var grp=groups[prio];if(!grp||!grp.length)return;
+    var sl=document.createElement('div');sl.className='backlog-section-label';
+    sl.textContent=groupMeta[prio].emoji+' '+groupMeta[prio].label+' ('+grp.length+')';list.appendChild(sl);
+    grp.forEach(function(b){
+      var cat=getCat(b.category);var item=document.createElement('div');item.className='backlog-item prio-'+(b.priority||'normaal');
+      var body=document.createElement('div');body.className='backlog-body';
+      var txt=document.createElement('div');txt.className='backlog-text';txt.textContent=cat.emoji+' '+b.text;
+      var meta=document.createElement('div');meta.className='backlog-meta';meta.textContent=cat.label+(b.addedDate?' · '+formatDateShort(b.addedDate):'');
+      body.appendChild(txt);body.appendChild(meta);
+      var planBtn=document.createElement('button');planBtn.className='backlog-plan-btn';planBtn.textContent='📅 Inplannen';planBtn.addEventListener('click',function(){openPlanPicker(b);});
+      var del=document.createElement('button');del.className='backlog-del-btn';del.textContent='✕';del.addEventListener('click',function(){var idx=data.backlog.indexOf(b);if(idx>-1)data.backlog.splice(idx,1);saveToServer();renderBacklog();});
+      item.appendChild(body);item.appendChild(planBtn);item.appendChild(del);list.appendChild(item);
+    });
   });
 }
 function openPlanPicker(item){planPickerItem=item;document.getElementById('planPickerTaskName').textContent='"'+item.text+'"';document.getElementById('planPickerDate').value=todayKey();document.getElementById('planPickerOverlay').classList.add('open');}
@@ -2518,6 +2630,16 @@ function renderGaranties(){
     var meta=document.createElement('div');meta.className='gar-meta';
     var parts=[];if(g.verloopt)parts.push('Verloopt: '+formatDateShort(g.verloopt));if(g.gekocht)parts.push('Gekocht: '+formatDateShort(g.gekocht));if(g.winkel)parts.push(g.winkel);if(g.note)parts.push('📝 '+g.note);
     meta.textContent=parts.join(' · ');item.appendChild(meta);
+    // Expiry progress bar
+    if(g.gekocht&&g.verloopt){
+      var gStart=keyToDate(g.gekocht).getTime(),gEnd=keyToDate(g.verloopt).getTime(),gNow=Date.now();
+      var gPct=Math.min(100,Math.max(0,Math.round((gNow-gStart)/(gEnd-gStart)*100)));
+      var gColor=gPct>=90?'var(--danger)':gPct>=70?'#f39c12':'var(--green)';
+      var gpw=document.createElement('div');gpw.className='gar-prog-wrap';
+      var gpb=document.createElement('div');gpb.className='gar-prog-bg';
+      var gpf=document.createElement('div');gpf.className='gar-prog-fill';gpf.style.cssText='width:'+gPct+'%;background:'+gColor;
+      gpb.appendChild(gpf);gpw.appendChild(gpb);item.appendChild(gpw);
+    }
     // Foto
     if(g.foto){var img=document.createElement('img');img.className='gar-foto';img.src=g.foto;img.title='Klik om te vergroten';img.addEventListener('click',function(){var w=window.open();w.document.write('<img src="'+g.foto+'" style="max-width:100%;height:auto;">');});item.appendChild(img);}
     var fotoInput=document.createElement('input');fotoInput.type='file';fotoInput.accept='image/*';fotoInput.capture='environment';fotoInput.className='gar-foto-input';
@@ -2751,15 +2873,62 @@ function renderVakanties(){
   // Sub tabs
   if(!activeVak._tab)activeVak._tab='paklijst';
   var subNav=document.createElement('div');subNav.style.cssText='display:flex;gap:6px;margin-bottom:16px;';
-  var subLabels={paklijst:'Paklijsten',todos:'To-do',notities:'Notities'};
-  ['paklijst','todos','notities'].forEach(function(t){
+  var subLabels={paklijst:'📦 Paklijsten',todos:'✅ To-do',notities:'📝 Notities',budget:'💰 Budget'};
+  ['paklijst','todos','notities','budget'].forEach(function(t){
     var btn=document.createElement('button');btn.textContent=subLabels[t];var isA=activeVak._tab===t;
     btn.style.cssText='flex:1;padding:8px;border-radius:10px;border:1px solid '+(isA?'var(--accent)':'var(--border)')+';background:'+(isA?'var(--accent)':'var(--card)')+';color:'+(isA?'#fff':'var(--muted)')+';font-size:13px;font-weight:600;cursor:pointer;';
     (function(tab){btn.addEventListener('click',function(){activeVak._tab=tab;renderVakanties();});})(t);
     subNav.appendChild(btn);
   });
   content.appendChild(subNav);
-  if(activeVak._tab==='paklijst'){
+  if(activeVak._tab==='budget'){
+    if(!activeVak.budget)activeVak.budget={bedrag:0,uitgaven:[]};
+    var bud=activeVak.budget;
+    // Totals
+    var spent=bud.uitgaven.reduce(function(s,u){return s+(parseFloat(u.amount)||0);},0);
+    var totBudget=parseFloat(bud.bedrag)||0;
+    var remaining=totBudget-spent;
+    var pct=totBudget>0?Math.min(100,Math.round(spent/totBudget*100)):0;
+    var totDiv=document.createElement('div');totDiv.className='budget-totals';
+    var budRow=document.createElement('div');budRow.className='budget-total-row';
+    budRow.innerHTML='<span>Budget</span><span>€'+totBudget.toFixed(2)+'</span>';
+    var spentRow=document.createElement('div');spentRow.className='budget-total-row';
+    spentRow.innerHTML='<span>Uitgegeven</span><span style="color:var(--danger)">€'+spent.toFixed(2)+'</span>';
+    var remRow=document.createElement('div');remRow.className='budget-total-row';
+    remRow.innerHTML='<span>Over</span><span style="color:'+(remaining>=0?'var(--green)':'var(--danger)')+'">€'+remaining.toFixed(2)+'</span>';
+    var progBar=document.createElement('div');progBar.className='budget-prog-bar';
+    var progFill=document.createElement('div');progFill.className='budget-prog-fill';
+    progFill.style.cssText='width:'+pct+'%;background:'+(pct>=90?'var(--danger)':pct>=70?'#f39c12':'var(--accent)');
+    progBar.appendChild(progFill);
+    totDiv.appendChild(budRow);totDiv.appendChild(spentRow);totDiv.appendChild(remRow);totDiv.appendChild(progBar);content.appendChild(totDiv);
+    // Budget input
+    var budSetRow=document.createElement('div');budSetRow.style.cssText='display:flex;gap:8px;margin-bottom:14px;align-items:center;';
+    var budLbl=document.createElement('label');budLbl.textContent='Totaal budget: €';budLbl.style.cssText='font-size:13px;color:var(--muted);white-space:nowrap;';
+    var budInp=document.createElement('input');budInp.type='number';budInp.min='0';budInp.step='10';budInp.value=bud.bedrag||'';
+    budInp.style.cssText='flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;background:var(--card);color:var(--text);';
+    budInp.placeholder='0.00';
+    (function(vak){budInp.addEventListener('change',function(){vak.budget.bedrag=parseFloat(this.value)||0;saveToServer();renderVakanties();});})(activeVak);
+    budSetRow.appendChild(budLbl);budSetRow.appendChild(budInp);content.appendChild(budSetRow);
+    // Add expense
+    var expRow=document.createElement('div');expRow.style.cssText='display:flex;gap:8px;margin-bottom:14px;';
+    var expDesc=document.createElement('input');expDesc.type='text';expDesc.placeholder='Omschrijving…';expDesc.style.cssText='flex:2;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;background:var(--card);color:var(--text);';
+    var expAmt=document.createElement('input');expAmt.type='number';expAmt.min='0';expAmt.step='1';expAmt.placeholder='€';expAmt.style.cssText='flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;background:var(--card);color:var(--text);';
+    var expAdd=document.createElement('button');expAdd.textContent='+';expAdd.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 14px;font-size:20px;cursor:pointer;';
+    (function(vak){expAdd.addEventListener('click',function(){var d=expDesc.value.trim(),a=parseFloat(expAmt.value)||0;if(!d||!a)return;if(!vak.budget)vak.budget={bedrag:0,uitgaven:[]};vak.budget.uitgaven.push({id:uid(),desc:d,amount:a,date:todayKey()});expDesc.value='';expAmt.value='';saveToServer();renderVakanties();});})(activeVak);
+    expRow.appendChild(expDesc);expRow.appendChild(expAmt);expRow.appendChild(expAdd);content.appendChild(expRow);
+    // Expense list
+    if(bud.uitgaven.length){
+      bud.uitgaven.slice().reverse().forEach(function(u,ri){
+        var idx=bud.uitgaven.length-1-ri;
+        var row=document.createElement('div');row.className='budget-row';
+        var desc=document.createElement('div');desc.className='budget-desc';desc.textContent=u.desc+(u.date?' · '+formatDateShort(u.date):'');
+        var amt=document.createElement('div');amt.className='budget-amount';amt.textContent='€'+parseFloat(u.amount).toFixed(2);
+        var del=document.createElement('button');del.className='budget-del';del.textContent='✕';
+        (function(i,vak){del.addEventListener('click',function(){vak.budget.uitgaven.splice(i,1);saveToServer();renderVakanties();});})(idx,activeVak);
+        row.appendChild(desc);row.appendChild(amt);row.appendChild(del);content.appendChild(row);
+      });
+    } else {var em=document.createElement('div');em.style.cssText='text-align:center;color:var(--muted);padding:20px;font-size:13px;';em.textContent='Nog geen uitgaven geboekt.';content.appendChild(em);}
+  } else if(activeVak._tab==='paklijst'){
     var pakGrid=document.createElement('div');pakGrid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:12px;';
     ['Bas','Sanne','Lynn','Lois'].forEach(function(person){
       var displayName=person==='Lois'?'Loïs':person;
