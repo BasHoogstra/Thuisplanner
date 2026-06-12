@@ -2347,12 +2347,16 @@ var BOOD_AUTO={
   'Diepvries':['diepvries','pizza','patat','friet','ijs','roomijs','sorbet','yoghurt ijs','diepvriesgroente','diepvries','spinazieblokje','broccoli blokjes','erwten','garnalen diepvries','visstaaf','frikandel','kroket','bitterbal','kaassoufflé','loempia','kipnugget','nugget','satéballetje','vegaburger','bladerdeeg','filodeeg','brooddeeg','fruitsorbets']
 };
 function autoBoodCat(text){
-  var lower=text.toLowerCase();
+  var lower=text.toLowerCase().trim();
   var cats=Object.keys(BOOD_AUTO);
   for(var i=0;i<cats.length;i++){
     var words=BOOD_AUTO[cats[i]];
     for(var j=0;j<words.length;j++){
-      if(lower.indexOf(words[j])>-1)return cats[i];
+      var w=words[j];
+      var esc=w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      // Trefwoord moet aan het begin staan of na spatie/koppelteken (geen valse positieven in samenstellingen)
+      var re=new RegExp('(?:^|[\\s\\-])'+esc,'i');
+      if(re.test(lower))return cats[i];
     }
   }
   return null;
@@ -2464,7 +2468,7 @@ function renderBoodSuggestions(){
   var onList={};
   (data.boodschappen||[]).filter(function(b){return !b.done;}).forEach(function(b){onList[b.text.toLowerCase().trim()]=true;});
   // Suggest items bought 2+ times that are NOT on list
-  var suggestions=Object.keys(freq).filter(function(k){return freq[k].count>=2&&!onList[k];})
+  var suggestions=Object.keys(freq).filter(function(k){return freq[k].count>=10&&!onList[k];})
     .sort(function(a,b){return freq[b].count-freq[a].count;}).slice(0,4);
   if(!suggestions.length){strip.style.display='none';return;}
   strip.style.display='';
