@@ -709,6 +709,13 @@ body.shopping-mode .toast{bottom:20px;}
     <div class="setup-error" id="setupError"></div>
     <button class="setup-submit" id="setupSubmitBtn">Aan de slag</button>
     <p class="setup-hint">Heeft je vriendin al een gedeelde link? Dan hoeft zij dit niet in te stellen.</p>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(0,0,0,.08);">
+      <p style="font-size:13px;color:#666;margin-bottom:10px;text-align:center;">Al een planner? Herstel met jouw herstelcode:</p>
+      <input class="setup-input" type="text" id="herstelKeyInput" placeholder="Herstelcode (bijv. mq99xf7emmrc2)" autocapitalize="off" spellcheck="false" autocorrect="off">
+      <input class="setup-input" type="url" id="herstelDbInput" placeholder="Database-URL (zelfde als hierboven)" autocapitalize="off" spellcheck="false" style="margin-top:6px;">
+      <div class="setup-error" id="herstelError"></div>
+      <button class="setup-submit" id="herstelSubmitBtn" style="background:#34c759;margin-top:6px;">↩ Herstel mijn planner</button>
+    </div>
   </div>
 </div>
 
@@ -1740,6 +1747,23 @@ document.getElementById('setupSubmitBtn').addEventListener('click',function(){
   updateAssigneeLabels();updateGreeting();loadFromServer(true);
 });
 document.getElementById('dbUrlInput').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('setupSubmitBtn').click();});
+
+document.getElementById('herstelSubmitBtn').addEventListener('click',function(){
+  var key=(document.getElementById('herstelKeyInput').value||'').trim();
+  var raw=(document.getElementById('herstelDbInput').value||'').trim();
+  var err=document.getElementById('herstelError');err.textContent='';
+  if(!key){err.textContent='Vul je herstelcode in.';return;}
+  // If no DB URL typed, try to use the main input or last known
+  if(!raw)raw=(document.getElementById('dbUrlInput').value||'').trim();
+  if(!raw||!raw.startsWith('https://')){err.textContent='Vul ook de database-URL in (bijv. https://naam-rtdb.europe-west1.firebasedatabase.app).';return;}
+  dbUrl=raw.replace(/\/$/,'');plannerKey=key;
+  localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);
+  var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);
+  window.history.replaceState({},'',u.toString());
+  document.getElementById('setupOverlay').style.display='none';
+  updateAssigneeLabels();updateGreeting();loadFromServer(true);startAutoSync();
+});
+document.getElementById('herstelKeyInput').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('herstelSubmitBtn').click();});
 document.getElementById('nameBannerSave').addEventListener('click',function(){
   var mn=document.getElementById('nameBannerInput').value.trim();
   var pn=document.getElementById('partnerBannerInput').value.trim();
@@ -4897,7 +4921,7 @@ function showQrCode(){
       <button class="overlay-close" id="closeGezinsDnaBtn">✕</button>
     </div>
     <p style="font-size:13px;color:var(--muted);margin:0 0 16px;">Wat onze data over jullie vertelt.</p>
-    <div id="dnaGrid"></div>
+    <div id="dnaGrid" class="dna-grid"></div>
   </div>
 </div>
 
