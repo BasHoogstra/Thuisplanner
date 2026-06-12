@@ -609,6 +609,9 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .toast.show{opacity:1;}
 .bood-section-header{display:flex;align-items:center;gap:6px;padding:12px 16px 4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
 .bood-section-header:first-child{padding-top:6px;}
+.bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:10px;color:var(--muted);padding:2px 7px;cursor:pointer;margin-top:3px;display:inline-block;line-height:1.6;}
+.bood-cat-chip:active{background:var(--accent-light);color:var(--accent);}
+.bood-cat-inline-sel{border:1px solid var(--accent);border-radius:8px;font-size:12px;padding:2px 5px;background:var(--bg);color:var(--text);margin-top:3px;max-width:180px;}
 .meer-card-maaltijd::before{background:linear-gradient(90deg,#f39c12,#fdcb6e);}
 .maaltijd-week{display:flex;flex-direction:column;gap:8px;padding:4px 0;}
 .maaltijd-dag{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;}
@@ -1322,7 +1325,7 @@ var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','z
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{}};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{}};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -1421,7 +1424,7 @@ function loadFromServer(isInitial){
   fetch(dataUrl()).then(function(r){if(!r.ok)throw new Error('status:'+r.status);return r.json();}).then(function(json){
     var inc=json||{};
     ['tasks','notes','recurringDone'].forEach(function(k){if(!inc[k])inc[k]={};});
-    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};
+    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};if(!inc.boodCatOverrides||typeof inc.boodCatOverrides!=='object'||Array.isArray(inc.boodCatOverrides))inc.boodCatOverrides={};
     if(!inc.notitieboek)inc.notitieboek='';
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
@@ -2516,6 +2519,31 @@ function renderBoodschappen(){
     var txt=document.createElement('div');txt.className='boodschap-text'+(b.done?' done':'');txt.textContent=b.text;
     body.appendChild(txt);
     if(b.addedBy){var meta=document.createElement('div');meta.className='boodschap-meta';meta.textContent='door '+b.addedBy;body.appendChild(meta);}
+    // Categorie-chip: aantikken om te wijzigen + onthouden
+    (function(bi){
+      var chip=document.createElement('button');chip.className='bood-cat-chip';
+      chip.textContent=(BOOD_CAT_ICONS[bi.cat||'Overig']||'🛒')+' '+(bi.cat||'Overig');
+      chip.title='Categorie wijzigen';
+      chip.addEventListener('click',function(e){
+        e.stopPropagation();
+        var sel=document.createElement('select');sel.className='bood-cat-inline-sel';
+        BOOD_CATS.concat(['Overig']).filter(function(c,i,a){return a.indexOf(c)===i;}).forEach(function(c){
+          var opt=document.createElement('option');opt.value=c;opt.textContent=(BOOD_CAT_ICONS[c]||'🛒')+' '+c;
+          if(c===bi.cat)opt.selected=true;sel.appendChild(opt);
+        });
+        chip.replaceWith(sel);sel.focus();
+        sel.addEventListener('change',function(){
+          bi.cat=sel.value;
+          var norm=bi.text.toLowerCase().trim();
+          if(!data.boodCatOverrides)data.boodCatOverrides={};
+          data.boodCatOverrides[norm]=sel.value;
+          saveToServer();renderBoodschappen();
+          showToast('✓ '+bi.text+' staat voortaan bij '+sel.value);
+        });
+        sel.addEventListener('blur',function(){setTimeout(function(){if(document.body.contains(sel))renderBoodschappen();},150);});
+      });
+      body.appendChild(chip);
+    })(b);
     var del=document.createElement('button');del.className='boodschap-del';del.textContent='✕';
     del.addEventListener('click',function(){var idx=data.boodschappen.indexOf(b);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();});
     item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
@@ -2545,7 +2573,7 @@ function renderBoodschappen(){
 function addBoodschap(){
   var input=document.getElementById('boodschapInput');var text=input.value.trim();if(!text)return;
   if(!data.boodschappen)data.boodschappen=[];
-  var cat=boodCatFilter||(autoBoodCat(text))||'Overig';
+  var normKey=text.toLowerCase().trim();var cat=boodCatFilter||(data.boodCatOverrides&&data.boodCatOverrides[normKey])||(autoBoodCat(text))||'Overig';
   var wasAuto=!boodCatFilter&&autoBoodCat(text);
   data.boodschappen.push({id:uid(),text:text,done:false,cat:cat,addedBy:myName||null,addedDate:todayKey()});
   if(wasAuto)showToast('📦 Onder "'+cat+'" geplaatst');
