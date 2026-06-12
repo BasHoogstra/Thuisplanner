@@ -51,6 +51,10 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .nav-item{position:relative;}
 .view{display:none;flex:1;}
 .view.active{display:block;}
+.view.slide-in-right{animation:slideInRight .2s cubic-bezier(.25,.8,.25,1) both;}
+.view.slide-in-left{animation:slideInLeft .2s cubic-bezier(.25,.8,.25,1) both;}
+@keyframes slideInRight{from{transform:translateX(28px);opacity:0;}to{transform:none;opacity:1;}}
+@keyframes slideInLeft{from{transform:translateX(-28px);opacity:0;}to{transform:none;opacity:1;}}
 .name-banner{margin:10px 16px;padding:10px 14px;background:#fff9e6;border:1px solid #f0c36c;border-radius:12px;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .name-banner input{flex:1;min-width:80px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;background:var(--bg);color:var(--text);}
 .name-banner button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;}
@@ -114,12 +118,14 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .vandaag-task-meta{font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:.01em;}
 .vandaag-empty{font-size:13px;color:var(--muted);text-align:center;padding:14px;background:var(--card);border-radius:12px;border:1px dashed var(--border);}
 .upcoming-strip{display:flex;gap:8px;overflow-x:auto;padding:0 16px 16px;}
-.upcoming-day{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;min-width:90px;flex-shrink:0;cursor:pointer;}
-.upcoming-day.has-tasks{border-color:var(--accent);background:var(--accent-light);}
-.upcoming-day-name{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px;}
-.upcoming-day-date{font-size:16px;font-weight:700;margin-bottom:4px;}
-.upcoming-day-dots{display:flex;gap:3px;flex-wrap:wrap;}
+.upcoming-day{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:10px 12px;min-width:100px;flex-shrink:0;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.05);}
+.upcoming-day.has-tasks{border-color:var(--accent);}
+.upcoming-day-name{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;}
+.upcoming-day-date{font-size:17px;font-weight:700;margin-bottom:4px;}
+.upcoming-day-count{font-size:11px;font-weight:600;color:var(--accent);margin-bottom:4px;}
+.upcoming-day-dots{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:3px;}
 .upcoming-dot{width:7px;height:7px;border-radius:50%;}
+.upcoming-day-tasks{font-size:10px;color:var(--muted);line-height:1.4;}
 .upcoming-day-empty{font-size:11px;color:var(--muted);}
 
 /* KALENDER */
@@ -1194,12 +1200,18 @@ document.getElementById('shareBtn').addEventListener('click',doShare);
 var _clb=document.getElementById('copyLinkBtn');if(_clb)_clb.addEventListener('click',doShare);
 
 // Bottom nav
+var _navOrder=['vandaagView','kalenderView','boodschappenView','meerView'];
 document.querySelectorAll('.nav-item').forEach(function(btn){
   btn.addEventListener('click',function(){
+    var curActive=document.querySelector('.view.active');
+    var curIdx=curActive?_navOrder.indexOf(curActive.id):-1;
+    var newIdx=_navOrder.indexOf(btn.dataset.view);
+    var dir=newIdx>=curIdx?'right':'left';
     document.querySelectorAll('.nav-item').forEach(function(b){b.classList.remove('active');});
-    document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active');});
+    document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active','slide-in-right','slide-in-left');});
     btn.classList.add('active');
-    document.getElementById(btn.dataset.view).classList.add('active');
+    var nv=document.getElementById(btn.dataset.view);
+    nv.classList.add('active','slide-in-'+dir);
     if(btn.dataset.view==='vandaagView')renderVandaag();
     if(btn.dataset.view==='kalenderView')renderCalendar();
     if(btn.dataset.view==='boodschappenView')renderBoodschappen();
@@ -1462,11 +1474,17 @@ function renderVandaag(){
     var date=document.createElement('div');date.className='upcoming-day-date';date.textContent=d.getDate()+' '+MONTH_NAMES[d.getMonth()].slice(0,3);
     card.appendChild(name);card.appendChild(date);
     if(hasTasks){
+      var total=tasks.length+recs.length;
+      var cnt=document.createElement('div');cnt.className='upcoming-day-count';cnt.textContent=total+' taak'+(total===1?'':'en');card.appendChild(cnt);
       var dots=document.createElement('div');dots.className='upcoming-day-dots';
       tasks.forEach(function(t){var dot=document.createElement('div');dot.className='upcoming-dot';dot.style.background=getCat(t.category).color;dots.appendChild(dot);});
       recs.forEach(function(r){var dot=document.createElement('div');dot.className='upcoming-dot';dot.style.background=getCat(r.category).color;dots.appendChild(dot);});
       card.appendChild(dots);
-    } else {var em=document.createElement('div');em.className='upcoming-day-empty';em.textContent='Vrij';card.appendChild(em);}
+      var allNames=tasks.map(function(t){return t.text;}).concat(recs.map(function(r){return r.text;})).slice(0,2);
+      var pv=document.createElement('div');pv.className='upcoming-day-tasks';
+      allNames.forEach(function(t,i){var sp=document.createElement('div');sp.textContent='· '+t;pv.appendChild(sp);});
+      card.appendChild(pv);
+    } else {var em=document.createElement('div');em.className='upcoming-day-empty';em.textContent='Vrij ✓';card.appendChild(em);}
     (function(k){card.addEventListener('click',function(){openDay(k);});})(key);
     strip.appendChild(card);
   }
@@ -1899,6 +1917,20 @@ function renderMeerStats(){
   document.getElementById('backlogSub').textContent=bl>0?bl+' idee'+(bl===1?'':'ën'):'Ideeën & ooit-lijst';
   var garExp=(data.garanties||[]).filter(function(g){return g.verloopt&&daysUntil(g.verloopt)<=90&&daysUntil(g.verloopt)>=0;}).length;
   document.getElementById('garantiesSub').textContent=garExp>0?garExp+' verloopt binnenkort':'Verloopdata bijhouden';
+  function setCardBadge(cardId,count,color){
+    var card=document.getElementById(cardId);if(!card)return;
+    var ob=card.querySelector('.meer-warn-badge');if(ob)ob.remove();
+    if(count>0){var b=document.createElement('div');b.className='meer-warn-badge';b.textContent=count;
+      b.style.cssText='position:absolute;top:8px;right:8px;background:'+color+';color:#fff;border-radius:10px;padding:2px 7px;font-size:10px;font-weight:700;z-index:2;';
+      card.appendChild(b);}
+  }
+  var ondWarn=(data.onderhoud||[]).filter(function(o){
+    if(!o.lastDone)return true;
+    var due=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);
+    return Math.round((due-new Date())/(1000*60*60*24))<=14;
+  }).length;
+  setCardBadge('openOnderhoud',ondWarn,'#e67e22');
+  setCardBadge('openGaranties',garExp,'#e84393');
   var vakCount=(data.vakanties||[]).length;
   document.getElementById('vakantiesSub').textContent=vakCount>0?vakCount+' profiel'+(vakCount===1?'':'en'):'Paklijst & to-do';
   var mon2=getMonday(today);var weekDone=0;for(var wi=0;wi<7;wi++){var wd2=new Date(mon2);wd2.setDate(mon2.getDate()+wi);var wk2=dateKey(wd2.getFullYear(),wd2.getMonth(),wd2.getDate());weekDone+=(data.tasks[wk2]||[]).filter(function(t){return t.done;}).length+((data.recurringDone&&data.recurringDone[wk2])||[]).length;}
