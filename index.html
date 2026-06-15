@@ -675,6 +675,12 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .bood-section-header:first-child{padding-top:6px;}
 .bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:10px;color:var(--muted);padding:2px 7px;cursor:pointer;margin-top:3px;display:inline-block;line-height:1.6;}
 .bood-cat-chip:active{background:var(--accent-light);color:var(--accent);}
+.bood-qty-row{display:flex;align-items:center;gap:4px;flex-shrink:0;}
+.bood-qty-btn{width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;}
+.bood-qty-btn:active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.bood-qty-num{font-size:13px;font-weight:700;color:var(--text);min-width:24px;text-align:center;}
+.bood-done-divider{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:8px 0 4px;color:var(--muted);font-size:12px;font-weight:600;}
+.bood-done-divider::before,.bood-done-divider::after{content:'';flex:1;height:1px;background:var(--border);}
 .bood-cat-inline-sel{border:1px solid var(--accent);border-radius:8px;font-size:12px;padding:2px 5px;background:var(--bg);color:var(--text);margin-top:3px;max-width:180px;}
 .meer-card-maaltijd::before{background:linear-gradient(90deg,#f39c12,#fdcb6e);}
 .maaltijd-week{display:flex;flex-direction:column;gap:8px;padding:4px 0;}
@@ -2769,7 +2775,8 @@ function renderBoodschappen(){
       saveToServer();renderBoodschappen();
     });
     var body=document.createElement('div');body.style='flex:1;min-width:0;';
-    var txt=document.createElement('div');txt.className='boodschap-text'+(b.done?' done':'');txt.textContent=b.text;
+    var txt=document.createElement('div');txt.className='boodschap-text'+(b.done?' done':'');
+    txt.textContent=b.text+(b.qty&&b.qty>1?' ('+b.qty+'x)':'');
     body.appendChild(txt);
     if(b.addedBy){var meta=document.createElement('div');meta.className='boodschap-meta';meta.textContent='door '+b.addedBy;body.appendChild(meta);}
     // Categorie-chip: aantikken om te wijzigen + onthouden
@@ -2805,9 +2812,17 @@ function renderBoodschappen(){
       wchip.title='Winkel: '+bi.winkel;
       body.appendChild(wchip);
     })(b);}
+    // Quantity stepper
+    var qtyRow=document.createElement('div');qtyRow.className='bood-qty-row';
+    var qMin=document.createElement('button');qMin.className='bood-qty-btn';qMin.textContent='−';qMin.title='Minder';
+    qMin.addEventListener('click',function(e){e.stopPropagation();if(!b.qty||b.qty<=1){b.qty=1;return;}b.qty=(b.qty||1)-1;saveToServer();renderBoodschappen();});
+    var qNum=document.createElement('span');qNum.className='bood-qty-num';qNum.textContent=(b.qty&&b.qty>1?b.qty+'x':'1x');
+    var qPlus=document.createElement('button');qPlus.className='bood-qty-btn';qPlus.textContent='+';qPlus.title='Meer';
+    qPlus.addEventListener('click',function(e){e.stopPropagation();b.qty=(b.qty||1)+1;saveToServer();renderBoodschappen();});
+    qtyRow.appendChild(qMin);qtyRow.appendChild(qNum);qtyRow.appendChild(qPlus);
     var del=document.createElement('button');del.className='boodschap-del';del.textContent='✕';
     del.addEventListener('click',function(){var idx=data.boodschappen.indexOf(b);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();});
-    item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
+    item.appendChild(check);item.appendChild(body);if(!b.done)item.appendChild(qtyRow);item.appendChild(del);list.appendChild(item);
     (function(item2,b2){addSwipe(item2,function(){var idx=data.boodschappen.indexOf(b2);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();showUndoToast(b2.text+' verwijderd',function(){data.boodschappen.splice(idx,0,b2);saveToServer();renderBoodschappen();});});})(item,b);
   }
   var displayItems=boodWinkelFilter?sorted.filter(function(b){return (b.winkel||'')=== boodWinkelFilter;}):sorted;
@@ -2817,18 +2832,21 @@ function renderBoodschappen(){
   } else if(boodWinkelFilter&&!boodCatFilter){
     displayItems.forEach(function(b){renderBoodItem(b);});
   } else {
-    // Groepeer per afdeling in winkel-volgorde
+    // Groepeer per afdeling in winkel-volgorde — undone items eerst, done items ALTIJD onderaan
+    var undoneItems=displayItems.filter(function(b){return !b.done;});
+    var doneItems=displayItems.filter(function(b){return b.done;});
     var groups={};
-    displayItems.forEach(function(b){var cat=b.cat||'Overig';if(!groups[cat])groups[cat]=[];groups[cat].push(b);});
+    undoneItems.forEach(function(b){var cat=b.cat||'Overig';if(!groups[cat])groups[cat]=[];groups[cat].push(b);});
     var catOrder=BOOD_CATS.concat(Object.keys(groups).filter(function(c){return BOOD_CATS.indexOf(c)===-1;}));
     catOrder.forEach(function(cat){
       if(!groups[cat]||!groups[cat].length)return;
-
-      // Undone first, then done within category
-      var catUndone=groups[cat].filter(function(b){return !b.done;});
-      var catDone=groups[cat].filter(function(b){return b.done;});
-      catUndone.concat(catDone).forEach(function(b){renderBoodItem(b);});
+      groups[cat].forEach(function(b){renderBoodItem(b);});
     });
+    // Done items helemaal onderaan met scheidingslijn
+    if(doneItems.length){
+      var div=document.createElement('div');div.className='bood-done-divider';div.textContent='Afgevinkt';list.appendChild(div);
+      doneItems.forEach(function(b){renderBoodItem(b);});
+    }
   }
 }
 
@@ -4858,63 +4876,4 @@ function renderHeatmap(container){
   var monthRow=document.createElement('div');monthRow.className='heatmap-month-labels';
   var lastMonth=-1;
   weeks.forEach(function(week){
-    var lbl=document.createElement('div');lbl.className='heatmap-month-label';
-    var firstReal=week.find(function(d){return d;});
-    if(firstReal&&firstReal.date.getMonth()!==lastMonth){
-      lbl.textContent=MONTH_NAMES[firstReal.date.getMonth()].slice(0,3);
-      lastMonth=firstReal.date.getMonth();
-    }
-    monthRow.appendChild(lbl);
-  });
-  section.appendChild(monthRow);
-
-  var grid=document.createElement('div');grid.className='heatmap-grid';
-  weeks.forEach(function(week){
-    var col=document.createElement('div');col.className='heatmap-col';
-    week.forEach(function(day){
-      var cell=document.createElement('div');cell.className='heatmap-cell';
-      if(day){
-        cell.style.background=cellColor(day.cnt);
-        cell.title=day.key+(day.cnt>0?' — '+day.cnt+' gedaan':'');
-      } else {
-        cell.style.opacity='0';
-      }
-      col.appendChild(cell);
-    });
-    grid.appendChild(col);
-  });
-  section.appendChild(grid);
-
-  // Legend
-  var legend=document.createElement('div');legend.className='heatmap-legend';
-  legend.textContent='Minder ';
-  var lc=document.createElement('div');lc.className='heatmap-legend-cells';
-  [0,.25,.5,.75,1].forEach(function(p){
-    var lCell=document.createElement('div');lCell.className='heatmap-cell';
-    lCell.style.background=p===0?'var(--border)':'rgba(var(--accent-rgb),'+p+')';
-    lc.appendChild(lCell);
-  });
-  legend.appendChild(lc);
-  legend.appendChild(document.createTextNode(' Meer'));
-  section.appendChild(legend);
-  container.appendChild(section);
-}
-
-
-// QR-code genereren
-function showQrCode(){
-  var card=document.getElementById('qrCard');
-  var img=document.getElementById('qrCodeImg');
-  if(!dbUrl||!plannerKey){card.style.display='none';return;}
-  var link=buildShareLink();
-  img.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=000000&bgcolor=ffffff&data='+encodeURIComponent(link);
-  card.style.display='block';
-}
-
-
-})();
-</script>
-
-</body>
-</html>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+    var lbl=document.crea
