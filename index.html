@@ -1726,9 +1726,8 @@ function init(){
   if(rDb&&rKey){
     dbUrl=rDb;plannerKey=rKey;
     localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);
-    var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);
-    window.history.replaceState({},'',u.toString());
     document.getElementById('setupOverlay').style.display='none';
+    try{var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);window.history.replaceState({},'',u.toString());}catch(e){}
     if(!myName)document.getElementById('nameBanner').style.display='flex';
     loadFromServer(true);startAutoSync();
   } else {
