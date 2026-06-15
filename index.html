@@ -708,7 +708,7 @@ body.shopping-mode .toast{bottom:20px;}
       <li>Kopieer de <strong>database-URL</strong> (bijv. <code>https://naam-rtdb.europe-west1.firebasedatabase.app</code>).</li>
     </ol>
     <a class="setup-link-btn" href="https://console.firebase.google.com/" target="_blank">Open Firebase Console →</a>
-    <input class="setup-input" type="url" id="dbUrlInput" placeholder="Plak hier je database-URL…" autocapitalize="off" spellcheck="false">
+    <input class="setup-input" type="text" id="dbUrlInput" placeholder="Plak hier je database-URL…" autocapitalize="off" spellcheck="false" autocorrect="off" inputmode="url">
     <div class="setup-divider">Jullie namen</div>
     <input class="setup-input" type="text" id="setupMyName" placeholder="Jouw naam (bijv. Bas)" maxlength="20">
     <input class="setup-input" type="text" id="setupPartnerName" placeholder="Naam van je vriendin" maxlength="20">
@@ -717,10 +717,10 @@ body.shopping-mode .toast{bottom:20px;}
     <p class="setup-hint">Heeft je vriendin al een gedeelde link? Dan hoeft zij dit niet in te stellen.</p>
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(0,0,0,.08);">
       <p style="font-size:13px;color:#666;margin-bottom:10px;text-align:center;">Al een planner? Herstel met jouw herstelcode:</p>
-      <input class="setup-input" type="text" id="herstelKeyInput" placeholder="Herstelcode (bijv. mq99xf7emmrc2)" autocapitalize="off" spellcheck="false" autocorrect="off">
-      <input class="setup-input" type="url" id="herstelDbInput" placeholder="Database-URL (zelfde als hierboven)" autocapitalize="off" spellcheck="false" style="margin-top:6px;">
-      <div class="setup-error" id="herstelError"></div>
-      <button class="setup-submit" id="herstelSubmitBtn" style="background:#34c759;margin-top:6px;">↩ Herstel mijn planner</button>
+      <input class="setup-input" type="text" id="herstelKeyInput" placeholder="Herstelcode (bijv. mq99xf7emmrc2)" autocapitalize="off" spellcheck="false" autocorrect="off" inputmode="text">
+      <input class="setup-input" type="text" id="herstelDbInput" placeholder="https://jouw-naam-rtdb.europe-west1.firebasedatabase.app" autocapitalize="off" spellcheck="false" autocorrect="off" inputmode="url" style="margin-top:6px;" onfocus="if(!this.value){var v=document.getElementById('dbUrlInput').value.trim();if(v)this.value=v;}">
+      <div class="setup-error" id="herstelError" style="font-size:14px;font-weight:600;padding:6px 0;"></div>
+      <button class="setup-submit" id="herstelSubmitBtn" style="background:#34c759;margin-top:10px;padding:16px;font-size:16px;" onclick="this.scrollIntoView();">↩ Herstel mijn planner</button>
     </div>
   </div>
 </div>
@@ -4866,14 +4866,4 @@ function renderHeatmap(container){
   function cellColor(cnt){
     if(cnt===0)return 'var(--border)';
     var pct=Math.min(cnt/Math.max(maxCnt,4),1);
-    if(pct<.25)return 'rgba(var(--accent-rgb),.25)';
-    if(pct<.5) return 'rgba(var(--accent-rgb),.5)';
-    if(pct<.75)return 'rgba(var(--accent-rgb),.75)';
-    return 'var(--accent)';
-  }
-
-  // Month labels row
-  var monthRow=document.createElement('div');monthRow.className='heatmap-month-labels';
-  var lastMonth=-1;
-  weeks.forEach(function(week){
-    var lbl=document.crea
+    if(pct<.25)return 'rgba(var(--accent-rgb),.25)'
