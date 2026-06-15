@@ -673,9 +673,9 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .toast.show{opacity:1;}
 .bood-section-header{display:flex;align-items:center;gap:6px;padding:12px 16px 4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
 .bood-section-header:first-child{padding-top:6px;}
-.bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:10px;color:var(--muted);padding:2px 7px;cursor:pointer;margin-top:3px;display:inline-block;line-height:1.6;max-width:44%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:1;}
+.bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:11px;color:var(--muted);padding:2px 8px;cursor:pointer;display:inline-flex;align-items:center;line-height:1.6;}
 .bood-cat-chip:active{background:var(--accent-light);color:var(--accent);}
-.bood-qty-row{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.bood-qty-row{display:flex;align-items:center;gap:6px;flex-shrink:0;justify-content:center;}
 .bood-qty-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;touch-action:manipulation;}
 .bood-qty-btn:active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .bood-qty-num{font-size:14px;font-weight:700;color:var(--text);min-width:28px;text-align:center;}
@@ -2830,9 +2830,8 @@ function renderBoodschappen(){
     txt.textContent=b.text;
     body.appendChild(txt);
     if(b.addedBy){var meta=document.createElement('div');meta.className='boodschap-meta';meta.textContent='door '+b.addedBy;body.appendChild(meta);}
-    // Bottom row: categorie-chip + winkel + qty stepper in één rij
-    var boodBottom=document.createElement('div');boodBottom.style='display:flex;align-items:center;gap:4px;margin-top:4px;flex-wrap:nowrap;';
-    // Categorie-chip: aantikken om te wijzigen + onthouden
+    // Categorie-chip op eigen regel onder de naam
+    var boodBottom=document.createElement('div');boodBottom.style='display:flex;align-items:center;gap:4px;margin-top:3px;flex-wrap:wrap;';
     (function(bi){
       var chip=document.createElement('button');chip.className='bood-cat-chip';
       chip.textContent=(BOOD_CAT_ICONS[bi.cat||'Overig']||'🛒')+' '+(bi.cat||'Overig');
@@ -2851,34 +2850,30 @@ function renderBoodschappen(){
           if(!data.boodCatOverrides)data.boodCatOverrides={};
           data.boodCatOverrides[norm]=sel.value;
           saveToServer();renderBoodschappen();
-          showToast('✓ '+bi.text+' staat voortaan bij '+sel.value);
+          showToast('\u2713 '+bi.text+' staat voortaan bij '+sel.value);
         });
         sel.addEventListener('blur',function(){setTimeout(function(){if(document.body.contains(sel))renderBoodschappen();},150);});
       });
       boodBottom.appendChild(chip);
     })(b);
-    // Winkel chip
     if(b.winkel){(function(bi){
-      var WICONS2={AH:'🔵',Vomar:'🔴',Slager:'🟤',Action:'🟡'};
+      var WICONS2={AH:'\ud83d\udd35',Vomar:'\ud83d\udd34',Slager:'\ud83d\udfe4',Action:'\ud83d\udfe1'};
       var wchip=document.createElement('div');wchip.style='font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:1px 6px;display:inline-flex;align-items:center;gap:2px;color:var(--muted);white-space:nowrap;flex-shrink:0;';
-      wchip.textContent=(WICONS2[bi.winkel]||'🏪')+' '+bi.winkel;
+      wchip.textContent=(WICONS2[bi.winkel]||'\ud83c\udffe')+' '+bi.winkel;
       boodBottom.appendChild(wchip);
     })(b);}
-    // Spacer
-    var boodSpacer=document.createElement('div');boodSpacer.style='flex:1;';boodBottom.appendChild(boodSpacer);
-    // Quantity stepper (altijd zichtbaar)
-    var qtyRow=document.createElement('div');qtyRow.className='bood-qty-row';
-    var qMin=document.createElement('button');qMin.className='bood-qty-btn';qMin.textContent='−';qMin.title='Minder';
-    qMin.addEventListener('click',function(e){e.stopPropagation();if(!b.qty||b.qty<=1){b.qty=1;return;}b.qty=(b.qty||1)-1;saveToServer();renderBoodschappen();});
-    var qNum=document.createElement('span');qNum.className='bood-qty-num';qNum.textContent=(b.qty&&b.qty>1?b.qty+'x':'1x');
+    body.appendChild(boodBottom);
+    // Qty stepper: verticaal gestapeld (+ getal −) als kolom rechts van body
+    var qtyRow=document.createElement('div');qtyRow.className='bood-qty-row';qtyRow.style='flex-direction:column;gap:2px;padding:0 2px;';
     var qPlus=document.createElement('button');qPlus.className='bood-qty-btn';qPlus.textContent='+';qPlus.title='Meer';
     qPlus.addEventListener('click',function(e){e.stopPropagation();b.qty=(b.qty||1)+1;saveToServer();renderBoodschappen();});
-    qtyRow.appendChild(qMin);qtyRow.appendChild(qNum);qtyRow.appendChild(qPlus);
-    boodBottom.appendChild(qtyRow);
-    body.appendChild(boodBottom);
-    var del=document.createElement('button');del.className='boodschap-del';del.textContent='✕';
+    var qNum=document.createElement('span');qNum.className='bood-qty-num';qNum.textContent=(b.qty&&b.qty>1?b.qty:'1')+'x';
+    var qMin=document.createElement('button');qMin.className='bood-qty-btn';qMin.textContent='\u2212';qMin.title='Minder';
+    qMin.addEventListener('click',function(e){e.stopPropagation();if(!b.qty||b.qty<=1){b.qty=1;return;}b.qty=(b.qty||1)-1;saveToServer();renderBoodschappen();});
+    qtyRow.appendChild(qPlus);qtyRow.appendChild(qNum);qtyRow.appendChild(qMin);
+    var del=document.createElement('button');del.className='boodschap-del';del.textContent='\u2715';
     del.addEventListener('click',function(){var idx=data.boodschappen.indexOf(b);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();});
-    item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
+    item.appendChild(check);item.appendChild(body);item.appendChild(qtyRow);item.appendChild(del);list.appendChild(item);
     (function(item2,b2){addSwipe(item2,function(){var idx=data.boodschappen.indexOf(b2);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();showUndoToast(b2.text+' verwijderd',function(){data.boodschappen.splice(idx,0,b2);saveToServer();renderBoodschappen();});});})(item,b);
   }
   var displayItems=boodWinkelFilter?sorted.filter(function(b){return (b.winkel||'')=== boodWinkelFilter;}):sorted;
