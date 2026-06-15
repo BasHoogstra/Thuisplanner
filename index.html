@@ -681,6 +681,9 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .bood-qty-num{font-size:13px;font-weight:700;color:var(--text);min-width:24px;text-align:center;}
 .bood-done-divider{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:8px 0 4px;color:var(--muted);font-size:12px;font-weight:600;}
 .bood-done-divider::before,.bood-done-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.koppelgesprek-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:6px;}
+.koppelgesprek-topic{font-weight:700;font-size:13px;color:var(--accent);margin-bottom:5px;}
+.koppelgesprek-q{font-size:12px;color:var(--muted);padding:2px 0 2px 8px;line-height:1.4;}
 .bood-cat-inline-sel{border:1px solid var(--accent);border-radius:8px;font-size:12px;padding:2px 5px;background:var(--bg);color:var(--text);margin-top:3px;max-width:180px;}
 .meer-card-maaltijd::before{background:linear-gradient(90deg,#f39c12,#fdcb6e);}
 .maaltijd-week{display:flex;flex-direction:column;gap:8px;padding:4px 0;}
@@ -1458,7 +1461,7 @@ body.shopping-mode .toast{bottom:20px;}
 (function(){
 'use strict';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#7a6cf0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
-var BOOD_CATS=['Groente & fruit','Zuivel','Vlees & vis','Brood & bakkerij','Houdbaar & Droog','Frisdrank','Drogisterij','Schoonmaak','Diepvries','Overig'];
+var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var MONTH_NAMES=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
 var DAY_NAMES=['ma','di','wo','do','vr','za','zo'];
 var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];
@@ -1555,6 +1558,14 @@ function recAppliesToDate(r,k){
   var d=keyToDate(k);
   if(iv==='month')return d.getDate()===(r.dayOfMonth||1);
   if(iv==='year')return d.getDate()===(r.dayOfMonth||1)&&d.getMonth()===(r.month||0);
+  if(iv==='biweek'){
+    if(weekday(k)!==4)return false;
+    var anch=r.anchorDate||'2026-06-20';
+    var ap=anch.split('-').map(Number);
+    var ad=new Date(ap[0],ap[1]-1,ap[2]);
+    var diffDays=Math.round((d-ad)/(24*3600*1000));
+    return diffDays>=0&&diffDays%14===0;
+  }
   return false;
 }
 
@@ -1571,6 +1582,11 @@ function loadFromServer(isInitial){
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
     if(s!==lastKnownJSON&&!_pendingSave){detectChanges(data,inc);data=inc;lastKnownJSON=s;renderAll();scheduleReminders();}
+    if(!(data.recurring||[]).some(function(r){return r.koppelgesprek;})){
+      if(!data.recurring)data.recurring=[];
+      data.recurring.push({id:uid(),text:'Koppelgesprek 💑',interval:'biweek',anchorDate:'2026-06-20',koppelgesprek:true,category:'thuis',priority:'normaal'});
+      saveToServer();renderVandaag();renderCalendar();
+    }
     setSync('','Bijgewerkt · '+nowTime());
     document.getElementById('shareBar').style.display='flex';
     document.getElementById('refreshBtn').style.display='';
@@ -1623,7 +1639,7 @@ function detectChanges(oldData,newData){
       if(oldIds.indexOf(t.id)===-1){taskCount++;if(t.author&&t.author!==myName)taskAuthor=t.author;}
     });
   });
-  if(taskCount>0&&taskAuthor)msgs.push(taskAuthor+' voegde '+taskCount+' taak'+(taskCount===1?'':'en')+' toe');
+  if(taskCount>0&&taskAuthor)msgs.push(taskAuthor+' voegde '+taskCount+(taskCount===1?' taak':' taken')+' toe');
   // New boodschappen
   var oldBoodIds=(oldData.boodschappen||[]).map(function(b){return b.id;});
   var newBood=(newData.boodschappen||[]).filter(function(b){return oldBoodIds.indexOf(b.id)===-1;});
@@ -2044,7 +2060,18 @@ function renderVandaag(){
     var body=document.createElement('div');body.className='vandaag-task-body';
     var txt=document.createElement('div');txt.className='vandaag-task-text'+(isDone?' done':'');txt.textContent=cat.emoji+' ↻ '+r.text;
     var meta=document.createElement('div');meta.className='vandaag-task-meta';meta.innerHTML='<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:.7;margin-right:4px;vertical-align:middle;"></span>Vaste taak';
-    body.appendChild(txt);body.appendChild(meta);item.appendChild(check);item.appendChild(body);container.appendChild(item);
+    body.appendChild(txt);body.appendChild(meta);
+    if(r.koppelgesprek&&!isDone){
+      var anch=r.anchorDate||'2026-06-20';var ap=anch.split('-').map(Number);var ad=new Date(ap[0],ap[1]-1,ap[2]);
+      var pd=keyToDate(tk);var diffDays=Math.round((pd-ad)/(24*3600*1000));
+      var biweekNum=Math.max(0,Math.floor(diffDays/14));
+      var topicData=COUPLE_TOPICS[biweekNum%COUPLE_TOPICS.length];
+      var kBlock=document.createElement('div');kBlock.className='koppelgesprek-block';
+      var kTopic=document.createElement('div');kTopic.className='koppelgesprek-topic';kTopic.textContent=topicData.topic;kBlock.appendChild(kTopic);
+      topicData.questions.forEach(function(q){var qEl=document.createElement('div');qEl.className='koppelgesprek-q';qEl.textContent='· '+q;kBlock.appendChild(qEl);});
+      body.appendChild(kBlock);
+    }
+    item.appendChild(check);item.appendChild(body);container.appendChild(item);
     addSwipe(item,function(){
       if(!data.recurringDone)data.recurringDone={};
       if(!data.recurringDone[tk])data.recurringDone[tk]=[];
@@ -2187,7 +2214,7 @@ function renderVandaag(){
     card.appendChild(name);card.appendChild(date);
     if(hasTasks){
       var total=tasks.length+recs.length;
-      var cnt=document.createElement('div');cnt.className='upcoming-day-count';cnt.textContent=total+' taak'+(total===1?'':'en');card.appendChild(cnt);
+      var cnt=document.createElement('div');cnt.className='upcoming-day-count';cnt.textContent=total+(total===1?' taak':' taken');card.appendChild(cnt);
       var dots=document.createElement('div');dots.className='upcoming-day-dots';
       tasks.forEach(function(t){var dot=document.createElement('div');dot.className='upcoming-dot';dot.style.background=getCat(t.category).color;dots.appendChild(dot);});
       recs.forEach(function(r){var dot=document.createElement('div');dot.className='upcoming-dot';dot.style.background=getCat(r.category).color;dots.appendChild(dot);});
@@ -2568,15 +2595,40 @@ function checkRecurringSuggestion(text){
 // Feature 3: auto-categorize boodschappen
 var BOOD_AUTO={
   'Groente & fruit':['appel','peer','banaan','druif','aardbei','tomaat','komkommer','sla','wortel','ui','sjalot','knoflook','paprika','broccoli','bloemkool','courgette','spinazie','avocado','citroen','limoen','sinaasappel','mandarijn','mango','ananas','meloen','kiwi','aardappel','radijs','prei','venkel','asperge','champignon','portobello','mais','sperzieboon','doperwt','erwt','bospeen','rucola','radicchio','ijsberg','andijvie','boerenkool','spruitje','rode kool','witte kool','paksoi','biet','pastinaak','knolselderij','peterselie','basilicum','munt','bieslook','dille','tijm','rozemarijn','pruim','nectarine','perzik','kers','bosbes','framboos','braam','cranberry','papaja','guave','watermeloen','groente','fruit','rauw','vers'],
-  'Zuivel':['melk','halfvolle','volle melk','kaas','gouda','belegen','jong','extra belegen','cheddar','brie','camembert','feta','mozzarella','parmezaan','gruyère','ricotta','mascarpone','roomkaas','smeerkaas','boter','margarine','halvarine','yoghurt','griekse','skyr','kwark','biogarde','room','slagroom','crème fraîche','creme fraiche','vla','pudding','karnemelk','zuivel','ei','eieren'],
-  'Vlees & vis':['kip','kipfilet','kipschnitzel','drumstick','vleugel','gehakt','rundergehakt','biefstuk','entrecote','ossenhaas','ribkarbonade','kotelet','varkenslap','tartaar','lam','slavink','worst','rookworst','leverworst','chorizo','salami','pastrami','pepperoni','ham','rookvlees','spek','bacon','kalkoen','vlees','zalm','tonijn','makreel','haring','kabeljauw','forel','tilapia','heek','schelvis','sardien','ansjovis','garnaal','garnalen','inktvis','mossel','surimi','visstick','vis'],
-  'Brood & bakkerij':['brood','volkoren','meergranen','bruinbrood','witbrood','bolletje','stokbrood','baguette','ciabatta','bagel','wrap','pita','naan','pistolet','krentenbol','rogge','spelt','croissant','muffin','cake','ontbijtkoek','stroopwafel','speculaas','pannenkoek','wafel','beschuit','knäckebröd','toast','broodje','bakkerij'],
-  'Houdbaar & Droog':['pasta','spaghetti','macaroni','penne','fusilli','tagliatelle','noodles','rijst','basmati','zilvervlies','couscous','quinoa','bulgur','olie','olijfolie','zonnebloemolie','kokosolie','sesamolie','azijn','balsamico','saus','tomatensaus','pastasaus','ketchup','mosterd','mayonaise','sambal','ketjap','sojasaus','tabasco','sriracha','worcester','bouillon','soep','tomatenblokjes','tomatenpuree','kokosmelk','kikkererwten','linzen','kidneybonen','witte bonen','bonen','mais blik','maïs blik','pindakaas','notenpasta','amandelpasta','jam','marmelade','honing','siroop','suiker','basterdsuiker','rietsuiker','bloem','zelfrijzend','maizena','bakpoeder','vanille','chocolade','cacao','nutella','hagelslag','stroop','cornflakes','muesli','havermout','granola','crackers','rijstwafels','chips','noten','amandelen','cashew','walnoten','pistache','pinda','rozijnen','dadels','gedroogde vruchten','zout','peper','paprikapoeder','kerriepoeder','komijn','kaneel','nootmuskaat','oregano','basilicumpoeder','laurier','knoflookpoeder','uienpoeder','kurkuma','gember'],
-  'Frisdrank':['cola','fanta','sprite','7up','tonic','sap','appelsap','sinaasappelsap','limonade','frisdrank','water','mineraalwater','bronwater','sportdrank','energiedrank','wijn','rode wijn','witte wijn','rosé','bier','pilsner','cider','prosecco','champagne','thee','koffie','espresso','cappuccino','latte','flat white','chocomel','ijsthee','smoothie','sapje'],
+  'Vlees, vis & vega':['kip','kipfilet','kipschnitzel','drumstick','vleugel','gehakt','rundergehakt','biefstuk','entrecote','ossenhaas','ribkarbonade','kotelet','varkenslap','tartaar','lam','slavink','worst','rookworst','kalkoen','vlees','zalm','tonijn','makreel','haring','kabeljauw','forel','tilapia','heek','schelvis','sardien','ansjovis','garnaal','garnalen','inktvis','mossel','surimi','visstick','vis','tofu','quorn','tempeh','vegaburger','vega'],
+  'Zuivel & eieren':['melk','halfvolle','volle melk','yoghurt','griekse','skyr','kwark','biogarde','room','slagroom','crème fraîche','creme fraiche','vla','pudding','karnemelk','boter','margarine','halvarine','zuivel','ei','eieren'],
+  'Kaas & vleeswaren':['kaas','gouda','belegen','jong belegen','extra belegen','cheddar','brie','camembert','feta','mozzarella','parmezaan','gruyère','ricotta','mascarpone','roomkaas','smeerkaas','salami','pastrami','pepperoni','ham','rookvlees','spek','bacon','chorizo','leverworst'],
+  'Brood & gebak':['brood','volkoren','meergranen','bruinbrood','witbrood','bolletje','stokbrood','baguette','ciabatta','bagel','wrap','pita','naan','pistolet','krentenbol','rogge','spelt','croissant','muffin','cake','pannenkoek','wafel','broodje','bakkerij'],
+  'Ontbijt & beleg':['cornflakes','muesli','havermout','granola','ontbijtkoek','beschuit','knäckebröd','toast','pindakaas','notenpasta','amandelpasta','jam','marmelade','honing','siroop','hagelslag','stroop','nutella','chocoladepasta'],
+  'Pasta, rijst & sauzen':['pasta','spaghetti','macaroni','penne','fusilli','tagliatelle','noodles','rijst','basmati','zilvervlies','couscous','quinoa','bulgur','olie','olijfolie','zonnebloemolie','kokosolie','sesamolie','azijn','balsamico','saus','tomatensaus','pastasaus','ketchup','mosterd','mayonaise','sambal','ketjap','sojasaus','tabasco','sriracha','worcester','bouillon','soep','tomatenblokjes','tomatenpuree','kokosmelk','kikkererwten','linzen','kidneybonen','witte bonen','bonen','mais blik','maës blik','suiker','basterdsuiker','rietsuiker','bloem','zelfrijzend','maizena','bakpoeder','vanille','chocolade','cacao','zout','peper','paprikapoeder','kerriepoeder','komijn','kaneel','nootmuskaat','oregano','basilicumpoeder','laurier','knoflookpoeder','uienpoeder','kurkuma','gember'],
+  'Snacks & snoep':['chips','noten','amandelen','cashew','walnoten','pistache','pinda','rozijnen','dadels','gedroogde vruchten','crackers','rijstwafels','stroopwafel','speculaas','koek','snoep','drop','kauwgom'],
+  'Frisdrank & sap':['cola','fanta','sprite','7up','tonic','sap','appelsap','sinaasappelsap','limonade','frisdrank','water','mineraalwater','bronwater','sportdrank','energiedrank','thee','koffie','espresso','cappuccino','latte','flat white','chocomel','ijsthee','smoothie','sapje'],
+  'Bier & wijn':['wijn','rode wijn','witte wijn','rosé','bier','pilsner','cider','prosecco','champagne','sterke drank'],
+  'Diepvries':['diepvries','pizza','patat','friet','ijs','roomijs','sorbet','yoghurt ijs','diepvriesgroente','spinazieblokje','broccoli blokjes','garnalen diepvries','visstaaf','frikandel','kroket','bitterbal','kaassoufflé','loempia','kipnugget','nugget','satéballetje','bladerdeeg','filodeeg','brooddeeg'],
   'Drogisterij':['shampoo','conditioner','tandpasta','tandenborstel','elektrische tand','zeep','handzeep','douchegel','badschuim','deodorant','scheerschuim','scheergel','scheermesje','scheerapparaat','watten','wattenstokje','pleisters','verband','paracetamol','ibuprofen','aspirine','vitaminen','vitamine','supplement','zonnebrand','lippenbalsem','lippenstift','mascara','foundation','make-up','makeup','nagellak','oogdruppels','neusdruppels','parfum','aftershave','bodymilk','handcreme','gezichtscrème','serum','toner','reinigingsmelk','gezichtsmasker','toiletpapier','wc-papier','tissues','maandverband','tampon','incontinentie','luier','babydoekjes','babylotion'],
-  'Schoonmaak':['wasmiddel','wasverzachter','vlekkenverwijderaar','afwasmiddel','vaatwastablet','vaatwastabletten','spoelmiddel','schoonmaakmiddel','allesreiniger','badkamerreiniger','toiletreiniger','wc-blokje','toiletblokje','bleekwater','bleek','soda','citroenzuur','ontkalkingsmiddel','glazenwasser','vloer','dweil','mop','spons','schuurspons','doekje','microvezeldoek','vuilniszak','afvalzak','prullenbak','ziplock','aluminiumfolie','huishoudfolie','keukenpapier','keukenrol'],
-  'Diepvries':['diepvries','pizza','patat','friet','ijs','roomijs','sorbet','yoghurt ijs','diepvriesgroente','diepvries','spinazieblokje','broccoli blokjes','erwten','garnalen diepvries','visstaaf','frikandel','kroket','bitterbal','kaassoufflé','loempia','kipnugget','nugget','satéballetje','vegaburger','bladerdeeg','filodeeg','brooddeeg','fruitsorbets']
+  'Schoonmaak':['wasmiddel','wasverzachter','vlekkenverwijderaar','afwasmiddel','vaatwastablet','vaatwastabletten','spoelmiddel','schoonmaakmiddel','allesreiniger','badkamerreiniger','toiletreiniger','wc-blokje','toiletblokje','bleekwater','bleek','soda','citroenzuur','ontkalkingsmiddel','glazenwasser','vloer','dweil','mop','spons','schuurspons','doekje','microvezeldoek','vuilniszak','afvalzak','prullenbak','ziplock','aluminiumfolie','huishoudfolie','keukenpapier','keukenrol']
 };
+var COUPLE_TOPICS=[
+  {topic:'💰 Financiën',questions:['Hoe staan we er financieel voor deze maand?','Zijn er uitgaven die we kunnen besparen of anders verdelen?','Hebben we onze spaardoelen gehaald?','Is er iets groots waar we samen voor sparen?','Zijn we tevreden over hoe we omgaan met grote en kleine uitgaven?','Is er financiële stress die we moeten bespreken?']},
+  {topic:'💑 Relatie',questions:['Wat waardeer je het meest aan de ander deze periode?','Is er iets wat je wil verbeteren in onze communicatie?','Hoe kunnen we meer quality time inbouwen?','Wat heeft de ander de laatste twee weken goed gedaan?','Voel je je gezien en gehoord door mij?','Is er iets wat je mist in onze relatie op dit moment?']},
+  {topic:'💋 Intimiteit & seks',questions:['Voel je je dicht bij me de laatste tijd, ook fysiek?','Is er iets wat je fijn vindt of juist mist in onze intimiteit?','Zijn er wensen of grenzen die je wil bespreken?','Hoeveel ruimte maken we voor verbinding buiten het drukke leven?','Wat maakt jou het meest ontspannen en dichtbij de ander?','Is er iets wat je al een tijdje wil zeggen maar moeilijk vindt om te beginnen?']},
+  {topic:'🏥 Gezondheid',questions:['Hoe voel je je lichamelijk op dit moment?','Hoe is het mentaal — stress, hoofd, energie?','Slaap je goed genoeg?','Bewegen we voldoende als individu en als gezin?','Is er iets gezondheidsgerelateerds dat aandacht nodig heeft?','Zijn er gewoonten die we willen veranderen voor ons welzijn?']},
+  {topic:'🏠 Thuis & gezin',questions:['Wat loopt er goed thuis?','Wat kan beter georganiseerd worden?','Hoe gaat het met de kinderen — school, vrienden, stemming?','Zijn er klusjes of aanschaffingen die we moeten plannen?','Voelt het thuis als een fijne plek voor ons allemaal?','Is er iets in de dagelijkse routine dat we willen aanpassen?']},
+  {topic:'🌟 Toekomst & dromen',questions:['Waar kijk je de komende tijd naar uit?','Zijn er grote dromen of doelen die je wil bespreken?','Welke stap kunnen we zetten richting ons gezamenlijk doel?','Is er iets dat je wil leren of bereiken dit jaar?','Hoe ziet onze ideale situatie er over 5 jaar uit?','Is er een droom die je al lang hebt maar nog nooit hardop hebt uitgesproken?']},
+  {topic:'🎉 Fun & vrije tijd',questions:['Wat hebben we leuk gedaan de laatste twee weken?','Wat zouden we binnenkort willen ondernemen?','Is er een film, serie of boek die je wil delen?','Wat geeft jou energie op dit moment?','Lachen we genoeg samen?','Is er iets wat we vroeger deden als stel en nu eigenlijk missen?']},
+  {topic:'🌱 Persoonlijke groei',questions:['Wat heb je deze twee weken geleerd?','Ben je ergens trots op van jezelf?','Is er iets wat je wil veranderen aan je gewoonten?','Hoe ondersteun jij de groei van de ander?','Welke versie van jezelf wil je worden?','Is er iets waar je hulp of aanmoediging bij kunt gebruiken?']},
+  {topic:'🤝 Samenwerking',questions:['Verdelen we de taken thuis eerlijk?','Is er iets wat jij vaker zou kunnen oppakken?','Hoe kunnen we elkaar beter ondersteunen?','Zijn er spanningen die we moeten bespreken?','Voelen we ons allebei een gelijkwaardig team?','Is er een situatie de laatste tijd waarbij de samenwerking stroef liep?']},
+  {topic:'🙏 Dankbaarheid',questions:['Waar ben je de afgelopen twee weken dankbaar voor?','Wat doet de ander dat je blij van wordt, hoe klein ook?','Is er iemand buiten ons gezin die we vaker mogen waarderen?','Wat maakt jou trots op ons als stel?','Is er een moment de laatste tijd geweest waarop je dacht: dit is goed?','Hoe kunnen we vaker stilstaan bij wat we hebben?']},
+  {topic:'🧒 Opvoeding',questions:['Hoe gaat het met de kinderen op school en sociaal?','Is er iets in onze aanpak dat we willen bijstellen?','Zijn we het eens over de grenzen en regels thuis?','Wat willen we de kinderen de komende weken meegeven?','Is er iets bij een kind dat onze aandacht verdient?','Hoe zorg jij voor je eigen energie als ouder?']},
+  {topic:'💼 Werk & carrière',questions:['Hoe voel je je op je werk op dit moment?','Is er iets in je werk dat je energie geeft of juist kost?','Zijn er kansen of zorgen die we samen kunnen bespreken?','Hoe kunnen we elkaars werk beter begrijpen of ondersteunen?','Is er een ambitie in je werk die je wil waarmaken?','Heeft het werk invloed op ons gezinsleven, en wat vinden we daarvan?']},
+  {topic:'🏖️ Vakantie & reizen',questions:['Hebben we nog vakantiedagen en plannen te maken?','Zijn er plekken die we allebei graag willen bezoeken?','Hoe kunnen we ook kleine uitstapjes inbouwen?','Wat heeft onze laatste vakantie ons gebracht?','Hebben de kinderen ook inbreng in wat we gaan doen?','Wat willen we dit jaar nog meemaken samen?']},
+  {topic:'👪 Familie & vrienden',questions:['Hoe is het contact met familie de laatste weken?','Is er iemand die aandacht of steun nodig heeft?','Staan we allebei goed in het contact met onze families?','Zijn er sociale afspraken die we willen plannen of juist begrenzen?','Voelen we ons gesteund door de mensen om ons heen?','Is er wrijving met familie of vrienden die we willen bespreken?']},
+  {topic:'🧘 Balans & rust',questions:['Voel je je over het algemeen ontspannen of gespannen?','Nemen we genoeg rust voor onszelf?','Zijn er bezigheden die we kunnen loslaten om ruimte te maken?','Hoe zorgen we beter voor onze eigen oplaadbatterij?','Is er iets wat momenteel te veel energie vraagt?','Wanneer voelde je je de laatste tijd echt ontspannen, en wat was er anders?']},
+  {topic:'🎯 Doelen & prioriteiten',questions:['Welk doel wil jij de komende twee weken stellen?','Zijn onze prioriteiten op dit moment in lijn met onze waarden?','Is er iets wat al lang op de planning staat maar er niet van komt?','Hoe kunnen we elkaar helpen dichter bij onze doelen te komen?','Wat is voor jou het allerbelangrijkste op dit moment?','Zijn er doelen die we kunnen schrappen zodat we focus houden?']},
+  {topic:'🍴 Eten & leefstijl',questions:['Eten we gezond en gevarieerd genoeg?','Is er iets wat we graag vaker of minder willen eten?','Zijn onze eetgewoonten als gezin wat we willen?','Heb je een recept of maaltijd die je wil proberen?','Hoe zien onze avondmaaltijden er ideaal uit qua sfeer en gezelligheid?','Is er iets in onze leefstijl dat we willen verbeteren?']},
+  {topic:'🎨 Creativiteit & hobby's',questions:['Is er een hobby of bezigheid die je mist of wil oppakken?','Maken we genoeg ruimte voor creatieve uitlaatkleppen?','Is er iets wat we samen kunnen maken, leren of ontdekken?','Wat geeft jou plezier buiten werk en gezin?','Is er een talent bij jou of de ander dat we vaker mogen inzetten?','Hoe kunnen we creativiteit meer plek geven in ons leven?']},
+  {topic:'💬 Communicatie & gevoel',questions:['Is er iets wat je al een tijdje wil zeggen maar nog niet hebt?','Voelen we ons allebei gehoord in onze gesprekken?','Zijn er onderwerpen die we vermijden maar eigenlijk moeten bespreken?','Hoe wil jij dat de ander reageert als je iets moeilijks deelt?','Is er een misverstand of irritatie die we kunnen uitpraten?','Hoe kunnen we het gesprek makkelijker maken als het spannend wordt?']}
+];
 function autoBoodCat(text){
   var lower=text.toLowerCase().trim();
   var cats=Object.keys(BOOD_AUTO);
@@ -2757,7 +2809,7 @@ function renderBoodschappen(){
       db.style.display='none';
     }
   })();
-  var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Zuivel':'🧀','Vlees & vis':'🥩','Brood & bakkerij':'🍞','Houdbaar & Droog':'🥫','Frisdrank':'🥤','Drogisterij':'🧴','Schoonmaak':'🧹','Diepvries':'🧊','Overig':'🛒'};
+  var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
   function renderBoodItem(b){
     var item=document.createElement('div');item.className='boodschap-item';
     var sbg=document.createElement('div');sbg.className='boodschap-swipe-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
@@ -2775,9 +2827,11 @@ function renderBoodschappen(){
     });
     var body=document.createElement('div');body.style='flex:1;min-width:0;';
     var txt=document.createElement('div');txt.className='boodschap-text'+(b.done?' done':'');
-    txt.textContent=b.text+(b.qty&&b.qty>1?' ('+b.qty+'x)':'');
+    txt.textContent=b.text;
     body.appendChild(txt);
     if(b.addedBy){var meta=document.createElement('div');meta.className='boodschap-meta';meta.textContent='door '+b.addedBy;body.appendChild(meta);}
+    // Bottom row: categorie-chip + winkel + qty stepper in één rij
+    var boodBottom=document.createElement('div');boodBottom.style='display:flex;align-items:center;gap:4px;margin-top:4px;flex-wrap:nowrap;';
     // Categorie-chip: aantikken om te wijzigen + onthouden
     (function(bi){
       var chip=document.createElement('button');chip.className='bood-cat-chip';
@@ -2801,17 +2855,18 @@ function renderBoodschappen(){
         });
         sel.addEventListener('blur',function(){setTimeout(function(){if(document.body.contains(sel))renderBoodschappen();},150);});
       });
-      body.appendChild(chip);
+      boodBottom.appendChild(chip);
     })(b);
     // Winkel chip
     if(b.winkel){(function(bi){
       var WICONS2={AH:'🔵',Vomar:'🔴',Slager:'🟤',Action:'🟡'};
-      var wchip=document.createElement('div');wchip.style='font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:1px 7px;display:inline-flex;align-items:center;gap:2px;margin-left:4px;color:var(--muted);white-space:nowrap;cursor:pointer;';
+      var wchip=document.createElement('div');wchip.style='font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:1px 6px;display:inline-flex;align-items:center;gap:2px;color:var(--muted);white-space:nowrap;flex-shrink:0;';
       wchip.textContent=(WICONS2[bi.winkel]||'🏪')+' '+bi.winkel;
-      wchip.title='Winkel: '+bi.winkel;
-      body.appendChild(wchip);
+      boodBottom.appendChild(wchip);
     })(b);}
-    // Quantity stepper
+    // Spacer
+    var boodSpacer=document.createElement('div');boodSpacer.style='flex:1;';boodBottom.appendChild(boodSpacer);
+    // Quantity stepper (altijd zichtbaar)
     var qtyRow=document.createElement('div');qtyRow.className='bood-qty-row';
     var qMin=document.createElement('button');qMin.className='bood-qty-btn';qMin.textContent='−';qMin.title='Minder';
     qMin.addEventListener('click',function(e){e.stopPropagation();if(!b.qty||b.qty<=1){b.qty=1;return;}b.qty=(b.qty||1)-1;saveToServer();renderBoodschappen();});
@@ -2819,9 +2874,11 @@ function renderBoodschappen(){
     var qPlus=document.createElement('button');qPlus.className='bood-qty-btn';qPlus.textContent='+';qPlus.title='Meer';
     qPlus.addEventListener('click',function(e){e.stopPropagation();b.qty=(b.qty||1)+1;saveToServer();renderBoodschappen();});
     qtyRow.appendChild(qMin);qtyRow.appendChild(qNum);qtyRow.appendChild(qPlus);
+    boodBottom.appendChild(qtyRow);
+    body.appendChild(boodBottom);
     var del=document.createElement('button');del.className='boodschap-del';del.textContent='✕';
     del.addEventListener('click',function(){var idx=data.boodschappen.indexOf(b);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();});
-    item.appendChild(check);item.appendChild(body);if(!b.done)item.appendChild(qtyRow);item.appendChild(del);list.appendChild(item);
+    item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
     (function(item2,b2){addSwipe(item2,function(){var idx=data.boodschappen.indexOf(b2);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();showUndoToast(b2.text+' verwijderd',function(){data.boodschappen.splice(idx,0,b2);saveToServer();renderBoodschappen();});});})(item,b);
   }
   var displayItems=boodWinkelFilter?sorted.filter(function(b){return (b.winkel||'')=== boodWinkelFilter;}):sorted;
@@ -3148,7 +3205,7 @@ document.getElementById('recAddBtn').addEventListener('click',function(){
   selectedDays=[];document.querySelectorAll('.day-toggle').forEach(function(b){b.classList.remove('active');});
   saveToServer();renderRecurringList();renderCalendar();renderVandaag();
 });
-function recIntervalLabel(r){var iv=r.interval||'week';if(iv==='week')return 'Elke '+(r.days||[]).sort().map(function(d){return DAY_NAMES[d];}).join(', ');if(iv==='month')return 'Elke maand op de '+(r.dayOfMonth||1)+'e';if(iv==='year')return 'Elk jaar op '+(r.dayOfMonth||1)+' '+MONTH_NAMES[r.month||0];return '';}
+function recIntervalLabel(r){var iv=r.interval||'week';if(iv==='week')return 'Elke '+(r.days||[]).sort().map(function(d){return DAY_NAMES[d];}).join(', ');if(iv==='biweek')return 'Om de 2 weken op vrijdag';if(iv==='month')return 'Elke maand op de '+(r.dayOfMonth||1)+'e';if(iv==='year')return 'Elk jaar op '+(r.dayOfMonth||1)+' '+MONTH_NAMES[r.month||0];return '';}
 function renderStatistieken(){
   var body=document.getElementById('statistiekenBody');body.innerHTML='';
   var tk=todayKey();
@@ -4074,7 +4131,7 @@ function renderGezinsDNA(){
     var persPRows=auteurs.sort(function(a,b){return dna.taakAuteurs[b]-dna.taakAuteurs[a];}).map(function(a){
       var n=dna.taakAuteurs[a];
       var pct=Math.round(n/maxTaken*100);
-      return {icon:'👤',text:a,val:n+' taak'+(n===1?'':'en')};
+      return {icon:'👤',text:a,val:n+(n===1?' taak':' taken')};
     });
     if(dna.topPersoon){
       makeCard('🏆','Meeste taken afgerond',dna.topPersoon,dna.topPersoonAantal+' taken in het logboek',false,true,100);
@@ -4194,7 +4251,7 @@ function showBriefing(force){
   var tLbl=document.createElement('div');tLbl.className='briefing-section-label';tLbl.textContent='Vandaag op de planning';
   var tHead=document.createElement('div');tHead.className='briefing-headline';
   if(totalOpen===0)tHead.textContent='🎉 Niets op de planning!';
-  else tHead.textContent=totalOpen+' taak'+(totalOpen===1?'':'en')+(gwOpen>0?' · '+gwOpen+' gewoont'+(gwOpen===1?'':'en'):'');
+  else tHead.textContent=totalOpen+(totalOpen===1?' taak':' taken')+(gwOpen>0?' · '+gwOpen+' gewoont'+(gwOpen===1?'':'en'):'');
   tSec.appendChild(tLbl);tSec.appendChild(tHead);
   if(totalOpen>0){
     var ul=document.createElement('ul');ul.className='briefing-task-list';
