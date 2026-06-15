@@ -4861,8 +4861,75 @@ function renderHeatmap(container){
   for(var w=0;w<padded.length/7;w++)weeks.push(padded.slice(w*7,(w+1)*7));
 
   var maxCnt=Math.max.apply(null,days.map(function(d){return d.cnt;}));
-
   function cellColor(cnt){
     if(cnt===0)return 'var(--border)';
     var pct=Math.min(cnt/Math.max(maxCnt,4),1);
-    if(pct<.25)return 'rgba(var(--accent-rgb),.25)'
+    if(pct<.25)return 'rgba(var(--accent-rgb),.25)';
+    if(pct<.5) return 'rgba(var(--accent-rgb),.5)';
+    if(pct<.75)return 'rgba(var(--accent-rgb),.75)';
+    return 'var(--accent)';
+  }
+
+  // Month labels row
+  var monthRow=document.createElement('div');monthRow.className='heatmap-month-labels';
+  var lastMonth=-1;
+  weeks.forEach(function(week){
+    var lbl=document.createElement('div');lbl.className='heatmap-month-label';
+    var firstReal=week.find(function(d){return d;});
+    if(firstReal&&firstReal.date.getMonth()!==lastMonth){
+      lbl.textContent=MONTH_NAMES[firstReal.date.getMonth()].slice(0,3);
+      lastMonth=firstReal.date.getMonth();
+    }
+    monthRow.appendChild(lbl);
+  });
+  section.appendChild(monthRow);
+
+  var grid=document.createElement('div');grid.className='heatmap-grid';
+  weeks.forEach(function(week){
+    var col=document.createElement('div');col.className='heatmap-col';
+    week.forEach(function(day){
+      var cell=document.createElement('div');cell.className='heatmap-cell';
+      if(day){
+        cell.style.background=cellColor(day.cnt);
+        cell.title=day.key+(day.cnt>0?' — '+day.cnt+' gedaan':'');
+      } else {
+        cell.style.opacity='0';
+      }
+      col.appendChild(cell);
+    });
+    grid.appendChild(col);
+  });
+  section.appendChild(grid);
+
+  // Legend
+  var legend=document.createElement('div');legend.className='heatmap-legend';
+  legend.textContent='Minder ';
+  var lc=document.createElement('div');lc.className='heatmap-legend-cells';
+  [0,.25,.5,.75,1].forEach(function(p){
+    var lCell=document.createElement('div');lCell.className='heatmap-cell';
+    lCell.style.background=p===0?'var(--border)':'rgba(var(--accent-rgb),'+p+')';
+    lc.appendChild(lCell);
+  });
+  legend.appendChild(lc);
+  legend.appendChild(document.createTextNode(' Meer'));
+  section.appendChild(legend);
+  container.appendChild(section);
+}
+
+
+// QR-code genereren
+function showQrCode(){
+  var card=document.getElementById('qrCard');
+  var img=document.getElementById('qrCodeImg');
+  if(!dbUrl||!plannerKey){card.style.display='none';return;}
+  var link=buildShareLink();
+  img.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=000000&bgcolor=ffffff&data='+encodeURIComponent(link);
+  card.style.display='block';
+}
+
+
+})();
+</script>
+
+</body>
+</html>
