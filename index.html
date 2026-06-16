@@ -76,6 +76,11 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .compact-weather{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:14px;color:rgba(255,255,255,.9);}
 .compact-weather span:first-child{font-size:22px;}
 .compact-weather-desc{color:rgba(255,255,255,.68);font-size:12px;}
+.compact-meal{display:flex;align-items:center;gap:7px;margin-top:10px;cursor:pointer;}
+.compact-meal-icon{font-size:18px;}
+.compact-meal-text{font-size:14px;color:rgba(255,255,255,.92);}
+.compact-meal .vanavond-naam{color:#fff;font-weight:800;}
+.compact-meal-arrow{color:rgba(255,255,255,.65);font-size:16px;margin-left:1px;}
 .compact-stat-badges{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:140px;}
 .stat-badge{background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.28);border-radius:20px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
 
@@ -772,6 +777,11 @@ body.shopping-mode .toast{bottom:20px;}
         </div>
         <div id="weatherLoc" style="display:none;"><span id="weatherLocText"></span></div>
         <div id="weatherFeels" style="display:none;"></div>
+        <div class="compact-meal" id="vanavondEten" style="display:none;" onclick="document.getElementById('maaltijdOverlay').classList.add('open');renderMaaltijdplanner();">
+          <span class="compact-meal-icon">🍽️</span>
+          <span class="compact-meal-text">Vanavond: <span class="vanavond-naam"></span></span>
+          <span class="compact-meal-arrow">›</span>
+        </div>
       </div>
       <div class="compact-header-right">
         <div class="compact-stat-badges" id="statChips"></div>
@@ -782,14 +792,6 @@ body.shopping-mode .toast{bottom:20px;}
       <span>✈️</span>
     </div>
     <div class="verval-banner" id="vervalBanner"></div>
-    <div class="vanavond-strip" id="vanavondEten" style="display:none;" onclick="document.getElementById('maaltijdOverlay').classList.add('open');renderMaaltijdplanner();">
-      <div class="vanavond-icon">🍽️</div>
-      <div class="vanavond-body">
-        <div class="vanavond-label">Vanavond eten</div>
-        <div class="vanavond-naam"></div>
-      </div>
-      <div class="vanavond-arrow">›</div>
-    </div>
     <div class="vandaag-section">
       <div class="vandaag-section-title">
         <span>Vandaag</span>
