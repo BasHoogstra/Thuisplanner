@@ -210,8 +210,8 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .calendar{padding:0 16px;}
 .weekdays{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:600;}
 .weekdays span:nth-child(6),.weekdays span:nth-child(7){color:var(--accent);}
-.days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
-.day{background:var(--card);border:1px solid var(--border);border-radius:10px;min-height:70px;display:flex;flex-direction:column;cursor:pointer;padding:5px 4px 3px;overflow:hidden;position:relative;transition:transform .1s;}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.day{background:var(--card);border:1px solid var(--border);border-radius:11px;min-height:80px;display:flex;flex-direction:column;cursor:pointer;padding:6px 5px 4px;overflow:hidden;position:relative;transition:transform .1s;}
 .day:active{transform:scale(.96);}
 .day.other-month{opacity:.22;}
 .day.today{border-color:var(--accent);background:var(--accent-light);}
@@ -225,10 +225,10 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .day-num{font-size:12px;font-weight:700;}
 .day.today .day-num{background:var(--accent);color:#fff;border-radius:50%;width:19px;height:19px;display:flex;align-items:center;justify-content:center;font-size:11px;}
 .day-icons{font-size:8px;display:flex;gap:1px;color:var(--muted);}
-.day-task-chips{display:flex;flex-direction:column;gap:2px;flex:1;margin-bottom:2px;overflow:hidden;}
-.day-chip{font-size:8px;font-weight:600;color:#fff;border-radius:3px;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;}
+.day-task-chips{display:flex;flex-direction:column;gap:2.5px;flex:1;margin-bottom:2px;overflow:hidden;}
+.day-chip{font-size:8.5px;font-weight:600;color:#fff;border-radius:4px;padding:1.5px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5;}
 .day-chip.done{opacity:.45;}
-.day-more{font-size:8px;color:var(--muted);font-weight:600;}
+.day-more{font-size:8.5px;color:var(--accent);font-weight:700;background:var(--accent-light);border-radius:4px;padding:1px 5px;display:inline-block;width:fit-content;}
 .day-prog{height:3px;border-radius:2px;background:var(--border);margin-top:auto;overflow:hidden;}
 .day-prog-fill{height:100%;border-radius:2px;background:var(--accent);transition:width .3s;}
 .cat-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
@@ -273,8 +273,9 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .smart-hint-text{flex:1;}
 .smart-hint-btn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
 .boodschappen-add button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0 16px;font-size:22px;font-weight:600;cursor:pointer;}
-.boodschappen-cat-row{display:flex;gap:6px;padding:0 16px 10px;overflow-x:auto;}
-.bood-cat-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--card);font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);flex-shrink:0;}
+.boodschappen-cat-row{display:flex;gap:5px;padding:0 16px 8px;overflow-x:auto;scrollbar-width:none;}
+.boodschappen-cat-row::-webkit-scrollbar{display:none;}
+.bood-cat-btn{padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--card);font-size:11.5px;font-weight:600;cursor:pointer;color:var(--muted);flex-shrink:0;white-space:nowrap;line-height:1.5;}
 .bood-cat-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .vaste-bood-row{display:flex;gap:8px;overflow-x:auto;padding:10px 16px 2px;scrollbar-width:none;-ms-overflow-style:none;flex-shrink:0;}
 .vaste-bood-row::-webkit-scrollbar{display:none;}
@@ -679,7 +680,7 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .toast.show{opacity:1;}
 .bood-section-header{display:flex;align-items:center;gap:6px;padding:12px 16px 4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
 .bood-section-header:first-child{padding-top:6px;}
-.bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:11px;color:var(--muted);padding:2px 8px;cursor:pointer;display:inline-flex;align-items:center;line-height:1.6;}
+.bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:11px;color:var(--muted);padding:2px 8px;cursor:pointer;display:inline-block;line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;vertical-align:middle;box-sizing:border-box;}
 .bood-cat-chip:active{background:var(--accent-light);color:var(--accent);}
 .bood-qty-row{display:flex;align-items:center;gap:6px;flex-shrink:0;justify-content:center;}
 .bood-qty-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;touch-action:manipulation;}
@@ -1473,6 +1474,7 @@ body.shopping-mode .toast{bottom:20px;}
 'use strict';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#7a6cf0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
+var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
 var MONTH_NAMES=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
 var DAY_NAMES=['ma','di','wo','do','vr','za','zo'];
 var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];
@@ -2304,7 +2306,7 @@ function renderMonth(){
       var cat=getCat(t.category);chip.style.background=cat.color;
       chip.textContent=t.text;chips.appendChild(chip);
     });
-    if(allTasks.length>showMax){var more=document.createElement('div');more.className='day-more';more.textContent='+'+( allTasks.length-showMax)+' meer';chips.appendChild(more);}
+    if(allTasks.length>showMax){var more=document.createElement('div');more.className='day-more';more.textContent='+'+( allTasks.length-showMax);chips.appendChild(more);}
     cell.appendChild(chips);
     // progress bar
     if(dayTasks.length>0){
@@ -2740,7 +2742,7 @@ function initBoodCatRow(){
   all.addEventListener('click',function(){boodCatFilter='';document.querySelectorAll('.bood-cat-btn').forEach(function(b){b.classList.remove('active');});all.classList.add('active');renderBoodschappen();});
   row.appendChild(all);
   BOOD_CATS.forEach(function(cat){
-    var btn=document.createElement('button');btn.className='bood-cat-btn';btn.textContent=cat;
+    var btn=document.createElement('button');btn.className='bood-cat-btn';btn.textContent=(BOOD_CAT_ICONS[cat]||'🛒')+' '+cat;
     btn.addEventListener('click',function(){
       boodCatFilter=cat;document.querySelectorAll('.bood-cat-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');renderBoodschappen();
     });
@@ -2826,7 +2828,6 @@ function renderBoodschappen(){
       db.style.display='none';
     }
   })();
-  var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
   function renderBoodItem(b){
     var item=document.createElement('div');item.className='boodschap-item';
     var sbg=document.createElement('div');sbg.className='boodschap-swipe-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
@@ -2848,8 +2849,8 @@ function renderBoodschappen(){
     body.appendChild(txt);
     if(b.addedBy){var meta=document.createElement('div');meta.className='boodschap-meta';meta.textContent='door '+b.addedBy;body.appendChild(meta);}
     // Onderste regel: categorie + winkel links, aantal-stepper rechts (horizontaal)
-    var boodBottom=document.createElement('div');boodBottom.style='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;';
-    var chipGroup=document.createElement('div');chipGroup.style='display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:0;flex:1;';
+    var boodBottom=document.createElement('div');boodBottom.style='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;flex-wrap:wrap;';
+    var chipGroup=document.createElement('div');chipGroup.style='display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:50px;flex:1;';
     (function(bi){
       var chip=document.createElement('button');chip.className='bood-cat-chip';
       chip.textContent=(BOOD_CAT_ICONS[bi.cat||'Overig']||'🛒')+' '+(bi.cat||'Overig');
