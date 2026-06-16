@@ -352,6 +352,7 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .meer-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px 14px;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:96px;box-shadow:0 2px 8px rgba(0,0,0,.07);transition:transform .14s,box-shadow .14s;position:relative;overflow:hidden;}
 .meer-card:active{transform:scale(.97);box-shadow:0 1px 3px rgba(0,0,0,.08);}
 .meer-card-icon{font-size:28px;line-height:1;}
+.meer-card-icon.on-color{width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:20px;background:rgba(255,255,255,.32);border-radius:11px;}
 .meer-card-title{font-size:14px;font-weight:700;margin-top:2px;}
 .meer-card-sub{font-size:11px;color:var(--muted);line-height:1.3;margin-top:auto;padding-top:4px;}
 .meer-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:18px 18px 0 0;opacity:.8;}
@@ -907,7 +908,7 @@ body.shopping-mode .toast{bottom:20px;}
         <div class="meer-card-sub">Wekelijks &amp; maandelijks</div>
       </div>
       <div class="meer-card" id="openGewoonten" style="background:linear-gradient(135deg,#fd79a8,#e84393);">
-        <div class="meer-card-icon" style="filter:brightness(10);">🔁</div>
+        <div class="meer-card-icon on-color">🔁</div>
         <div class="meer-card-title" style="color:#fff;">Gewoonten</div>
         <div class="meer-card-sub" style="color:rgba(255,255,255,.8);" id="gewoontenSub">Dagelijkse streaks</div>
       </div>
@@ -923,7 +924,7 @@ body.shopping-mode .toast{bottom:20px;}
       </div>
     </div>
       <div class="meer-card" id="openGezinsDNA" style="background:linear-gradient(135deg,#6c5ce7,#fd79a8);grid-column:1/-1;">
-        <div class="meer-card-icon" style="filter:brightness(10);">🧬</div>
+        <div class="meer-card-icon on-color">🧬</div>
         <div class="meer-card-title" style="color:#fff;">Gezins-DNA</div>
         <div class="meer-card-sub" style="color:rgba(255,255,255,.8);">Wat zegt onze data over ons?</div>
       </div>
@@ -935,7 +936,7 @@ body.shopping-mode .toast{bottom:20px;}
         <div class="meer-card-sub" id="weekOverzichtSub">Wat heb je gedaan?</div>
       </div>
       <div class="meer-card" id="openStatistieken" style="background:linear-gradient(135deg,#6c5ce7,#a29bfe);">
-        <div class="meer-card-icon" style="filter:brightness(10);">📈</div>
+        <div class="meer-card-icon on-color">📈</div>
         <div class="meer-card-title" style="color:#fff;">Statistieken</div>
         <div class="meer-card-sub" style="color:rgba(255,255,255,.8);">Inzichten &amp; trends</div>
       </div>
@@ -953,7 +954,7 @@ body.shopping-mode .toast{bottom:20px;}
     <div class="meer-section-header">🔎 Overig</div>
     <div class="meer-grid">
       <div class="meer-card" id="openZoeken" style="background:linear-gradient(135deg,#00b894,#55efc4);">
-        <div class="meer-card-icon" style="filter:brightness(10);">🔍</div>
+        <div class="meer-card-icon on-color">🔍</div>
         <div class="meer-card-title" style="color:#fff;">Zoeken</div>
         <div class="meer-card-sub" style="color:rgba(255,255,255,.8);">Zoek door alles</div>
       </div>
