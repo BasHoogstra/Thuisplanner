@@ -4481,6 +4481,33 @@ function addSwipeDownClose(overlayId, closeFn){
 var activeVakId=null;
 function getVakanties(){if(!data.vakanties)data.vakanties=[];return data.vakanties;}
 function getVakantiePersonen(){if(!data.vakantiePersonen||!data.vakantiePersonen.length)data.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];return data.vakantiePersonen;}
+// ── Paklijst generator helpers ─────────────────────────────
+var PAK_TYPES={
+  strand:{label:'🏖 Strand & zon',extra:['Zwemkleding','Zonnebrandcrème','Slippers','Strandlaken','Zonnebril','Hoed of pet']},
+  stad:{label:'🏙 Stad & cultuur',extra:['Comfortabele schoenen','Paraplu','Powerbank']},
+  wintersport:{label:'⛷ Wintersport',extra:['Skipak','Handschoenen','Muts','Skibril','Thermokleding','Extra skisokken','Lippenbalsem']},
+  camping:{label:'⛺ Camping',extra:['Slaapzak','Hoofdlamp of zaklamp','Campingstoel','Multitool','Insectenspray']},
+  weekend:{label:'🎒 Weekendje weg',extra:[]},
+  algemeen:{label:'📦 Algemeen',extra:[]}
+};
+var PAK_BASIS=['Paspoort/ID-kaart','Portemonnee & bankkaart','Telefoon + oplader','Medicijnen','Toilettas','Zonnebril','Boek of entertainment'];
+function genereerPaklijstItems(type,nachten){
+  var n=Math.max(1,parseInt(nachten)||1);
+  var setjes=Math.min(n+1,7);
+  var items=['Onderbroeken ('+setjes+'x)','Sokken ('+setjes+'x)','T-shirts ('+setjes+'x)','Pyjama','Trui of vest','Extra broek of rok'].concat(PAK_BASIS);
+  var t=PAK_TYPES[type];
+  if(t&&t.extra.length)items=items.concat(t.extra);
+  return items;
+}
+function voegPakItemsToe(vak,items){
+  getVakantiePersonen().forEach(function(p){
+    var list=vak.paklijst[p]||(vak.paklijst[p]=[]);
+    var bestaand=list.map(function(i){return i.text.toLowerCase();});
+    items.forEach(function(txt){
+      if(bestaand.indexOf(txt.toLowerCase())===-1){list.push({id:uid(),text:txt,done:false});bestaand.push(txt.toLowerCase());}
+    });
+  });
+}
 function renderVakanties(){
   var content=document.getElementById('vakantiesContent');content.innerHTML='';
   var vakanties=getVakanties();
@@ -4592,6 +4619,78 @@ function renderVakanties(){
       });
     } else {var em=document.createElement('div');em.style.cssText='text-align:center;color:var(--muted);padding:20px;font-size:13px;';em.textContent='Nog geen uitgaven geboekt.';content.appendChild(em);}
   } else if(activeVak._tab==='paklijst'){
+    // ── Paklijst generator ─────────────────────────────
+    if(activeVak._pakGenOpen===undefined){var totItems=0;getVakantiePersonen().forEach(function(p){totItems+=(activeVak.paklijst[p]||[]).length;});activeVak._pakGenOpen=(totItems===0);}
+    var genWrap=document.createElement('div');genWrap.style.cssText='background:var(--accent-light);border-radius:12px;padding:12px;margin-bottom:14px;';
+    var genTop=document.createElement('div');genTop.style.cssText='display:flex;align-items:center;gap:8px;cursor:pointer;';
+    var genTitle=document.createElement('span');genTitle.style.cssText='flex:1;font-size:13px;font-weight:700;color:var(--accent);';genTitle.textContent='⚡ Paklijst genereren';
+    var genArrow=document.createElement('span');genArrow.style.cssText='font-size:12px;color:var(--accent);';genArrow.textContent=activeVak._pakGenOpen?'▲':'▼';
+    genTop.appendChild(genTitle);genTop.appendChild(genArrow);
+    (function(vak){genTop.addEventListener('click',function(){vak._pakGenOpen=!vak._pakGenOpen;renderVakanties();});})(activeVak);
+    genWrap.appendChild(genTop);
+    if(activeVak._pakGenOpen){
+      var genForm=document.createElement('div');genForm.style.cssText='margin-top:10px;display:flex;flex-direction:column;gap:8px;';
+      var typeSel=document.createElement('select');typeSel.style.cssText='border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;background:var(--card);color:var(--text);';
+      Object.keys(PAK_TYPES).forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent=PAK_TYPES[k].label;if((activeVak.type||'algemeen')===k)o.selected=true;typeSel.appendChild(o);});
+      var nachtenRow=document.createElement('div');nachtenRow.style.cssText='display:flex;align-items:center;gap:8px;';
+      var nachtenLbl=document.createElement('label');nachtenLbl.textContent='Aantal nachten:';nachtenLbl.style.cssText='font-size:12px;color:var(--muted);white-space:nowrap;';
+      var nachtenInp=document.createElement('input');nachtenInp.type='number';nachtenInp.min='1';nachtenInp.value=activeVak.nachten||7;
+      nachtenInp.style.cssText='width:70px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;background:var(--card);color:var(--text);';
+      nachtenRow.appendChild(nachtenLbl);nachtenRow.appendChild(nachtenInp);
+      var genBtn=document.createElement('button');genBtn.textContent='Genereer paklijst';
+      genBtn.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;';
+      (function(vak){genBtn.addEventListener('click',function(){
+        vak.type=typeSel.value;vak.nachten=parseInt(nachtenInp.value)||7;
+        voegPakItemsToe(vak,genereerPaklijstItems(vak.type,vak.nachten));
+        saveToServer();showToast('Paklijst aangevuld!');renderVakanties();
+      });})(activeVak);
+      genForm.appendChild(typeSel);genForm.appendChild(nachtenRow);genForm.appendChild(genBtn);
+      // Sjabloon opslaan
+      var tplSaveRow=document.createElement('div');tplSaveRow.style.cssText='display:flex;gap:8px;margin-top:4px;';
+      var tplNameInp=document.createElement('input');tplNameInp.type='text';tplNameInp.placeholder='Sjabloonnaam (bijv. Weekend Ardennen)';
+      tplNameInp.style.cssText='flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--text);';
+      var saveTplBtn=document.createElement('button');saveTplBtn.textContent='💾 Opslaan';
+      saveTplBtn.style.cssText='background:var(--card);color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;';
+      (function(vak){saveTplBtn.addEventListener('click',function(){
+        var naam=tplNameInp.value.trim();
+        if(!naam){showToast('Geef het sjabloon een naam');return;}
+        var eersteP=getVakantiePersonen()[0];
+        var items=(vak.paklijst[eersteP]||[]).map(function(i){return i.text;});
+        if(!items.length){showToast('Geen items om op te slaan');return;}
+        if(!data.paklijstSjablonen)data.paklijstSjablonen=[];
+        data.paklijstSjablonen.push({id:uid(),naam:naam,items:items});
+        saveToServer();showToast('Sjabloon opgeslagen!');renderVakanties();
+      });})(activeVak);
+      tplSaveRow.appendChild(tplNameInp);tplSaveRow.appendChild(saveTplBtn);
+      genForm.appendChild(tplSaveRow);
+      // Sjabloon toepassen
+      if((data.paklijstSjablonen||[]).length){
+        var tplRow=document.createElement('div');tplRow.style.cssText='display:flex;gap:8px;margin-top:4px;';
+        var tplSel=document.createElement('select');tplSel.style.cssText='flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--text);';
+        data.paklijstSjablonen.forEach(function(tpl){var o=document.createElement('option');o.value=tpl.id;o.textContent=tpl.naam;tplSel.appendChild(o);});
+        var tplBtn=document.createElement('button');tplBtn.textContent='Toepassen';
+        tplBtn.style.cssText='background:var(--card);color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;';
+        (function(vak){tplBtn.addEventListener('click',function(){
+          var tpl=(data.paklijstSjablonen||[]).find(function(t){return t.id===tplSel.value;});
+          if(!tpl)return;
+          voegPakItemsToe(vak,tpl.items);
+          saveToServer();showToast('Sjabloon toegepast!');renderVakanties();
+        });})(activeVak);
+        var tplDelBtn=document.createElement('button');tplDelBtn.textContent='🗑';
+        tplDelBtn.style.cssText='background:none;border:1px solid var(--danger);color:var(--danger);border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer;';
+        tplDelBtn.addEventListener('click',function(){
+          var tpl=(data.paklijstSjablonen||[]).find(function(t){return t.id===tplSel.value;});
+          if(!tpl)return;
+          if(!confirm('Sjabloon "'+tpl.naam+'" verwijderen?'))return;
+          var idx=data.paklijstSjablonen.indexOf(tpl);if(idx>-1)data.paklijstSjablonen.splice(idx,1);
+          saveToServer();renderVakanties();
+        });
+        tplRow.appendChild(tplSel);tplRow.appendChild(tplBtn);tplRow.appendChild(tplDelBtn);
+        genForm.appendChild(tplRow);
+      }
+      genWrap.appendChild(genForm);
+    }
+    content.appendChild(genWrap);
     // ── Personen beheren ─────────────────────────────
     var persRow=document.createElement('div');
     persRow.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;';
