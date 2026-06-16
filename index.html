@@ -4999,6 +4999,10 @@ function showQrCode(){
   card.style.display='block';
 }
 
+// Inline onclick-attributes in de HTML draaien in global scope en kunnen deze closure-functies
+// anders niet zien (gaf "X is not defined" bij klikken) -> hier expliciet exposen.
+window.showBriefing=showBriefing;
+window.renderMaaltijdplanner=renderMaaltijdplanner;
 
 })();
 </script>
