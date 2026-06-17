@@ -378,6 +378,7 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .close-btn{margin-top:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px;text-align:center;font-size:15px;font-weight:600;cursor:pointer;}
 .snooze-choice-btn{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:13px;text-align:center;font-size:15px;font-weight:600;cursor:pointer;color:var(--text);}
 .snooze-choice-btn:active{background:var(--accent-light);}
+#promptInput:focus{outline:none;border-color:var(--accent);}
 .sec-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0 0 6px;}
 .full-overlay{position:fixed;inset:0;background:var(--bg);z-index:60;display:none;flex-direction:column;}
 .full-overlay.open{display:flex;animation:overlayIn .28s cubic-bezier(.32,1,.23,1) both;}
@@ -1452,6 +1453,19 @@ body.shopping-mode .toast{bottom:20px;}
   </div>
 </div>
 
+<!-- CUSTOM PROMPT (tekstinvoer) -->
+<div class="overlay" id="promptOverlay">
+  <div class="sheet" style="max-width:380px;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="promptTitle"></div>
+    <input type="text" id="promptInput" style="width:100%;border:1px solid var(--border);border-radius:10px;padding:11px 12px;font-size:15px;background:var(--bg);color:var(--text);margin-bottom:14px;box-sizing:border-box;">
+    <div style="display:flex;gap:10px;">
+      <button id="promptCancelBtn" class="close-btn" style="flex:1;margin-top:0;">Annuleren</button>
+      <button id="promptOkBtn" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px;font-size:15px;font-weight:600;cursor:pointer;">Opslaan</button>
+    </div>
+  </div>
+</div>
+
 <!-- PLAN PICKER -->
 <div class="overlay" id="planPickerOverlay">
   <div class="sheet">
@@ -1620,6 +1634,27 @@ function customConfirm(message,onYes,opts){
   function onCancel(){close();}
   okBtn.addEventListener('click',onOk);
   cancelBtn.addEventListener('click',onCancel);
+}
+function customPrompt(message,defaultValue,onSubmit,opts){
+  opts=opts||{};
+  var ov=document.getElementById('promptOverlay');
+  var titleEl=document.getElementById('promptTitle');
+  var input=document.getElementById('promptInput');
+  var okBtn=document.getElementById('promptOkBtn');
+  var cancelBtn=document.getElementById('promptCancelBtn');
+  titleEl.textContent=message;
+  input.value=defaultValue||'';
+  input.placeholder=opts.placeholder||'';
+  okBtn.textContent=opts.okText||'Opslaan';
+  ov.classList.add('open');
+  setTimeout(function(){input.focus();input.select();},50);
+  function close(){ov.classList.remove('open');okBtn.removeEventListener('click',onOk);cancelBtn.removeEventListener('click',onCancel);input.removeEventListener('keydown',onKey);}
+  function onOk(){var v=input.value;close();onSubmit(v);}
+  function onCancel(){close();}
+  function onKey(e){if(e.key==='Enter'){e.preventDefault();onOk();}else if(e.key==='Escape'){onCancel();}}
+  okBtn.addEventListener('click',onOk);
+  cancelBtn.addEventListener('click',onCancel);
+  input.addEventListener('keydown',onKey);
 }
 function customSnoozeChoice(onPick){
   var ov=document.getElementById('snoozeOverlay');
@@ -2243,8 +2278,9 @@ function renderVandaag(){
     if(vKeys.length>0){var vRow=document.createElement('div');vRow.className='task-reactions';vKeys.forEach(function(emoji){var rb=document.createElement('button');var isMine=vReactions[emoji].indexOf(myName||'ik')>-1;rb.className='reaction-btn'+(isMine?' mine':'');rb.textContent=emoji+' ';var cnt=document.createElement('span');cnt.className='reaction-count';cnt.textContent=vReactions[emoji].length;rb.appendChild(cnt);(function(em,task){rb.addEventListener('click',function(){if(!task.reactions)task.reactions={};if(!task.reactions[em])task.reactions[em]=[];var idx=task.reactions[em].indexOf(myName||'ik');if(idx>-1)task.reactions[em].splice(idx,1);else task.reactions[em].push(myName||'ik');if(task.reactions[em].length===0)delete task.reactions[em];saveToServer();renderVandaag();});})(emoji,t);vRow.appendChild(rb);});body.appendChild(vRow);}
     var editBtn=document.createElement('button');editBtn.textContent='✎';editBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 5px;flex-shrink:0;';
     (function(task,taskKey){editBtn.addEventListener('click',function(){
-      var newText=prompt('Taak bewerken:',task.text);
-      if(newText&&newText.trim()&&newText.trim()!==task.text){task.text=newText.trim();saveToServer();renderVandaag();}
+      customPrompt('Taak bewerken:',task.text,function(newText){
+        if(newText&&newText.trim()&&newText.trim()!==task.text){task.text=newText.trim();saveToServer();renderVandaag();}
+      },{okText:'Opslaan'});
     });})(t,tk);
     item.appendChild(check);item.appendChild(body);item.appendChild(editBtn);container.appendChild(item);
     var snoozeBtn=document.createElement('button');snoozeBtn.textContent='💤';snoozeBtn.title='Snooze';snoozeBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 5px;flex-shrink:0;';
@@ -3131,7 +3167,7 @@ function renderVasteBoodschappen(){
   });
   // + Toevoegen knop
   var add=document.createElement('div');add.className='vaste-bood-add';add.textContent='+ Favoriet';
-  add.addEventListener('click',function(){var t=prompt('Vast boodschapitem toevoegen:');if(!t||!t.trim())return;if(!data.vasteBoodschappen)data.vasteBoodschappen=[];if(data.vasteBoodschappen.some(function(x){return x.text.toLowerCase()===t.trim().toLowerCase();})){showToast('Staat al in je favorieten');return;}data.vasteBoodschappen.push({id:uid(),text:t.trim()});saveToServer();renderVasteBoodschappen();showToast(t.trim()+' opgeslagen als favoriet');});
+  add.addEventListener('click',function(){customPrompt('Vast boodschapitem toevoegen:','',function(t){if(!t||!t.trim())return;if(!data.vasteBoodschappen)data.vasteBoodschappen=[];if(data.vasteBoodschappen.some(function(x){return x.text.toLowerCase()===t.trim().toLowerCase();})){showToast('Staat al in je favorieten');return;}data.vasteBoodschappen.push({id:uid(),text:t.trim()});saveToServer();renderVasteBoodschappen();showToast(t.trim()+' opgeslagen als favoriet');},{okText:'Toevoegen'});});
   // Voeg alles toe button
   var voegBtn=document.getElementById('voegAllesBtn');
   if(voegBtn){
@@ -3606,12 +3642,13 @@ function renderOnderhoud(){
     var actions=document.createElement('div');actions.className='ond-actions';
     var doneBtn=document.createElement('button');doneBtn.className='ond-done-btn';doneBtn.textContent='✓ Nu gedaan';
     doneBtn.addEventListener('click',function(){
-      var note=prompt('Notitie (optioneel, bijv. "filter vervangen"):')||'';
-      o.lastDone=todayKey();if(!o.log)o.log=[];
-      o.log.unshift({date:todayKey(),note:note||'Gedaan'});
-      if(o.log.length>20)o.log=o.log.slice(0,20);
-      logHuis('onderhoud','🔧 '+o.text+(note?' — '+note:''),myName||'');
-      saveToServer();renderOnderhoud();showToast('✓ Klaar! Volgende over '+o.intervalDays+' dagen.');
+      customPrompt('Notitie (optioneel, bijv. "filter vervangen"):','',function(note){
+        o.lastDone=todayKey();if(!o.log)o.log=[];
+        o.log.unshift({date:todayKey(),note:note||'Gedaan'});
+        if(o.log.length>20)o.log=o.log.slice(0,20);
+        logHuis('onderhoud','🔧 '+o.text+(note?' — '+note:''),myName||'');
+        saveToServer();renderOnderhoud();showToast('✓ Klaar! Volgende over '+o.intervalDays+' dagen.');
+      },{okText:'Klaar'});
     });
     var delBtn=document.createElement('button');delBtn.className='ond-del-btn';delBtn.textContent='Verwijder';
     if(o.foto){var oth=document.createElement('img');oth.className='foto-thumb';oth.src=o.foto;oth.addEventListener('click',function(){window.open(o.foto,'_blank');});item.appendChild(oth);}
