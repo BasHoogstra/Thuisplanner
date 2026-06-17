@@ -3237,7 +3237,7 @@ function renderMeerStats(){
   var bl=(data.backlog||[]).length;
   document.getElementById('backlogSub').textContent=bl>0?bl+' idee'+(bl===1?'':'ën'):'Ideeën & ooit-lijst';
   var garExp=(data.garanties||[]).filter(function(g){return g.verloopt&&daysUntil(g.verloopt)<=90&&daysUntil(g.verloopt)>=0;}).length;
-  document.getElementById('garantiesSub').textContent=garExp>0?garExp+' verloopt binnenkort':'Verloopdata bijhouden';
+  document.getElementById('garantiesSub').textContent=garExp>0?garExp+' '+(garExp===1?'verloopt':'verlopen')+' binnenkort':'Verloopdata bijhouden';
   function setCardBadge(cardId,count,color){
     var card=document.getElementById(cardId);if(!card)return;
     var ob=card.querySelector('.meer-warn-badge');if(ob)ob.remove();
@@ -3261,10 +3261,10 @@ function renderMeerStats(){
   document.getElementById('receptenSub').textContent=recCount>0?recCount+' recept'+(recCount===1?'':'en'):'Favoriete recepten & links';
   var maaltijdCount=Object.keys(data.maaltijdplan||{}).filter(function(k){var e=data.maaltijdplan[k];return e&&(e.receptId||e.tekst);}).length;
   var maaltijdEl=document.getElementById('maaltijdSub');if(maaltijdEl)maaltijdEl.textContent=maaltijdCount>0?maaltijdCount+' dag'+(maaltijdCount===1?'':'en')+' gepland':'Plan je weekmaaltijden';
-  document.getElementById('kluisSub').textContent=kluisUrgent>0?kluisUrgent+' item'+(kluisUrgent===1?'':'s')+' verloopt binnenkort':'Paspoort, verzekering, abonnement…';
+  document.getElementById('kluisSub').textContent=kluisUrgent>0?kluisUrgent+' item'+(kluisUrgent===1?'':'s')+' '+(kluisUrgent===1?'verloopt':'verlopen')+' binnenkort':'Paspoort, verzekering, abonnement…';
   setCardBadge('openKluis',kluisUrgent,'#6c5ce7');
   var mon2=getMonday(today);var weekDone=0;for(var wi=0;wi<7;wi++){var wd2=new Date(mon2);wd2.setDate(mon2.getDate()+wi);var wk2=dateKey(wd2.getFullYear(),wd2.getMonth(),wd2.getDate());weekDone+=(data.tasks[wk2]||[]).filter(function(t){return t.done;}).length+((data.recurringDone&&data.recurringDone[wk2])||[]).length;}
-  document.getElementById('weekOverzichtSub').textContent=weekDone>0?weekDone+' taken gedaan deze week':'Wat heb je gedaan?';
+  document.getElementById('weekOverzichtSub').textContent=weekDone>0?weekDone+' '+(weekDone===1?'taak':'taken')+' gedaan deze week':'Wat heb je gedaan?';
 }
 
 document.getElementById('openBestellingen').addEventListener('click',function(){document.getElementById('bestellingenOverlay').classList.add('open');updateBestWieLabels();renderBestellingen();});
