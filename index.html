@@ -74,7 +74,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .compact-header-right{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;}
 .compact-greeting{font-size:23px;font-weight:800;line-height:1.2;color:#fff;}
 .compact-date{font-size:13px;color:rgba(255,255,255,.72);margin-top:3px;}
-.compact-weather{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:14px;color:rgba(255,255,255,.9);}
+.compact-weather{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:14px;color:rgba(255,255,255,.9);cursor:pointer;}
 .compact-weather span:first-child{font-size:22px;}
 .compact-weather-desc{color:rgba(255,255,255,.68);font-size:12px;}
 .compact-meal{display:flex;align-items:center;gap:7px;margin-top:10px;cursor:pointer;}
@@ -1976,12 +1976,19 @@ document.querySelectorAll('.nav-item').forEach(function(btn){
 });
 
 // Settings
-document.getElementById('settingsBtn').addEventListener('click',function(){
+function openSettingsSheet(){
   document.getElementById('settingsMyName').value=myName;
   document.getElementById('settingsPartnerName').value=partnerName;
   document.getElementById('settingsCity').value=localStorage.getItem('plannerCity')||'';
   document.getElementById('instellingenOverlay').classList.add('open');
   showQrCode();
+}
+document.getElementById('settingsBtn').addEventListener('click',openSettingsSheet);
+document.getElementById('weatherBar').addEventListener('click',function(){
+  openSettingsSheet();
+  if(!localStorage.getItem('plannerCity')){
+    setTimeout(function(){var f=document.getElementById('settingsCity');if(f)f.focus();},100);
+  }
 });
 document.getElementById('closeInstellingenBtn').addEventListener('click',function(){document.getElementById('instellingenOverlay').classList.remove('open');});
 document.getElementById('settingsSaveBtn').addEventListener('click',function(){
@@ -2123,7 +2130,7 @@ function renderVandaag(){
     chips.appendChild(c);
   }
 
-  if(openBest>0)makeChip(openBest,'Bestellingen',true,function(){document.getElementById('bestellingenOverlay').classList.add('open');updateBestWieLabels();renderBestellingen();});
+  if(openBest>0)makeChip(openBest,openBest===1?'Bestelling':'Bestellingen',true,function(){document.getElementById('bestellingenOverlay').classList.add('open');updateBestWieLabels();renderBestellingen();});
   if(ondDue>0){var ondFirst=(data.onderhoud||[]).filter(function(o){if(!o.lastDone)return true;var due=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);return due<=new Date(today.getTime()+14*24*60*60*1000);})[0];makeChip(ondDue,ondDue===1&&ondFirst?'🔧 '+ondFirst.text.substr(0,24)+(ondFirst.text.length>24?'…':''):'🔧 Onderhoud',true,function(){document.getElementById('onderhoudOverlay').classList.add('open');renderOnderhoud();});}
 
 
@@ -5142,7 +5149,13 @@ var WEATHER_DESC={
 var _weatherCache=null,_weatherCacheTime=0,_weatherCity='';
 function loadWeather(){
   var city=localStorage.getItem('plannerCity')||'';
-  if(!city){document.getElementById('weatherBar').classList.add('loading');return;}
+  if(!city){
+    document.getElementById('weatherIcon').textContent='📍';
+    document.getElementById('weatherTemp').textContent='';
+    document.getElementById('weatherDesc').textContent='Tik om je stad in te stellen';
+    document.getElementById('weatherBar').classList.add('loading');
+    return;
+  }
   document.getElementById('weatherLocText').textContent=city;
   var now=Date.now();
   if(_weatherCache&&_weatherCity===city&&now-_weatherCacheTime<1800000){applyWeather(_weatherCache);return;}
