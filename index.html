@@ -1704,7 +1704,7 @@ function recAppliesToDate(r,k){
   if(iv==='year')return d.getDate()===(r.dayOfMonth||1)&&d.getMonth()===(r.month||0);
   if(iv==='biweek'){
     if(weekday(k)!==4)return false;
-    var anch=r.anchorDate||'2026-06-20';
+    var anch=r.anchorDate||'2026-06-19';
     var ap=anch.split('-').map(Number);
     var ad=new Date(ap[0],ap[1]-1,ap[2]);
     var diffDays=Math.round((d-ad)/(24*3600*1000));
@@ -1726,9 +1726,16 @@ function loadFromServer(isInitial){
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
     if(s!==lastKnownJSON&&!_pendingSave){detectChanges(data,inc);data=inc;lastKnownJSON=s;renderAll();scheduleReminders();}
-    if(!(data.recurring||[]).some(function(r){return r.koppelgesprek;})){
+    var koppelTask=(data.recurring||[]).filter(function(r){return r.koppelgesprek;})[0];
+    if(koppelTask&&koppelTask.anchorDate==='2026-06-20'){
+      // Migratie: oude ankerdatum viel op zaterdag terwijl de check alleen vrijdag
+      // toestaat, waardoor het Koppelgesprek nooit verscheen. Corrigeer naar vrijdag.
+      koppelTask.anchorDate='2026-06-19';
+      saveToServer();
+    }
+    if(!koppelTask){
       if(!data.recurring)data.recurring=[];
-      data.recurring.push({id:uid(),text:'Koppelgesprek 💑',interval:'biweek',anchorDate:'2026-06-20',koppelgesprek:true,category:'thuis',priority:'normaal'});
+      data.recurring.push({id:uid(),text:'Koppelgesprek 💑',interval:'biweek',anchorDate:'2026-06-19',koppelgesprek:true,category:'thuis',priority:'normaal'});
       saveToServer();renderVandaag();renderCalendar();
     }
     setSync('','Bijgewerkt · '+nowTime());
@@ -2180,7 +2187,7 @@ function renderVandaag(){
     });
     if(overdue.length){
       odb.classList.add('visible');
-      odbt.textContent=overdue.length+' taak'+(overdue.length===1?'':'en')+' van eerder nog open';
+      odbt.textContent=overdue.length+' '+(overdue.length===1?'taak':'taken')+' van eerder nog open';
       odbBtn.onclick=function(){
         overdue.forEach(function(o){
           var arr=data.tasks[o.key];if(!arr)return;var idx=arr.indexOf(o.task);if(idx>-1)arr.splice(idx,1);
@@ -2234,7 +2241,7 @@ function renderVandaag(){
     var meta=document.createElement('div');meta.className='vandaag-task-meta';meta.innerHTML='<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:.7;margin-right:4px;vertical-align:middle;"></span>Vaste taak';
     body.appendChild(txt);body.appendChild(meta);
     if(r.koppelgesprek&&!isDone){
-      var anch=r.anchorDate||'2026-06-20';var ap=anch.split('-').map(Number);var ad=new Date(ap[0],ap[1]-1,ap[2]);
+      var anch=r.anchorDate||'2026-06-19';var ap=anch.split('-').map(Number);var ad=new Date(ap[0],ap[1]-1,ap[2]);
       var pd=keyToDate(tk);var diffDays=Math.round((pd-ad)/(24*3600*1000));
       var biweekNum=Math.max(0,Math.floor(diffDays/14));
       var topicData=COUPLE_TOPICS[biweekNum%COUPLE_TOPICS.length];
@@ -3233,7 +3240,7 @@ function renderMeerStats(){
     var due=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);
     return due<=new Date(today.getTime()+14*24*60*60*1000);
   }).length;
-  document.getElementById('onderhoudSub').textContent=ondDue>0?ondDue+' taak'+(ondDue===1?'':'s')+' binnenkort':'Huis- en onderhoudstaken';
+  document.getElementById('onderhoudSub').textContent=ondDue>0?ondDue+' '+(ondDue===1?'taak':'taken')+' binnenkort':'Huis- en onderhoudstaken';
   var bl=(data.backlog||[]).length;
   document.getElementById('backlogSub').textContent=bl>0?bl+' idee'+(bl===1?'':'ën'):'Ideeën & ooit-lijst';
   var garExp=(data.garanties||[]).filter(function(g){return g.verloopt&&daysUntil(g.verloopt)<=90&&daysUntil(g.verloopt)>=0;}).length;
@@ -4494,12 +4501,12 @@ function showBriefing(force){
   var desc=document.getElementById('weatherDesc')&&document.getElementById('weatherDesc').textContent||'';
   var city=document.getElementById('weatherLocText')&&document.getElementById('weatherLocText').textContent||'';
   var wSec=document.createElement('div');wSec.className='briefing-section';
-  var wLbl=document.createElement('div');wLbl.className='briefing-section-label';wLbl.textContent='Het weer'+( city?' in '+city:'');
+  var wLbl=document.createElement('div');wLbl.className='briefing-section-label';wLbl.id='briefingWeatherLbl';wLbl.textContent='Het weer'+( city?' in '+city:'');
   var wRow=document.createElement('div');wRow.className='briefing-weather-row';
-  var wIcon=document.createElement('div');wIcon.className='briefing-weather-icon';wIcon.textContent=icon;
-  var wTemp=document.createElement('div');wTemp.className='briefing-temp';wTemp.textContent=temp;
+  var wIcon=document.createElement('div');wIcon.className='briefing-weather-icon';wIcon.id='briefingWeatherIcon';wIcon.textContent=icon;
+  var wTemp=document.createElement('div');wTemp.className='briefing-temp';wTemp.id='briefingWeatherTemp';wTemp.textContent=temp;
   var wInfo=document.createElement('div');wInfo.className='briefing-weather-info';
-  wInfo.innerHTML='<div style="font-size:14px;color:var(--text);">'+desc+'</div>';
+  wInfo.innerHTML='<div id="briefingWeatherDesc" style="font-size:14px;color:var(--text);">'+desc+'</div>';
   wRow.appendChild(wIcon);wRow.appendChild(wTemp);wRow.appendChild(wInfo);
   wSec.appendChild(wLbl);wSec.appendChild(wRow);body.appendChild(wSec);
 
@@ -4588,31 +4595,6 @@ function showBriefing(force){
   var qText=document.createElement('div');qText.className='briefing-quote';qText.textContent='"'+getDailyQuote()+'"';
   qSec.appendChild(qLbl);qSec.appendChild(qText);body.appendChild(qSec);
 
-  // ── Verjaardagen beheren ─────────────────
-  var addSec=document.createElement('div');addSec.className='briefing-section';
-  var addLbl=document.createElement('div');addLbl.className='briefing-section-label';addLbl.textContent='Verjaardagen beheren';
-  addSec.appendChild(addLbl);
-  (data.verjaardagen||[]).forEach(function(b){
-    var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;';
-    var nameEl=document.createElement('span');nameEl.style.flex='1';nameEl.textContent='🎂 '+b.naam+' ('+b.datum+')';
-    var del=document.createElement('button');del.textContent='✕';del.style.cssText='background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;';
-    (function(bd){del.addEventListener('click',function(){var i=data.verjaardagen.indexOf(bd);if(i>-1)data.verjaardagen.splice(i,1);saveToServer();showBriefing(true);});})(b);
-    row.appendChild(nameEl);row.appendChild(del);addSec.appendChild(row);
-  });
-  var addRow=document.createElement('div');addRow.style.cssText='display:flex;gap:8px;margin-top:8px;';
-  var nameInp=document.createElement('input');nameInp.placeholder='Naam';nameInp.style.cssText='flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--text);';
-  var datInp=document.createElement('input');datInp.type='text';datInp.placeholder='MM-DD';datInp.maxLength=5;datInp.style.cssText='width:70px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--card);color:var(--text);';
-  var addBdBtn=document.createElement('button');addBdBtn.textContent='+';addBdBtn.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:16px;cursor:pointer;';
-  addBdBtn.addEventListener('click',function(){
-    var n=nameInp.value.trim(),dt=datInp.value.trim();
-    if(!n||!/^\d{2}-\d{2}$/.test(dt)){showToast('Vul naam en datum in (bijv. 06-15)');return;}
-    if(!data.verjaardagen)data.verjaardagen=[];
-    data.verjaardagen.push({id:uid(),naam:n,datum:dt});
-    nameInp.value='';datInp.value='';saveToServer();showBriefing(true);
-  });
-  addRow.appendChild(nameInp);addRow.appendChild(datInp);addRow.appendChild(addBdBtn);
-  addSec.appendChild(addRow);body.appendChild(addSec);
-
   overlay.style.display='flex';overlay.style.flexDirection='column';
   overlay.scrollTop=0;
 }
@@ -4693,6 +4675,7 @@ function requestNotifPermission(){
   if(!('Notification' in window))return;
   if(Notification.permission==='default')Notification.requestPermission();
 }
+var _reminderTimers={}; // op task-id, niet op het taakobject -- dat wordt bij elke server-sync vervangen
 function scheduleReminders(){
   if(!('Notification' in window)||Notification.permission!=='granted')return;
   var now=new Date();
@@ -4706,8 +4689,8 @@ function scheduleReminders(){
       var remTime=new Date(dk.split('-')[0],dk.split('-')[1]-1,dk.split('-')[2],parts[0],parts[1]);
       var msLeft=remTime-now;
       if(msLeft>0&&msLeft<24*60*60*1000){
-        clearTimeout(t._reminderTimer);
-        t._reminderTimer=setTimeout(function(){
+        clearTimeout(_reminderTimers[t.id]);
+        _reminderTimers[t.id]=setTimeout(function(){
           if(t.done)return;
           new Notification('Huisplan herinnering',{body:t.text,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%235b4fe0"/><text x="50" y="69" font-family="Arial,Helvetica,sans-serif" font-size="54" font-weight="700" fill="%23ffffff" text-anchor="middle">H</text></svg>'});
         },msLeft);
@@ -5147,6 +5130,20 @@ var WEATHER_DESC={
   386:'Onweersbui',389:'Zware onweersbui',392:'Onweersbui met sneeuw',395:'Zware sneeuwonweer'
 };
 var _weatherCache=null,_weatherCacheTime=0,_weatherCity='';
+function syncBriefingWeather(){
+  // Houdt de (mogelijk al eerder getoonde) dagelijkse briefing in sync als het
+  // weer pas na het renderen van de briefing binnenkomt — anders bleef daar
+  // permanent "Laden..." staan voor de rest van de dag.
+  var bIcon=document.getElementById('briefingWeatherIcon');
+  if(!bIcon)return;
+  bIcon.textContent=document.getElementById('weatherIcon').textContent;
+  document.getElementById('briefingWeatherTemp').textContent=document.getElementById('weatherTemp').textContent;
+  var descEl=document.getElementById('briefingWeatherDesc');
+  if(descEl)descEl.textContent=document.getElementById('weatherDesc').textContent;
+  var lblEl=document.getElementById('briefingWeatherLbl');
+  var city=document.getElementById('weatherLocText').textContent;
+  if(lblEl)lblEl.textContent='Het weer'+(city?' in '+city:'');
+}
 function loadWeather(){
   var city=localStorage.getItem('plannerCity')||'';
   if(!city){
@@ -5154,6 +5151,7 @@ function loadWeather(){
     document.getElementById('weatherTemp').textContent='';
     document.getElementById('weatherDesc').textContent='Tik om je stad in te stellen';
     document.getElementById('weatherBar').classList.add('loading');
+    syncBriefingWeather();
     return;
   }
   document.getElementById('weatherLocText').textContent=city;
@@ -5168,6 +5166,7 @@ function loadWeather(){
     .catch(function(){
       document.getElementById('weatherDesc').textContent='Weer niet beschikbaar';
       document.getElementById('weatherBar').classList.remove('loading');
+      syncBriefingWeather();
     });
 }
 function applyWeather(json){
@@ -5187,6 +5186,7 @@ function applyWeather(json){
   var wind=parseInt(cur.windspeedKmph);
   var windDir=cur.winddir16Point;
   if(wind>10){document.getElementById('weatherFeels').textContent='💨 '+wind+' km/h';}
+  syncBriefingWeather();
 }
 
 
