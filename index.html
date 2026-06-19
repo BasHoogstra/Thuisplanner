@@ -309,7 +309,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .boodschap-item{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:7px;position:relative;overflow:hidden;transition:transform .15s;}
 .boodschap-item.swiping{transition:none;}
 .boodschap-swipe-bg{position:absolute;right:0;top:0;bottom:0;background:var(--danger);display:flex;align-items:center;justify-content:flex-end;padding:0 16px;color:#fff;font-size:13px;font-weight:700;opacity:0;transition:opacity .1s;pointer-events:none;border-radius:0 12px 12px 0;}
-.boodschap-check{width:36px;height:36px;border-radius:50%;border:2px solid var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:13px;color:#fff;}
+.boodschap-check{width:32px;height:32px;border-radius:50%;border:2px solid var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:12px;color:#fff;}
 .boodschap-check.checked{background:var(--green);border-color:var(--green);}
 .boodschap-text{flex:1;font-size:15px;}.boodschap-text.done{text-decoration:line-through;color:var(--done);}
 .boodschap-meta{font-size:10px;color:var(--muted);}
@@ -327,9 +327,9 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .winkelmodus-btn{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;}
 
 /* Boodschappen: 1 kolom op mobiel (anders is er geen ruimte voor de aantal-stepper), 2 kolommen op bredere schermen */
-.boodschappen-list{display:grid;grid-template-columns:1fr;gap:8px;padding:0 16px;}
-.bood-group-label{grid-column:1/-1;}
-.boodschap-item{padding:10px 12px;border-radius:12px;margin-bottom:0;}
+.boodschappen-list{display:grid;grid-template-columns:1fr;gap:6px;padding:0 16px;}
+.bood-group-label{grid-column:1/-1;margin:10px 0 5px;}
+.boodschap-item{padding:8px 10px;border-radius:12px;margin-bottom:0;}
 @media(min-width:680px){.boodschappen-list{grid-template-columns:1fr 1fr;}}
 /* Shopping mode */
 body.shopping-mode .bottom-nav{display:none;}
@@ -698,10 +698,10 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .bood-section-header:first-child{padding-top:6px;}
 .bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:11px;color:var(--muted);padding:2px 8px;cursor:pointer;display:inline-block;line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;vertical-align:middle;box-sizing:border-box;}
 .bood-cat-chip:active{background:var(--accent-light);color:var(--accent);}
-.bood-qty-row{display:flex;align-items:center;gap:6px;flex-shrink:0;justify-content:center;}
-.bood-qty-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;touch-action:manipulation;}
+.bood-qty-row{display:flex;align-items:center;gap:4px;flex-shrink:0;justify-content:center;}
+.bood-qty-btn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;touch-action:manipulation;}
 .bood-qty-btn:active{background:var(--accent);color:#fff;border-color:var(--accent);}
-.bood-qty-num{font-size:14px;font-weight:700;color:var(--text);min-width:28px;text-align:center;}
+.bood-qty-num{font-size:13px;font-weight:700;color:var(--text);min-width:22px;text-align:center;}
 .bood-done-divider{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:8px 0 4px;color:var(--muted);font-size:12px;font-weight:600;}
 .bood-done-divider::before,.bood-done-divider::after{content:'';flex:1;height:1px;background:var(--border);}
 .koppelgesprek-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:6px;}
@@ -3011,7 +3011,7 @@ function renderBoodschappen(){
     body.appendChild(txt);
     if(b.addedBy){var meta=document.createElement('div');meta.className='boodschap-meta';meta.textContent='door '+b.addedBy;body.appendChild(meta);}
     // Onderste regel: categorie + winkel links, aantal-stepper rechts (horizontaal)
-    var boodBottom=document.createElement('div');boodBottom.style='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;flex-wrap:wrap;';
+    var boodBottom=document.createElement('div');boodBottom.style='display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px;flex-wrap:wrap;';
     var chipGroup=document.createElement('div');chipGroup.style='display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:50px;flex:1;';
     (function(bi){
       var chip=document.createElement('button');chip.className='bood-cat-chip';
@@ -3270,7 +3270,7 @@ function renderMeerStats(){
   var maaltijdEl=document.getElementById('maaltijdSub');if(maaltijdEl)maaltijdEl.textContent=maaltijdCount>0?maaltijdCount+' dag'+(maaltijdCount===1?'':'en')+' gepland':'Plan je weekmaaltijden';
   document.getElementById('kluisSub').textContent=kluisUrgent>0?kluisUrgent+' item'+(kluisUrgent===1?'':'s')+' '+(kluisUrgent===1?'verloopt':'verlopen')+' binnenkort':'Paspoort, verzekering, abonnement…';
   setCardBadge('openKluis',kluisUrgent,'#6c5ce7');
-  var mon2=getMonday(today);var weekDone=0;for(var wi=0;wi<7;wi++){var wd2=new Date(mon2);wd2.setDate(mon2.getDate()+wi);var wk2=dateKey(wd2.getFullYear(),wd2.getMonth(),wd2.getDate());weekDone+=(data.tasks[wk2]||[]).filter(function(t){return t.done;}).length+((data.recurringDone&&data.recurringDone[wk2])||[]).length;}
+  var mon2=getMonday(today);var weekDone=0;for(var wi=0;wi<7;wi++){var wd2=new Date(mon2);wd2.setDate(mon2.getDate()+wi);var wk2=dateKey(wd2.getFullYear(),wd2.getMonth(),wd2.getDate());var rd2=(data.recurringDone&&data.recurringDone[wk2])||[];var recDone2=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,wk2)&&rd2.indexOf(r.id)>-1;}).length;weekDone+=(data.tasks[wk2]||[]).filter(function(t){return t.done;}).length+recDone2;}
   document.getElementById('weekOverzichtSub').textContent=weekDone>0?weekDone+' '+(weekDone===1?'taak':'taken')+' gedaan deze week':'Wat heb je gedaan?';
 }
 
@@ -4304,18 +4304,20 @@ function computeDNA(){
   result.topMaaltijd=topMaaltijd;result.topMaaltijdAantal=maaltijdCount[topMaaltijd]||0;
   result.totalMaaltijden=Object.keys(maaltijdCount).length;
 
-  // ── Beste gewoonte streak ────────────────────
-  var bestStreak=0,bestStreakNaam='';
+  // ── Beste gewoonte streak (langste ooit behaalde reeks, niet alleen de lopende) ──
+  var bestStreak=0,bestStreakNaam='',bestStreakNu=0;
   (data.gewoonten||[]).forEach(function(gw){
-    var streak=0;var ck=new Date(today.getTime());
-    while(streak<365){
+    var ck=keyToDate(gw.createdDate||todayKey());
+    var cur=0,max=0,guard=0;
+    while(ck<=today&&guard<730){
       var k2=dateKey(ck.getFullYear(),ck.getMonth(),ck.getDate());
       var d2=(data.gewoontenDone&&data.gewoontenDone[k2])||[];
-      if(d2.indexOf(gw.id)>-1){streak++;ck=addDays(ck,-1);}else break;
+      if(d2.indexOf(gw.id)>-1){cur++;if(cur>max)max=cur;}else{cur=0;}
+      ck=addDays(ck,1);guard++;
     }
-    if(streak>bestStreak){bestStreak=streak;bestStreakNaam=(gw.icon||'🔁')+' '+gw.text;}
+    if(max>bestStreak){bestStreak=max;bestStreakNaam=(gw.icon||'🔁')+' '+gw.text;bestStreakNu=cur;}
   });
-  result.bestStreak=bestStreak;result.bestStreakNaam=bestStreakNaam;
+  result.bestStreak=bestStreak;result.bestStreakNaam=bestStreakNaam;result.bestStreakNu=bestStreakNu;
 
   // ── Onderhoud trouwste taak ──────────────────
   var onderhoudDone=(data.huisgeheugen||[]).filter(function(h){return h.type==='onderhoud';}).length;
@@ -4419,7 +4421,8 @@ function renderGezinsDNA(){
       makeCard('🍽','Favoriet recept',dna.topMaaltijd,dna.topMaaltijdAantal+'x gepland',true,true);
     }
     if(dna.bestStreak>0){
-      makeCard('🔥','Langste gewoonte-streak',dna.bestStreak+' dagen',dna.bestStreakNaam,false,dna.bestStreak>=7);
+      var streakSub=dna.bestStreakNaam+(dna.bestStreakNu>0&&dna.bestStreakNu<dna.bestStreak?' · nu '+dna.bestStreakNu+' op rij':(dna.bestStreakNu===dna.bestStreak?' · loopt nog!':''));
+      makeCard('🔥','Langste gewoonte-streak',dna.bestStreak+' dagen',streakSub,false,dna.bestStreak>=7);
     }
     if(dna.aantalRecepten>0){
       makeCard('👨‍🍳','Receptenverzameling',dna.aantalRecepten+' recepten','In de kookbibliotheek',false,false);
@@ -4581,7 +4584,7 @@ function showBriefing(force){
   // ── Vakantie countdown ───────────────────
   var nextVak=(data.vakanties||[]).filter(function(v){return v.startDatum&&v.startDatum>tk;}).sort(function(a,b){return a.startDatum<b.startDatum?-1:1;})[0];
   if(nextVak){
-    var vdays=Math.round((new Date(nextVak.startDatum)-d)/(1000*60*60*24));
+    var vdays=daysUntil(nextVak.startDatum);
     var vSec=document.createElement('div');vSec.className='briefing-section';
     var vLbl=document.createElement('div');vLbl.className='briefing-section-label';vLbl.textContent='Vakantie';
     var vHead=document.createElement('div');vHead.className='briefing-headline';
@@ -4628,8 +4631,25 @@ document.getElementById('spinnerBtn').addEventListener('click',function(){
   var btn=this;btn.disabled=true;
   document.getElementById('spinnerResult').style.display='none';
   var item=document.getElementById('spinnerItem');
-  var total=60,step=0,delay=40;
   var chosen=recepten[Math.floor(Math.random()*recepten.length)];
+  if(recepten.length===1){
+    // Niets om te spinnen — meteen het enige recept tonen met een knipoog
+    item.textContent=chosen.naam;
+    showToast('Nou, dat was een makkelijke keuze 😄');
+    document.getElementById('spinnerResultName').textContent=chosen.naam;
+    document.getElementById('spinnerResult').style.display='block';
+    btn.disabled=false;
+    document.getElementById('spinnerPlanBtn').onclick=function(){
+      var tk2=todayKey();
+      if(!data.maaltijdplan)data.maaltijdplan={};
+      data.maaltijdplan[tk2]={type:'recept',receptId:chosen.id,naam:chosen.naam,ingredienten:chosen.ingredienten||[]};
+      saveToServer();renderVandaag();
+      document.getElementById('watEtenWeOverlay').classList.remove('open');
+      showToast('✓ '+chosen.naam+' gepland voor vanavond!');
+    };
+    return;
+  }
+  var total=60,step=0,delay=40;
   function spin(){
     var r=recepten[Math.floor(Math.random()*recepten.length)];
     item.textContent=r.naam;
