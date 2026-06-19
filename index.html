@@ -324,29 +324,12 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .bood-suggest-chip span{font-size:11px;color:var(--muted);}
 .week-meal-row{font-size:12px;color:var(--muted);padding:3px 6px;margin-top:4px;background:rgba(253,121,168,.12);border-radius:6px;border-left:3px solid #fd79a8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
 .week-meal-row:hover{background:rgba(253,121,168,.22);}
-.winkelmodus-btn{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;}
 
-/* Boodschappen: 1 kolom op mobiel (anders is er geen ruimte voor de aantal-stepper), 2 kolommen op bredere schermen */
-.boodschappen-list{display:grid;grid-template-columns:1fr;gap:4px;padding:0 16px;}
+/* Boodschappen: 2 kolommen, ook op mobiel (items zijn nu compact genoeg) — valt terug op 1 kolom op heel smalle schermen */
+.boodschappen-list{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:0 16px;}
 .bood-group-label{grid-column:1/-1;margin:8px 0 4px;}
 .boodschap-item{padding:6px 8px;border-radius:10px;margin-bottom:0;}
-@media(min-width:680px){.boodschappen-list{grid-template-columns:1fr 1fr;}}
-/* Shopping mode */
-body.shopping-mode .bottom-nav{display:none;}
-body.shopping-mode header{display:none;}
-body.shopping-mode .sync-row{display:none;}
-body.shopping-mode .boodschappen-add{display:none;}
-body.shopping-mode .boodschappen-cat-row{display:none;}
-body.shopping-mode .boodschappen-topbar{display:none;}
-body.shopping-mode .boodschappen-actions{padding:12px 16px;}
-body.shopping-mode .app{padding-bottom:0;}
-body.shopping-mode .winkelmodus-exit{display:flex!important;}
-body.shopping-mode .boodschap-item{padding:16px 14px;}
-body.shopping-mode .boodschap-check{width:44px;height:44px;font-size:18px;}
-body.shopping-mode .boodschap-text{font-size:18px;}
-.winkelmodus-exit{display:none;background:var(--bg);border-bottom:1px solid var(--border);padding:10px 16px;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;z-index:10;}
-.winkelmodus-exit span{font-size:15px;font-weight:700;}
-.winkelmodus-exit button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+@media(max-width:359px){.boodschappen-list{grid-template-columns:1fr;}}
 
 /* MEER */
 .meer-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:6px 16px 14px;}.meer-section-header{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:14px 16px 2px;display:flex;align-items:center;gap:6px;}
@@ -718,7 +701,6 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .maaltijd-sel{width:100%;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box;}
 .maaltijd-vrij{width:100%;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box;margin-top:6px;}
 .maaltijd-bood-btn{width:100%;margin-top:14px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;}
-body.shopping-mode .toast{bottom:20px;}
 </style>
 </head>
 <body>
@@ -854,10 +836,6 @@ body.shopping-mode .toast{bottom:20px;}
       <div class="vaste-bood-row" id="vasteBoodRow" style="margin:0;flex:1;"></div>
       <button class="voeg-alles-btn" id="voegAllesBtn" style="display:none;">↓ Alles</button>
     </div>
-    <div class="winkelmodus-exit">
-      <span>🛒 Winkelmodus</span>
-      <button id="exitWinkelBtn">✕ Afsluiten</button>
-    </div>
     <div class="boodschappen-add">
       <input type="text" id="boodschapInput" placeholder="Toevoegen aan lijst…" maxlength="200">
       <button id="boodschapAddBtn">+</button>
@@ -872,7 +850,6 @@ body.shopping-mode .toast{bottom:20px;}
     <div id="boodDoneBanner" style="display:none;margin:8px 0 4px;background:#27ae60;color:#fff;border-radius:12px;padding:10px 16px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;" onclick="data.boodschappen=(data.boodschappen||[]).filter(function(b){return !b.done;});saveToServer();renderBoodschappen();showToast('Afgevinkte items verwijderd');"><span style="font-size:16px;">✓</span><span class="bood-done-label" style="flex:1;font-size:13px;font-weight:700;"></span><span style="font-size:13px;font-weight:700;opacity:.85;">Wis ✕</span></div>
 <div class="boodschappen-list" id="boodschappenList"></div>
     <div class="boodschappen-actions">
-      <button class="winkelmodus-btn" id="winkelModusBtn">🛒 Winkelmodus</button>
       <button id="clearDoneBoodschappen">🗑 Verwijder afgevinkte</button>
     </div>
   </div>
@@ -1567,7 +1544,6 @@ var planPickerItem=null,notitieboekTimer=null;
 var boodCatFilter='';
 var boodWinkelFilter='';
 var BOOD_WINKELS=['AH','Vomar','Slager','Action'];
-var wakeLock=null;
 var pwaPrompt=null;
 
 function pad(n){return n<10?'0'+n:''+n;}
@@ -3097,17 +3073,6 @@ document.getElementById('boodschapInput').addEventListener('keydown',function(e)
 document.getElementById('clearDoneBoodschappen').addEventListener('click',function(){
   data.boodschappen=(data.boodschappen||[]).filter(function(b){return !b.done;});
   saveToServer();renderBoodschappen();showToast('Afgevinkte items verwijderd');
-});
-
-// Winkelmodus
-document.getElementById('winkelModusBtn').addEventListener('click',function(){
-  document.body.classList.add('shopping-mode');
-  if(navigator.wakeLock){navigator.wakeLock.request('screen').then(function(wl){wakeLock=wl;}).catch(function(){});}
-  renderBoodschappen();
-});
-document.getElementById('exitWinkelBtn').addEventListener('click',function(){
-  document.body.classList.remove('shopping-mode');
-  if(wakeLock){wakeLock.release();wakeLock=null;}
 });
 
 
