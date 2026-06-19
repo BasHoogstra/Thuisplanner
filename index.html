@@ -306,13 +306,13 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .week-empty{font-size:12px;color:var(--muted);font-style:italic;}
 .boodschappen-list{padding:0 16px;}
 .bood-group-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;}
-.boodschap-item{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:7px;position:relative;overflow:hidden;transition:transform .15s;}
+.boodschap-item{display:flex;align-items:center;gap:8px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:7px;position:relative;overflow:hidden;transition:transform .15s;}
 .boodschap-item.swiping{transition:none;}
 .boodschap-swipe-bg{position:absolute;right:0;top:0;bottom:0;background:var(--danger);display:flex;align-items:center;justify-content:flex-end;padding:0 16px;color:#fff;font-size:13px;font-weight:700;opacity:0;transition:opacity .1s;pointer-events:none;border-radius:0 12px 12px 0;}
-.boodschap-check{width:32px;height:32px;border-radius:50%;border:2px solid var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:12px;color:#fff;}
+.boodschap-check{width:28px;height:28px;border-radius:50%;border:2px solid var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:11px;color:#fff;}
 .boodschap-check.checked{background:var(--green);border-color:var(--green);}
-.boodschap-text{flex:1;font-size:15px;}.boodschap-text.done{text-decoration:line-through;color:var(--done);}
-.boodschap-meta{font-size:10px;color:var(--muted);}
+.boodschap-text{flex:1;font-size:14px;}.boodschap-text.done{text-decoration:line-through;color:var(--done);}
+.boodschap-meta{font-size:9px;color:var(--muted);}
 .boodschap-del{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:2px;}
 .boodschappen-actions{padding:8px 16px 12px;display:flex;gap:8px;flex-wrap:wrap;}
 .boodschappen-actions button{flex:1;min-width:120px;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--card);font-size:13px;font-weight:600;cursor:pointer;color:var(--text);}
@@ -327,9 +327,9 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .winkelmodus-btn{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;}
 
 /* Boodschappen: 1 kolom op mobiel (anders is er geen ruimte voor de aantal-stepper), 2 kolommen op bredere schermen */
-.boodschappen-list{display:grid;grid-template-columns:1fr;gap:6px;padding:0 16px;}
-.bood-group-label{grid-column:1/-1;margin:10px 0 5px;}
-.boodschap-item{padding:8px 10px;border-radius:12px;margin-bottom:0;}
+.boodschappen-list{display:grid;grid-template-columns:1fr;gap:4px;padding:0 16px;}
+.bood-group-label{grid-column:1/-1;margin:8px 0 4px;}
+.boodschap-item{padding:6px 8px;border-radius:10px;margin-bottom:0;}
 @media(min-width:680px){.boodschappen-list{grid-template-columns:1fr 1fr;}}
 /* Shopping mode */
 body.shopping-mode .bottom-nav{display:none;}
@@ -696,12 +696,12 @@ body.shopping-mode .boodschap-text{font-size:18px;}
 .toast.show{opacity:1;}
 .bood-section-header{display:flex;align-items:center;gap:6px;padding:12px 16px 4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
 .bood-section-header:first-child{padding-top:6px;}
-.bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:11px;color:var(--muted);padding:2px 8px;cursor:pointer;display:inline-block;line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;vertical-align:middle;box-sizing:border-box;}
+.bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:10px;color:var(--muted);padding:1px 6px;cursor:pointer;display:inline-block;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;vertical-align:middle;box-sizing:border-box;}
 .bood-cat-chip:active{background:var(--accent-light);color:var(--accent);}
-.bood-qty-row{display:flex;align-items:center;gap:4px;flex-shrink:0;justify-content:center;}
-.bood-qty-btn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;touch-action:manipulation;}
+.bood-qty-row{display:flex;align-items:center;gap:3px;flex-shrink:0;justify-content:center;}
+.bood-qty-btn{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;touch-action:manipulation;}
 .bood-qty-btn:active{background:var(--accent);color:#fff;border-color:var(--accent);}
-.bood-qty-num{font-size:13px;font-weight:700;color:var(--text);min-width:22px;text-align:center;}
+.bood-qty-num{font-size:12px;font-weight:700;color:var(--text);min-width:18px;text-align:center;}
 .bood-done-divider{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:8px 0 4px;color:var(--muted);font-size:12px;font-weight:600;}
 .bood-done-divider::before,.bood-done-divider::after{content:'';flex:1;height:1px;background:var(--border);}
 .koppelgesprek-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:6px;}
@@ -3011,8 +3011,8 @@ function renderBoodschappen(){
     body.appendChild(txt);
     if(b.addedBy){var meta=document.createElement('div');meta.className='boodschap-meta';meta.textContent='door '+b.addedBy;body.appendChild(meta);}
     // Onderste regel: categorie + winkel links, aantal-stepper rechts (horizontaal)
-    var boodBottom=document.createElement('div');boodBottom.style='display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px;flex-wrap:wrap;';
-    var chipGroup=document.createElement('div');chipGroup.style='display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:50px;flex:1;';
+    var boodBottom=document.createElement('div');boodBottom.style='display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:1px;flex-wrap:wrap;';
+    var chipGroup=document.createElement('div');chipGroup.style='display:flex;align-items:center;gap:3px;flex-wrap:wrap;min-width:50px;flex:1;';
     (function(bi){
       var chip=document.createElement('button');chip.className='bood-cat-chip';
       chip.textContent=(BOOD_CAT_ICONS[bi.cat||'Overig']||'🛒')+' '+(bi.cat||'Overig');
