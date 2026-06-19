@@ -326,9 +326,12 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .week-meal-row:hover{background:rgba(253,121,168,.22);}
 
 /* Boodschappen: 2 kolommen, ook op mobiel (items zijn nu compact genoeg) — valt terug op 1 kolom op heel smalle schermen */
-.boodschappen-list{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:0 16px;}
+.boodschappen-list{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:0 16px;}
 .bood-group-label{grid-column:1/-1;margin:8px 0 4px;}
-.boodschap-item{padding:6px 8px;border-radius:10px;margin-bottom:0;}
+.boodschap-item{padding:4px 6px;border-radius:8px;margin-bottom:0;gap:6px;}
+.boodschap-check{width:20px;height:20px;font-size:9px;border-width:1.5px;}
+.boodschap-text{font-size:12.5px;}
+.boodschap-meta{font-size:8px;}
 @media(max-width:359px){.boodschappen-list{grid-template-columns:1fr;}}
 
 /* MEER */
@@ -679,12 +682,12 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .toast.show{opacity:1;}
 .bood-section-header{display:flex;align-items:center;gap:6px;padding:12px 16px 4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
 .bood-section-header:first-child{padding-top:6px;}
-.bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:10px;color:var(--muted);padding:1px 6px;cursor:pointer;display:inline-block;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;vertical-align:middle;box-sizing:border-box;}
+.bood-cat-chip{background:none;border:1px solid var(--border);border-radius:20px;font-size:9px;color:var(--muted);padding:1px 5px;cursor:pointer;display:inline-block;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;vertical-align:middle;box-sizing:border-box;}
 .bood-cat-chip:active{background:var(--accent-light);color:var(--accent);}
 .bood-qty-row{display:flex;align-items:center;gap:3px;flex-shrink:0;justify-content:center;}
-.bood-qty-btn{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;touch-action:manipulation;}
+.bood-qty-btn{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;touch-action:manipulation;}
 .bood-qty-btn:active{background:var(--accent);color:#fff;border-color:var(--accent);}
-.bood-qty-num{font-size:12px;font-weight:700;color:var(--text);min-width:18px;text-align:center;}
+.bood-qty-num{font-size:10px;font-weight:700;color:var(--text);min-width:14px;text-align:center;}
 .bood-done-divider{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:8px 0 4px;color:var(--muted);font-size:12px;font-weight:600;}
 .bood-done-divider::before,.bood-done-divider::after{content:'';flex:1;height:1px;background:var(--border);}
 .koppelgesprek-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:6px;}
