@@ -367,6 +367,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .meer-card-vastetaken::before{background:linear-gradient(90deg,#5b4fe0,#8b7dff);}
 .meer-card-weekoverzicht::before{background:linear-gradient(90deg,#16a085,#1abc9c);}
 .meer-card-verlanglijst::before{background:linear-gradient(90deg,#d63031,#ff7675);}
+.meer-card-verjaardagen::before{background:linear-gradient(90deg,#fdcb6e,#e17055);}
 
 /* OVERLAYS */
 .overlay{position:fixed;inset:0;background:rgba(20,18,30,.5);display:none;align-items:flex-end;justify-content:center;z-index:50;}
@@ -599,6 +600,8 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .kluis-meta{font-size:12px;color:var(--muted);margin-bottom:8px;}
 .kluis-prog-bg{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:8px;}
 .kluis-prog-fill{height:100%;border-radius:3px;transition:width .4s;}
+.verj-cadeau-btn{background:none;border:1px solid var(--border);border-radius:8px;font-size:11px;padding:4px 9px;color:var(--text);cursor:pointer;white-space:nowrap;}
+.verj-cadeau-btn:active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .kluis-cat-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
 .kluis-cat-btn{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:20px;padding:5px 10px;font-size:12px;cursor:pointer;}
 .kluis-cat-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
@@ -947,8 +950,13 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         <div class="meer-card-title" style="color:#fff;">Gezins-DNA</div>
         <div class="meer-card-sub" style="color:rgba(255,255,255,.8);">Wat zegt onze data over ons?</div>
       </div>
-    <div class="meer-section-header">🎁 Cadeaus</div>
+    <div class="meer-section-header">🎂 Verjaardagen &amp; cadeaus</div>
     <div class="meer-grid">
+      <div class="meer-card meer-card-verjaardagen" id="openVerjaardagen">
+        <div class="meer-card-icon">🎂</div>
+        <div class="meer-card-title">Verjaardagen</div>
+        <div class="meer-card-sub" id="verjaardagenSub">Wie is er jarig?</div>
+      </div>
       <div class="meer-card meer-card-verlanglijst" id="openVerlanglijst">
         <div class="meer-card-icon">🎁</div>
         <div class="meer-card-title">Verlanglijstje</div>
@@ -1378,6 +1386,22 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
       <button class="add-card-btn" id="kluisAddBtn">Toevoegen</button>
     </div>
     <div id="kluisList"></div>
+  </div>
+</div>
+
+<!-- VERJAARDAGEN -->
+<div class="full-overlay" id="verjaardagenOverlay">
+  <div class="full-header"><button class="icon-btn" id="closeVerjaardagenBtn">✕</button><h2>🎂 Verjaardagen</h2></div>
+  <div class="full-body">
+    <div class="add-card">
+      <h3>Verjaardag toevoegen</h3>
+      <input type="text" id="verjNaam" placeholder="Naam" maxlength="60">
+      <label class="field-label">Geboortedatum (het jaar maakt niet uit)</label>
+      <input type="date" id="verjDatum">
+      <div class="setup-error" id="verjError"></div>
+      <button class="add-card-btn" id="verjAddBtn">Toevoegen</button>
+    </div>
+    <div id="verjList"></div>
   </div>
 </div>
 
@@ -3301,6 +3325,13 @@ function renderMeerStats(){
   setCardBadge('openKluis',kluisUrgent,'#6c5ce7');
   var mon2=getMonday(today);var weekDone=0;for(var wi=0;wi<7;wi++){var wd2=new Date(mon2);wd2.setDate(mon2.getDate()+wi);var wk2=dateKey(wd2.getFullYear(),wd2.getMonth(),wd2.getDate());var rd2=(data.recurringDone&&data.recurringDone[wk2])||[];var recDone2=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,wk2)&&rd2.indexOf(r.id)>-1;}).length;weekDone+=(data.tasks[wk2]||[]).filter(function(t){return t.done;}).length+recDone2;}
   document.getElementById('weekOverzichtSub').textContent=weekDone>0?weekDone+' '+(weekDone===1?'taak':'taken')+' gedaan deze week':'Wat heb je gedaan?';
+  var verjEl=document.getElementById('verjaardagenSub');
+  if(verjEl){
+    var nextBd=(data.verjaardagen||[]).slice().sort(function(a,b){return daysUntilBirthday(a.datum)-daysUntilBirthday(b.datum);})[0];
+    if(!nextBd)verjEl.textContent='Wie is er jarig?';
+    else{var dN=daysUntilBirthday(nextBd.datum);verjEl.textContent=dN===0?'🎂 Vandaag: '+nextBd.naam+'!':dN===1?nextBd.naam+' is morgen jarig':nextBd.naam+' over '+dN+' dagen';}
+  }
+  setCardBadge('openVerjaardagen',(data.verjaardagen||[]).filter(function(b){return daysUntilBirthday(b.datum)===0;}).length,'#e17055');
 }
 
 document.getElementById('openBestellingen').addEventListener('click',function(){document.getElementById('bestellingenOverlay').classList.add('open');updateBestWieLabels();renderBestellingen();});
@@ -3799,6 +3830,63 @@ function renderKluis(){
   });
 }
 
+// === VERJAARDAGEN ===
+function daysUntilBirthday(mmdd){
+  var p=mmdd.split('-').map(Number);var mo=p[0],da=p[1];
+  var t=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+  var next=new Date(today.getFullYear(),mo-1,da);
+  if(next<t)next=new Date(today.getFullYear()+1,mo-1,da);
+  return Math.round((next-t)/(1000*60*60*24));
+}
+function formatBirthdayDate(mmdd){var p=mmdd.split('-').map(Number);return p[1]+' '+MONTH_NAMES[p[0]-1].slice(0,3);}
+document.getElementById('openVerjaardagen').addEventListener('click',function(){document.getElementById('verjaardagenOverlay').classList.add('open');renderVerjaardagen();});
+document.getElementById('closeVerjaardagenBtn').addEventListener('click',function(){document.getElementById('verjaardagenOverlay').classList.remove('open');renderMeerStats();});
+document.getElementById('verjAddBtn').addEventListener('click',function(){
+  var naam=document.getElementById('verjNaam').value.trim();
+  var err=document.getElementById('verjError');err.textContent='';
+  if(!naam){err.textContent='Vul een naam in.';return;}
+  var dt=document.getElementById('verjDatum').value;
+  if(!dt){err.textContent='Kies een datum.';return;}
+  var dp=dt.split('-');var mmdd=dp[1]+'-'+dp[2];
+  if(!data.verjaardagen)data.verjaardagen=[];
+  data.verjaardagen.push({id:uid(),naam:naam,datum:mmdd});
+  document.getElementById('verjNaam').value='';document.getElementById('verjDatum').value='';
+  saveToServer();renderVerjaardagen();renderMeerStats();showToast(naam+' toegevoegd ✓');
+});
+document.getElementById('verjNaam').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();document.getElementById('verjDatum').focus();}});
+function renderVerjaardagen(){
+  var list=document.getElementById('verjList');if(!list)return;list.innerHTML='';
+  var items=data.verjaardagen||[];
+  if(!items.length){var e=document.createElement('div');e.className='empty-msg';e.textContent='Nog geen verjaardagen toegevoegd.';list.appendChild(e);return;}
+  var sorted=items.slice().sort(function(a,b){return daysUntilBirthday(a.datum)-daysUntilBirthday(b.datum);});
+  sorted.forEach(function(v){
+    var days=daysUntilBirthday(v.datum);
+    var status=days===0?'urgent':days<=7?'soon':'ok';
+    var item=document.createElement('div');item.className='kluis-item '+status;
+    var hdr=document.createElement('div');hdr.className='kluis-header';
+    var ico=document.createElement('span');ico.textContent='🎂';ico.style.fontSize='18px';
+    var naam=document.createElement('div');naam.className='kluis-naam';naam.textContent=v.naam;
+    var badge=document.createElement('div');badge.className='kluis-badge '+status;
+    badge.textContent=days===0?'Vandaag!':days===1?'Morgen':'Nog '+days+'d';
+    var del=document.createElement('button');del.className='kluis-del';del.textContent='🗑';
+    (function(vi){del.addEventListener('click',function(){customConfirm(vi.naam+' verwijderen?',function(){var idx=data.verjaardagen.indexOf(vi);if(idx>-1)data.verjaardagen.splice(idx,1);saveToServer();renderVerjaardagen();renderMeerStats();});});})(v);
+    hdr.appendChild(ico);hdr.appendChild(naam);hdr.appendChild(badge);hdr.appendChild(del);item.appendChild(hdr);
+    var meta=document.createElement('div');meta.className='kluis-meta';meta.textContent=formatBirthdayDate(v.datum);
+    item.appendChild(meta);
+    var giftBtn=document.createElement('button');giftBtn.className='verj-cadeau-btn';giftBtn.textContent='🎁 Cadeau toevoegen';
+    (function(vi){giftBtn.addEventListener('click',function(){
+      document.getElementById('verjaardagenOverlay').classList.remove('open');
+      document.querySelector('[data-view="boodschappenView"]').click();
+      setTimeout(function(){
+        var ci=document.getElementById('cadeauInput');if(ci){ci.value='Cadeau voor '+vi.naam;ci.focus();}
+        var cs=document.querySelector('.cadeau-section');if(cs)cs.scrollIntoView({behavior:'smooth'});
+      },150);
+    });})(v);
+    item.appendChild(giftBtn);
+    list.appendChild(item);
+  });
+}
+
 // === HUISGEHEUGEN ===
 var GEHEUGEN_ICONS={taak:'✅',onderhoud:'🔧',bestelling:'📦',garantie:'📄',vervaldata:'🔐',recept:'👨‍🍳',overig:'📌'};
 function logHuis(type, tekst, auteur){
@@ -4023,7 +4111,7 @@ document.getElementById('zoekInput').addEventListener('input',function(){
   // Recurring
   (data.recurring||[]).forEach(function(r){if(r.text.toLowerCase().indexOf(q)>-1)hits.push({icon:'↻',text:r.text,sub:recIntervalLabel(r),section:'Vaste taken',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.getElementById('recurringOverlay').classList.add('open');renderRecurringList();}});});
   // Boodschappen
-  (data.boodschappen||[]).forEach(function(b){if(b.text.toLowerCase().indexOf(q)>-1)hits.push({icon:'🛒',text:b.text,sub:b.cat||''+(b.done?' · Afgevinkt':''),section:'Boodschappen',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.querySelector('[data-view="boodschappenView"]').click();}});});
+  (data.boodschappen||[]).forEach(function(b){if(b.text.toLowerCase().indexOf(q)>-1)hits.push({icon:'🛒',text:b.text,sub:(b.cat||'')+(b.done?' · Afgevinkt':''),section:'Boodschappen',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.querySelector('[data-view="boodschappenView"]').click();}});});
   // Garanties
   (data.garanties||[]).forEach(function(g){if(g.text.toLowerCase().indexOf(q)>-1||(g.serienummer&&g.serienummer.toLowerCase().indexOf(q)>-1))hits.push({icon:'📄',text:g.text,sub:(g.serienummer?'S/N: '+g.serienummer+' · ':'')+(g.verloopt?'Verloopt: '+formatDateShort(g.verloopt):''),section:'Garanties',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.getElementById('garantiesOverlay').classList.add('open');renderGaranties();}});});
   // Onderhoud
