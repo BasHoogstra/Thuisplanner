@@ -2079,6 +2079,7 @@ window.addEventListener('beforeinstallprompt',function(e){
 });
 
 function renderAll(){
+  if(typeof autoPrepVakantiePaklijsten==='function')autoPrepVakantiePaklijsten();
   renderVandaag();renderCalendar();renderBoodschappen();renderCadeaus();renderMeerStats();
   if(document.getElementById('bestellingenOverlay').classList.contains('open'))renderBestellingen();
   if(document.getElementById('onderhoudOverlay').classList.contains('open'))renderOnderhoud();
@@ -3323,7 +3324,13 @@ function renderMeerStats(){
   setCardBadge('openOnderhoud',ondWarn,'#e67e22');
   setCardBadge('openGaranties',garExp,'#e84393');
   var vakCount=(data.vakanties||[]).length;
-  document.getElementById('vakantiesSub').textContent=vakCount>0?vakCount+' profiel'+(vakCount===1?'':'en'):'Paklijst & to-do';
+  var nextVakStat=(data.vakanties||[]).filter(function(v){return v.startDatum&&v.startDatum>=todayKey();}).sort(function(a,b){return a.startDatum<b.startDatum?-1:1;})[0];
+  if(nextVakStat){
+    var vsd=daysUntil(nextVakStat.startDatum);
+    document.getElementById('vakantiesSub').textContent=vsd===0?'✈️ Vandaag: '+nextVakStat.naam:vsd===1?nextVakStat.naam+' is morgen':nextVakStat.naam+' over '+vsd+' dagen';
+  } else {
+    document.getElementById('vakantiesSub').textContent=vakCount>0?vakCount+' profiel'+(vakCount===1?'':'en'):'Paklijst & to-do';
+  }
   var kluisUrgent=(data.vervaldata||[]).filter(function(v){var d=daysUntil(v.vervaldatum);return d>=0&&d<=(v.herinnering||90);}).length;
   var ghCount=(data.huisgeheugen||[]).length;
   document.getElementById('huisgeheugenSub').textContent=ghCount>0?ghCount+' log-item'+(ghCount===1?'':'s'):'Alles wat is afgerond';
@@ -4942,6 +4949,27 @@ function voegPakItemsToe(vak,items){
       if(bestaand.indexOf(txt.toLowerCase())===-1){list.push({id:uid(),text:txt,done:false});bestaand.push(txt.toLowerCase());}
     });
   });
+}
+// ── Automatisch paklijst klaarzetten als vertrek dichtbij komt ──
+function autoPrepVakantiePaklijsten(){
+  var prepped=[];
+  getVakanties().forEach(function(vak){
+    if(!vak.startDatum||vak._autoPakSet)return;
+    var d=daysUntil(vak.startDatum);
+    if(d<0||d>14){return;}
+    if(!vak.paklijst)vak.paklijst={};
+    getVakantiePersonen().forEach(function(p){if(!vak.paklijst[p])vak.paklijst[p]=[];});
+    var totItems=0;getVakantiePersonen().forEach(function(p){totItems+=vak.paklijst[p].length;});
+    vak._autoPakSet=true;
+    if(totItems>0)return;
+    voegPakItemsToe(vak,genereerPaklijstItems(vak.type||'algemeen',vak.nachten||7));
+    prepped.push({naam:vak.naam,dagen:d});
+  });
+  if(prepped.length){
+    saveToServer();
+    var f=prepped[0];
+    showToast(prepped.length===1?'📦 Paklijst voor "'+f.naam+'" klaargezet (nog '+f.dagen+' dag'+(f.dagen===1?'':'en')+')!':'📦 '+prepped.length+' paklijsten automatisch klaargezet!');
+  }
 }
 function renderVakanties(){
   var content=document.getElementById('vakantiesContent');content.innerHTML='';
