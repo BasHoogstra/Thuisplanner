@@ -796,7 +796,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         </div>
         <div id="weatherLoc" style="display:none;"><span id="weatherLocText"></span></div>
         <div id="weatherFeels" style="display:none;"></div>
-        <div class="compact-meal" id="vanavondEten" style="display:none;" onclick="document.getElementById('maaltijdOverlay').classList.add('open');renderMaaltijdplanner();">
+        <div class="compact-meal" id="vanavondEten" style="display:none;" onclick="maaltijdWeekOffset=0;document.getElementById('maaltijdOverlay').classList.add('open');renderMaaltijdplanner();">
           <span class="compact-meal-icon">🍽️</span>
           <span class="compact-meal-text">Vanavond: <span class="vanavond-naam"></span></span>
           <span class="compact-meal-arrow">›</span>
@@ -1309,7 +1309,15 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 <div class="full-overlay" id="maaltijdOverlay">
   <div class="full-header"><button class="icon-btn" id="closeMaaltijdBtn">✕</button><h2>🍽 Maaltijdplanner</h2></div>
   <div class="full-body">
-    <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Plan de maaltijden voor deze week. Selecteer een recept of typ vrij.</p>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Plan de maaltijden per week. Selecteer een recept of typ vrij.</p>
+    <div class="month-row" style="padding:0 0 10px;">
+      <button class="icon-btn" id="maaltijdPrevBtn">‹</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="month-title" id="maaltijdWeekTitle"></div>
+        <button class="today-btn" id="maaltijdTodayBtn">Deze week</button>
+      </div>
+      <button class="icon-btn" id="maaltijdNextBtn">›</button>
+    </div>
     <div class="maaltijd-week" id="maaltijdWeek"></div>
     <button class="maaltijd-bood-btn" id="maaltijdNaarBoodBtn">🛒 Genereer boodschappenlijst van ingrediënten</button>
   </div>
@@ -2610,7 +2618,7 @@ function renderWeek(){
       var mlNm=ml.naam||ml.tekst||'Maaltijd gepland';
       var mRow=document.createElement('div');mRow.className='week-meal-row';
       mRow.textContent='🍽 '+mlNm;
-      mRow.addEventListener('click',function(){document.getElementById('maaltijdplannerOverlay').classList.add('open');if(typeof renderMaaltijdplanner==='function')renderMaaltijdplanner();});
+      mRow.addEventListener('click',function(){maaltijdWeekOffset=Math.round((viewWeekStart-getMonday(today))/(7*86400000));document.getElementById('maaltijdOverlay').classList.add('open');if(typeof renderMaaltijdplanner==='function')renderMaaltijdplanner();});
       body.appendChild(mRow);
     }
     card.appendChild(body);container.appendChild(card);
@@ -3989,12 +3997,19 @@ document.getElementById('closeReceptenBtn').addEventListener('click',function(){
 // === MAALTIJDPLANNER ===
 var MAALTIJD_DAGEN=['ma','di','wo','do','vr','za','zo'];
 var MAALTIJD_LABELS={ma:'Maandag',di:'Dinsdag',wo:'Woensdag',do:'Donderdag',vr:'Vrijdag',za:'Zaterdag',zo:'Zondag'};
+var maaltijdWeekOffset=0;
 function getMaaltijdWeekKey(){var mon=getMonday(today);return dateKey(mon.getFullYear(),mon.getMonth(),mon.getDate());}
+function formatWeekRange(mon){
+  var sun=addDays(mon,6);
+  if(mon.getMonth()===sun.getMonth())return mon.getDate()+' - '+sun.getDate()+' '+MONTH_NAMES[mon.getMonth()];
+  return mon.getDate()+' '+MONTH_NAMES[mon.getMonth()].slice(0,3)+' - '+sun.getDate()+' '+MONTH_NAMES[sun.getMonth()].slice(0,3);
+}
 function renderMaaltijdplanner(){
   var container=document.getElementById('maaltijdWeek');if(!container)return;container.innerHTML='';
   if(!data.maaltijdplan)data.maaltijdplan={};
   var plan=data.maaltijdplan;
-  var mon=getMonday(today);
+  var mon=addDays(getMonday(today),maaltijdWeekOffset*7);
+  var titleEl=document.getElementById('maaltijdWeekTitle');if(titleEl)titleEl.textContent=formatWeekRange(mon);
   var recepten=data.recepten||[];
   MAALTIJD_DAGEN.forEach(function(dag,i){
     var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i);
@@ -4035,6 +4050,7 @@ function renderMaaltijdplanner(){
   });
 }
 document.getElementById('openMaaltijdplanner').addEventListener('click',function(){
+  maaltijdWeekOffset=0;
   document.getElementById('maaltijdOverlay').classList.add('open');
   renderMaaltijdplanner();
 });
@@ -4042,6 +4058,9 @@ document.getElementById('closeMaaltijdBtn').addEventListener('click',function(){
   document.getElementById('maaltijdOverlay').classList.remove('open');
   renderMeerStats();
 });
+document.getElementById('maaltijdPrevBtn').addEventListener('click',function(){maaltijdWeekOffset--;renderMaaltijdplanner();});
+document.getElementById('maaltijdNextBtn').addEventListener('click',function(){maaltijdWeekOffset++;renderMaaltijdplanner();});
+document.getElementById('maaltijdTodayBtn').addEventListener('click',function(){maaltijdWeekOffset=0;renderMaaltijdplanner();});
 document.getElementById('maaltijdNaarBoodBtn').addEventListener('click',function(){
   if(!data.maaltijdplan)return;
   var added=0;var seen={};
