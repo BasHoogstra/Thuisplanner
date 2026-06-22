@@ -663,6 +663,24 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .budget-total-row:last-child{margin-bottom:0;font-weight:700;font-size:14px;}
 .budget-prog-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px;}
 .budget-prog-fill{height:100%;border-radius:4px;background:var(--accent);transition:width .4s;}
+.meer-card-budget::before{background:linear-gradient(90deg,#10ac84,#1dd1a1);}
+.vl-cat{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;}
+.vl-cat-header{display:flex;align-items:center;gap:8px;padding:12px 14px;cursor:pointer;}
+.vl-cat-arrow{font-size:11px;color:var(--muted);transition:transform .2s;flex-shrink:0;display:inline-block;}
+.vl-cat-arrow.open{transform:rotate(90deg);}
+.vl-cat-name{flex:1;font-size:14px;font-weight:700;}
+.vl-cat-totals{font-size:12px;color:var(--muted);white-space:nowrap;}
+.vl-cat-items{padding:0 14px 12px;}
+.vl-item{border-top:1px solid var(--border);padding:10px 0;}
+.vl-item:first-child{border-top:none;}
+.vl-item-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.vl-item-naam{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:14px;background:var(--bg);color:var(--text);font-weight:600;min-width:0;}
+.vl-item-del{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;flex-shrink:0;padding:4px;}
+.vl-num{flex:1;min-width:80px;border:1px solid var(--border);border-radius:8px;padding:7px 8px;font-size:13px;background:var(--bg);color:var(--text);}
+.vl-item-pm{font-size:11px;color:var(--muted);margin-bottom:6px;}
+.vl-item-extra{display:flex;gap:6px;flex-wrap:wrap;}
+.vl-extra-input{flex:1;min-width:100px;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--muted);}
+.vl-add-item-btn{width:100%;background:none;border:1px dashed var(--border);border-radius:8px;padding:8px;font-size:13px;color:var(--accent);cursor:pointer;margin-top:4px;}
 
 /* Setup */
 .setup-overlay{position:fixed;inset:0;background:var(--bg);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -907,6 +925,14 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         <div class="meer-card-icon">✈️</div>
         <div class="meer-card-title">Vakanties</div>
         <div class="meer-card-sub" id="vakantiesSub">Paklijst &amp; to-do</div>
+      </div>
+    </div>
+    <div class="meer-section-header">💰 Financiën</div>
+    <div class="meer-grid">
+      <div class="meer-card meer-card-budget" id="openBudget">
+        <div class="meer-card-icon">💰</div>
+        <div class="meer-card-title">Vaste Lasten</div>
+        <div class="meer-card-sub" id="budgetSub">Vaste lasten overzicht</div>
       </div>
     </div>
     <div class="meer-section-header">🍽 Eten</div>
@@ -1295,6 +1321,15 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
   </div>
 </div>
 
+<!-- VASTE LASTEN / BUDGET -->
+<div class="full-overlay" id="budgetOverlay">
+  <div class="full-header"><button class="icon-btn" id="closeBudgetBtn">✕</button><h2>💰 Vaste Lasten</h2></div>
+  <div class="full-body">
+    <div class="budget-totals" id="budgetSummary"></div>
+    <div id="budgetCatList"></div>
+  </div>
+</div>
+
 <!-- HUISGEHEUGEN -->
 <div class="full-overlay" id="huisgeheugenOverlay">
   <div class="full-header"><button class="icon-btn" id="closeHuisgeheugenBtn">✕</button><h2>🧠 Huisgeheugen</h2></div>
@@ -1594,7 +1629,7 @@ var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','z
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[],verlanglijstjes:{},cadeaus:[]};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[],verlanglijstjes:{},cadeaus:[],budget:[]};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -1780,6 +1815,34 @@ function getOverdueRecurring(tk){
   return result;
 }
 
+// ── Vaste Lasten / Budget: categorieën, periode-omrekening, standaardposten ──
+var BUDGET_CATS=['Wonen','Vervoer','Verzekeringen','Communicatie en entertainment','Lidmaatschappen, abonnementen','Kinderen','Voeding','Persoonlijke verzorging','Diversen'];
+var BUDGET_PERIODE_DIV={maand:1,kwartaal:3,jaar:12,halfjaar:6};
+var BUDGET_PERIODE_LABEL={maand:'maand',kwartaal:'kwartaal',jaar:'jaar',halfjaar:'half jaar'};
+function budgetPM(bedrag,periode){return (parseFloat(bedrag)||0)/(BUDGET_PERIODE_DIV[periode]||1);}
+function getDefaultBudgetItems(){
+  var defs=[
+    ['Wonen','Huur/hypotheek','maand'],['Wonen','Vereniging van eigenaren','maand'],['Wonen','Servicekosten woning','maand'],
+    ['Wonen','Electriciteit + gas','maand'],['Wonen','Drinkwater','kwartaal'],['Wonen','Waterschapsbelasting','jaar'],['Wonen','Gemeentelijke belastingen','jaar'],
+    ['Vervoer','OV vervoer','maand'],['Vervoer','Aflossing auto','maand'],['Vervoer','Lease kosten','maand'],['Vervoer','Parkeergeld','maand'],
+    ['Vervoer','Parkeervergunning','maand'],['Vervoer','Rijwielstalling','maand'],['Vervoer','Wegenbelasting','maand'],['Vervoer','Autoverzekering','maand'],
+    ['Vervoer','Brandstof','maand'],['Vervoer','Wasstraat','maand'],['Vervoer','Onderhoud / APK','maand'],['Vervoer','ANWB/wegenwacht','maand'],
+    ['Verzekeringen','Zorgverzekering','maand'],['Verzekeringen','Zorgverzekering partner','maand'],['Verzekeringen','Levensverzekering','maand'],
+    ['Verzekeringen','Ongevallenverzekering','maand'],['Verzekeringen','AVP-verzekering','maand'],['Verzekeringen','Uitvaartverzekering','kwartaal'],
+    ['Verzekeringen','Inboedelverzekering','maand'],['Verzekeringen','Aansprakelijkheid','maand'],['Verzekeringen','Rechtsbijstandverzekering','maand'],
+    ['Communicatie en entertainment','TV/internet','maand'],['Communicatie en entertainment','Mobiel 1','maand'],
+    ['Communicatie en entertainment','Mobiel 2','maand'],['Communicatie en entertainment','Mobiel 3','maand'],
+    ['Lidmaatschappen, abonnementen','Netflix/HBO Max/Disney','maand'],['Lidmaatschappen, abonnementen','Spotify','maand'],
+    ['Lidmaatschappen, abonnementen','Videoland','maand'],['Lidmaatschappen, abonnementen','Sporten','maand'],
+    ['Kinderen','Schoolgeld','jaar'],['Kinderen','Kledinggeld','maand'],['Kinderen','Alimentatie','maand'],['Kinderen',"Hobby's en sport",'maand'],
+    ['Kinderen','Cadeaus verjaardagen','jaar'],['Kinderen','Zakgeld','maand'],['Kinderen','Mobiel','maand'],
+    ['Voeding','Boodschappen incl. schoonmaakproducten','maand'],['Voeding','Lunch','maand'],['Voeding','Uit eten','maand'],['Voeding','Bezorg- en afhaalmaaltijden','maand'],
+    ['Persoonlijke verzorging','Kapper','maand'],['Persoonlijke verzorging','Pedicure / manicure','halfjaar'],
+    ['Diversen','Kleding','maand'],['Diversen','Uitgaan/uitjes','kwartaal'],['Diversen','Bankkosten','maand'],['Diversen','Debetrente roodstand','maand']
+  ];
+  return defs.map(function(d){return {id:uid(),cat:d[0],naam:d[1],instantie:'',periode:d[2],bedrag:0,bedragNieuw:0,advies:''};});
+}
+
 function dataUrl(){return dbUrl.replace(/\/$/,'')+'/planners/'+plannerKey+'.json';}
 
 function loadFromServer(isInitial){
@@ -1788,7 +1851,7 @@ function loadFromServer(isInitial){
   fetch(dataUrl()).then(function(r){if(!r.ok)throw new Error('status:'+r.status);return r.json();}).then(function(json){
     var inc=json||{};
     ['tasks','notes','recurringDone'].forEach(function(k){if(!inc[k])inc[k]={};});
-    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};if(!inc.boodCatOverrides||typeof inc.boodCatOverrides!=='object'||Array.isArray(inc.boodCatOverrides))inc.boodCatOverrides={};if(!inc.gewoonten||!Array.isArray(inc.gewoonten))inc.gewoonten=[];if(!inc.gewoontenDone||typeof inc.gewoontenDone!=='object'||Array.isArray(inc.gewoontenDone))inc.gewoontenDone={};if(!inc.vakantiePersonen||!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];if(!inc.verjaardagen||!Array.isArray(inc.verjaardagen))inc.verjaardagen=[];if(!inc.verlanglijstjes||typeof inc.verlanglijstjes!=='object'||Array.isArray(inc.verlanglijstjes))inc.verlanglijstjes={};
+    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};if(!inc.boodCatOverrides||typeof inc.boodCatOverrides!=='object'||Array.isArray(inc.boodCatOverrides))inc.boodCatOverrides={};if(!inc.gewoonten||!Array.isArray(inc.gewoonten))inc.gewoonten=[];if(!inc.gewoontenDone||typeof inc.gewoontenDone!=='object'||Array.isArray(inc.gewoontenDone))inc.gewoontenDone={};if(!inc.vakantiePersonen||!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];if(!inc.verjaardagen||!Array.isArray(inc.verjaardagen))inc.verjaardagen=[];if(!inc.verlanglijstjes||typeof inc.verlanglijstjes!=='object'||Array.isArray(inc.verlanglijstjes))inc.verlanglijstjes={};
     if(!inc.notitieboek)inc.notitieboek='';
     if(!inc.notitieboekMeta)inc.notitieboekMeta={};
     var s=JSON.stringify(inc);
@@ -1809,6 +1872,12 @@ function loadFromServer(isInitial){
     if(corruptVak.length){
       // Migratie: ongeldige vertrekdatum (bv. jaar 0020 door foutieve invoer) opschonen
       corruptVak.forEach(function(v){v.startDatum='';});
+      saveToServer();renderMeerStats();
+    }
+    if(!data.budgetSeeded){
+      // Eenmalig: vaste-lastenlijst vullen met standaard categorieën/posten
+      data.budget=(data.budget||[]).concat(getDefaultBudgetItems());
+      data.budgetSeeded=true;
       saveToServer();renderMeerStats();
     }
     setSync('','Bijgewerkt · '+nowTime());
@@ -2121,6 +2190,7 @@ function renderAll(){
   if(document.getElementById('onderhoudOverlay').classList.contains('open'))renderOnderhoud();
   if(document.getElementById('backlogOverlay').classList.contains('open'))renderBacklog();
   if(document.getElementById('garantiesOverlay').classList.contains('open'))renderGaranties();
+  if(document.getElementById('budgetOverlay').classList.contains('open'))renderBudget();
   if(openDateKey){renderSheetTasks();renderRecurring();renderMdTasks();}
 }
 
@@ -3337,6 +3407,9 @@ function renderWeekOverzicht(){
 }
 
 function renderMeerStats(){
+  var budgetTotalM=(data.budget||[]).reduce(function(s,b){return s+budgetPM(b.bedrag,b.periode);},0);
+  var budgetSubEl=document.getElementById('budgetSub');
+  if(budgetSubEl)budgetSubEl.textContent=budgetTotalM>0?'€'+Math.round(budgetTotalM)+'/maand vast':'Vaste lasten overzicht';
   var openBest=(data.bestellingen||[]).filter(function(b){return b.status!=='geleverd';}).length;
   document.getElementById('bestellingenSub').textContent=openBest>0?openBest+' open bestelling'+(openBest===1?'':'en'):'Bijhouden wat je hebt besteld';
   var ondDue=(data.onderhoud||[]).filter(function(o){
@@ -4356,6 +4429,77 @@ function renderGaranties(){
     list.appendChild(item);
   });
 }
+
+// === VASTE LASTEN / BUDGET ===
+var budgetOpenCats={};
+function renderBudget(){
+  var items=data.budget||[];
+  var totH=0,totN=0;
+  items.forEach(function(it){totH+=budgetPM(it.bedrag,it.periode);totN+=budgetPM(it.bedragNieuw,it.periode);});
+  var diff=totN-totH;
+  var sum=document.getElementById('budgetSummary');sum.innerHTML='';
+  var r1=document.createElement('div');r1.className='budget-total-row';r1.innerHTML='<span>Huidig totaal</span><span>€'+totH.toFixed(2)+' /maand</span>';
+  var r2=document.createElement('div');r2.className='budget-total-row';r2.innerHTML='<span>Voorstel totaal</span><span>€'+totN.toFixed(2)+' /maand</span>';
+  var r3=document.createElement('div');r3.className='budget-total-row';r3.innerHTML='<span>'+(diff<=0?'Besparing':'Extra kosten')+'</span><span style="color:'+(diff<=0?'var(--green)':'var(--danger)')+'">€'+Math.abs(diff).toFixed(2)+' /maand</span>';
+  sum.appendChild(r1);sum.appendChild(r2);sum.appendChild(r3);
+  var list=document.getElementById('budgetCatList');list.innerHTML='';
+  BUDGET_CATS.forEach(function(cat){
+    var catItems=items.filter(function(it){return it.cat===cat;});
+    var catH=0,catN=0;catItems.forEach(function(it){catH+=budgetPM(it.bedrag,it.periode);catN+=budgetPM(it.bedragNieuw,it.periode);});
+    var isOpen=!!budgetOpenCats[cat];
+    var wrap=document.createElement('div');wrap.className='vl-cat';
+    var header=document.createElement('div');header.className='vl-cat-header';
+    var arrow=document.createElement('span');arrow.className='vl-cat-arrow'+(isOpen?' open':'');arrow.textContent='▸';
+    var nameEl=document.createElement('span');nameEl.className='vl-cat-name';nameEl.textContent=cat+' ('+catItems.length+')';
+    var totEl=document.createElement('span');totEl.className='vl-cat-totals';totEl.textContent='€'+catH.toFixed(0)+' → €'+catN.toFixed(0);
+    header.appendChild(arrow);header.appendChild(nameEl);header.appendChild(totEl);
+    header.addEventListener('click',function(){budgetOpenCats[cat]=!budgetOpenCats[cat];renderBudget();});
+    wrap.appendChild(header);
+    if(isOpen){
+      var itemsWrap=document.createElement('div');itemsWrap.className='vl-cat-items';
+      catItems.forEach(function(it){itemsWrap.appendChild(buildBudgetItemRow(it));});
+      var addBtn=document.createElement('button');addBtn.className='vl-add-item-btn';addBtn.textContent='+ Post toevoegen';
+      addBtn.addEventListener('click',function(){
+        if(!data.budget)data.budget=[];
+        data.budget.push({id:uid(),cat:cat,naam:'Nieuwe post',instantie:'',periode:'maand',bedrag:0,bedragNieuw:0,advies:''});
+        saveToServer();renderBudget();
+      });
+      itemsWrap.appendChild(addBtn);
+      wrap.appendChild(itemsWrap);
+    }
+    list.appendChild(wrap);
+  });
+}
+function buildBudgetItemRow(it){
+  var row=document.createElement('div');row.className='vl-item';
+  var top=document.createElement('div');top.className='vl-item-top';
+  var naam=document.createElement('input');naam.type='text';naam.className='vl-item-naam';naam.value=it.naam||'';naam.maxLength=100;
+  naam.addEventListener('change',function(){it.naam=this.value.trim()||'Naamloos';saveToServer();renderBudget();});
+  var del=document.createElement('button');del.className='vl-item-del';del.textContent='✕';
+  del.addEventListener('click',function(){var idx=data.budget.indexOf(it);if(idx>-1)data.budget.splice(idx,1);saveToServer();renderBudget();});
+  top.appendChild(naam);top.appendChild(del);row.appendChild(top);
+  var fieldsRow=document.createElement('div');fieldsRow.className='meta-row';
+  var sel=document.createElement('select');sel.className='meta-select';
+  Object.keys(BUDGET_PERIODE_LABEL).forEach(function(p){var o=document.createElement('option');o.value=p;o.textContent=BUDGET_PERIODE_LABEL[p];if(p===it.periode)o.selected=true;sel.appendChild(o);});
+  sel.addEventListener('change',function(){it.periode=this.value;saveToServer();renderBudget();});
+  var inpH=document.createElement('input');inpH.type='number';inpH.min='0';inpH.step='0.01';inpH.className='vl-num';inpH.placeholder='Huidig €';inpH.value=it.bedrag||'';
+  inpH.addEventListener('change',function(){it.bedrag=parseFloat(this.value)||0;saveToServer();renderBudget();});
+  var inpN=document.createElement('input');inpN.type='number';inpN.min='0';inpN.step='0.01';inpN.className='vl-num';inpN.placeholder='Voorstel €';inpN.value=it.bedragNieuw||'';
+  inpN.addEventListener('change',function(){it.bedragNieuw=parseFloat(this.value)||0;saveToServer();renderBudget();});
+  fieldsRow.appendChild(sel);fieldsRow.appendChild(inpH);fieldsRow.appendChild(inpN);row.appendChild(fieldsRow);
+  var pm=document.createElement('div');pm.className='vl-item-pm';
+  pm.textContent='≈ €'+budgetPM(it.bedrag,it.periode).toFixed(2)+'/mnd'+(parseFloat(it.bedragNieuw)?' → €'+budgetPM(it.bedragNieuw,it.periode).toFixed(2)+'/mnd voorstel':'');
+  row.appendChild(pm);
+  var extra=document.createElement('div');extra.className='vl-item-extra';
+  var inst=document.createElement('input');inst.type='text';inst.className='vl-extra-input';inst.placeholder='Instantie (optioneel)';inst.value=it.instantie||'';inst.maxLength=80;
+  inst.addEventListener('change',function(){it.instantie=this.value.trim();saveToServer();});
+  var adv=document.createElement('input');adv.type='text';adv.className='vl-extra-input';adv.placeholder='Advies / notitie (optioneel)';adv.value=it.advies||'';adv.maxLength=160;
+  adv.addEventListener('change',function(){it.advies=this.value.trim();saveToServer();});
+  extra.appendChild(inst);extra.appendChild(adv);row.appendChild(extra);
+  return row;
+}
+document.getElementById('openBudget').addEventListener('click',function(){document.getElementById('budgetOverlay').classList.add('open');renderBudget();});
+document.getElementById('closeBudgetBtn').addEventListener('click',function(){document.getElementById('budgetOverlay').classList.remove('open');renderMeerStats();});
 
 // ── Taak-autocomplete ────────────────────────────────────────
 (function(){
