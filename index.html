@@ -1406,6 +1406,8 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
       <input type="text" id="verjNaam" placeholder="Naam" maxlength="60">
       <label class="field-label">Geboortedatum (het jaar maakt niet uit)</label>
       <input type="date" id="verjDatum">
+      <label class="field-label">Geboortejaar (optioneel, voor leeftijd)</label>
+      <input type="number" id="verjJaar" placeholder="bijv. 2018" min="1900" max="2026">
       <div class="setup-error" id="verjError"></div>
       <button class="add-card-btn" id="verjAddBtn">Toevoegen</button>
     </div>
@@ -3337,7 +3339,12 @@ function renderMeerStats(){
   if(verjEl){
     var nextBd=(data.verjaardagen||[]).slice().sort(function(a,b){return daysUntilBirthday(a.datum)-daysUntilBirthday(b.datum);})[0];
     if(!nextBd)verjEl.textContent='Wie is er jarig?';
-    else{var dN=daysUntilBirthday(nextBd.datum);verjEl.textContent=dN===0?'🎂 Vandaag: '+nextBd.naam+'!':dN===1?nextBd.naam+' is morgen jarig':nextBd.naam+' over '+dN+' dagen';}
+    else{
+      var dN=daysUntilBirthday(nextBd.datum);
+      var nextAge=ageAtNextBirthday(nextBd.datum,nextBd.jaar);
+      var ageSuf=nextAge!==null?' ('+nextAge+')':'';
+      verjEl.textContent=dN===0?'🎂 Vandaag: '+nextBd.naam+ageSuf+'!':dN===1?nextBd.naam+ageSuf+' is morgen jarig':nextBd.naam+ageSuf+' over '+dN+' dagen';
+    }
   }
   setCardBadge('openVerjaardagen',(data.verjaardagen||[]).filter(function(b){return daysUntilBirthday(b.datum)===0;}).length,'#e17055');
 }
@@ -3847,6 +3854,22 @@ function daysUntilBirthday(mmdd){
   return Math.round((next-t)/(1000*60*60*24));
 }
 function formatBirthdayDate(mmdd){var p=mmdd.split('-').map(Number);return p[1]+' '+MONTH_NAMES[p[0]-1].slice(0,3);}
+function ageAtNextBirthday(mmdd,jaar){
+  if(!jaar)return null;
+  var p=mmdd.split('-').map(Number);var mo=p[0],da=p[1];
+  var t=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+  var next=new Date(today.getFullYear(),mo-1,da);
+  if(next<t)next=new Date(today.getFullYear()+1,mo-1,da);
+  return next.getFullYear()-jaar;
+}
+function promptVerjJaar(v){
+  customPrompt('Geboortejaar van '+v.naam+' (voor leeftijd)',v.jaar?String(v.jaar):'',function(val){
+    val=(val||'').trim();
+    if(!val)delete v.jaar;
+    else{var j=parseInt(val,10);if(!isNaN(j)&&j>=1900&&j<=today.getFullYear())v.jaar=j;}
+    saveToServer();renderVerjaardagen();renderMeerStats();
+  },{placeholder:'bijv. 2018',okText:'Opslaan'});
+}
 document.getElementById('openVerjaardagen').addEventListener('click',function(){document.getElementById('verjaardagenOverlay').classList.add('open');renderVerjaardagen();});
 document.getElementById('closeVerjaardagenBtn').addEventListener('click',function(){document.getElementById('verjaardagenOverlay').classList.remove('open');renderMeerStats();});
 document.getElementById('verjAddBtn').addEventListener('click',function(){
@@ -3856,9 +3879,16 @@ document.getElementById('verjAddBtn').addEventListener('click',function(){
   var dt=document.getElementById('verjDatum').value;
   if(!dt){err.textContent='Kies een datum.';return;}
   var dp=dt.split('-');var mmdd=dp[1]+'-'+dp[2];
+  var jaarVal=document.getElementById('verjJaar').value.trim();
+  if(jaarVal){
+    var jaarNum=parseInt(jaarVal,10);
+    if(isNaN(jaarNum)||jaarNum<1900||jaarNum>today.getFullYear()){err.textContent='Vul een geldig geboortejaar in.';return;}
+  }
   if(!data.verjaardagen)data.verjaardagen=[];
-  data.verjaardagen.push({id:uid(),naam:naam,datum:mmdd});
-  document.getElementById('verjNaam').value='';document.getElementById('verjDatum').value='';
+  var newVerj={id:uid(),naam:naam,datum:mmdd};
+  if(jaarVal)newVerj.jaar=parseInt(jaarVal,10);
+  data.verjaardagen.push(newVerj);
+  document.getElementById('verjNaam').value='';document.getElementById('verjDatum').value='';document.getElementById('verjJaar').value='';
   saveToServer();renderVerjaardagen();renderMeerStats();showToast(naam+' toegevoegd ✓');
 });
 document.getElementById('verjNaam').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();document.getElementById('verjDatum').focus();}});
@@ -3879,8 +3909,12 @@ function renderVerjaardagen(){
     var del=document.createElement('button');del.className='kluis-del';del.textContent='🗑';
     (function(vi){del.addEventListener('click',function(){customConfirm(vi.naam+' verwijderen?',function(){var idx=data.verjaardagen.indexOf(vi);if(idx>-1)data.verjaardagen.splice(idx,1);saveToServer();renderVerjaardagen();renderMeerStats();});});})(v);
     hdr.appendChild(ico);hdr.appendChild(naam);hdr.appendChild(badge);hdr.appendChild(del);item.appendChild(hdr);
-    var meta=document.createElement('div');meta.className='kluis-meta';meta.textContent=formatBirthdayDate(v.datum);
+    var age=ageAtNextBirthday(v.datum,v.jaar);
+    var metaParts=[formatBirthdayDate(v.datum)];
+    if(age!==null)metaParts.push('wordt '+age+' jaar');
+    var meta=document.createElement('div');meta.className='kluis-meta';meta.textContent=metaParts.join(' · ');
     item.appendChild(meta);
+    var actionsRow=document.createElement('div');actionsRow.style.cssText='display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;';
     var giftBtn=document.createElement('button');giftBtn.className='verj-cadeau-btn';giftBtn.textContent='🎁 Cadeau toevoegen';
     (function(vi){giftBtn.addEventListener('click',function(){
       document.getElementById('verjaardagenOverlay').classList.remove('open');
@@ -3890,7 +3924,10 @@ function renderVerjaardagen(){
         var cs=document.querySelector('.cadeau-section');if(cs)cs.scrollIntoView({behavior:'smooth'});
       },150);
     });})(v);
-    item.appendChild(giftBtn);
+    var jaarBtn=document.createElement('button');jaarBtn.className='verj-cadeau-btn';jaarBtn.textContent=v.jaar?'✏️ Geboortejaar':'🎈 Leeftijd instellen';
+    (function(vi){jaarBtn.addEventListener('click',function(){promptVerjJaar(vi);});})(v);
+    actionsRow.appendChild(giftBtn);actionsRow.appendChild(jaarBtn);
+    item.appendChild(actionsRow);
     list.appendChild(item);
   });
 }
