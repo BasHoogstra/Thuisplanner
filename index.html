@@ -1750,6 +1750,36 @@ function recAppliesToDate(r,k){
   return false;
 }
 
+// ── Gemiste vaste taken (bv. Koppelgesprek) vinden die nog niet alsnog zijn afgerond ──
+// Zoekt per vaste taak naar de meest recente vervaldatum binnen de laatste 30 dagen die
+// nog niet is afgevinkt op die dag zelf of op een latere dag (incl. vandaag). Zo'n taak
+// blijft "open" staan in Vandaag totdat hij alsnog wordt afgevinkt.
+function getOverdueRecurring(tk){
+  var cutoffD=addDays(today,-30);var cutoffKey=dateKey(cutoffD.getFullYear(),cutoffD.getMonth(),cutoffD.getDate());
+  var result=[];
+  (data.recurring||[]).forEach(function(r){
+    var lastDueKey=null;
+    var d=keyToDate(cutoffKey);
+    while(true){
+      var k=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+      if(k>=tk)break;
+      if(recAppliesToDate(r,k))lastDueKey=k;
+      d=addDays(d,1);
+    }
+    if(!lastDueKey)return;
+    var doneSince=false;
+    var d2=keyToDate(lastDueKey);
+    while(true){
+      var k2=dateKey(d2.getFullYear(),d2.getMonth(),d2.getDate());
+      if((data.recurringDone&&data.recurringDone[k2]||[]).indexOf(r.id)>-1){doneSince=true;break;}
+      if(k2>=tk)break;
+      d2=addDays(d2,1);
+    }
+    if(!doneSince)result.push(r);
+  });
+  return result;
+}
+
 function dataUrl(){return dbUrl.replace(/\/$/,'')+'/planners/'+plannerKey+'.json';}
 
 function loadFromServer(isInitial){
@@ -2160,6 +2190,10 @@ function renderVandaag(){
   var tk=todayKey();
   var dayTasksRaw=data.tasks[tk]||[];var prioOrder={hoog:0,normaal:1,laag:2};var dayTasks=dayTasksRaw.slice().sort(function(a,b){return (prioOrder[a.priority||'normaal']||1)-(prioOrder[b.priority||'normaal']||1);});
   var recToday=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,tk);});
+  if(typeof getOverdueRecurring==='function'){
+    var overdueRec=getOverdueRecurring(tk).filter(function(r){return recToday.indexOf(r)===-1;});
+    if(overdueRec.length)recToday=recToday.concat(overdueRec);
+  }
   var recDone=(data.recurringDone&&data.recurringDone[tk])||[];
   var mdToday=(data.multiDayTasks||[]).filter(function(md){return md.startDate<=tk&&md.endDate>=tk;});
   var doneCount=dayTasks.filter(function(t){return t.done;}).length;
@@ -2219,10 +2253,10 @@ function renderVandaag(){
       });
     } else {vvb.classList.remove('visible');}
   }
-  // Verlopen taken banner (losse taken van eerdere dagen, nog niet afgerond)
+  // Verlopen taken automatisch doorschuiven naar vandaag (losse taken van eerdere dagen, nog niet afgerond)
   (function(){
-    var odb=document.getElementById('overdueBanner');var odbt=document.getElementById('overdueBannerText');var odbBtn=document.getElementById('overdueBannerBtn');
-    if(!odb||!odbt||!odbBtn)return;
+    var odb=document.getElementById('overdueBanner');
+    if(odb)odb.classList.remove('visible');
     var cutoffD=addDays(today,-30);var cutoffKey=dateKey(cutoffD.getFullYear(),cutoffD.getMonth(),cutoffD.getDate());
     var overdue=[];
     Object.keys(data.tasks||{}).forEach(function(k){
@@ -2230,17 +2264,16 @@ function renderVandaag(){
       (data.tasks[k]||[]).forEach(function(t){if(!t.done)overdue.push({key:k,task:t});});
     });
     if(overdue.length){
-      odb.classList.add('visible');
-      odbt.textContent=overdue.length+' '+(overdue.length===1?'taak':'taken')+' van eerder nog open';
-      odbBtn.onclick=function(){
-        overdue.forEach(function(o){
-          var arr=data.tasks[o.key];if(!arr)return;var idx=arr.indexOf(o.task);if(idx>-1)arr.splice(idx,1);
-          if(!data.tasks[tk])data.tasks[tk]=[];
-          data.tasks[tk].push(o.task);
-        });
-        saveToServer();renderVandaag();renderCalendar();showToast('Doorgeschoven naar vandaag ✓');
-      };
-    } else {odb.classList.remove('visible');}
+      overdue.forEach(function(o){
+        var arr=data.tasks[o.key];if(!arr)return;var idx=arr.indexOf(o.task);if(idx>-1)arr.splice(idx,1);
+        if(!data.tasks[tk])data.tasks[tk]=[];
+        data.tasks[tk].push(o.task);
+      });
+      dayTasksRaw=data.tasks[tk];dayTasks=dayTasksRaw.slice().sort(function(a,b){return (prioOrder[a.priority||'normaal']||1)-(prioOrder[b.priority||'normaal']||1);});
+      doneCount=dayTasks.filter(function(t){return t.done;}).length;totalCount=dayTasks.length+recToday.length;
+      saveToServer();renderCalendar();
+      showToast((overdue.length===1?'1 taak':overdue.length+' taken')+' van eerder doorgeschoven naar vandaag ↻');
+    }
   })();
   // ── Vanavond eten ─────────────────────────────────────────────
   (function(){
@@ -2268,6 +2301,7 @@ function renderVandaag(){
 
   recToday.forEach(function(r){
     var isDone=recDone.indexOf(r.id)>-1;
+    var isCarried=!recAppliesToDate(r,tk);
     var cat=getCat(r.category);
     var item=document.createElement('div');item.className='vandaag-task';
     var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Overslaan';item.appendChild(sbg);
@@ -2282,7 +2316,7 @@ function renderVandaag(){
     });
     var body=document.createElement('div');body.className='vandaag-task-body';
     var txt=document.createElement('div');txt.className='vandaag-task-text'+(isDone?' done':'');txt.textContent=cat.emoji+' ↻ '+r.text;
-    var meta=document.createElement('div');meta.className='vandaag-task-meta';meta.innerHTML='<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:.7;margin-right:4px;vertical-align:middle;"></span>Vaste taak';
+    var meta=document.createElement('div');meta.className='vandaag-task-meta';meta.innerHTML='<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:'+(isCarried?'#e67e22':'var(--accent)')+';opacity:.7;margin-right:4px;vertical-align:middle;"></span>'+(isCarried?'⏰ Gemist — alsnog afronden':'Vaste taak');
     body.appendChild(txt);body.appendChild(meta);
     if(r.koppelgesprek&&!isDone){
       var anch=r.anchorDate||'2026-06-19';var ap=anch.split('-').map(Number);var ad=new Date(ap[0],ap[1]-1,ap[2]);
@@ -4702,6 +4736,10 @@ function showBriefing(force){
   // ── Taken vandaag ─────────────────────────
   var dayTasks=(data.tasks[tk]||[]).filter(function(t){return !t.done;});
   var recToday2=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,tk);});
+  if(typeof getOverdueRecurring==='function'){
+    var overdueRec2=getOverdueRecurring(tk).filter(function(r){return recToday2.indexOf(r)===-1;});
+    if(overdueRec2.length)recToday2=recToday2.concat(overdueRec2);
+  }
   var rdToday=(data.recurringDone&&data.recurringDone[tk])||[];
   var recOpen=recToday2.filter(function(r){return rdToday.indexOf(r.id)===-1;});
   var totalOpen=dayTasks.length+recOpen.length;
