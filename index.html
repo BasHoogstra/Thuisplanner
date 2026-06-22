@@ -1775,6 +1775,12 @@ function loadFromServer(isInitial){
       data.recurring.push({id:uid(),text:'Koppelgesprek 💑',interval:'biweek',anchorDate:'2026-06-19',koppelgesprek:true,category:'thuis',priority:'normaal'});
       saveToServer();renderVandaag();renderCalendar();
     }
+    var corruptVak=(data.vakanties||[]).filter(function(v){return v.startDatum&&(parseInt(String(v.startDatum).split('-')[0],10)<2000);});
+    if(corruptVak.length){
+      // Migratie: ongeldige vertrekdatum (bv. jaar 0020 door foutieve invoer) opschonen
+      corruptVak.forEach(function(v){v.startDatum='';});
+      saveToServer();renderMeerStats();
+    }
     setSync('','Bijgewerkt · '+nowTime());
     document.getElementById('refreshBtn').style.display='';
   }).catch(function(err){
@@ -5007,14 +5013,23 @@ function renderVakanties(){
   var dateRow=document.createElement('div');dateRow.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:10px;';
   var dateLabel=document.createElement('label');dateLabel.textContent='✈️ Vertrekdatum:';dateLabel.style.cssText='font-size:12px;color:var(--muted);white-space:nowrap;';
   var dateInp=document.createElement('input');dateInp.type='date';dateInp.value=activeVak.startDatum||'';
+  var vakCurYear=new Date().getFullYear();
+  dateInp.min=(vakCurYear-1)+'-01-01';dateInp.max=(vakCurYear+5)+'-12-31';
   dateInp.style.cssText='border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:14px;background:var(--card);color:var(--text);flex:1;';
-  (function(vak){dateInp.addEventListener('change',function(){vak.startDatum=dateInp.value;saveToServer();renderVakanties();});})(activeVak);
+  (function(vak){dateInp.addEventListener('change',function(){
+    var val=dateInp.value;
+    if(val){
+      var jr=parseInt(val.split('-')[0],10);
+      if(isNaN(jr)||jr<vakCurYear-1||jr>vakCurYear+5){showToast('Vul een geldig jaartal in (bijv. '+vakCurYear+')');dateInp.value=vak.startDatum||'';return;}
+    }
+    vak.startDatum=val;saveToServer();renderVakanties();
+  });})(activeVak);
   dateRow.appendChild(dateLabel);dateRow.appendChild(dateInp);
   // Countdown badge
   if(activeVak.startDatum){
-    var today=new Date();today.setHours(0,0,0,0);
+    var nowD=new Date();nowD.setHours(0,0,0,0);
     var dep=new Date(activeVak.startDatum);dep.setHours(0,0,0,0);
-    var diff=Math.round((dep-today)/(1000*60*60*24));
+    var diff=Math.round((dep-nowD)/(1000*60*60*24));
     var badge=document.createElement('div');
     if(diff>0){badge.textContent='🗓 Nog '+diff+' dag'+(diff===1?'':'en');badge.style.cssText='background:var(--accent);color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:700;white-space:nowrap;';}
     else if(diff===0){badge.textContent='✈️ Vandaag!';badge.style.cssText='background:#27ae60;color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:700;white-space:nowrap;';}
