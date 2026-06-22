@@ -334,6 +334,21 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .boodschap-meta{font-size:8px;}
 @media(max-width:359px){.boodschappen-list{grid-template-columns:1fr;}}
 
+/* Cadeaus: vast apart blok onderaan boodschappen, los van de boodschappencategorieën */
+.cadeau-section{padding:4px 16px 4px;}
+.cadeau-header{font-size:13px;font-weight:700;color:var(--text);padding-top:12px;border-top:1px solid var(--border);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.cadeau-add{padding:0 0 8px;}
+.cadeau-list{display:flex;flex-direction:column;gap:5px;}
+.cadeau-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card);border:1px solid var(--border);border-radius:10px;position:relative;overflow:hidden;transition:transform .15s;}
+.cadeau-item.swiping{transition:none;}
+.cadeau-check{width:22px;height:22px;border-radius:50%;border:2px solid var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:10px;color:#fff;touch-action:manipulation;}
+.cadeau-check.checked{background:var(--green);border-color:var(--green);}
+.cadeau-text{flex:1;font-size:13px;color:var(--text);}
+.cadeau-text.done{text-decoration:line-through;color:var(--done);}
+.cadeau-meta{font-size:8px;color:var(--muted);}
+.cadeau-del{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px;}
+.cadeau-empty{font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px;}
+
 /* MEER */
 .meer-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:6px 16px 14px;}.meer-section-header{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:14px 16px 2px;display:flex;align-items:center;gap:6px;}
 .meer-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px 14px;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:96px;box-shadow:0 2px 8px rgba(0,0,0,.07);transition:transform .14s,box-shadow .14s;position:relative;overflow:hidden;}
@@ -854,6 +869,15 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 <div class="boodschappen-list" id="boodschappenList"></div>
     <div class="boodschappen-actions">
       <button id="clearDoneBoodschappen">🗑 Verwijder afgevinkte</button>
+    </div>
+
+    <div class="cadeau-section">
+      <div class="cadeau-header">🎁 Cadeaus</div>
+      <div class="cadeau-add boodschappen-add">
+        <input type="text" id="cadeauInput" placeholder="Cadeau toevoegen…" maxlength="200">
+        <button id="cadeauAddBtn">+</button>
+      </div>
+      <div class="cadeau-list" id="cadeauList"></div>
     </div>
   </div>
 
@@ -1536,7 +1560,7 @@ var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','z
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[],verlanglijstjes:{}};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[],verlanglijstjes:{},cadeaus:[]};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -1955,7 +1979,7 @@ document.querySelectorAll('.nav-item').forEach(function(btn){
     nv.classList.add('active','slide-in-'+dir);
     if(btn.dataset.view==='vandaagView')renderVandaag();
     if(btn.dataset.view==='kalenderView')renderCalendar();
-    if(btn.dataset.view==='boodschappenView')renderBoodschappen();
+    if(btn.dataset.view==='boodschappenView'){renderBoodschappen();renderCadeaus();}
     if(btn.dataset.view==='meerView')renderMeerStats();
 
   });
@@ -2021,7 +2045,7 @@ window.addEventListener('beforeinstallprompt',function(e){
 });
 
 function renderAll(){
-  renderVandaag();renderCalendar();renderBoodschappen();renderMeerStats();
+  renderVandaag();renderCalendar();renderBoodschappen();renderCadeaus();renderMeerStats();
   if(document.getElementById('bestellingenOverlay').classList.contains('open'))renderBestellingen();
   if(document.getElementById('onderhoudOverlay').classList.contains('open'))renderOnderhoud();
   if(document.getElementById('backlogOverlay').classList.contains('open'))renderBacklog();
@@ -3077,6 +3101,43 @@ document.getElementById('clearDoneBoodschappen').addEventListener('click',functi
   data.boodschappen=(data.boodschappen||[]).filter(function(b){return !b.done;});
   saveToServer();renderBoodschappen();showToast('Afgevinkte items verwijderd');
 });
+
+// === CADEAUS (vast blok onderaan boodschappen, los van de boodschappenlijst) ===
+function renderCadeaus(){
+  var list=document.getElementById('cadeauList');if(!list)return;list.innerHTML='';
+  var items=data.cadeaus||[];
+  if(!items.length){
+    var empty=document.createElement('div');empty.className='cadeau-empty';empty.textContent='Nog geen cadeaus op het lijstje';list.appendChild(empty);return;
+  }
+  function renderCadeauItem(c){
+    var item=document.createElement('div');item.className='cadeau-item';
+    var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
+    var check=document.createElement('div');check.className='cadeau-check'+(c.done?' checked':'');check.textContent=c.done?'✓':'';
+    check.addEventListener('click',function(){c.done=!c.done;saveToServer();renderCadeaus();});
+    var body=document.createElement('div');body.style='flex:1;min-width:0;';
+    var txt=document.createElement('div');txt.className='cadeau-text'+(c.done?' done':'');txt.textContent=c.text;body.appendChild(txt);
+    if(c.addedBy){var meta=document.createElement('div');meta.className='cadeau-meta';meta.textContent='door '+c.addedBy;body.appendChild(meta);}
+    var del=document.createElement('button');del.className='cadeau-del';del.textContent='✕';
+    del.addEventListener('click',function(){var idx=data.cadeaus.indexOf(c);if(idx>-1)data.cadeaus.splice(idx,1);saveToServer();renderCadeaus();});
+    item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
+    addSwipe(item,function(){var idx=data.cadeaus.indexOf(c);if(idx>-1)data.cadeaus.splice(idx,1);saveToServer();renderCadeaus();showUndoToast(c.text+' verwijderd',function(){data.cadeaus.splice(idx,0,c);saveToServer();renderCadeaus();});});
+  }
+  var undone=items.filter(function(c){return !c.done;});
+  var done=items.filter(function(c){return c.done;});
+  undone.forEach(renderCadeauItem);
+  if(done.length){
+    var div=document.createElement('div');div.className='bood-done-divider';div.textContent='Afgevinkt';list.appendChild(div);
+    done.forEach(renderCadeauItem);
+  }
+}
+function addCadeau(){
+  var input=document.getElementById('cadeauInput');var text=input.value.trim();if(!text)return;
+  if(!data.cadeaus)data.cadeaus=[];
+  data.cadeaus.push({id:uid(),text:text,done:false,addedBy:myName||null,addedDate:todayKey()});
+  input.value='';saveToServer();renderCadeaus();input.focus();
+}
+document.getElementById('cadeauAddBtn').addEventListener('click',addCadeau);
+document.getElementById('cadeauInput').addEventListener('keydown',function(e){if(e.key==='Enter')addCadeau();});
 
 
 // === GEWOONTETRACKER ===
@@ -5070,7 +5131,7 @@ document.getElementById('addSheetBackdrop').addEventListener('click',closeAddShe
     document.querySelector('[data-view="'+views[next]+'"]').classList.add('active');
     if(views[next]==='vandaagView')renderVandaag();
     if(views[next]==='kalenderView')renderCalendar();
-    if(views[next]==='boodschappenView')renderBoodschappen();
+    if(views[next]==='boodschappenView'){renderBoodschappen();renderCadeaus();}
     if(views[next]==='meerView')renderMeerStats();
   },{passive:true});
 })();
