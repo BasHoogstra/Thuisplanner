@@ -684,6 +684,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .vl-add-cat-btn{width:100%;background:none;border:1px solid var(--accent);border-radius:10px;padding:10px;font-size:13px;font-weight:600;color:var(--accent);cursor:pointer;margin-top:4px;}
 .vl-apply-btn{background:var(--green);border:none;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:600;color:#fff;cursor:pointer;flex-shrink:0;white-space:nowrap;}
 .vl-total-jaar{font-size:11px;font-weight:400;color:var(--muted);}
+.vl-details-toggle{background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:2px 0;margin-top:2px;}
 
 /* Setup */
 .setup-overlay{position:fixed;inset:0;background:var(--bg);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px;}
@@ -1823,6 +1824,7 @@ var BUDGET_CATS=['Wonen','Vervoer','Verzekeringen','Communicatie en entertainmen
 var BUDGET_PERIODE_DIV={maand:1,kwartaal:3,jaar:12,halfjaar:6};
 var BUDGET_PERIODE_LABEL={maand:'maand',kwartaal:'kwartaal',jaar:'jaar',halfjaar:'half jaar'};
 function budgetPM(bedrag,periode){return (parseFloat(bedrag)||0)/(BUDGET_PERIODE_DIV[periode]||1);}
+function budgetVoorstelPM(it){return budgetPM(parseFloat(it.bedragNieuw)?it.bedragNieuw:it.bedrag,it.periode);}
 function getDefaultBudgetItems(){
   var defs=[
     ['Wonen','Huur/hypotheek','maand'],['Wonen','Vereniging van eigenaren','maand'],['Wonen','Servicekosten woning','maand'],
@@ -4435,10 +4437,11 @@ function renderGaranties(){
 
 // === VASTE LASTEN / BUDGET ===
 var budgetOpenCats={};
+var budgetItemDetailsOpen={};
 function renderBudget(){
   var items=data.budget||[];
   var totH=0,totN=0;
-  items.forEach(function(it){totH+=budgetPM(it.bedrag,it.periode);totN+=budgetPM(it.bedragNieuw,it.periode);});
+  items.forEach(function(it){totH+=budgetPM(it.bedrag,it.periode);totN+=budgetVoorstelPM(it);});
   var diff=totN-totH;
   var sum=document.getElementById('budgetSummary');sum.innerHTML='';
   var r1=document.createElement('div');r1.className='budget-total-row';r1.innerHTML='<span>Huidig totaal</span><span>€'+totH.toFixed(2)+' /maand <span class="vl-total-jaar">(€'+(totH*12).toFixed(2)+' /jaar)</span></span>';
@@ -4448,13 +4451,15 @@ function renderBudget(){
   var list=document.getElementById('budgetCatList');list.innerHTML='';
   BUDGET_CATS.concat(data.budgetCustomCats||[]).forEach(function(cat){
     var catItems=items.filter(function(it){return it.cat===cat;});
-    var catH=0,catN=0;catItems.forEach(function(it){catH+=budgetPM(it.bedrag,it.periode);catN+=budgetPM(it.bedragNieuw,it.periode);});
+    var catH=0,catN=0;catItems.forEach(function(it){catH+=budgetPM(it.bedrag,it.periode);catN+=budgetVoorstelPM(it);});
+    var catDiff=catN-catH;
     var isOpen=!!budgetOpenCats[cat];
     var wrap=document.createElement('div');wrap.className='vl-cat';
     var header=document.createElement('div');header.className='vl-cat-header';
     var arrow=document.createElement('span');arrow.className='vl-cat-arrow'+(isOpen?' open':'');arrow.textContent='▸';
     var nameEl=document.createElement('span');nameEl.className='vl-cat-name';nameEl.textContent=cat+' ('+catItems.length+')';
     var totEl=document.createElement('span');totEl.className='vl-cat-totals';totEl.textContent='€'+catH.toFixed(0)+' → €'+catN.toFixed(0);
+    if(Math.abs(catDiff)>=0.005){totEl.style.color=catDiff<0?'var(--green)':'var(--danger)';totEl.style.fontWeight='700';}
     header.appendChild(arrow);header.appendChild(nameEl);header.appendChild(totEl);
     header.addEventListener('click',function(){budgetOpenCats[cat]=!budgetOpenCats[cat];renderBudget();});
     wrap.appendChild(header);
@@ -4506,9 +4511,14 @@ function buildBudgetItemRow(it){
   inpN.addEventListener('change',function(){it.bedragNieuw=parseFloat(this.value)||0;saveToServer();renderBudget();});
   fieldsRow.appendChild(sel);fieldsRow.appendChild(inpH);fieldsRow.appendChild(inpN);row.appendChild(fieldsRow);
   var pm=document.createElement('div');pm.className='vl-item-pm';
-  var pmTxt=document.createElement('span');pmTxt.textContent='≈ €'+budgetPM(it.bedrag,it.periode).toFixed(2)+'/mnd'+(parseFloat(it.bedragNieuw)?' → €'+budgetPM(it.bedragNieuw,it.periode).toFixed(2)+'/mnd voorstel':'');
+  var pmTxt=document.createElement('span');pmTxt.textContent='≈ €'+budgetPM(it.bedrag,it.periode).toFixed(2)+'/mnd';
+  var heeftVoorstel=parseFloat(it.bedragNieuw)&&parseFloat(it.bedragNieuw)!==(parseFloat(it.bedrag)||0);
+  if(heeftVoorstel){
+    var pmArrow=document.createElement('span');pmArrow.textContent=' → €'+budgetPM(it.bedragNieuw,it.periode).toFixed(2)+'/mnd voorstel';pmArrow.style.color=parseFloat(it.bedragNieuw)<(parseFloat(it.bedrag)||0)?'var(--green)':'var(--danger)';pmArrow.style.fontWeight='600';
+    pmTxt.appendChild(pmArrow);
+  }
   pm.appendChild(pmTxt);
-  if(parseFloat(it.bedragNieuw)&&parseFloat(it.bedragNieuw)!==(parseFloat(it.bedrag)||0)){
+  if(heeftVoorstel){
     var applyBtn=document.createElement('button');applyBtn.className='vl-apply-btn';applyBtn.textContent='✓ Toepassen';applyBtn.title='Voorstel overnemen als nieuw huidig bedrag';
     applyBtn.addEventListener('click',function(){
       it.bedrag=it.bedragNieuw;it.bedragNieuw=0;
@@ -4518,12 +4528,19 @@ function buildBudgetItemRow(it){
     pm.appendChild(applyBtn);
   }
   row.appendChild(pm);
-  var extra=document.createElement('div');extra.className='vl-item-extra';
-  var inst=document.createElement('input');inst.type='text';inst.className='vl-extra-input';inst.placeholder='Instantie (optioneel)';inst.value=it.instantie||'';inst.maxLength=80;
-  inst.addEventListener('change',function(){it.instantie=this.value.trim();saveToServer();});
-  var adv=document.createElement('input');adv.type='text';adv.className='vl-extra-input';adv.placeholder='Advies / notitie (optioneel)';adv.value=it.advies||'';adv.maxLength=160;
-  adv.addEventListener('change',function(){it.advies=this.value.trim();saveToServer();});
-  extra.appendChild(inst);extra.appendChild(adv);row.appendChild(extra);
+  var heeftDetails=!!(it.instantie||it.advies);
+  if(heeftDetails||budgetItemDetailsOpen[it.id]){
+    var extra=document.createElement('div');extra.className='vl-item-extra';
+    var inst=document.createElement('input');inst.type='text';inst.className='vl-extra-input';inst.placeholder='Instantie (optioneel)';inst.value=it.instantie||'';inst.maxLength=80;
+    inst.addEventListener('change',function(){it.instantie=this.value.trim();saveToServer();});
+    var adv=document.createElement('input');adv.type='text';adv.className='vl-extra-input';adv.placeholder='Advies / notitie (optioneel)';adv.value=it.advies||'';adv.maxLength=160;
+    adv.addEventListener('change',function(){it.advies=this.value.trim();saveToServer();});
+    extra.appendChild(inst);extra.appendChild(adv);row.appendChild(extra);
+  }else{
+    var detailsToggle=document.createElement('button');detailsToggle.className='vl-details-toggle';detailsToggle.textContent='+ Details';
+    detailsToggle.addEventListener('click',function(){budgetItemDetailsOpen[it.id]=true;renderBudget();});
+    row.appendChild(detailsToggle);
+  }
   return row;
 }
 document.getElementById('openBudget').addEventListener('click',function(){document.getElementById('budgetOverlay').classList.add('open');renderBudget();});
