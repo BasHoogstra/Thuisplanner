@@ -1771,6 +1771,17 @@ function addDays(d,n){var r=new Date(d);r.setDate(r.getDate()+n);return r;}
 function formatDateShort(k){var p=k.split('-').map(Number);return p[2]+' '+MONTH_NAMES[p[1]-1].slice(0,3);}
 function formatTitle(k){var p=k.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]);return DAY_FULL[d.getDay()]+' '+d.getDate()+' '+MONTH_NAMES[d.getMonth()];}
 function daysUntil(k){var d=keyToDate(k),t=new Date(today.getFullYear(),today.getMonth(),today.getDate());return Math.round((d-t)/(1000*60*60*24));}
+// Combineert vervaldata-kluis + garanties tot één gesorteerde lijst van naderende verloopdata (gebruikt door Vandaag-banner en briefing).
+function getUrgentExpiries(limit){
+  var fromKluis=(data.vervaldata||[]).filter(function(v){
+    var d=daysUntil(v.vervaldatum);return d>=0&&d<=(v.herinnering||90);
+  }).map(function(v){return {naam:v.naam,dagen:daysUntil(v.vervaldatum),type:'kluis',icon:KLUIS_ICONS[v.categorie]||'📄'};});
+  var fromGar=(data.garanties||[]).filter(function(g){
+    if(!g.verloopt)return false;var d=daysUntil(g.verloopt);return d>=0&&d<=90;
+  }).map(function(g){return {naam:g.text,dagen:daysUntil(g.verloopt),type:'garantie',icon:'🧾'};});
+  var combined=fromKluis.concat(fromGar).sort(function(a,b){return a.dagen-b.dagen;});
+  return typeof limit==='number'?combined.slice(0,limit):combined;
+}
 
 function recAppliesToDate(r,k){
   var iv=r.interval||'week';
@@ -2309,21 +2320,22 @@ function renderVandaag(){
   var vvb=document.getElementById('vervalBanner');
   if(vvb){
     vvb.innerHTML='';
-    var urgentVerval=(data.vervaldata||[]).filter(function(v){
-      var d=daysUntil(v.vervaldatum);return d>=0&&d<=(v.herinnering||90);
-    }).sort(function(a,b){return daysUntil(a.vervaldatum)-daysUntil(b.vervaldatum);}).slice(0,3);
+    var urgentVerval=getUrgentExpiries(3);
     if(urgentVerval.length){
       vvb.classList.add('visible');
       urgentVerval.forEach(function(v){
-        var d=daysUntil(v.vervaldatum);
+        var d=v.dagen;
         var cls=d<=7?'urgent':d<=30?'soon':'notice';
         var row=document.createElement('div');row.className='verval-banner-item '+cls;
-        var ico=document.createElement('span');ico.className='verval-banner-icon';ico.textContent=KLUIS_ICONS[v.categorie]||'📄';
+        var ico=document.createElement('span');ico.className='verval-banner-icon';ico.textContent=v.icon;
         var txt=document.createElement('div');txt.className='verval-banner-text';txt.textContent=v.naam;
         var daysEl=document.createElement('div');daysEl.className='verval-banner-days';
         daysEl.textContent=d===0?'Vandaag!':d===1?'Morgen':'Nog '+d+' dagen';
         row.appendChild(ico);row.appendChild(txt);row.appendChild(daysEl);
-        row.addEventListener('click',function(){document.getElementById('kluisOverlay').classList.add('open');renderKluis();});
+        row.addEventListener('click',function(){
+          if(v.type==='garantie'){document.getElementById('garantiesOverlay').classList.add('open');renderGaranties();}
+          else{document.getElementById('kluisOverlay').classList.add('open');renderKluis();}
+        });
         vvb.appendChild(row);
       });
     } else {vvb.classList.remove('visible');}
@@ -4978,13 +4990,13 @@ function showBriefing(force){
     var due=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);
     return due<=new Date(d.getTime()+14*24*60*60*1000);
   });
-  var urgentVervalB=(data.vervaldata||[]).filter(function(v){var dd=daysUntil(v.vervaldatum);return dd>=0&&dd<=(v.herinnering||90);}).sort(function(a,b){return daysUntil(a.vervaldatum)-daysUntil(b.vervaldatum);});
+  var urgentVervalB=getUrgentExpiries();
   var backlogB=data.backlog||[];
   var attnLines=[];
   bdToday.forEach(function(b){attnLines.push('🎂 Vandaag jarig: '+b.naam+'!');});
   if(openBestB.length)attnLines.push('📦 '+openBestB.length+' bestelling'+(openBestB.length===1?'':'en')+' nog niet geleverd');
   if(ondDueB.length)attnLines.push('🔧 '+ondDueB.length+' onderhoudstaak'+(ondDueB.length===1?'':'en')+' bijna aan de beurt');
-  if(urgentVervalB.length){var v0=urgentVervalB[0];var dd0=daysUntil(v0.vervaldatum);attnLines.push('📄 '+v0.naam+' verloopt '+(dd0===0?'vandaag':dd0===1?'morgen':'over '+dd0+' dagen'));}
+  if(urgentVervalB.length){var v0=urgentVervalB[0];attnLines.push((v0.type==='garantie'?'🧾 ':'📄 ')+v0.naam+' verloopt '+(v0.dagen===0?'vandaag':v0.dagen===1?'morgen':'over '+v0.dagen+' dagen'));}
   if(backlogB.length)attnLines.push('🗒 '+backlogB.length+' item'+(backlogB.length===1?'':'s')+' op de backlog');
   if(attnLines.length){
     var aSec=document.createElement('div');aSec.className='briefing-section';
