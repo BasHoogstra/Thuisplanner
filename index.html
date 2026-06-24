@@ -1818,10 +1818,10 @@ function getUrgentExpiries(limit){
 }
 
 // === WIE IS WAAR (weekschema) ===
-var WIW_STATUSES=['thuis','werk','reis','afwezig'];
-var WIW_ICONS={thuis:'🏠',werk:'💼',reis:'✈️',afwezig:'🌙'};
-var WIW_LABELS={thuis:'Thuis',werk:'Werk',reis:'Op reis',afwezig:'Afwezig'};
-var WIW_COLORS={thuis:'#27ae60',werk:'#0984e3',reis:'#6c5ce7',afwezig:'#636e72'};
+var WIW_STATUSES=['thuis','werk','reis','sporten','afwezig'];
+var WIW_ICONS={thuis:'🏠',werk:'💼',reis:'✈️',sporten:'🏃',afwezig:'🌙'};
+var WIW_LABELS={thuis:'Thuis',werk:'Werk',reis:'Op reis',sporten:'Sporten',afwezig:'Afwezig'};
+var WIW_COLORS={thuis:'#27ae60',werk:'#0984e3',reis:'#6c5ce7',sporten:'#e84393',afwezig:'#636e72'};
 function getWiwStatus(dk,person){return (data.wieIsWaar&&data.wieIsWaar[dk]&&data.wieIsWaar[dk][person])||'thuis';}
 function cycleWiwStatus(dk,person){
   if(!data.wieIsWaar)data.wieIsWaar={};
