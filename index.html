@@ -368,6 +368,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .meer-card-weekoverzicht::before{background:linear-gradient(90deg,#16a085,#1abc9c);}
 .meer-card-verlanglijst::before{background:linear-gradient(90deg,#d63031,#ff7675);}
 .meer-card-verjaardagen::before{background:linear-gradient(90deg,#fdcb6e,#e17055);}
+.meer-card-wiw::before{background:linear-gradient(90deg,#0984e3,#74b9ff);}
 
 /* OVERLAYS */
 .overlay{position:fixed;inset:0;background:rgba(20,18,30,.5);display:none;align-items:flex-end;justify-content:center;z-index:80;}
@@ -744,6 +745,18 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .maaltijd-sel{width:100%;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box;}
 .maaltijd-vrij{width:100%;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box;margin-top:6px;}
 .maaltijd-bood-btn{width:100%;margin-top:14px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;}
+.wiw-legend{display:flex;flex-wrap:wrap;gap:10px;padding:0 2px 12px;}
+.wiw-legend-chip{font-size:12px;font-weight:600;}
+.wiw-week{display:flex;flex-direction:column;gap:8px;padding:4px 0;}
+.wiw-dag{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;}
+.wiw-dag.today-dag{border-color:var(--accent);}
+.wiw-dag-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.wiw-dag-naam{font-size:14px;font-weight:700;color:var(--text);}
+.wiw-dag-badge{font-size:11px;color:var(--muted);background:var(--bg);border-radius:20px;padding:2px 8px;}
+.wiw-persons{display:flex;gap:8px;}
+.wiw-chip{flex:1;border:1px solid var(--border);border-radius:10px;padding:8px 10px;cursor:pointer;transition:background .15s;}
+.wiw-chip-name{font-size:11px;font-weight:700;opacity:.85;margin-bottom:2px;}
+.wiw-chip-status{font-size:13px;font-weight:700;}
 </style>
 </head>
 <body>
@@ -929,6 +942,11 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         <div class="meer-card-icon">✈️</div>
         <div class="meer-card-title">Vakanties</div>
         <div class="meer-card-sub" id="vakantiesSub">Paklijst &amp; to-do</div>
+      </div>
+      <div class="meer-card meer-card-wiw" id="openWieIsWaar">
+        <div class="meer-card-icon">📍</div>
+        <div class="meer-card-title">Wie is waar</div>
+        <div class="meer-card-sub" id="wieIsWaarSub">Weekschema thuis/werk/reis</div>
       </div>
     </div>
     <div class="meer-section-header">💰 Financiën</div>
@@ -1361,6 +1379,22 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
     <button class="maaltijd-bood-btn" id="maaltijdNaarBoodBtn">🛒 Genereer boodschappenlijst van ingrediënten</button>
   </div>
 </div>
+<div class="full-overlay" id="wieIsWaarOverlay">
+  <div class="full-header"><button class="icon-btn" id="closeWieIsWaarBtn">✕</button><h2>📍 Wie is waar</h2></div>
+  <div class="full-body">
+    <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Tik op een blokje om te wisselen tussen thuis, werk, op reis en afwezig.</p>
+    <div class="month-row" style="padding:0 0 10px;">
+      <button class="icon-btn" id="wiwPrevBtn">‹</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="month-title" id="wiwWeekTitle"></div>
+        <button class="today-btn" id="wiwTodayBtn">Deze week</button>
+      </div>
+      <button class="icon-btn" id="wiwNextBtn">›</button>
+    </div>
+    <div class="wiw-legend" id="wiwLegend"></div>
+    <div class="wiw-week" id="wiwWeek"></div>
+  </div>
+</div>
 
 <div class="full-overlay" id="receptenOverlay">
   <div class="full-header"><button class="icon-btn" id="closeReceptenBtn">✕</button><h2>👨‍🍳 Recepten</h2></div>
@@ -1633,7 +1667,7 @@ var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','z
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[],verlanglijstjes:{},cadeaus:[],budget:[],budgetCustomCats:[]};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[],verlanglijstjes:{},cadeaus:[],budget:[],budgetCustomCats:[],wieIsWaar:{}};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -1781,6 +1815,22 @@ function getUrgentExpiries(limit){
   }).map(function(g){return {naam:g.text,dagen:daysUntil(g.verloopt),type:'garantie',icon:'🧾'};});
   var combined=fromKluis.concat(fromGar).sort(function(a,b){return a.dagen-b.dagen;});
   return typeof limit==='number'?combined.slice(0,limit):combined;
+}
+
+// === WIE IS WAAR (weekschema) ===
+var WIW_STATUSES=['thuis','werk','reis','afwezig'];
+var WIW_ICONS={thuis:'🏠',werk:'💼',reis:'✈️',afwezig:'🌙'};
+var WIW_LABELS={thuis:'Thuis',werk:'Werk',reis:'Op reis',afwezig:'Afwezig'};
+var WIW_COLORS={thuis:'#27ae60',werk:'#0984e3',reis:'#6c5ce7',afwezig:'#636e72'};
+function getWiwStatus(dk,person){return (data.wieIsWaar&&data.wieIsWaar[dk]&&data.wieIsWaar[dk][person])||'thuis';}
+function cycleWiwStatus(dk,person){
+  if(!data.wieIsWaar)data.wieIsWaar={};
+  if(!data.wieIsWaar[dk])data.wieIsWaar[dk]={};
+  var cur=data.wieIsWaar[dk][person]||'thuis';
+  var next=WIW_STATUSES[(WIW_STATUSES.indexOf(cur)+1)%WIW_STATUSES.length];
+  data.wieIsWaar[dk][person]=next;
+  if((data.wieIsWaar[dk].me||'thuis')==='thuis'&&(data.wieIsWaar[dk].partner||'thuis')==='thuis')delete data.wieIsWaar[dk];
+  saveToServer();
 }
 
 function recAppliesToDate(r,k){
@@ -3484,6 +3534,7 @@ function renderMeerStats(){
     }
   }
   setCardBadge('openVerjaardagen',(data.verjaardagen||[]).filter(function(b){return daysUntilBirthday(b.datum)===0;}).length,'#e17055');
+  if(typeof updateWiwSub==='function')updateWiwSub();
 }
 
 document.getElementById('openBestellingen').addEventListener('click',function(){document.getElementById('bestellingenOverlay').classList.add('open');updateBestWieLabels();renderBestellingen();});
@@ -4235,6 +4286,66 @@ document.getElementById('closeMaaltijdBtn').addEventListener('click',function(){
 document.getElementById('maaltijdPrevBtn').addEventListener('click',function(){maaltijdWeekOffset--;renderMaaltijdplanner();});
 document.getElementById('maaltijdNextBtn').addEventListener('click',function(){maaltijdWeekOffset++;renderMaaltijdplanner();});
 document.getElementById('maaltijdTodayBtn').addEventListener('click',function(){maaltijdWeekOffset=0;renderMaaltijdplanner();});
+
+// === WIE IS WAAR (render) ===
+var wiwWeekOffset=0;
+function renderWiwLegend(){
+  var legend=document.getElementById('wiwLegend');if(!legend)return;
+  legend.innerHTML='';
+  WIW_STATUSES.forEach(function(s){
+    var chip=document.createElement('div');chip.className='wiw-legend-chip';chip.style.color=WIW_COLORS[s];
+    chip.textContent=WIW_ICONS[s]+' '+WIW_LABELS[s];
+    legend.appendChild(chip);
+  });
+}
+function renderWieIsWaar(){
+  var container=document.getElementById('wiwWeek');if(!container)return;container.innerHTML='';
+  renderWiwLegend();
+  var mon=addDays(getMonday(today),wiwWeekOffset*7);
+  var titleEl=document.getElementById('wiwWeekTitle');if(titleEl)titleEl.textContent=formatWeekRange(mon);
+  for(var i=0;i<7;i++){
+    var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i);
+    var dk=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
+    var isToday=dk===todayKey();
+    var card=document.createElement('div');card.className='wiw-dag'+(isToday?' today-dag':'');
+    var hdr=document.createElement('div');hdr.className='wiw-dag-header';
+    var naam=document.createElement('div');naam.className='wiw-dag-naam';naam.textContent=(isToday?'⭐ ':'')+DAY_FULL[weekday(dk)];
+    var badge=document.createElement('div');badge.className='wiw-dag-badge';badge.textContent=d.getDate()+'/'+(d.getMonth()+1);
+    hdr.appendChild(naam);hdr.appendChild(badge);card.appendChild(hdr);
+    var personsRow=document.createElement('div');personsRow.className='wiw-persons';
+    ['me','partner'].forEach(function(person){
+      var status=getWiwStatus(dk,person);
+      var chip=document.createElement('div');chip.className='wiw-chip';
+      chip.style.background=WIW_COLORS[status]+'1a';chip.style.color=WIW_COLORS[status];chip.style.borderColor=WIW_COLORS[status]+'55';
+      var nm=document.createElement('div');nm.className='wiw-chip-name';nm.textContent=person==='me'?(myName||'Ik'):(partnerName||'Partner');
+      var st=document.createElement('div');st.className='wiw-chip-status';st.textContent=WIW_ICONS[status]+' '+WIW_LABELS[status];
+      chip.appendChild(nm);chip.appendChild(st);
+      chip.addEventListener('click',(function(dk2,person2){return function(){cycleWiwStatus(dk2,person2);renderWieIsWaar();updateWiwSub();};})(dk,person));
+      personsRow.appendChild(chip);
+    });
+    card.appendChild(personsRow);
+    container.appendChild(card);
+  }
+}
+function updateWiwSub(){
+  var sub=document.getElementById('wieIsWaarSub');if(!sub)return;
+  var tk=todayKey();
+  var meS=getWiwStatus(tk,'me'),paS=getWiwStatus(tk,'partner');
+  if(meS==='thuis'&&paS==='thuis'){sub.textContent='Vandaag allebei thuis';return;}
+  sub.textContent=(myName||'Ik')+': '+WIW_LABELS[meS]+' · '+(partnerName||'Partner')+': '+WIW_LABELS[paS];
+}
+document.getElementById('openWieIsWaar').addEventListener('click',function(){
+  wiwWeekOffset=0;
+  document.getElementById('wieIsWaarOverlay').classList.add('open');
+  renderWieIsWaar();
+});
+document.getElementById('closeWieIsWaarBtn').addEventListener('click',function(){
+  document.getElementById('wieIsWaarOverlay').classList.remove('open');
+  renderMeerStats();
+});
+document.getElementById('wiwPrevBtn').addEventListener('click',function(){wiwWeekOffset--;renderWieIsWaar();});
+document.getElementById('wiwNextBtn').addEventListener('click',function(){wiwWeekOffset++;renderWieIsWaar();});
+document.getElementById('wiwTodayBtn').addEventListener('click',function(){wiwWeekOffset=0;renderWieIsWaar();});
 document.getElementById('maaltijdNaarBoodBtn').addEventListener('click',function(){
   if(!data.maaltijdplan)return;
   var added=0;var seen={};
