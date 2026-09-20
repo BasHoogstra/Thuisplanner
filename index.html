@@ -5635,16 +5635,16 @@ function renderVakanties(){
     });
   } else if(activeVak._tab==='bestemming'){
     var osmResults=document.createElement('div');content.appendChild(osmResults);
-    function getIcon(tags){if(tags.tourism==='museum')return'🏛';if(tags.tourism==='gallery')return'🎨';if(tags.tourism==='viewpoint')return'👁️';if(tags.tourism==='artwork')return'🎦';if(tags.leisure==='park')return'🌳';if(tags.leisure==='garden')return'🌿';if(tags.amenity==='restaurant')return'🍽️';if(tags.amenity==='cafe')return'☕';if(tags.amenity==='bar')return'🍺';if(tags.amenity==='fast_food')return'🍔';return'⭐';}
+    function getIcon(tags){if(tags.tourism==='museum')return'🏛';if(tags.tourism==='gallery')return'🎨';if(tags.tourism==='viewpoint')return'👁️';if(tags.tourism==='artwork')return'🎦';if(tags.leisure==='park'||tags.leisure==='garden')return'🌳';if(tags.amenity==='restaurant')return'🍽️';if(tags.amenity==='cafe')return'☕';if(tags.amenity==='bar')return'🍺';if(tags.amenity==='fast_food')return'🍔';return'⭐';}
+    function getCat(tags){if(tags.tourism)return'sights';if(tags.leisure)return'parks';if(tags.amenity)return'rests';return'sights';}
     function getAddr(tags){var p=[];if(tags['addr:street'])p.push(tags['addr:street']+(tags['addr:housenumber']?' '+tags['addr:housenumber']:''));else if(tags['addr:neighbourhood'])p.push(tags['addr:neighbourhood']);if(tags.cuisine)p.push(tags.cuisine.replace(/_/g,' '));return p.join(' · ');}
     function showOsmData(d){
       osmResults.innerHTML='';
-      var sects=[{title:'🏛 Bezienswaardigheden',items:d.sights},{title:'🍽️ Eten & Drinken',items:d.rests},{title:'🌳 Natuur & Parken',items:d.parks}];
+      var sects=[{key:'sights',title:'🏛 Bezienswaardigheden'},{key:'rests',title:'🍽️ Eten & Drinken'},{key:'parks',title:'🌳 Natuur & Parken'}];
       var anyShown=false;
       sects.forEach(function(s){
-        var arr=(s.items||[]).filter(function(p){return p&&p.tags&&(p.tags.name||'').trim();}).slice(0,12);
-        if(!arr.length)return;
-        anyShown=true;
+        var arr=(d[s.key]||[]).filter(function(p){return p&&p.tags&&(p.tags.name||'').trim();}).slice(0,12);
+        if(!arr.length)return;anyShown=true;
         var h=document.createElement('div');h.style.cssText='font-size:14px;font-weight:700;margin:14px 0 8px;';h.textContent=s.title;osmResults.appendChild(h);
         arr.forEach(function(p){
           var lat=p.lat||(p.center&&p.center.lat);var lon=p.lon||(p.center&&p.center.lon);
@@ -5654,34 +5654,35 @@ function renderVakanties(){
           var nm=document.createElement('div');nm.style.cssText='font-size:13px;font-weight:500;';nm.textContent=p.tags.name;info.appendChild(nm);
           var addr=getAddr(p.tags);if(addr){var ad=document.createElement('div');ad.style.cssText='font-size:11px;color:var(--muted);margin-top:2px;';ad.textContent=addr;info.appendChild(ad);}
           row.appendChild(icon);row.appendChild(info);
-          if(lat&&lon){var lnk=document.createElement('a');lnk.href='https://maps.google.com/maps?q='+encodeURIComponent(p.tags.name)+'+'+lat+','+lon;lnk.target='_blank';lnk.style.cssText='font-size:11px;color:var(--accent);flex-shrink:0;text-decoration:none;align-self:center;white-space:nowrap;';lnk.textContent='Maps ↗️';row.appendChild(lnk);}
+          if(lat&&lon){var lnk=document.createElement('a');lnk.href='https://maps.google.com/maps?q='+encodeURIComponent(p.tags.name)+'+'+lat+','+lon;lnk.target='_blank';lnk.style.cssText='font-size:11px;color:var(--accent);flex-shrink:0;text-decoration:none;align-self:center;white-space:nowrap;padding:3px 6px;border:1px solid var(--border);border-radius:6px;';lnk.textContent='Maps ↗️';row.appendChild(lnk);}
           osmResults.appendChild(row);
         });
       });
-      if(!anyShown){osmResults.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Niets gevonden voor deze bestemming.</div>';}
+      if(!anyShown)osmResults.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Niets gevonden voor deze bestemming.</div>';
       var ts=document.createElement('div');ts.style.cssText='font-size:11px;color:var(--muted);text-align:right;margin-top:10px;';ts.textContent='Bron: OpenStreetMap · '+activeVak.bestemming;osmResults.appendChild(ts);
     }
+    function overpassFetch(url,q){return fetch(url+'?data='+encodeURIComponent(q)).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();});}
     function loadOsm(){
       if(!activeVak.bestemming){osmResults.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Voer een bestemming in bovenaan.</div>';return;}
       var ck=(activeVak.bestemming||'').toLowerCase().trim();
       if(activeVak._osmCache&&activeVak._osmCache.city===ck){showOsmData(activeVak._osmCache);return;}
       osmResults.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">⏳ Ophalen…</div>';
       fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(activeVak.bestemming)+'&format=json&limit=1&accept-language=nl')
-        .then(function(r){return r.json();})
+        .then(function(r){if(!r.ok)throw new Error('Nominatim HTTP '+r.status);return r.json();})
         .then(function(geo){
           if(!geo||!geo[0]){osmResults.innerHTML='<div style="text-align:center;padding:20px;color:var(--danger);font-size:13px;">Stad niet gevonden.</div>';return Promise.reject('not found');}
-          var lat=geo[0].lat,lon=geo[0].lon;
-          var qS='[out:json][timeout:15];(node["tourism"~"attraction|museum|gallery|viewpoint|artwork"](around:10000,'+lat+','+lon+');way["tourism"~"attraction|museum"](around:10000,'+lat+','+lon+'););out tags center 25;';
-          var qR='[out:json][timeout:10];node["amenity"~"restaurant|cafe|bar|fast_food"](around:3000,'+lat+','+lon+');out tags center 20;';
-          var qP='[out:json][timeout:10];(node["leisure"~"park|garden"](around:5000,'+lat+','+lon+');way["leisure"~"park|garden"](around:5000,'+lat+','+lon+'););out tags center 10;';
-          return Promise.all([
-            fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(qS)).then(function(r){return r.json();}),
-            fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(qR)).then(function(r){return r.json();}),
-            fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(qP)).then(function(r){return r.json();})
-          ]);
+          var lat=parseFloat(geo[0].lat),lon=parseFloat(geo[0].lon);
+          var q='[out:json][timeout:25];(node["tourism"="attraction"](around:10000,'+lat+','+lon+');node["tourism"="museum"](around:10000,'+lat+','+lon+');node["tourism"="gallery"](around:10000,'+lat+','+lon+');node["tourism"="viewpoint"](around:10000,'+lat+','+lon+');node["tourism"="artwork"](around:10000,'+lat+','+lon+');way["tourism"="museum"](around:10000,'+lat+','+lon+');way["tourism"="attraction"](around:10000,'+lat+','+lon+');node["amenity"="restaurant"](around:3000,'+lat+','+lon+');node["amenity"="cafe"](around:3000,'+lat+','+lon+');node["amenity"="bar"](around:3000,'+lat+','+lon+');node["amenity"="fast_food"](around:3000,'+lat+','+lon+');node["leisure"="park"](around:5000,'+lat+','+lon+');node["leisure"="garden"](around:5000,'+lat+','+lon+');way["leisure"="park"](around:5000,'+lat+','+lon+'););out tags center 60;';
+          return overpassFetch('https://overpass-api.de/api/interpreter',q)
+            .catch(function(){return overpassFetch('https://overpass.kumi.systems/api/interpreter',q);});
         })
-        .then(function(res){if(!res)return;var d={city:ck,sights:res[0].elements||[],rests:res[1].elements||[],parks:res[2].elements||[]};activeVak._osmCache=d;showOsmData(d);})
-        .catch(function(e){if(e!=='not found')osmResults.innerHTML='<div style="text-align:center;padding:20px;color:var(--danger);font-size:13px;">Fout bij ophalen: '+(e&&e.message?e.message:e)+'</div>';});
+        .then(function(res){
+          if(!res)return;
+          var sights=[],rests=[],parks=[];
+          (res.elements||[]).forEach(function(el){var c=getCat(el.tags||{});if(c==='sights')sights.push(el);else if(c==='rests')rests.push(el);else parks.push(el);});
+          var d={city:ck,sights:sights,rests:rests,parks:parks};activeVak._osmCache=d;showOsmData(d);
+        })
+        .catch(function(e){if(e!=='not found')osmResults.innerHTML='<div style="text-align:center;padding:20px;color:var(--danger);font-size:13px;">Fout: '+(e&&e.message?e.message:e)+'</div>';});
     }
     loadOsm();
   } else {
