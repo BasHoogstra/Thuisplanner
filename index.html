@@ -5352,6 +5352,27 @@ function renderVakanties(){
   var delVakBtn=document.createElement('button');delVakBtn.textContent='Verwijder';
   delVakBtn.style.cssText='background:none;border:1px solid var(--danger);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;color:var(--danger);';
   delVakBtn.addEventListener('click',function(){customConfirm('Vakantie "'+activeVak.naam+'" verwijderen?',function(){var idx=data.vakanties.indexOf(activeVak);if(idx>-1)data.vakanties.splice(idx,1);activeVakId=data.vakanties.length?data.vakanties[0].id:null;saveToServer();renderVakanties();renderMeerStats();});});
+  var andereVakanties=vakanties.filter(function(v){return v.id!==activeVakId;});
+  if(andereVakanties.length>0){
+    var copyBtn=document.createElement('button');copyBtn.textContent='Kopieer van…';
+    copyBtn.style.cssText='background:var(--accent-light);border:1px solid var(--accent);border-radius:8px;padding:6px 10px;font-size:11px;cursor:pointer;color:var(--accent);';
+    copyBtn.addEventListener('click',function(){
+      var keuzes=andereVakanties.map(function(v,i){return (i+1)+'. '+v.naam;}).join('\n');
+      var keuze=prompt('Kopieer alles van welke vakantie naar "'+activeVak.naam+'"?\n\n'+keuzes+'\n\nVoer het nummer in:');
+      if(!keuze)return;
+      var idx=parseInt(keuze)-1;
+      if(isNaN(idx)||idx<0||idx>=andereVakanties.length){showToast('Ongeldige keuze');return;}
+      var bron=andereVakanties[idx];
+      if(!confirm('Alles van "'+bron.naam+'" kopieren naar "'+activeVak.naam+'"?\nBestaande inhoud wordt overschreven.'))return;
+      var nieuwePak={};
+      getVakantiePersonen().forEach(function(p){nieuwePak[p]=(bron.paklijst[p]||[]).map(function(item){return {id:uid(),text:item.text,done:false};});});
+      activeVak.paklijst=nieuwePak;
+      activeVak.todos=(bron.todos||[]).map(function(t){return {id:uid(),text:t.text,done:false};});
+      activeVak.notes=bron.notes||'';
+      saveToServer();renderVakanties();showToast('Gekopieerd van '+bron.naam+'!');
+    });
+    delBar.appendChild(copyBtn);
+  }
   // Datum + countdown
   var dateRow=document.createElement('div');dateRow.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:10px;';
   var dateLabel=document.createElement('label');dateLabel.textContent='✈️ Vertrekdatum:';dateLabel.style.cssText='font-size:12px;color:var(--muted);white-space:nowrap;';
