@@ -1916,7 +1916,7 @@ function loadFromServer(isInitial){
   if(!isInitial)setSync('busy','Bijwerken…');
   var loadSeq=saveSeq;
   fetch(dataUrl()).then(function(r){if(!r.ok)throw new Error('status:'+r.status);return r.json();}).then(function(json){
-    if(saveSeq!==loadSeq)return;
+    if(saveSeq!==loadSeq||_pendingSave)return;
     var inc=json||{};
     ['tasks','notes','recurringDone'].forEach(function(k){if(!inc[k])inc[k]={};});
     ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget','budgetCustomCats'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};if(!inc.boodCatOverrides||typeof inc.boodCatOverrides!=='object'||Array.isArray(inc.boodCatOverrides))inc.boodCatOverrides={};if(!inc.gewoonten||!Array.isArray(inc.gewoonten))inc.gewoonten=[];if(!inc.gewoontenDone||typeof inc.gewoontenDone!=='object'||Array.isArray(inc.gewoontenDone))inc.gewoontenDone={};if(!inc.vakantiePersonen||!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];if(!inc.verjaardagen||!Array.isArray(inc.verjaardagen))inc.verjaardagen=[];if(!inc.verlanglijstjes||typeof inc.verlanglijstjes!=='object'||Array.isArray(inc.verlanglijstjes))inc.verlanglijstjes={};
@@ -1971,7 +1971,7 @@ function saveToServer(){
     fetch(dataUrl(),{method:'PUT',headers:{'Content-Type':'application/json'},body:body})
       .then(function(r){if(!r.ok)throw new Error();_pendingSave=false;setSync('','Opgeslagen · '+nowTime());})
       .catch(function(){_pendingSave=false;setSync('err','Opslaan mislukt.');});
-  },80);
+  },400);
 }
 
 document.addEventListener('visibilitychange',function(){
