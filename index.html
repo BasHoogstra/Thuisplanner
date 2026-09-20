@@ -5595,9 +5595,11 @@ function renderVakanties(){
         var chk=document.createElement('div');chk.style.cssText='width:20px;height:20px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:10px;color:#fff;'+(item.done?'background:var(--accent);':'');chk.textContent=item.done?'✓':'';
         chk.addEventListener('click',function(){item.done=!item.done;saveToServer();renderVakanties();});
         var txt=document.createElement('span');txt.style.cssText='flex:1;font-size:13px;'+(item.done?'text-decoration:line-through;color:var(--done);':'');txt.textContent=item.text;
+        var editBtn=document.createElement('button');editBtn.textContent='\u270f';editBtn.title='Bewerken';editBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px;';
         var del=document.createElement('button');del.textContent='✕';del.style.cssText='background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px;';
+        (function(p,it,r,t){editBtn.addEventListener('click',function(){var inp=document.createElement('input');inp.type='text';inp.value=it.text;inp.style.cssText='flex:1;font-size:13px;border:1px solid var(--accent);border-radius:6px;padding:2px 6px;background:var(--card);color:var(--text);min-width:0;';var _done=false;function save(){if(_done)return;_done=true;var v=inp.value.trim();if(v)it.text=v;saveToServer();renderVakanties();}inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();save();}if(e.key==='Escape'){_done=true;renderVakanties();}});inp.addEventListener('blur',save);r.replaceChild(inp,t);setTimeout(function(){inp.focus();inp.select();},50);});})(person,item,row,txt);
         (function(p,it){del.addEventListener('click',function(){var arr=activeVak.paklijst[p];var idx=arr.indexOf(it);if(idx>-1)arr.splice(idx,1);saveToServer();renderVakanties();});})(person,item);
-        row.appendChild(chk);row.appendChild(txt);row.appendChild(del);sec.appendChild(row);
+        row.appendChild(chk);row.appendChild(txt);row.appendChild(editBtn);row.appendChild(del);sec.appendChild(row);
       });
       if(!items.length){var em=document.createElement('div');em.style.cssText='font-size:12px;color:var(--muted);padding:4px 2px;';em.textContent='Geen items.';sec.appendChild(em);}
       pakGrid.appendChild(sec);
@@ -5624,9 +5626,11 @@ function renderVakanties(){
       var chk=document.createElement('div');chk.style.cssText='width:22px;height:22px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:11px;color:#fff;'+(todo.done?'background:var(--accent);':'');chk.textContent=todo.done?'✓':'';
       chk.addEventListener('click',function(){todo.done=!todo.done;saveToServer();renderVakanties();});
       var txt=document.createElement('span');txt.style.cssText='flex:1;font-size:14px;'+(todo.done?'text-decoration:line-through;color:var(--done);':'');txt.textContent=todo.text;
+      var editBtn=document.createElement('button');editBtn.textContent='\u270f';editBtn.title='Bewerken';editBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;';
       var del=document.createElement('button');del.textContent='✕';del.style.cssText='background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;';
+      (function(td,r,t){editBtn.addEventListener('click',function(){var inp=document.createElement('input');inp.type='text';inp.value=td.text;inp.style.cssText='flex:1;font-size:14px;border:1px solid var(--accent);border-radius:6px;padding:2px 8px;background:var(--card);color:var(--text);min-width:0;';var _done=false;function save(){if(_done)return;_done=true;var v=inp.value.trim();if(v)td.text=v;saveToServer();renderVakanties();}inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();save();}if(e.key==='Escape'){_done=true;renderVakanties();}});inp.addEventListener('blur',save);r.replaceChild(inp,t);setTimeout(function(){inp.focus();inp.select();},50);})})(todo,row,txt);
       (function(t){del.addEventListener('click',function(){var idx=(activeVak.todos||[]).indexOf(t);if(idx>-1)activeVak.todos.splice(idx,1);saveToServer();renderVakanties();});})(todo);
-      row.appendChild(chk);row.appendChild(txt);row.appendChild(del);content.appendChild(row);
+      row.appendChild(chk);row.appendChild(txt);row.appendChild(editBtn);row.appendChild(del);content.appendChild(row);
     });
   } else {
     var textarea=document.createElement('textarea');
