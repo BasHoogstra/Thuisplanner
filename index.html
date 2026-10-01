@@ -986,6 +986,30 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .season-banner,.week-score-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border:none;border-radius:var(--r-md);background:var(--surface-2);font-size:var(--fs-small);font-weight:500;line-height:20px;gap:8px;}
 .season-banner .icon-btn,.week-score-banner .icon-btn{margin-left:auto;flex-shrink:0;}
 .name-banner{margin:0 16px 12px;border:1px solid var(--border);background:var(--card);border-radius:var(--r-lg);box-shadow:var(--sh-1);}
+
+/* ══ SCHERM: Boodschappen ══ */
+.bood-toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px 0 14px;}
+.bood-count{margin-left:auto;font-size:var(--fs-detail);color:var(--muted);}
+.chip-ghost{border-style:dashed;color:var(--muted);background:transparent;}
+.chip .ic{color:var(--muted);}
+.bood-suggest-strip{margin:0;padding:0;background:none;border:none;}
+#boodschappenList{padding-bottom:4px;}
+#boodschappenList .section-label .done-toggle{margin-left:0;display:inline-flex;align-items:center;gap:4px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:var(--fs-label);}
+#boodschappenList .section-label .done-toggle+.aside{margin-left:auto;color:var(--text);}
+.qty{display:flex;align-items:center;flex-shrink:0;}
+.qty .icon-btn{width:36px;height:36px;}
+.qty .icon-btn .ic{width:18px;height:18px;}
+.qty__n{min-width:18px;text-align:center;font-size:var(--fs-small);font-weight:600;}
+.lijst-card{margin:0 16px 12px;overflow:hidden;}
+.lijst-head{display:flex;align-items:center;gap:4px;padding:4px 4px 4px 4px;}
+.lijst-toggle{flex:1;display:flex;align-items:center;gap:8px;min-height:44px;padding:0 8px;border:none;background:none;font:700 var(--fs-head) var(--font);color:var(--text);text-align:left;cursor:pointer;}
+.lijst-toggle>.ic{color:var(--subtle);}
+.lijst-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.lijst-collapsed .lijst-body{display:none;}
+.lijst-body .list-row{border-top:1px solid var(--border);}
+.lijst-add{display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid var(--border);}
+.lijst-add .field{height:44px;box-shadow:none;background:var(--bg);}
+.lijst-add .btn-square{width:44px;height:44px;}
 </style>
 </head>
 <body>
@@ -1182,30 +1206,30 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 
   <!-- BOODSCHAPPEN -->
   <div class="view" id="boodschappenView">
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 0;">
-      <div class="vaste-bood-row" id="vasteBoodRow" style="margin:0;flex:1;"></div>
-      <button class="voeg-alles-btn" id="voegAllesBtn" style="display:none;">↓ Alles</button>
+    <h1 class="screen-title">Boodschappen</h1>
+    <div class="input-row">
+      <input type="text" class="field" id="boodschapInput" placeholder="Toevoegen aan de lijst…" maxlength="200" aria-label="Boodschap toevoegen" enterkeyhint="done">
+      <button class="btn btn-primary btn-square" id="boodschapAddBtn" type="button" aria-label="Toevoegen"><svg class="ic lg"><use href="#i-plus"/></svg></button>
     </div>
-    <div class="boodschappen-add">
-      <input type="text" id="boodschapInput" placeholder="Toevoegen aan lijst…" maxlength="200">
-      <button id="boodschapAddBtn">+</button>
+    <div class="bood-toolbar">
+      <select class="select-link" id="boodCatSelect" aria-label="Toon afdeling"></select>
+      <span class="bood-count" id="boodCount"></span>
     </div>
-
-    <div class="boodschappen-cat-row" id="boodCatRow"></div>
-    <div class="boodschappen-cat-row" id="boodWinkelRow" style="margin-top:4px;padding:0 4px;"></div>
+    <div id="boodCatRow" hidden></div>
+    <div id="boodWinkelRow" hidden></div>
+    <div class="section-label">Favorieten<button class="aside" id="voegAllesBtn" type="button" style="display:none;">Alles toevoegen</button></div>
+    <div class="chip-row" id="vasteBoodRow"></div>
     <div class="bood-suggest-strip" id="boodSuggestStrip" style="display:none;">
-      <div class="bood-suggest-label">💡 Vergeet je dit niet?</div>
-      <div class="bood-suggest-chips" id="boodSuggestChips"></div>
+      <div class="section-label">Vergeet je dit niet?</div>
+      <div class="chip-row" id="boodSuggestChips"></div>
     </div>
-    <div id="boodDoneBanner" style="display:none;margin:8px 0 4px;background:#27ae60;color:#fff;border-radius:12px;padding:10px 16px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;"><span style="font-size:16px;">✓</span><span class="bood-done-label" style="flex:1;font-size:13px;font-weight:700;"></span><span style="font-size:13px;font-weight:700;opacity:.85;">Wis ✕</span></div>
-<div class="boodschappen-list" id="boodschappenList"></div>
-    <div class="boodschappen-actions">
-      <button id="clearDoneBoodschappen">🗑 Verwijder afgevinkte</button>
-    </div>
-
+    <div id="boodschappenList"></div>
+    <button id="boodDoneBanner" type="button" hidden>Afgevinkte wissen</button>
+    <button id="clearDoneBoodschappen" type="button" hidden>Verwijder afgevinkte</button>
+    <div class="section-head"><h2>Eigen lijsten</h2></div>
     <div id="extraLijsten"></div>
-    <div style="padding:4px 16px 16px;">
-      <button class="lijst-new-btn" id="lijstNieuwBtn">+ Nieuwe lijst</button>
+    <div style="padding:12px 16px 24px;">
+      <button class="btn btn-outline btn-block" id="lijstNieuwBtn" type="button"><svg class="ic sm"><use href="#i-plus"/></svg>Nieuwe lijst</button>
     </div>
   </div>
 
@@ -3859,18 +3883,13 @@ document.getElementById('closeSheetBtn').addEventListener('click',closeSheet);
 document.getElementById('sheetOverlay').addEventListener('click',function(e){if(e.target===this)closeSheet();});
 
 // === BOODSCHAPPEN ===
+// Afdelingsfilter als keuzelijst (bespaart een rij chips)
 function initBoodCatRow(){
-  var row=document.getElementById('boodCatRow');if(!row)return;row.innerHTML='';
-  var all=document.createElement('button');all.className='bood-cat-btn active';all.textContent='Alles';
-  all.addEventListener('click',function(){boodCatFilter='';document.querySelectorAll('.bood-cat-btn').forEach(function(b){b.classList.remove('active');});all.classList.add('active');renderBoodschappen();});
-  row.appendChild(all);
-  BOOD_CATS.forEach(function(cat){
-    var btn=document.createElement('button');btn.className='bood-cat-btn';btn.textContent=(BOOD_CAT_ICONS[cat]||'🛒')+' '+cat;
-    btn.addEventListener('click',function(){
-      boodCatFilter=cat;document.querySelectorAll('.bood-cat-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');renderBoodschappen();
-    });
-    row.appendChild(btn);
-  });
+  var sel=document.getElementById('boodCatSelect');if(!sel)return;sel.innerHTML='';
+  var all=document.createElement('option');all.value='';all.textContent='Alle afdelingen';sel.appendChild(all);
+  BOOD_CATS.forEach(function(cat){var o=document.createElement('option');o.value=cat;o.textContent=cat;sel.appendChild(o);});
+  sel.value=boodCatFilter||'';
+  sel.onchange=function(){boodCatFilter=sel.value;renderBoodschappen();};
 }
 
 // Winkels zijn per huishouden in te stellen (data.winkels). Bestaande huishoudens houden
@@ -3929,8 +3948,8 @@ function renderBoodSuggestions(){
   chips.innerHTML='';
   suggestions.forEach(function(k){
     var f=freq[k];
-    var chip=document.createElement('div');chip.className='bood-suggest-chip';
-    chip.innerHTML='+ '+escHtml(f.text)+' <span>'+f.count+'×</span>';
+    var chip=document.createElement('button');chip.type='button';chip.className='chip';
+    chip.innerHTML=icon('plus','xs')+escHtml(f.text);chip.title=f.count+'× gekocht in 4 weken';
     chip.addEventListener('click',function(){
       if(!data.boodschappen)data.boodschappen=[];
       var already=data.boodschappen.some(function(b){return !b.done&&b.text.toLowerCase().trim()===k;});
@@ -3949,113 +3968,91 @@ function renderBoodschappen(){
   var items=data.boodschappen||[];
   var undone=items.filter(function(b){return !b.done;});
   var done=items.filter(function(b){return b.done;});
-  var sorted=undone.concat(done);
-  if(!sorted.length){var e=document.createElement('div');e.className='empty-msg';e.style='grid-column:1/-1';e.innerHTML='<div style="font-size:28px;margin-bottom:6px">🛒</div><div>De lijst is leeg</div>';list.appendChild(e);
-    // Verberg done-banner
-    var db=document.getElementById('boodDoneBanner');if(db)db.style.display='none';
-    return;}
-  // Done-banner: toon als er afgevinkte items zijn
-  (function(){
-    var db=document.getElementById('boodDoneBanner');if(!db)return;
-    var doneCount=done.length;
-    if(doneCount>0){
-      db.style.display='';
-      var dbl=db.querySelector('.bood-done-label');
-      if(dbl)dbl.textContent=doneCount+' afgevinkt — wis van lijst';
-    } else {
-      db.style.display='none';
+  var countEl=document.getElementById('boodCount');
+  if(countEl)countEl.textContent=undone.length?undone.length+' te halen':'';
+  if(!items.length){list.appendChild(ui.empty('De lijst is leeg','Typ hierboven wat je nodig hebt.'));return;}
+
+  function toggleDone(b){
+    b.done=!b.done;
+    if(b.done){
+      if(!data.boodschappenHistory)data.boodschappenHistory=[];
+      var norm=b.text.toLowerCase().trim();
+      data.boodschappenHistory.push({text:b.text,norm:norm,date:todayKey()});
+      var cutoff=dateKey(addDays(today,-56).getFullYear(),addDays(today,-56).getMonth(),addDays(today,-56).getDate());
+      data.boodschappenHistory=data.boodschappenHistory.filter(function(h){return h.date>=cutoff;});
     }
-  })();
-  function renderBoodItem(b){
-    var item=document.createElement('div');item.className='boodschap-item';
-    var sbg=document.createElement('div');sbg.className='boodschap-swipe-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
-    var check=document.createElement('div');check.className='boodschap-check'+(b.done?' checked':'');check.textContent=b.done?'✓':'';
-    check.addEventListener('click',function(){
-      b.done=!b.done;
-      if(b.done){
-        if(!data.boodschappenHistory)data.boodschappenHistory=[];
-        var norm=b.text.toLowerCase().trim();
-        data.boodschappenHistory.push({text:b.text,norm:norm,date:todayKey()});
-        var cutoff=dateKey(addDays(today,-56).getFullYear(),addDays(today,-56).getMonth(),addDays(today,-56).getDate());
-        data.boodschappenHistory=data.boodschappenHistory.filter(function(h){return h.date>=cutoff;});
-      }
-      saveToServer();renderBoodschappen();
-    });
-    var body=document.createElement('div');body.style='flex:1;min-width:0;';
-    var txt=document.createElement('div');txt.className='boodschap-text'+(b.done?' done':'');
-    txt.textContent=b.text;
-    body.appendChild(txt);
-    if(b.addedBy){var meta=document.createElement('div');meta.className='boodschap-meta';meta.textContent='door '+b.addedBy;body.appendChild(meta);}
-    // Onderste regel: categorie + winkel links, aantal-stepper rechts (horizontaal)
-    var boodBottom=document.createElement('div');boodBottom.style='display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:1px;flex-wrap:wrap;';
-    var chipGroup=document.createElement('div');chipGroup.style='display:flex;align-items:center;gap:3px;flex-wrap:wrap;min-width:50px;flex:1;';
-    (function(bi){
-      var chip=document.createElement('button');chip.className='bood-cat-chip';
-      chip.textContent=(BOOD_CAT_ICONS[bi.cat||'Overig']||'🛒')+' '+(bi.cat||'Overig');
-      chip.title='Categorie wijzigen';
-      chip.addEventListener('click',function(e){
-        e.stopPropagation();
-        var sel=document.createElement('select');sel.className='bood-cat-inline-sel';
-        BOOD_CATS.concat(['Overig']).filter(function(c,i,a){return a.indexOf(c)===i;}).forEach(function(c){
-          var opt=document.createElement('option');opt.value=c;opt.textContent=(BOOD_CAT_ICONS[c]||'🛒')+' '+c;
-          if(c===bi.cat)opt.selected=true;sel.appendChild(opt);
-        });
-        chip.replaceWith(sel);sel.focus();
-        sel.addEventListener('change',function(){
-          bi.cat=sel.value;
-          var norm=bi.text.toLowerCase().trim();
-          if(!data.boodCatOverrides)data.boodCatOverrides={};
-          data.boodCatOverrides[norm]=sel.value;
-          saveToServer();renderBoodschappen();
-          showToast('\u2713 '+bi.text+' staat voortaan bij '+sel.value);
-        });
-        sel.addEventListener('blur',function(){setTimeout(function(){if(document.body.contains(sel))renderBoodschappen();},150);});
-      });
-      chipGroup.appendChild(chip);
-    })(b);
-    if(b.winkel){(function(bi){
-      var WICONS2={AH:'\ud83d\udd35',Vomar:'\ud83d\udd34',Slager:'\ud83d\udfe4',Action:'\ud83d\udfe1'};
-      var wchip=document.createElement('div');wchip.style='font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:1px 6px;display:inline-flex;align-items:center;gap:2px;color:var(--muted);white-space:nowrap;flex-shrink:0;';
-      wchip.textContent=(WICONS2[bi.winkel]||'\ud83c\udffe')+' '+bi.winkel;
-      chipGroup.appendChild(wchip);
-    })(b);}
-    boodBottom.appendChild(chipGroup);
-    var qtyRow=document.createElement('div');qtyRow.className='bood-qty-row';qtyRow.style='flex-shrink:0;';
-    var qMin=document.createElement('button');qMin.className='bood-qty-btn';qMin.textContent='\u2212';qMin.title='Minder';
-    qMin.addEventListener('click',function(e){e.stopPropagation();if(!b.qty||b.qty<=1){b.qty=1;return;}b.qty=(b.qty||1)-1;saveToServer();renderBoodschappen();});
-    var qNum=document.createElement('span');qNum.className='bood-qty-num';qNum.textContent=(b.qty&&b.qty>1?b.qty:'1')+'x';
-    var qPlus=document.createElement('button');qPlus.className='bood-qty-btn';qPlus.textContent='+';qPlus.title='Meer';
-    qPlus.addEventListener('click',function(e){e.stopPropagation();b.qty=(b.qty||1)+1;saveToServer();renderBoodschappen();});
-    qtyRow.appendChild(qMin);qtyRow.appendChild(qNum);qtyRow.appendChild(qPlus);
-    boodBottom.appendChild(qtyRow);
-    body.appendChild(boodBottom);
-    var del=document.createElement('button');del.className='boodschap-del';del.textContent='\u2715';
-    del.addEventListener('click',function(){var idx=data.boodschappen.indexOf(b);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();});
-    item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
-    (function(item2,b2){addSwipe(item2,function(){var idx=data.boodschappen.indexOf(b2);if(idx>-1)data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();showUndoToast(b2.text+' verwijderd',function(){data.boodschappen.splice(idx,0,b2);saveToServer();renderBoodschappen();});});})(item,b);
+    saveToServer();renderBoodschappen();
   }
-  var displayItems=boodWinkelFilter?sorted.filter(function(b){return (b.winkel||'')=== boodWinkelFilter;}):sorted;
-  if(boodCatFilter){
-    // Filtered: flat list
-    displayItems.filter(function(b){return b.cat===boodCatFilter;}).forEach(function(b){renderBoodItem(b);});
-  } else if(boodWinkelFilter&&!boodCatFilter){
-    displayItems.forEach(function(b){renderBoodItem(b);});
-  } else {
-    // Groepeer per afdeling in winkel-volgorde — undone items eerst, done items ALTIJD onderaan
-    var undoneItems=displayItems.filter(function(b){return !b.done;});
-    var doneItems=displayItems.filter(function(b){return b.done;});
-    var groups={};
-    undoneItems.forEach(function(b){var cat=b.cat||'Overig';if(!groups[cat])groups[cat]=[];groups[cat].push(b);});
-    var catOrder=BOOD_CATS.concat(Object.keys(groups).filter(function(c){return BOOD_CATS.indexOf(c)===-1;}));
-    catOrder.forEach(function(cat){
-      if(!groups[cat]||!groups[cat].length)return;
-      groups[cat].forEach(function(b){renderBoodItem(b);});
-    });
-    // Done items helemaal onderaan met scheidingslijn
-    if(doneItems.length){
-      var div=document.createElement('div');div.className='bood-done-divider';div.textContent='Afgevinkt';list.appendChild(div);
-      doneItems.forEach(function(b){renderBoodItem(b);});
+  function removeItem(b){
+    var idx=data.boodschappen.indexOf(b);if(idx<0)return;
+    data.boodschappen.splice(idx,1);saveToServer();renderBoodschappen();
+    showUndoToast(b.text+' verwijderd',function(){data.boodschappen.splice(idx,0,b);saveToServer();renderBoodschappen();});
+  }
+  // Afdeling wijzigen; de app onthoudt de keuze voor dit product (boodCatOverrides).
+  function chooseCat(b){
+    var cats=BOOD_CATS.concat(['Overig']).filter(function(c,i,a){return a.indexOf(c)===i;});
+    ui.actionSheet('Afdeling voor '+b.text,cats.map(function(c){
+      return {icon:'store',label:c,selected:(b.cat||'Overig')===c,onClick:function(){
+        b.cat=c;
+        if(!data.boodCatOverrides)data.boodCatOverrides={};
+        data.boodCatOverrides[b.text.toLowerCase().trim()]=c;
+        saveToServer();renderBoodschappen();showToast(b.text+' staat voortaan bij '+c);
+      }};
+    }));
+  }
+  function itemRow(b){
+    var meta=[];
+    if(b.addedBy&&!sameName(b.addedBy,myName))meta.push('door '+b.addedBy);
+    var row=ui.row({title:b.text,done:b.done,compact:true,meta:meta,swipeLabel:'Verwijderen'});
+    var chk=ui.check({done:b.done,label:b.text},function(){toggleDone(b);});
+    row.appendChild(chk);row.appendChild(row._body);
+    if(!b.done){
+      var q=ui.el('div','qty');
+      var minus=ui.iconBtn('minus','Minder '+b.text,function(){if(!b.qty||b.qty<=1){b.qty=1;return;}b.qty=(b.qty||1)-1;saveToServer();renderBoodschappen();});
+      var num=ui.el('span','qty__n',String(b.qty&&b.qty>1?b.qty:1));
+      var plus=ui.iconBtn('plus','Meer '+b.text,function(){b.qty=(b.qty||1)+1;saveToServer();renderBoodschappen();});
+      q.appendChild(minus);q.appendChild(num);q.appendChild(plus);row.appendChild(q);
     }
+    row.appendChild(ui.iconBtn('more','Opties voor '+b.text,function(){
+      ui.actionSheet(b.text,[
+        {icon:'store',label:'Afdeling: '+(b.cat||'Overig'),onClick:function(){chooseCat(b);}},
+        {icon:'trash',label:'Verwijderen',danger:true,onClick:function(){removeItem(b);}}
+      ]);
+    }));
+    addSwipe(row,function(){removeItem(b);});
+    return row;
+  }
+  function addGroup(label,arr){
+    if(label)list.appendChild(ui.el('div','section-label',label));
+    var l=ui.el('div','list');arr.forEach(function(b){l.appendChild(itemRow(b));});list.appendChild(l);
+  }
+
+  var displayItems=boodWinkelFilter?items.filter(function(b){return (b.winkel||'')===boodWinkelFilter;}):items;
+  var openItems=displayItems.filter(function(b){return !b.done;});
+  var doneItems=displayItems.filter(function(b){return b.done;});
+  if(boodCatFilter){
+    var f=openItems.filter(function(b){return (b.cat||'Overig')===boodCatFilter;});
+    if(f.length)addGroup(null,f);else list.appendChild(ui.empty('Niets in '+boodCatFilter,'Kies een andere afdeling of “Alle afdelingen”.'));
+    doneItems=doneItems.filter(function(b){return (b.cat||'Overig')===boodCatFilter;});
+  } else {
+    // Per afdeling in winkelvolgorde
+    var groups={};
+    openItems.forEach(function(b){var cat=b.cat||'Overig';(groups[cat]=groups[cat]||[]).push(b);});
+    BOOD_CATS.concat(Object.keys(groups).filter(function(c){return BOOD_CATS.indexOf(c)===-1;})).forEach(function(cat){
+      if(groups[cat]&&groups[cat].length)addGroup(cat,groups[cat]);
+    });
+  }
+  // Afgevinkt: één ingeklapt blok onderaan, met "Wissen" (met ongedaan maken)
+  if(doneItems.length){
+    var open=false;try{open=localStorage.getItem('plannerBoodDoneOpen')==='1';}catch(e){}
+    var head=ui.el('div','section-label');
+    var tog=ui.el('button','aside done-toggle');tog.type='button';tog.setAttribute('aria-expanded',open?'true':'false');
+    tog.innerHTML=icon(open?'chevron-down':'chevron-right','xs');tog.appendChild(document.createTextNode('Afgevinkt · '+doneItems.length));
+    tog.addEventListener('click',function(){try{localStorage.setItem('plannerBoodDoneOpen',open?'0':'1');}catch(e){}renderBoodschappen();});
+    var wis=ui.el('button','aside','Wissen');wis.type='button';
+    wis.addEventListener('click',function(){document.getElementById('boodDoneBanner').click();});
+    head.appendChild(tog);head.appendChild(wis);list.appendChild(head);
+    if(open){var l=ui.el('div','list');doneItems.forEach(function(b){l.appendChild(itemRow(b));});list.appendChild(l);}
   }
 }
 
@@ -4094,24 +4091,39 @@ function renderCadeaus(){
   (data.lijsten||[]).forEach(function(l){
     if(!Array.isArray(l.items))l.items=[];
     var open=l.items.filter(function(c){return !c.done;});
-    var sec=document.createElement('div');sec.className='cadeau-section'+(dicht.indexOf(l.id)>-1?' lijst-collapsed':'');
-    var hdr=document.createElement('div');hdr.className='cadeau-header';
-    var tog=document.createElement('button');tog.className='lijst-toggle';tog.setAttribute('aria-expanded',dicht.indexOf(l.id)>-1?'false':'true');
-    var chev=document.createElement('span');chev.className='lijst-chevron';chev.textContent='▾';
-    var nm=document.createElement('span');nm.textContent=l.naam;
-    tog.appendChild(chev);tog.appendChild(nm);
-    if(open.length){var cnt=document.createElement('span');cnt.className='lijst-count';cnt.textContent=open.length;tog.appendChild(cnt);}
+    var isClosed=dicht.indexOf(l.id)>-1;
+    var sec=ui.el('section','card lijst-card'+(isClosed?' lijst-collapsed':''));
+    var hdr=ui.el('div','lijst-head');
+    var tog=ui.el('button','lijst-toggle');tog.type='button';tog.setAttribute('aria-expanded',isClosed?'false':'true');
+    tog.innerHTML=icon(isClosed?'chevron-right':'chevron-down','sm');
+    tog.appendChild(ui.el('span','lijst-name',l.naam));
+    if(open.length)tog.appendChild(ui.el('span','badge neutral',String(open.length)));
     tog.addEventListener('click',function(){
       var d=getLijstDicht(),i=d.indexOf(l.id);if(i>-1)d.splice(i,1);else d.push(l.id);setLijstDicht(d);renderCadeaus();
     });
-    var menu=document.createElement('button');menu.className='lijst-menu-btn';menu.textContent='⋯';menu.setAttribute('aria-label','Opties voor '+l.naam);
-    menu.addEventListener('click',function(){openLijstMenu(l);});
-    hdr.appendChild(tog);hdr.appendChild(menu);sec.appendChild(hdr);
+    hdr.appendChild(tog);
+    hdr.appendChild(ui.iconBtn('more','Opties voor '+l.naam,function(){openLijstMenu(l);}));
+    sec.appendChild(hdr);
 
-    var body=document.createElement('div');body.className='lijst-body';
-    var addRow=document.createElement('div');addRow.className='cadeau-add boodschappen-add';
-    var inp=document.createElement('input');inp.type='text';inp.maxLength=200;inp.placeholder='Toevoegen aan '+l.naam.replace(/^\S+\s/,'').toLowerCase()+'…';inp.dataset.lijstInput=l.id;
-    var btn=document.createElement('button');btn.textContent='+';btn.setAttribute('aria-label','Toevoegen aan '+l.naam);
+    var body=ui.el('div','lijst-body');
+    l.items.filter(function(c){return !c.done;}).concat(l.items.filter(function(c){return c.done;})).forEach(function(c){
+      function remove(){
+        var cur=findLijst(l.id);if(!cur)return;var idx=cur.items.indexOf(c);if(idx<0)return;
+        cur.items.splice(idx,1);saveToServer();renderCadeaus();
+        showUndoToast(c.text+' verwijderd',function(){var cur2=findLijst(l.id);if(!cur2)return;cur2.items.splice(idx,0,c);saveToServer();renderCadeaus();});
+      }
+      var meta=[];if(c.addedBy&&!sameName(c.addedBy,myName))meta.push('door '+c.addedBy);
+      var row=ui.row({title:c.text,done:c.done,compact:true,meta:meta,swipeLabel:'Verwijderen'});
+      row.appendChild(ui.check({done:c.done,label:c.text},function(b){haptic(b.firstChild);c.done=!c.done;saveToServer();renderCadeaus();}));
+      row.appendChild(row._body);
+      row.appendChild(ui.iconBtn('x','Verwijder '+c.text,remove));
+      addSwipe(row,remove);
+      body.appendChild(row);
+    });
+    var addRow=ui.el('div','lijst-add');
+    var inp=ui.el('input','field');inp.type='text';inp.maxLength=200;inp.dataset.lijstInput=l.id;
+    inp.placeholder='Toevoegen aan '+l.naam.replace(/^\S+\s/,'').toLowerCase()+'…';inp.setAttribute('aria-label','Toevoegen aan '+l.naam);
+    var btn=ui.el('button','btn btn-secondary btn-square');btn.type='button';btn.innerHTML=icon('plus');btn.setAttribute('aria-label','Toevoegen aan '+l.naam);
     function add(){
       var text=inp.value.trim();if(!text)return;
       var cur=findLijst(l.id);if(!cur)return;if(!Array.isArray(cur.items))cur.items=[];
@@ -4122,67 +4134,33 @@ function renderCadeaus(){
     btn.addEventListener('click',add);
     inp.addEventListener('keydown',function(e){if(e.key==='Enter')add();});
     addRow.appendChild(inp);addRow.appendChild(btn);body.appendChild(addRow);
-
-    var list=document.createElement('div');list.className='cadeau-list';body.appendChild(list);
-    if(!l.items.length){var empty=document.createElement('div');empty.className='cadeau-empty';empty.textContent='Nog leeg';list.appendChild(empty);}
-    function renderItem(c){
-      var item=document.createElement('div');item.className='cadeau-item';
-      var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
-      var check=document.createElement('div');check.className='cadeau-check'+(c.done?' checked':'');check.textContent=c.done?'✓':'';
-      check.setAttribute('role','checkbox');check.setAttribute('aria-checked',c.done?'true':'false');
-      check.addEventListener('click',function(){haptic(check);c.done=!c.done;saveToServer();renderCadeaus();});
-      var b=document.createElement('div');b.style='flex:1;min-width:0;';
-      var txt=document.createElement('div');txt.className='cadeau-text'+(c.done?' done':'');txt.textContent=c.text;b.appendChild(txt);
-      if(c.addedBy){var meta=document.createElement('div');meta.className='cadeau-meta';meta.textContent='door '+c.addedBy;b.appendChild(meta);}
-      var del=document.createElement('button');del.className='cadeau-del';del.textContent='✕';del.setAttribute('aria-label','Verwijder '+c.text);
-      function remove(){
-        var cur=findLijst(l.id);if(!cur)return;var idx=cur.items.indexOf(c);if(idx<0)return;
-        cur.items.splice(idx,1);saveToServer();renderCadeaus();
-        showUndoToast(c.text+' verwijderd',function(){var cur2=findLijst(l.id);if(!cur2)return;cur2.items.splice(idx,0,c);saveToServer();renderCadeaus();});
-      }
-      del.addEventListener('click',remove);
-      item.appendChild(check);item.appendChild(b);item.appendChild(del);list.appendChild(item);
-      addSwipe(item,remove);
-    }
-    open.forEach(renderItem);
-    var done=l.items.filter(function(c){return c.done;});
-    if(done.length){
-      var div=document.createElement('div');div.className='bood-done-divider';div.textContent='Afgevinkt';list.appendChild(div);
-      done.forEach(renderItem);
-    }
     sec.appendChild(body);wrap.appendChild(sec);
   });
   if(actId){var back=document.querySelector('[data-lijst-input="'+actId+'"]');if(back){back.value=actVal;back.focus();}}
 }
 
 function openLijstMenu(l){
-  openAddSheet(function(body){
-    var title=document.createElement('div');title.className='sheet-title';title.textContent=l.naam;body.appendChild(title);
-    function action(label,fn,danger){
-      var b=document.createElement('button');b.className='add-card-btn'+(danger?'':' secondary');b.textContent=label;b.style.marginTop='8px';
-      if(danger){b.style.background='var(--danger)';}
-      b.addEventListener('click',function(){closeAddSheet();fn();});body.appendChild(b);
-    }
-    action('✏️ Naam wijzigen',function(){
+  var doneCount=(l.items||[]).filter(function(c){return c.done;}).length;
+  ui.actionSheet(l.naam,[
+    {icon:'pencil',label:'Naam wijzigen',onClick:function(){
       customPrompt('Naam van de lijst:',l.naam,function(v){
         v=(v||'').trim();if(!v||v===l.naam)return;var cur=findLijst(l.id);if(!cur)return;cur.naam=v;saveToServer();renderCadeaus();
       });
-    });
-    var doneCount=(l.items||[]).filter(function(c){return c.done;}).length;
-    if(doneCount)action('🧹 Afgevinkte wissen ('+doneCount+')',function(){
+    }},
+    doneCount?{icon:'check',label:'Afgevinkte wissen ('+doneCount+')',onClick:function(){
       var cur=findLijst(l.id);if(!cur)return;var removed=cur.items.filter(function(c){return c.done;});
       cur.items=cur.items.filter(function(c){return !c.done;});saveToServer();renderCadeaus();
       showUndoToast(removed.length+' gewist',function(){var c2=findLijst(l.id);if(!c2)return;c2.items=c2.items.concat(removed);saveToServer();renderCadeaus();});
-    });
-    action('🗑 Lijst verwijderen',function(){
+    }}:null,
+    {icon:'trash',label:'Lijst verwijderen',danger:true,onClick:function(){
       var n=(l.items||[]).length;
       customConfirm('"'+l.naam+'" verwijderen'+(n?' met '+n+' item'+(n===1?'':'s'):'')+'?',function(){
         var idx=(data.lijsten||[]).map(function(x){return x.id;}).indexOf(l.id);if(idx<0)return;var gone=data.lijsten[idx];
         data.lijsten.splice(idx,1);saveToServer();renderCadeaus();
         showUndoToast('Lijst verwijderd',function(){data.lijsten.splice(idx,0,gone);saveToServer();renderCadeaus();});
       });
-    },true);
-  });
+    }}
+  ]);
 }
 
 document.getElementById('lijstNieuwBtn').addEventListener('click',function(){
@@ -4255,16 +4233,16 @@ function renderVasteBoodschappen(){
   var row=document.getElementById('vasteBoodRow');row.innerHTML='';
   var items=data.vasteBoodschappen||[];
   items.forEach(function(vb){
-    var chip=document.createElement('div');chip.className='vaste-bood-chip';
-    var lbl=document.createElement('span');lbl.textContent=vb.text;
-    var del=document.createElement('button');del.className='vaste-bood-del';del.textContent='✕';del.title='Verwijder uit favorieten';
+    // Functionele chip: tik = op de lijst zetten, kruisje = uit favorieten
+    var chip=document.createElement('button');chip.type='button';chip.className='chip';
+    chip.appendChild(document.createTextNode(vb.text));
+    var del=document.createElement('span');del.className='chip-x';del.setAttribute('role','button');del.setAttribute('aria-label',vb.text+' uit favorieten');del.innerHTML=icon('x','xs');
     del.addEventListener('click',function(e){e.stopPropagation();var idx=data.vasteBoodschappen.indexOf(vb);if(idx>-1)data.vasteBoodschappen.splice(idx,1);saveToServer();renderVasteBoodschappen();});
-    chip.appendChild(lbl);chip.appendChild(del);
-    chip.addEventListener('click',function(e){if(e.target===del)return;if(!data.boodschappen)data.boodschappen=[];var already=data.boodschappen.some(function(b){return !b.done&&b.text.toLowerCase()===vb.text.toLowerCase();});if(already){showToast(vb.text+' staat al op de lijst');return;}var vbCat=(data.boodCatOverrides&&data.boodCatOverrides[vb.text.toLowerCase().trim()])||autoBoodCat(vb.text)||'Overig';data.boodschappen.push({id:uid(),text:vb.text,done:false,cat:vbCat,addedBy:myName||null,addedDate:todayKey()});saveToServer();renderBoodschappen();showToast(vb.text+' toegevoegd ✓');});
+    chip.appendChild(del);
+    chip.addEventListener('click',function(e){if(e.target.closest('.chip-x'))return;if(!data.boodschappen)data.boodschappen=[];var already=data.boodschappen.some(function(b){return !b.done&&b.text.toLowerCase()===vb.text.toLowerCase();});if(already){showToast(vb.text+' staat al op de lijst');return;}var vbCat=(data.boodCatOverrides&&data.boodCatOverrides[vb.text.toLowerCase().trim()])||autoBoodCat(vb.text)||'Overig';data.boodschappen.push({id:uid(),text:vb.text,done:false,cat:vbCat,addedBy:myName||null,addedDate:todayKey()});saveToServer();renderBoodschappen();showToast(vb.text+' toegevoegd');});
     row.appendChild(chip);
   });
-  // + Toevoegen knop
-  var add=document.createElement('div');add.className='vaste-bood-add';add.textContent='+ Favoriet';
+  var add=document.createElement('button');add.type='button';add.className='chip chip-ghost';add.innerHTML=icon('plus','xs')+'Favoriet';
   add.addEventListener('click',function(){customPrompt('Vast boodschapitem toevoegen:','',function(t){if(!t||!t.trim())return;if(!data.vasteBoodschappen)data.vasteBoodschappen=[];if(data.vasteBoodschappen.some(function(x){return x.text.toLowerCase()===t.trim().toLowerCase();})){showToast('Staat al in je favorieten');return;}data.vasteBoodschappen.push({id:uid(),text:t.trim()});saveToServer();renderVasteBoodschappen();showToast(t.trim()+' opgeslagen als favoriet');},{okText:'Toevoegen'});});
   // Voeg alles toe button
   var voegBtn=document.getElementById('voegAllesBtn');
