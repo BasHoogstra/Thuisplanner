@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="color-scheme" content="light dark">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#5b4fe0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,21 +13,35 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>">
 <title>Huisplan</title>
 <style>
+/* ══ DESIGN SYSTEM: tokens ══════════════════════════════════════════
+   Eén bron voor kleur, type, ruimte, afronding en schaduw. Componenten
+   (onderaan in deze <style>) gebruiken alleen deze variabelen. */
+@font-face{font-family:'Figtree';font-style:normal;font-weight:400 700;font-display:swap;src:url('fonts/figtree-latin.woff2') format('woff2');}
 :root{
-  --bg:#f8f7f4;--card:#fff;--accent:#5b4fe0;--accent-light:#ece9fd;--accent-rgb:91,79,224;
-  --text:#221f2e;--muted:#86838f;--border:#e7e4df;--done:#b9b6c9;
-  --danger:#e0607a;--weekend:#f0eefc;--overdue:#fdecea;--green:#27ae60;
+  --bg:#f8f7f4;--card:#fff;--surface-2:#f2f0eb;--accent:#5b4fe0;--accent-light:#ece9fd;--accent-rgb:91,79,224;
+  --accent-strong:color-mix(in srgb,var(--accent) 82%,#000);
+  --text:#221f2e;--muted:#5f5b6b;--subtle:#8a8696;--border:#e7e4df;--done:#b9b6c9;
+  --danger:#c23b5a;--danger-soft:#fbe9ee;--warn:#a85d00;--warn-soft:#fdf3e4;--weekend:#f0eefc;--overdue:#fdecea;--green:#1f8a4c;
+  --font:'Figtree',system-ui,-apple-system,"Segoe UI",sans-serif;
+  --fs-display:28px;--fs-title:20px;--fs-head:16px;--fs-body:16px;--fs-small:14px;--fs-detail:13px;--fs-label:12px;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;--sp-6:32px;
+  --r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:24px;--r-pill:999px;
+  --sh-1:0 1px 2px rgba(34,31,46,.06);--sh-2:0 8px 24px -8px rgba(34,31,46,.18);
+  --tap:44px;
 }
 @media(prefers-color-scheme:dark){
   :root{
-    --bg:#15131c;--card:#211f2c;--accent:#8b7dff;--accent-light:#2c2944;
-    --text:#ece8f7;--muted:#7d7a92;--border:#39354d;--done:#5a5670;
-    --danger:#f07090;--weekend:#1f1d2c;--overdue:#2a1825;--green:#4ecb7a;
+    --bg:#15131c;--card:#211f2c;--surface-2:#2a2737;--accent:#8b7dff;--accent-light:#2c2944;
+    --accent-strong:color-mix(in srgb,var(--accent) 80%,#fff);
+    --text:#ece8f7;--muted:#a9a5bd;--subtle:#7d7a92;--border:#39354d;--done:#5a5670;
+    --danger:#f07090;--danger-soft:#3a1d29;--warn:#f0b35a;--warn-soft:#3a2c17;--weekend:#1f1d2c;--overdue:#2a1825;--green:#4ecb7a;
+    --sh-1:0 1px 2px rgba(0,0,0,.3);--sh-2:0 8px 24px -8px rgba(0,0,0,.6);
     color-scheme:dark;
   }
 }
 *{box-sizing:border-box;}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent;}
+body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent;}
+button,input,select,textarea{font-family:inherit;}
 button,a,[role=button],.nav-item,.meer-card,.stat-chip,.vaste-bood-chip,.vandaag-check,.boodschap-check,.day,.upcoming-day{touch-action:manipulation;}
 .app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding-bottom:70px;}
 header{padding:14px 16px 8px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);background:var(--card);}
@@ -780,9 +794,116 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .wiw-chip{flex:1;border:1px solid var(--border);border-radius:10px;padding:8px 10px;cursor:pointer;transition:background .15s;}
 .wiw-chip-name{font-size:11px;font-weight:700;opacity:.85;margin-bottom:2px;}
 .wiw-chip-status{font-size:13px;font-weight:700;}
+/* ══ DESIGN SYSTEM: componenten (stap 1: basis, header, sync, navigatie, schermkoppen) ══
+   Staat bewust onderaan zodat het oudere, verspreide regels overschrijft. */
+.ic{width:22px;height:22px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:middle;}
+.ic.sm{width:18px;height:18px;}.ic.xs{width:16px;height:16px;}.ic.lg{width:24px;height:24px;}
+
+/* Invoer: 16px voorkomt automatisch inzoomen op iPhone, dus inzoomen mag weer aan. */
+input[type=text],input[type=search],input[type=url],input[type=email],input[type=number],input[type=date],input[type=time],input:not([type]),select,textarea{font-size:16px!important;font-family:var(--font);}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-light);}
+button:focus-visible,a:focus-visible,[role=button]:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+/* Knoppen met alleen een icoon: 44×44, rustig, zonder kader */
+.icon-btn{background:transparent;border:none;border-radius:var(--r-md);width:var(--tap);height:var(--tap);color:var(--muted);padding:0;}
+.icon-btn:active{background:var(--surface-2);}
+
+/* App-balk */
+header{height:56px;padding:0 8px 0 16px;gap:10px;border-bottom:none;background:var(--bg);}
+header h1{font-size:18px;font-weight:700;display:flex;align-items:center;gap:10px;letter-spacing:-.01em;}
+header h1 img{width:28px!important;height:28px!important;border-radius:var(--r-sm)!important;margin:0!important;}
+
+/* Synchronisatie: alleen zichtbaar als er iets mis is (offline of fout) */
+.sync-row{display:none;margin:0 16px 8px;padding:10px 12px 10px 14px;border:none;border-radius:var(--r-md);font-size:var(--fs-small);font-weight:500;gap:10px;}
+.sync-row.show{display:flex;}
+.sync-row.offline{background:var(--warn-soft);color:var(--warn);}
+.sync-row.error{background:var(--danger-soft);color:var(--danger);}
+.sync-dot{display:none;}
+.sync-row.show .refresh-btn{display:inline-flex!important;}
+.refresh-btn{margin-left:auto;height:32px;padding:0 12px;border-radius:var(--r-pill);border:none;background:var(--card);color:inherit;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+
+/* Onderste navigatie */
+.bottom-nav{box-shadow:none;border-top:1px solid var(--border);padding:6px 8px calc(8px + env(safe-area-inset-bottom));}
+.nav-item{font-size:12px;font-weight:600;gap:4px;padding:2px 2px 0;min-height:56px;color:var(--muted);}
+.nav-item .nav-icon,.nav-item.active .nav-icon{width:56px;height:30px;padding:0;border-radius:var(--r-pill);display:flex;align-items:center;justify-content:center;transform:none;background:transparent;transition:background .18s;}
+.nav-item.active{color:var(--accent-strong);}
+.nav-item.active .nav-icon{background:var(--accent-light);}
+.nav-badge{top:2px;right:auto;left:calc(50% + 8px);min-width:18px;height:18px;padding:0 5px;border-radius:var(--r-pill);font-size:11px;line-height:14px;border:2px solid var(--card);display:flex;align-items:center;justify-content:center;}
+
+/* Kop van elk volledig scherm (Onderhoud, Garanties, …): terug-pijl links, titel */
+.full-header{display:flex;align-items:center;gap:4px;height:56px;padding:0 8px;background:var(--card);border-bottom:1px solid var(--border);}
+.full-header h2{margin:0;font-size:18px;font-weight:700;flex:1;letter-spacing:-.01em;}
+.full-header .icon-btn{order:-1;}
+.overlay-header{display:flex;align-items:center;gap:4px;}
+.overlay-close{background:transparent;border:none;width:var(--tap);height:var(--tap);border-radius:var(--r-md);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
 </style>
 </head>
 <body>
+<!-- ICONEN: Lucide (ISC-licentie, lucide.dev), als symbolen zodat ze offline werken en geen externe verzoeken doen. Gebruik: icon('naam') in JS of <svg class="ic"><use href="#i-naam"/></svg>. -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+<defs>
+<symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></symbol>
+<symbol id="i-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
+<symbol id="i-inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+<symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+<symbol id="i-sunrise" viewBox="0 0 24 24"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+<symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+<symbol id="i-cloud-sun" viewBox="0 0 24 24"><path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M20 12h2"/><path d="m19.07 4.93-1.41 1.41"/><path d="M15.947 12.65a4 4 0 0 0-5.925-4.128"/><path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z"/></symbol>
+<symbol id="i-cloud-rain" viewBox="0 0 24 24"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/></symbol>
+<symbol id="i-cloud-snow" viewBox="0 0 24 24"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M8 15h.01"/><path d="M8 19h.01"/><path d="M12 17h.01"/><path d="M12 21h.01"/><path d="M16 15h.01"/><path d="M16 19h.01"/></symbol>
+<symbol id="i-cloud-lightning" viewBox="0 0 24 24"><path d="M6 16.326A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 .5 8.973"/><path d="m13 12-3 5h4l-3 5"/></symbol>
+<symbol id="i-cloud-fog" viewBox="0 0 24 24"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 17H7"/><path d="M17 21H9"/></symbol>
+<symbol id="i-cloud-off" viewBox="0 0 24 24"><path d="m2 2 20 20"/><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193"/><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07"/></symbol>
+<symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-utensils" viewBox="0 0 24 24"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></symbol>
+<symbol id="i-chef" viewBox="0 0 24 24"><path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z"/><path d="M6 17h12"/></symbol>
+<symbol id="i-newspaper" viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></symbol>
+<symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+<symbol id="i-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/></symbol>
+<symbol id="i-plane" viewBox="0 0 24 24"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+<symbol id="i-flame" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol>
+<symbol id="i-notebook" viewBox="0 0 24 24"><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M16 2v20"/></symbol>
+<symbol id="i-list-todo" viewBox="0 0 24 24"><rect x="3" y="5" width="6" height="6" rx="1"/><path d="m3 17 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></symbol>
+<symbol id="i-cake" viewBox="0 0 24 24"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v3"/><path d="M12 8v3"/><path d="M17 8v3"/></symbol>
+<symbol id="i-gift" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+<symbol id="i-trending" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
+<symbol id="i-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></symbol>
+<symbol id="i-store" viewBox="0 0 24 24"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/></symbol>
+<symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+</defs>
+</svg>
 <div class="setup-overlay" id="setupOverlay">
   <div class="setup-card">
     <h2><img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>" alt="" style="width:26px;height:26px;border-radius:6px;vertical-align:-5px;margin-right:7px;">Welkom bij jullie Huisplan</h2>
@@ -817,12 +938,13 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 <div class="app">
   <header>
     <h1><img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>" alt="" style="width:22px;height:22px;border-radius:5px;vertical-align:-4px;margin-right:6px;">Huisplan</h1>
-    <button class="icon-btn" id="shareBtn" title="Delen">🔗</button>
+    <button class="icon-btn" id="shareBtn" title="Delen" aria-label="Planner delen"><svg class="ic"><use href="#i-share"/></svg></button>
   </header>
-  <div class="sync-row">
+  <div class="sync-row" id="syncRow" role="status" aria-live="polite">
     <span class="sync-dot" id="syncDot"></span>
+    <svg class="ic sm"><use href="#i-cloud-off"/></svg>
     <span id="syncText">Verbinden…</span>
-    <button class="refresh-btn" id="refreshBtn" style="display:none;">↻ Vernieuwen</button>
+    <button class="refresh-btn" id="refreshBtn" style="display:none;"><svg class="ic xs"><use href="#i-refresh"/></svg>Opnieuw</button>
   </div>
   <div class="ptr-indicator" id="ptrIndicator">
     <div class="ptr-spinner" id="ptrSpinner" style="display:none;"></div>
@@ -1074,10 +1196,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
   <!-- GEWOONTETRACKER OVERLAY -->
 <div class="full-overlay" id="gewoontenOverlay">
-  <div class="overlay-header" style="padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
-    <button id="closeGewoontenBtn" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">&#8592;</button>
-    <h2 style="margin:0;font-size:17px;font-weight:700;flex:1;">🔁 Gewoonten</h2>
-  </div>
+  <div class="full-header"><button class="icon-btn" id="closeGewoontenBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Gewoonten</h2></div>
   <div style="overflow-y:auto;flex:1;padding:16px;" id="gewoontenList"></div>
   <div class="quick-add-row" style="padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0;">
     <input type="text" id="gewoonteInput" placeholder="Nieuwe gewoonte (bijv. 10 min lezen)…" maxlength="80" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:15px;background:var(--card);color:var(--text);">
@@ -1086,10 +1205,10 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 </div>
 
   <nav class="bottom-nav">
-    <button class="nav-item active" data-view="vandaagView"><span class="nav-icon">🏠</span>Vandaag</button>
-    <button class="nav-item" data-view="kalenderView"><span class="nav-icon">📅</span>Kalender</button>
-    <button class="nav-item" data-view="boodschappenView"><span class="nav-icon">🛒</span>Boodschappen</button>
-    <button class="nav-item" data-view="meerView"><span class="nav-icon">☰</span>Meer</button>
+    <button class="nav-item active" data-view="vandaagView"><span class="nav-icon"><svg class="ic"><use href="#i-house"/></svg></span>Vandaag</button>
+    <button class="nav-item" data-view="kalenderView"><span class="nav-icon"><svg class="ic"><use href="#i-calendar"/></svg></span>Kalender</button>
+    <button class="nav-item" data-view="boodschappenView"><span class="nav-icon"><svg class="ic"><use href="#i-cart"/></svg></span>Boodschappen</button>
+    <button class="nav-item" data-view="meerView"><span class="nav-icon"><svg class="ic"><use href="#i-grid"/></svg></span>Meer</button>
   </nav>
 </div>
 
@@ -1163,11 +1282,11 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- BESTELLINGEN -->
 <div class="full-overlay" id="weekOverzichtOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeWeekOverzichtBtn">✕</button><h2>📊 Weekoverzicht</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeWeekOverzichtBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Weekoverzicht</h2></div>
   <div class="full-body" id="weekOverzichtBody"></div>
 </div>
 <div class="full-overlay" id="bestellingenOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeBestellingenBtn">✕</button><h2>📦 Bestellingen</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeBestellingenBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Bestellingen</h2></div>
   <div style="display:flex;gap:8px;padding:10px 16px 0;background:var(--card);border-bottom:1px solid var(--border);">
     <button class="view-tab active" id="bestTabOpen" style="font-size:12px;padding:6px;">Open</button>
     <button class="view-tab" id="bestTabArchief" style="font-size:12px;padding:6px;">Archief</button>
@@ -1203,7 +1322,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- VASTE TAKEN -->
 <div class="full-overlay" id="recurringOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeRecurringBtn">✕</button><h2>↻ Vaste taken</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeRecurringBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Vaste taken</h2></div>
   <div class="full-body">
     <div class="rec-add-card">
       <h3>Nieuwe vaste taak</h3>
@@ -1265,7 +1384,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- VERLANGLIJSTJE -->
 <div class="full-overlay" id="verlanglijstOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeVerlanglijstBtn">✕</button><h2>🎁 Verlanglijstje</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeVerlanglijstBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Verlanglijstje</h2></div>
   <div class="full-body">
     <div class="interval-tabs" style="margin-bottom:14px;">
       <button class="interval-tab active" id="wishTabMe">Mijn lijstje</button>
@@ -1282,7 +1401,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- ONDERHOUD -->
 <div class="full-overlay" id="onderhoudOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeOnderhoudBtn">✕</button><h2>🔧 Onderhoud logboek</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeOnderhoudBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Onderhoud</h2></div>
   <div class="full-body">
     <div class="add-card">
       <h3>Nieuwe onderhoudstaak</h3>
@@ -1311,7 +1430,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- NOTITIEBOEK -->
 <div class="full-overlay" id="notitieboekOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeNotitieboekBtn">✕</button><h2>📝 Gedeeld notitieboek</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeNotitieboekBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Notitieboek</h2></div>
   <div class="full-body" id="notitieboekBody">
     <button class="notitie-add-btn" id="notitieAddBtn">+ Nieuwe notitie</button>
     <div id="notitieList"></div>
@@ -1320,7 +1439,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- BACKLOG -->
 <div class="full-overlay" id="backlogOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeBacklogBtn">✕</button><h2>📋 Backlog / Ooit-lijst</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeBacklogBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Backlog / Ooit-lijst</h2></div>
   <div class="full-body">
     <div class="add-card">
       <h3>Idee toevoegen</h3>
@@ -1344,15 +1463,12 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- GARANTIES -->
 <div class="full-overlay" id="vakantiesOverlay">
-  <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--card);flex-shrink:0;">
-    <button id="closeVakantiesBtn" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">&#8592;</button>
-    <h2 style="margin:0;font-size:17px;font-weight:700;flex:1;">&#x2708;&#xFE0F; Vakanties</h2>
-  </div>
+  <div class="full-header"><button class="icon-btn" id="closeVakantiesBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Vakanties</h2></div>
   <div style="overflow-y:auto;flex:1;padding:16px;" id="vakantiesContent"></div>
 </div>
 
 <div class="full-overlay" id="garantiesOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeGarantiesBtn">✕</button><h2>📄 Garanties & documenten</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeGarantiesBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Garanties & documenten</h2></div>
   <div class="full-body">
     <div class="add-card">
       <h3>Garantie toevoegen</h3>
@@ -1376,7 +1492,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- VASTE LASTEN / BUDGET -->
 <div class="full-overlay" id="budgetOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeBudgetBtn">✕</button><h2>💰 Vaste Lasten</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeBudgetBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Vaste lasten</h2></div>
   <div class="full-body">
     <div class="budget-totals" id="budgetSummary"></div>
     <div id="budgetCatList"></div>
@@ -1385,7 +1501,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- HUISGEHEUGEN -->
 <div class="full-overlay" id="huisgeheugenOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeHuisgeheugenBtn">✕</button><h2>🧠 Huisgeheugen</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeHuisgeheugenBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Huisgeheugen</h2></div>
   <div class="full-body">
     <input class="geheugen-zoek" id="geheugenZoek" type="search" placeholder="🔍 Zoek in logboek…" autocomplete="off">
     <div id="geheugenList"></div>
@@ -1395,7 +1511,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 <!-- RECEPTEN -->
 <!-- MAALTIJDPLANNER -->
 <div class="full-overlay" id="maaltijdOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeMaaltijdBtn">✕</button><h2>🍽 Maaltijdplanner</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeMaaltijdBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Maaltijdplanner</h2></div>
   <div class="full-body">
     <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Plan de maaltijden per week. Selecteer een recept of typ vrij.</p>
     <div class="month-row" style="padding:0 0 10px;">
@@ -1411,7 +1527,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
   </div>
 </div>
 <div class="full-overlay" id="wieIsWaarOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeWieIsWaarBtn">✕</button><h2>📍 Wie is waar</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeWieIsWaarBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Wie is waar</h2></div>
   <div class="full-body">
     <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Tik op een blokje om te wisselen tussen thuis, werk, op reis, sporten en afwezig.</p>
     <div class="month-row" style="padding:0 0 10px;">
@@ -1428,7 +1544,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 </div>
 
 <div class="full-overlay" id="receptenOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeReceptenBtn">✕</button><h2>👨‍🍳 Recepten</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeReceptenBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Recepten</h2></div>
   <div class="full-body">
     <div class="recept-cat-row" id="receptCatRow">
       <button class="recept-cat-btn active" data-cat="">Alles</button>
@@ -1464,7 +1580,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- VERVALDATA-KLUIS -->
 <div class="full-overlay" id="kluisOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeKluisBtn">✕</button><h2>🔐 Vervaldata-kluis</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeKluisBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Vervaldata-kluis</h2></div>
   <div class="full-body">
     <div class="kluis-cat-row" id="kluisCatRow">
       <button class="kluis-cat-btn active" data-cat="">Alles</button>
@@ -1503,7 +1619,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- VERJAARDAGEN -->
 <div class="full-overlay" id="verjaardagenOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeVerjaardagenBtn">✕</button><h2>🎂 Verjaardagen</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeVerjaardagenBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Verjaardagen</h2></div>
   <div class="full-body">
     <div class="add-card">
       <h3>Verjaardag toevoegen</h3>
@@ -1521,13 +1637,13 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- STATISTIEKEN -->
 <div class="full-overlay" id="statistiekenOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeStatBtn">✕</button><h2>📈 Statistieken</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeStatBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Statistieken</h2></div>
   <div class="full-body" id="statistiekenBody"></div>
 </div>
 
 <!-- ZOEKEN -->
 <div class="full-overlay" id="zoekenOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeZoekenBtn">✕</button><h2>🔍 Zoeken</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeZoekenBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Zoeken</h2></div>
   <div class="zoek-bar">
     <input class="zoek-input" id="zoekInput" type="search" placeholder="Zoek taken, boodschappen, garanties…" autocomplete="off">
   </div>
@@ -1536,7 +1652,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
 <!-- INSTELLINGEN -->
 <div class="full-overlay" id="instellingenOverlay">
-  <div class="full-header"><button class="icon-btn" id="closeInstellingenBtn">✕</button><h2>⚙️ Instellingen</h2></div>
+  <div class="full-header"><button class="icon-btn" id="closeInstellingenBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Instellingen</h2></div>
   <div class="full-body">
     <div class="add-card">
       <h3>Themakleur</h3>
@@ -1672,8 +1788,8 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 <div class="full-overlay" id="gezinsDnaOverlay">
   <div class="overlay-panel" style="max-height:92vh;overflow-y:auto;">
     <div class="overlay-header">
-      <h2>🧬 Gezins-DNA</h2>
-      <button class="overlay-close" id="closeGezinsDnaBtn">✕</button>
+      <button class="overlay-close" id="closeGezinsDnaBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button>
+      <h2 style="flex:1;margin:0;font-size:18px;">Gezins-DNA</h2>
     </div>
     <p style="font-size:13px;color:var(--muted);margin:0 0 16px;">Wat onze data over jullie vertelt.</p>
     <div id="dnaGrid" class="dna-grid"></div>
@@ -1698,7 +1814,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 <!-- ══ WAT ETEN WE OVERLAY ══ -->
 <div class="overlay" id="watEtenWeOverlay">
   <div class="overlay-panel" style="text-align:center;padding:32px 24px;">
-    <button class="overlay-close" id="closeWatEtenWeBtn" style="position:absolute;top:16px;right:16px;">✕</button>
+    <button class="overlay-close" id="closeWatEtenWeBtn" aria-label="Sluiten" style="position:absolute;top:12px;right:12px;"><svg class="ic"><use href="#i-x"/></svg></button>
     <div style="font-size:36px;margin-bottom:8px;">🎲</div>
     <h2 style="font-size:22px;font-weight:800;margin:0 0 6px;">Wat eten we?</h2>
     <p style="font-size:13px;color:var(--muted);margin:0 0 24px;">Druk op spin en wij kiezen voor jullie!</p>
@@ -1873,7 +1989,14 @@ function reapplyTheme(){
   reapplyTheme();
   window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',reapplyTheme);
 })();
-function setSync(s,t){var d=document.getElementById('syncDot'),e=document.getElementById('syncText');d.className='sync-dot'+(s==='busy'?' busy':s==='err'?' err':'');e.textContent=t;}
+// Synchroniseren gebeurt op de achtergrond: de balk verschijnt alleen bij een probleem
+// (offline of een fout), met een knop om het opnieuw te proberen.
+function setSync(s,t){
+  var d=document.getElementById('syncDot'),e=document.getElementById('syncText'),row=document.getElementById('syncRow');
+  d.className='sync-dot'+(s==='busy'?' busy':s==='err'?' err':'');e.textContent=t;
+  var problem=s==='err',offline=problem&&(!navigator.onLine||/offline/i.test(t));
+  row.classList.toggle('show',problem);row.classList.toggle('offline',offline);row.classList.toggle('error',problem&&!offline);
+}
 function assignLabel(v){if(!v||v==='')return '';if(v==='me')return myName||'Ik';if(v==='partner')return partnerName||'Partner';return v;}
 function getCat(c){return CATS[c]||CATS.overig;}
 function getMonday(d){var day=d.getDay(),diff=(day===0)?-6:1-day,m=new Date(d);m.setDate(d.getDate()+diff);m.setHours(0,0,0,0);return m;}
