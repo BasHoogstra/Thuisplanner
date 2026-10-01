@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#5b4fe0">
+<title>Privacyverklaring — Huisplan</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>">
+<style>
+:root{
+  --bg:#f8f7f4;--card:#fff;--accent:#5b4fe0;--accent-light:#ece9fd;--accent-rgb:91,79,224;
+  --text:#221f2e;--muted:#86838f;--border:#e7e4df;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#15131c;--card:#211f2c;--accent:#8b7dff;--accent-light:#2c2944;
+    --text:#ece8f7;--muted:#7d7a92;--border:#39354d;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);}
+a{color:var(--accent);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.wrap{max-width:680px;margin:0 auto;padding:0 24px 60px;}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:18px 0;}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;text-decoration:none;color:var(--text);}
+.brand img{width:30px;height:30px;border-radius:7px;}
+.back{font-size:14px;font-weight:600;}
+h1{font-size:28px;font-weight:800;margin:18px 0 6px;letter-spacing:-.01em;}
+.updated{font-size:13px;color:var(--muted);margin:0 0 32px;}
+h2{font-size:18px;font-weight:700;margin:34px 0 10px;}
+p,li{font-size:15px;line-height:1.65;color:var(--text);}
+ul{margin:0 0 14px;padding-left:20px;}
+.box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin:0 0 14px;}
+.note{background:var(--accent-light);border-radius:14px;padding:16px 18px;font-size:13.5px;color:var(--text);margin-top:36px;}
+footer{padding:30px 0 10px;border-top:1px solid var(--border);margin-top:30px;font-size:13px;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav">
+    <a class="brand" href="landing.html">
+      <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>" alt="">
+      Huisplan
+    </a>
+    <a class="back" href="landing.html">← Terug</a>
+  </div>
+
+  <h1>Privacyverklaring</h1>
+  <p class="updated">Laatst bijgewerkt: 1 oktober 2026</p>
+
+  <p>Huisplan is een planner voor jouw huishouden. Deze pagina legt uit welke gegevens de app gebruikt, waar ze staan, met wie ze gedeeld worden en welke rechten je hebt.</p>
+
+  <h2>Welke gegevens je in de app zet</h2>
+  <div class="box">
+    <ul>
+      <li>Namen van gezinsleden en huisgenoten die je zelf invoert</li>
+      <li>Taken, boodschappen- en andere lijsten, maaltijdplanning, notities en kalenderafspraken</li>
+      <li>Onderhouds-, garantie- en bestelgegevens, eventueel met foto's van bonnetjes</li>
+      <li>Verjaardagen, vakanties en paklijsten</li>
+      <li>Vervaldata van documenten (zoals paspoort of verzekering) en notities die je daarbij zet</li>
+      <li>Gewoonten en streaks die je bijhoudt</li>
+    </ul>
+  </div>
+  <p>De app vraagt niet om betaalgegevens, BSN of medische gegevens. Zet in vrije tekstvelden alleen wat je zelf wilt bewaren; vul daar bijvoorbeeld geen volledige paspoort- of polisnummers in als dat niet nodig is.</p>
+
+  <h2>Waarvoor</h2>
+  <p>Alleen om de planner te laten werken: zodat jij en de mensen met wie je de planner deelt dezelfde informatie zien en bijwerken. Gegevens worden niet gebruikt voor advertenties, niet verkocht en er worden geen profielen van je gemaakt.</p>
+
+  <h2>Waar je gegevens staan</h2>
+  <ul>
+    <li><strong>In jullie eigen Firebase-database.</strong> Bij het instellen koppel je de app aan een Firebase Realtime Database (een dienst van Google) die jullie zelf aanmaken. De gegevens staan in de serverregio die je daar kiest; kies voor de EU (bijv. europe-west1) als je wilt dat ze binnen de EU blijven.</li>
+    <li><strong>Op je eigen telefoon.</strong> De app bewaart je naam, instellingen en een kopie van de planner op je toestel, zodat hij snel opent en ook zonder internet werkt.</li>
+  </ul>
+  <p>Toegang tot een planner loopt via de gedeelde link: wie die link heeft, kan de planner openen en wijzigen. Deel hem daarom alleen met mensen die erbij horen.</p>
+
+  <h2>Externe diensten</h2>
+  <p>Voor een paar functies haalt de app informatie op bij andere diensten. Daarbij wordt alleen gestuurd wat nodig is:</p>
+  <div class="box">
+    <ul>
+      <li><strong>wttr.in</strong> — voor het weer: de plaatsnaam die je instelt.</li>
+      <li><strong>OpenStreetMap (Nominatim en Overpass)</strong> — voor tips bij een vakantiebestemming: de bestemming die je invult.</li>
+      <li><strong>cdnjs (Cloudflare)</strong> — levert de software om een QR-code te maken. De QR-code zelf wordt op je eigen telefoon gemaakt; je link wordt niet verstuurd.</li>
+      <li><strong>Google Maps</strong> — alleen als je zelf op een kaartlink tikt.</li>
+    </ul>
+  </div>
+  <p>Zoals bij elke website zien deze diensten je IP-adres wanneer de app iets bij hen ophaalt.</p>
+
+  <h2>Jouw rechten</h2>
+  <ul>
+    <li><strong>Inzage en kopie:</strong> via Instellingen → Back-up → Downloaden krijg je al je gegevens als bestand.</li>
+    <li><strong>Correctie:</strong> alles wat je invoert kun je in de app zelf aanpassen.</li>
+    <li><strong>Verwijdering:</strong> je kunt items in de app verwijderen, of de planner in je eigen Firebase-database wissen. Lukt dat niet, mail ons dan.</li>
+  </ul>
+  <p>Voor vragen of verzoeken: <a href="mailto:bas@voordeelgordijnen.nl?subject=Privacy%20Huisplan">bas@voordeelgordijnen.nl</a>. We reageren binnen een maand. Je kunt ook een klacht indienen bij de <a href="https://autoriteitpersoonsgegevens.nl" target="_blank" rel="noopener">Autoriteit Persoonsgegevens</a>.</p>
+
+  <h2>Bewaartermijn</h2>
+  <p>Gegevens blijven staan zolang je de planner gebruikt. Wat je verwijdert, is direct weg uit de planner; een back-up die je zelf hebt gedownload beheer je zelf.</p>
+
+  <footer>© 2026 Huisplan · <a href="landing.html">Over Huisplan</a></footer>
+</div>
+</body>
+</html>

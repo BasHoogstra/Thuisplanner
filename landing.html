@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#5b4fe0">
+<title>Huisplan — overzicht voor jullie huishouden</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>">
+<style>
+:root{
+  --bg:#f8f7f4;--card:#fff;--accent:#5b4fe0;--accent-light:#ece9fd;--accent-rgb:91,79,224;
+  --text:#221f2e;--muted:#86838f;--border:#e7e4df;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#15131c;--card:#211f2c;--accent:#8b7dff;--accent-light:#2c2944;
+    --text:#ece8f7;--muted:#7d7a92;--border:#39354d;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);}
+a{color:inherit;}
+.wrap{max-width:1040px;margin:0 auto;padding:0 24px;}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:18px 0;}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;text-decoration:none;}
+.brand img{width:30px;height:30px;border-radius:7px;}
+.nav-links{display:flex;gap:28px;font-size:14px;font-weight:600;}
+.nav-links a{text-decoration:none;color:var(--muted);}
+.nav-links a:hover{color:var(--text);}
+.btn{display:inline-block;background:var(--accent);color:#fff;border:none;border-radius:11px;padding:13px 22px;font-size:15px;font-weight:700;text-decoration:none;cursor:pointer;}
+.btn-ghost{background:var(--accent-light);color:var(--accent);}
+.hero{padding:56px 0 40px;display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:center;}
+.hero h1{font-size:38px;line-height:1.18;font-weight:800;margin:0 0 18px;letter-spacing:-.01em;}
+.hero p{font-size:17px;line-height:1.6;color:var(--muted);margin:0 0 28px;max-width:480px;}
+.hero-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.hero-note{font-size:13px;color:var(--muted);}
+.mock{background:var(--card);border:1px solid var(--border);border-radius:24px;padding:18px;box-shadow:0 20px 50px -20px rgba(var(--accent-rgb),.35);}
+.mock-head{background:linear-gradient(150deg,var(--accent),rgba(var(--accent-rgb),.7));border-radius:16px;padding:18px 16px 26px;color:#fff;margin-bottom:12px;}
+.mock-head .g{font-size:13px;opacity:.85;margin-bottom:4px;}
+.mock-head .t{font-size:19px;font-weight:800;}
+.mock-row{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:11px 13px;margin-bottom:9px;font-size:13.5px;}
+.mock-row .dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--accent);flex-shrink:0;}
+.mock-row .dot.on{background:var(--accent);}
+.mock-row .lbl{flex:1;}
+.mock-row .tag{font-size:10.5px;font-weight:700;color:var(--accent);background:var(--accent-light);border-radius:7px;padding:2px 7px;}
+section{padding:54px 0;}
+.section-head{text-align:center;max-width:560px;margin:0 auto 36px;}
+.section-head h2{font-size:28px;font-weight:800;margin:0 0 10px;letter-spacing:-.01em;}
+.section-head p{font-size:15.5px;color:var(--muted);margin:0;line-height:1.6;}
+.features{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.fcard{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px 18px;}
+.fcard .ic{width:38px;height:38px;border-radius:10px;background:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:14px;}
+.fcard h3{font-size:15.5px;font-weight:700;margin:0 0 6px;}
+.fcard p{font-size:13.5px;color:var(--muted);line-height:1.55;margin:0;}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;}
+.step{text-align:center;}
+.step .n{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;}
+.step h3{font-size:15.5px;font-weight:700;margin:0 0 8px;}
+.step p{font-size:13.5px;color:var(--muted);line-height:1.6;margin:0;max-width:240px;margin-inline:auto;}
+.cta-band{background:var(--accent);border-radius:24px;padding:48px 40px;text-align:center;color:#fff;}
+.cta-band h2{font-size:26px;font-weight:800;margin:0 0 10px;}
+.cta-band p{font-size:15px;opacity:.85;margin:0 0 24px;}
+.cta-band .btn{background:#fff;color:var(--accent);}
+footer{padding:30px 0 50px;border-top:1px solid var(--border);margin-top:10px;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);flex-wrap:wrap;gap:10px;}
+@media(max-width:860px){
+  .hero{grid-template-columns:1fr;padding-top:28px;}
+  .hero h1{font-size:30px;}
+  .features{grid-template-columns:repeat(2,1fr);}
+  .steps{grid-template-columns:1fr;gap:30px;}
+  .nav-links{display:none;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav">
+    <a class="brand" href="#">
+      <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>" alt="">
+      Huisplan
+    </a>
+    <div class="nav-links">
+      <a href="#functies">Functies</a>
+      <a href="#hoe">Hoe het werkt</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <a class="btn" href="mailto:bas@voordeelgordijnen.nl?subject=Interesse%20in%20Huisplan">Vraag toegang aan</a>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <h1>Eén plek voor alles wat jullie huishouden draaiend houdt.</h1>
+      <p>Boodschappen, planning, onderhoud, vakanties en meer — gedeeld met je gezin, live bijgehouden, en altijd binnen handbereik op je telefoon.</p>
+      <div class="hero-ctas">
+        <a class="btn" href="mailto:bas@voordeelgordijnen.nl?subject=Interesse%20in%20Huisplan">Vraag toegang aan</a>
+        <a class="btn btn-ghost" href="#functies">Bekijk functies</a>
+      </div>
+      <div class="hero-note">Geen appstore nodig — werkt direct in de browser, te installeren op je beginscherm.</div>
+    </div>
+    <div class="mock">
+      <div class="mock-head">
+        <div class="g">Goedemorgen</div>
+        <div class="t">Vandaag · 5 taken</div>
+      </div>
+      <div class="mock-row"><span class="dot on"></span><span class="lbl">Boodschappen ophalen</span><span class="tag">Ochtend</span></div>
+      <div class="mock-row"><span class="dot"></span><span class="lbl">Was opvouwen</span><span class="tag">Middag</span></div>
+      <div class="mock-row"><span class="dot"></span><span class="lbl">Pasta carbonara · kookrooster</span><span class="tag">Avond</span></div>
+      <div class="mock-row"><span class="dot"></span><span class="lbl">CV-ketel onderhoud check</span><span class="tag">Onderhoud</span></div>
+    </div>
+  </div>
+</div>
+
+<section id="functies">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Alles wat jullie bijhouden, op één plek</h2>
+      <p>Geen losse appjes, geen briefjes op de koelkast. Huisplan brengt het samen — en houdt iedereen automatisch op de hoogte.</p>
+    </div>
+    <div class="features">
+      <div class="fcard"><div class="ic">🏠</div><h3>Vandaag</h3><p>In één blik zien wat er speelt, verdeeld over ochtend, middag en avond.</p></div>
+      <div class="fcard"><div class="ic">🛒</div><h3>Boodschappen</h3><p>Een lijst die zichzelf sorteert per supermarktafdeling — niemand loopt meer heen en weer.</p></div>
+      <div class="fcard"><div class="ic">🍽</div><h3>Maaltijdplanner</h3><p>Plan de week; ingrediënten gaan automatisch naar de boodschappenlijst.</p></div>
+      <div class="fcard"><div class="ic">📅</div><h3>Kalender</h3><p>Gedeelde agenda voor het gezin, met taken en maaltijden in één overzicht.</p></div>
+      <div class="fcard"><div class="ic">🔧</div><h3>Onderhoud &amp; garanties</h3><p>Vervaldata en huis-taken die zichzelf herhalen — niets meer vergeten.</p></div>
+      <div class="fcard"><div class="ic">✈️</div><h3>Vakanties</h3><p>Automatische paklijst per persoon, op basis van type vakantie en aantal nachten.</p></div>
+      <div class="fcard"><div class="ic">🔁</div><h3>Gewoonten</h3><p>Dagelijkse streaks bijhouden, samen of individueel.</p></div>
+      <div class="fcard"><div class="ic">🧬</div><h3>Inzichten</h3><p>Statistieken en patronen over jullie huishouden — wat kost tijd, wat gaat goed.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="hoe">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Binnen 5 minuten samen aan de slag</h2>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><h3>Open de link</h3><p>Op je telefoon, en zet 'm op je beginscherm. Geen appstore, geen installatie.</p></div>
+      <div class="step"><div class="n">2</div><h3>Koppel je gezin</h3><p>Eén gedeelde link is genoeg — iedereen ziet en bewerkt dezelfde planner.</p></div>
+      <div class="step"><div class="n">3</div><h3>Alles staat live</h3><p>Wat de één invult, ziet de ander direct. Geen synchroniseren, geen dubbel werk.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="contact">
+  <div class="wrap">
+    <div class="cta-band">
+      <h2>Benieuwd of Huisplan iets voor jullie is?</h2>
+      <p>Stuur een mail — dan denken we mee over wat jullie huishouden nodig heeft.</p>
+      <a class="btn" href="mailto:bas@voordeelgordijnen.nl?subject=Interesse%20in%20Huisplan">Vraag toegang aan</a>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <footer>
+    <span>© 2026 Huisplan · <a href="privacy.html">Privacy</a></span>
+    <span><a href="mailto:bas@voordeelgordijnen.nl">bas@voordeelgordijnen.nl</a></span>
+  </footer>
+</div>
+</body>
+</html>
