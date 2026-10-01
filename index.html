@@ -485,6 +485,17 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .add-card label.field-label{font-size:13px;color:var(--muted);margin-bottom:4px;display:block;}
 .add-card input:focus,.add-card select:focus,.add-card textarea:focus{outline:none;border-color:var(--accent);}
 .add-card-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;}
+.add-card-btn.secondary{background:var(--bg);color:var(--text);border:1px solid var(--border);font-size:14px;}
+.rules-box{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg);color:var(--text);resize:vertical;margin-bottom:6px;}
+.sec-status{font-size:13px;font-weight:600;padding:8px 12px;border-radius:10px;background:var(--bg);color:var(--muted);}
+.sec-status.ok{background:rgba(39,174,96,.12);color:var(--green);}
+.sec-status.warn{background:rgba(224,96,122,.12);color:var(--danger);}
+.quick-add{display:flex;gap:8px;margin-bottom:6px;}
+.quick-add input{flex:1;min-width:0;border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:16px;background:var(--card);color:var(--text);}
+.quick-add input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);}
+.quick-add button{flex-shrink:0;width:48px;border:none;border-radius:12px;background:var(--accent);color:#fff;font-size:24px;font-weight:700;cursor:pointer;}
+.quick-add-preview{font-size:12px;color:var(--muted);min-height:16px;margin:0 2px 10px;}
+.quick-add-preview b{color:var(--accent);font-weight:700;}
 
 /* Onderhoud */
 .ond-item{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px 14px;margin-bottom:8px;border-left:4px solid var(--border);}
@@ -768,9 +779,11 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
       <li>Ga naar <a href="https://console.firebase.google.com/" target="_blank">console.firebase.google.com</a> en log in.</li>
       <li>Klik <strong>"Project toevoegen"</strong> → naam invullen → aanmaken.</li>
       <li>Links: <strong>Build → Realtime Database → Database aanmaken</strong>.</li>
-      <li>Kies regio → <strong>"Beginnen in testmodus"</strong> → Inschakelen.</li>
+      <li>Kies regio → <strong>"Beginnen in vergrendelde modus"</strong> → Inschakelen.</li>
+      <li>Tabblad <strong>Regels</strong>: vervang alles door de regels hieronder → <strong>Publiceren</strong>. (Niet de testmodus gebruiken: die stopt na 30 dagen en laat iedereen alles lezen.)</li>
       <li>Kopieer de <strong>database-URL</strong> (bijv. <code>https://naam-rtdb.europe-west1.firebasedatabase.app</code>).</li>
     </ol>
+    <textarea class="rules-box" id="setupRulesBox" readonly rows="6" onfocus="this.select();"></textarea>
     <a class="setup-link-btn" href="https://console.firebase.google.com/" target="_blank">Open Firebase Console →</a>
     <input class="setup-input" type="text" id="dbUrlInput" placeholder="Plak hier je database-URL…" autocapitalize="off" spellcheck="false" autocorrect="off" inputmode="url">
     <div class="setup-divider">Jullie namen</div>
@@ -831,7 +844,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         </div>
         <div id="weatherLoc" style="display:none;"><span id="weatherLocText"></span></div>
         <div id="weatherFeels" style="display:none;"></div>
-        <div class="compact-meal" id="vanavondEten" style="display:none;" onclick="maaltijdWeekOffset=0;document.getElementById('maaltijdOverlay').classList.add('open');renderMaaltijdplanner();">
+        <div class="compact-meal" id="vanavondEten" style="display:none;">
           <span class="compact-meal-icon">🍽️</span>
           <span class="compact-meal-text">Vanavond: <span class="vanavond-naam"></span></span>
           <span class="compact-meal-arrow">›</span>
@@ -851,11 +864,14 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
       <div class="vandaag-section-title">
         <span>Vandaag</span>
         <button class="vandaag-open-btn" id="openTodayBtn">Dag openen ›</button>
-        <button class="vandaag-open-btn" onclick="showBriefing(true);" style="margin-left:6px;">📰 Briefing</button>
+        <button class="vandaag-open-btn" id="openBriefingBtn" style="margin-left:6px;">📰 Briefing</button>
+        <button class="vandaag-open-btn" id="vandaagZoekBtn" style="margin-left:6px;" title="Zoek door alles" aria-label="Zoeken">🔍</button>
       </div>
-      <div class="quick-add-row" id="vandaagZoekRow" style="margin-bottom:10px;">
-        <input type="search" id="vandaagZoekInput" placeholder="🔍 Zoek door alles…" autocomplete="off" readonly style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:15px;background:var(--card);color:var(--text);cursor:pointer;">
-      </div>
+      <form class="quick-add" id="quickAddForm" autocomplete="off">
+        <input type="text" id="quickAddInput" maxlength="200" enterkeyhint="done" placeholder="+ Taak, bv. ‘bellen morgen 9:00’" aria-label="Taak snel toevoegen">
+        <button type="submit" aria-label="Toevoegen">+</button>
+      </form>
+      <div class="quick-add-preview" id="quickAddPreview"></div>
       <div id="vandaagTasks"></div>
       <div id="gewoontenToday" style="padding:0;"></div>
     </div>
@@ -903,7 +919,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
       <div class="bood-suggest-label">💡 Vergeet je dit niet?</div>
       <div class="bood-suggest-chips" id="boodSuggestChips"></div>
     </div>
-    <div id="boodDoneBanner" style="display:none;margin:8px 0 4px;background:#27ae60;color:#fff;border-radius:12px;padding:10px 16px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;" onclick="data.boodschappen=(data.boodschappen||[]).filter(function(b){return !b.done;});saveToServer();renderBoodschappen();showToast('Afgevinkte items verwijderd');"><span style="font-size:16px;">✓</span><span class="bood-done-label" style="flex:1;font-size:13px;font-weight:700;"></span><span style="font-size:13px;font-weight:700;opacity:.85;">Wis ✕</span></div>
+    <div id="boodDoneBanner" style="display:none;margin:8px 0 4px;background:#27ae60;color:#fff;border-radius:12px;padding:10px 16px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;"><span style="font-size:16px;">✓</span><span class="bood-done-label" style="flex:1;font-size:13px;font-weight:700;"></span><span style="font-size:13px;font-weight:700;opacity:.85;">Wis ✕</span></div>
 <div class="boodschappen-list" id="boodschappenList"></div>
     <div class="boodschappen-actions">
       <button id="clearDoneBoodschappen">🗑 Verwijder afgevinkte</button>
@@ -1199,6 +1215,15 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
           <button class="day-toggle" data-day="2">wo</button><button class="day-toggle" data-day="3">do</button>
           <button class="day-toggle" data-day="4">vr</button><button class="day-toggle" data-day="5">za</button>
           <button class="day-toggle" data-day="6">zo</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <select class="meta-select" id="recEveryWeeks" style="flex:1;">
+            <option value="1">Elke week</option><option value="2">Om de week</option>
+            <option value="3">Elke 3 weken</option><option value="4">Elke 4 weken</option>
+          </select>
+          <select class="meta-select" id="recStartWeek" style="flex:1;display:none;">
+            <option value="0">vanaf deze week</option><option value="1">vanaf volgende week</option>
+          </select>
         </div>
       </div>
       <div class="interval-config" id="intervalConfigMonth" style="display:none;">
@@ -1531,9 +1556,35 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
       <h3>Deel met je partner</h3>
       <p style="font-size:13px;color:var(--muted);margin:0 0 12px;">Scan deze QR-code met de telefoon van je partner om dezelfde planner te openen.</p>
       <div style="text-align:center;">
-        <img id="qrCodeImg" src="" alt="QR code" style="width:180px;height:180px;border-radius:12px;border:1px solid var(--border);">
+        <div id="qrCodeBox" role="img" aria-label="QR-code met de deel-link" style="display:inline-block;padding:10px;background:#fff;border-radius:12px;border:1px solid var(--border);line-height:0;"></div>
       </div>
       <p style="font-size:11px;color:var(--muted);text-align:center;margin:8px 0 0;">Of kopieer de link via Vandaag → Kopieer link</p>
+    </div>
+    <div class="add-card" id="securityCard">
+      <h3>🔒 Beveiliging</h3>
+      <div id="securityStatus" class="sec-status">Nog niet gecontroleerd</div>
+      <p style="font-size:13px;color:var(--muted);margin:8px 0;">De link naar jullie planner werkt als wachtwoord. Met deze Firebase-regels kan niemand de lijst met alle planners opvragen, en verlopen de regels niet (de testmodus van Firebase stopt na 30 dagen).</p>
+      <details style="font-size:13px;margin-bottom:8px;">
+        <summary style="cursor:pointer;font-weight:600;">Zo stel je de regels in</summary>
+        <ol style="padding-left:18px;margin:8px 0;line-height:1.5;">
+          <li>Open de <a href="https://console.firebase.google.com/" target="_blank" rel="noopener">Firebase Console</a> → jullie project.</li>
+          <li>Build → Realtime Database → tabblad <strong>Regels</strong>.</li>
+          <li>Vervang alles door de regels hieronder en klik op <strong>Publiceren</strong>.</li>
+        </ol>
+      </details>
+      <textarea class="rules-box" id="rulesBox" readonly rows="12"></textarea>
+      <div style="display:flex;gap:8px;">
+        <button class="add-card-btn" id="copyRulesBtn" style="flex:1;">Regels kopiëren</button>
+        <button class="add-card-btn secondary" id="checkSecurityBtn" style="flex:1;">Controleren</button>
+      </div>
+    </div>
+    <div class="add-card">
+      <h3>💾 Back-up</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 10px;">Download alle plannerdata als bestand, of zet een eerdere back-up terug.</p>
+      <div style="display:flex;gap:8px;">
+        <button class="add-card-btn" id="exportBackupBtn" style="flex:1;">Downloaden</button>
+        <label class="add-card-btn secondary" style="flex:1;text-align:center;">Terugzetten…<input type="file" id="importBackupInput" accept="application/json,.json" style="display:none;"></label>
+      </div>
     </div>
   </div>
 </div>
@@ -1696,13 +1747,20 @@ function weekday(k){var p=k.split('-').map(Number);return(new Date(p[0],p[1]-1,p
 function keyToDate(k){var p=k.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);}
 function compareDates(a,b){return a<b?-1:a>b?1:0;}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+// De planner-sleutel is in feite het wachtwoord van de planner (wie hem kent kan lezen
+// en schrijven), dus voor nieuwe planners 128 bits echte willekeur i.p.v. uid().
+function newPlannerKey(){
+  try{var a=new Uint8Array(16);crypto.getRandomValues(a);return Array.prototype.map.call(a,function(b){return ('0'+b.toString(16)).slice(-2);}).join('');}
+  catch(e){return uid()+uid();}
+}
+function escHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 var _undoStack=[];
-function showUndoToast(msg,undoFn){
+function showUndoToast(msg,undoFn,btnLabel){
   var e=document.getElementById('toast');
   e.innerHTML='';
   var txt=document.createTextNode(msg+' ');
   var btn=document.createElement('button');
-  btn.textContent='Ongedaan maken';
+  btn.textContent=btnLabel||'Ongedaan maken';
   btn.style.cssText='background:none;border:1px solid #fff;border-radius:6px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;padding:2px 8px;margin-left:4px;';
   btn.addEventListener('click',function(){undoFn();e.classList.remove('show');});
   e.appendChild(txt);e.appendChild(btn);
@@ -1803,7 +1861,9 @@ function getCat(c){return CATS[c]||CATS.overig;}
 function getMonday(d){var day=d.getDay(),diff=(day===0)?-6:1-day,m=new Date(d);m.setDate(d.getDate()+diff);m.setHours(0,0,0,0);return m;}
 function addDays(d,n){var r=new Date(d);r.setDate(r.getDate()+n);return r;}
 function formatDateShort(k){var p=k.split('-').map(Number);return p[2]+' '+MONTH_NAMES[p[1]-1].slice(0,3);}
-function formatTitle(k){var p=k.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]);return DAY_FULL[d.getDay()]+' '+d.getDate()+' '+MONTH_NAMES[d.getMonth()];}
+// DAY_FULL begint op maandag, getDay() op zondag -> via weekday() (anders stond er bij
+// vrijdag 2 oktober "zaterdag" boven het dagvenster).
+function formatTitle(k){var d=keyToDate(k);return DAY_FULL[weekday(k)]+' '+d.getDate()+' '+MONTH_NAMES[d.getMonth()];}
 function daysUntil(k){var d=keyToDate(k),t=new Date(today.getFullYear(),today.getMonth(),today.getDate());return Math.round((d-t)/(1000*60*60*24));}
 // Combineert vervaldata-kluis + garanties tot één gesorteerde lijst van naderende verloopdata (gebruikt door Vandaag-banner en briefing).
 function getUrgentExpiries(limit){
@@ -1835,10 +1895,20 @@ function cycleWiwStatus(dk,person){
 
 function recAppliesToDate(r,k){
   var iv=r.interval||'week';
-  if(iv==='week')return(r.days||[]).indexOf(weekday(k))>-1;
   var d=keyToDate(k);
-  if(iv==='month')return d.getDate()===(r.dayOfMonth||1);
-  if(iv==='year')return d.getDate()===(r.dayOfMonth||1)&&d.getMonth()===(r.month||0);
+  if(iv==='week'){
+    if((r.days||[]).indexOf(weekday(k))===-1)return false;
+    if(!(r.everyWeeks>1))return true;
+    // Om de N weken: tel hele weken vanaf de maandag van de ankerweek.
+    var weeks=Math.round((getMonday(d)-getMonday(keyToDate(r.anchorDate||k)))/(7*24*3600*1000));
+    return weeks>=0&&weeks%r.everyWeeks===0;
+  }
+  // Dag 29-31 bestaat niet in elke maand: val dan terug op de laatste dag van de maand
+  // (anders verscheen "elke maand op de 31e" nooit in bv. april).
+  var lastDay=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+  var dom=Math.min(r.dayOfMonth||1,lastDay);
+  if(iv==='month')return d.getDate()===dom;
+  if(iv==='year')return d.getDate()===dom&&d.getMonth()===(r.month||0);
   if(iv==='biweek'){
     if(weekday(k)!==4)return false;
     var anch=r.anchorDate||'2026-06-19';
@@ -1911,48 +1981,169 @@ function getDefaultBudgetItems(){
 
 function dataUrl(){return dbUrl.replace(/\/$/,'')+'/planners/'+plannerKey+'.json';}
 
+// ── SYNC ─────────────────────────────────────────────────────
+// Het hele planner-object staat als één document in Firebase. Om te voorkomen dat
+// twee telefoons elkaars wijzigingen overschrijven:
+//  1. ETag + if-match: een PUT slaagt alleen als niemand anders sinds onze laatste
+//     load heeft opgeslagen (anders 412 -> opnieuw ophalen en samenvoegen).
+//  2. 3-weg merge (basis = laatst bekende serverstaat, lokaal, remote), voor lijsten
+//     op id-niveau, zodat bv. twee tegelijk toegevoegde boodschappen allebei blijven.
+//  3. Lokale cache: de app opent direct (ook offline) en niet-opgeslagen wijzigingen
+//     overleven offline-periodes en het sluiten van de app.
+var serverETag=null,_loadedOnce=false,_noConditional=false,_pushing=false,_pushQueued=false,_saveGen=0;
+function canonVal(v){
+  // Spiegelt hoe Firebase opslaat: null en lege lijsten/objecten verdwijnen, sleutels gesorteerd.
+  if(v===null||v===undefined)return undefined;
+  if(Array.isArray(v)){if(!v.length)return undefined;return v.map(function(x){var c=canonVal(x);return c===undefined?null:c;});}
+  if(typeof v==='object'){var o={},n=0;Object.keys(v).sort().forEach(function(k){var c=canonVal(v[k]);if(c!==undefined){o[k]=c;n++;}});return n?o:undefined;}
+  if(typeof v==='number'&&!isFinite(v))return undefined;
+  return v;
+}
+function canon(v){var c=canonVal(v);return c===undefined?'':JSON.stringify(c);}
+function isPlainObj(v){return !!v&&typeof v==='object'&&!Array.isArray(v);}
+function sameVal(a,b){return canon(a)===canon(b);}
+function mergeArrays(base,local,remote){
+  base=Array.isArray(base)?base:[];local=Array.isArray(local)?local:[];remote=Array.isArray(remote)?remote:[];
+  var all=base.concat(local,remote);
+  if(all.every(function(x){return isPlainObj(x)&&x.id!=null;})){
+    var idx=function(arr){var m={};arr.forEach(function(x){m[x.id]=x;});return m;};
+    var bm=idx(base),rm=idx(remote),seen={},out=[];
+    local.forEach(function(item){
+      if(seen[item.id])return;seen[item.id]=1;
+      if(item.id in rm)out.push(merge3(bm[item.id],item,rm[item.id]));
+      // Remote heeft hem verwijderd: alleen houden als hij hier sindsdien is bewerkt.
+      else if(!(item.id in bm)||!sameVal(bm[item.id],item))out.push(item);
+    });
+    remote.forEach(function(item){
+      if(seen[item.id])return;seen[item.id]=1;
+      if(!(item.id in bm)||!sameVal(bm[item.id],item))out.push(item);
+    });
+    return out;
+  }
+  if(all.every(function(x){return x===null||typeof x!=='object';})){
+    var has=function(arr,x){return arr.indexOf(x)>-1;};
+    var res=local.filter(function(x){return !(has(base,x)&&!has(remote,x));});
+    remote.forEach(function(x){if(!has(base,x)&&!has(res,x))res.push(x);});
+    return res;
+  }
+  return local;
+}
+function merge3(base,local,remote){
+  if(sameVal(local,remote))return local;
+  if(sameVal(base,local))return remote;
+  if(sameVal(base,remote))return local;
+  if(isPlainObj(local)&&isPlainObj(remote)){
+    var b=isPlainObj(base)?base:{},out={},keys={};
+    [b,local,remote].forEach(function(o){Object.keys(o).forEach(function(k){keys[k]=1;});});
+    Object.keys(keys).forEach(function(k){var m=merge3(b[k],local[k],remote[k]);if(m!==undefined)out[k]=m;});
+    return out;
+  }
+  if(Array.isArray(local)||Array.isArray(remote))return mergeArrays(base,local,remote);
+  return local; // echt conflict op één waarde: de lokale (nieuwste) wijziging wint
+}
+// Een taak die op het ene toestel is verplaatst en op het andere bewerkt kan na de
+// merge op twee dagen staan: houd hem op de dag waar hij lokaal staat.
+function dedupeTasks(d,local){
+  if(!d||!isPlainObj(d.tasks))return;
+  var where={},found={};
+  Object.keys((local&&local.tasks)||{}).forEach(function(k){(local.tasks[k]||[]).forEach(function(t){if(t&&t.id)where[t.id]=k;});});
+  Object.keys(d.tasks).forEach(function(k){(d.tasks[k]||[]).forEach(function(t){if(t&&t.id)(found[t.id]=found[t.id]||[]).push(k);});});
+  Object.keys(found).forEach(function(id){
+    var ks=found[id];if(ks.length<2)return;
+    var keep=ks.indexOf(where[id])>-1?where[id]:ks[ks.length-1];
+    ks.forEach(function(k){if(k!==keep)d.tasks[k]=d.tasks[k].filter(function(t){return !t||t.id!==id;});});
+  });
+}
+function normalizeData(inc){
+  inc=isPlainObj(inc)?inc:{};
+  ['tasks','notes','recurringDone'].forEach(function(k){if(!isPlainObj(inc[k]))inc[k]={};});
+  Object.keys(inc.tasks).forEach(function(k){if(!Array.isArray(inc.tasks[k]))inc.tasks[k]=[];});
+  ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget','budgetCustomCats','gewoonten','verjaardagen','cadeaus'].forEach(function(k){if(!Array.isArray(inc[k]))inc[k]=[];});
+  ['maaltijdplan','boodCatOverrides','gewoontenDone','verlanglijstjes','wieIsWaar','notitieboekMeta'].forEach(function(k){if(!isPlainObj(inc[k]))inc[k]={};});
+  if(!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];
+  if(!inc.notitieboek)inc.notitieboek='';
+  return inc;
+}
+function mergeData(base,local,remote){var m=normalizeData(merge3(base,local,remote));dedupeTasks(m,local);return m;}
+function baseObj(){try{return lastKnownJSON?JSON.parse(lastKnownJSON):{};}catch(e){return {};}}
+function hasLocalChanges(){return canon(data)!==lastKnownJSON;}
+
+function cacheKey(){return 'plannerCache_'+plannerKey;}
+function writeCache(){
+  if(!plannerKey)return;
+  try{localStorage.setItem(cacheKey(),JSON.stringify({data:data,base:lastKnownJSON,t:Date.now()}));}catch(e){}
+}
+function readCache(){
+  try{
+    var c=JSON.parse(localStorage.getItem(cacheKey())||'null');
+    if(c&&c.data){data=normalizeData(c.data);lastKnownJSON=c.base||'';return true;}
+  }catch(e){}
+  return false;
+}
+
+function fetchRemote(){
+  return fetch(dataUrl(),{headers:{'X-Firebase-ETag':'true'},cache:'no-store'}).then(function(r){
+    if(!r.ok)throw new Error('status:'+r.status);
+    var et=r.headers.get('ETag');
+    return r.json().then(function(json){return {raw:json,etag:et};});
+  });
+}
+
+function runMigrations(){
+  var koppelTask=(data.recurring||[]).filter(function(r){return r.koppelgesprek;})[0];
+  if(koppelTask&&koppelTask.anchorDate==='2026-06-20'){
+    // Migratie: oude ankerdatum viel op zaterdag terwijl de check alleen vrijdag
+    // toestaat, waardoor het Koppelgesprek nooit verscheen. Corrigeer naar vrijdag.
+    koppelTask.anchorDate='2026-06-19';
+    saveToServer();
+  }
+  if(!koppelTask){
+    if(!data.recurring)data.recurring=[];
+    data.recurring.push({id:uid(),text:'Koppelgesprek 💑',interval:'biweek',anchorDate:'2026-06-19',koppelgesprek:true,category:'thuis',priority:'normaal'});
+    saveToServer();renderVandaag();renderCalendar();
+  }
+  var corruptVak=(data.vakanties||[]).filter(function(v){return v.startDatum&&(parseInt(String(v.startDatum).split('-')[0],10)<2000);});
+  if(corruptVak.length){
+    // Migratie: ongeldige vertrekdatum (bv. jaar 0020 door foutieve invoer) opschonen
+    corruptVak.forEach(function(v){v.startDatum='';});
+    saveToServer();renderMeerStats();
+  }
+  if(!data.budgetSeeded){
+    // Eenmalig: vaste-lastenlijst vullen met standaard categorieën/posten
+    data.budget=(data.budget||[]).concat(getDefaultBudgetItems());
+    data.budgetSeeded=true;
+    saveToServer();renderMeerStats();
+  }
+}
+
 function loadFromServer(isInitial){
   if(!dbUrl)return;
   if(!isInitial)setSync('busy','Bijwerken…');
   var loadSeq=saveSeq;
-  fetch(dataUrl()).then(function(r){if(!r.ok)throw new Error('status:'+r.status);return r.json();}).then(function(json){
-    if(saveSeq!==loadSeq||_pendingSave)return;
-    var inc=json||{};
-    ['tasks','notes','recurringDone'].forEach(function(k){if(!inc[k])inc[k]={};});
-    ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget','budgetCustomCats'].forEach(function(k){if(!inc[k])inc[k]=[];});if(!inc.maaltijdplan||typeof inc.maaltijdplan!=='object'||Array.isArray(inc.maaltijdplan))inc.maaltijdplan={};if(!inc.boodCatOverrides||typeof inc.boodCatOverrides!=='object'||Array.isArray(inc.boodCatOverrides))inc.boodCatOverrides={};if(!inc.gewoonten||!Array.isArray(inc.gewoonten))inc.gewoonten=[];if(!inc.gewoontenDone||typeof inc.gewoontenDone!=='object'||Array.isArray(inc.gewoontenDone))inc.gewoontenDone={};if(!inc.vakantiePersonen||!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];if(!inc.verjaardagen||!Array.isArray(inc.verjaardagen))inc.verjaardagen=[];if(!inc.verlanglijstjes||typeof inc.verlanglijstjes!=='object'||Array.isArray(inc.verlanglijstjes))inc.verlanglijstjes={};
-    if(!inc.notitieboek)inc.notitieboek='';
-    if(!inc.notitieboekMeta)inc.notitieboekMeta={};
-    var s=JSON.stringify(inc);
-    if(s!==lastKnownJSON&&!_pendingSave){detectChanges(data,inc);data=inc;lastKnownJSON=s;renderAll();scheduleReminders();}
-    var koppelTask=(data.recurring||[]).filter(function(r){return r.koppelgesprek;})[0];
-    if(koppelTask&&koppelTask.anchorDate==='2026-06-20'){
-      // Migratie: oude ankerdatum viel op zaterdag terwijl de check alleen vrijdag
-      // toestaat, waardoor het Koppelgesprek nooit verscheen. Corrigeer naar vrijdag.
-      koppelTask.anchorDate='2026-06-19';
-      saveToServer();
+  fetchRemote().then(function(rem){
+    if(saveSeq!==loadSeq||_pendingSave||_pushing)return;
+    serverETag=rem.etag;
+    var s=canon(rem.raw);
+    var inc=normalizeData(rem.raw);
+    var wasLoaded=_loadedOnce;_loadedOnce=true;
+    if(hasLocalChanges()){
+      // Lokale wijzigingen die nog niet op de server staan (offline gemaakt, of de app
+      // werd gesloten tijdens het opslaan): samenvoegen met de serverversie en opslaan.
+      if(s!==lastKnownJSON)detectChanges(data,inc);
+      data=mergeData(baseObj(),data,inc);lastKnownJSON=s;
+      renderAll();scheduleReminders();saveToServer();
+    } else if(s!==lastKnownJSON||!wasLoaded){
+      if(s!==lastKnownJSON)detectChanges(data,inc);
+      data=inc;lastKnownJSON=s;writeCache();renderAll();scheduleReminders();
     }
-    if(!koppelTask){
-      if(!data.recurring)data.recurring=[];
-      data.recurring.push({id:uid(),text:'Koppelgesprek 💑',interval:'biweek',anchorDate:'2026-06-19',koppelgesprek:true,category:'thuis',priority:'normaal'});
-      saveToServer();renderVandaag();renderCalendar();
-    }
-    var corruptVak=(data.vakanties||[]).filter(function(v){return v.startDatum&&(parseInt(String(v.startDatum).split('-')[0],10)<2000);});
-    if(corruptVak.length){
-      // Migratie: ongeldige vertrekdatum (bv. jaar 0020 door foutieve invoer) opschonen
-      corruptVak.forEach(function(v){v.startDatum='';});
-      saveToServer();renderMeerStats();
-    }
-    if(!data.budgetSeeded){
-      // Eenmalig: vaste-lastenlijst vullen met standaard categorieën/posten
-      data.budget=(data.budget||[]).concat(getDefaultBudgetItems());
-      data.budgetSeeded=true;
-      saveToServer();renderMeerStats();
-    }
-    setSync('','Bijgewerkt · '+nowTime());
+    runMigrations();
+    if(!wasLoaded)setTimeout(warnIfDatabaseOpen,3000);
+    if(!_pendingSave)setSync('','Bijgewerkt · '+nowTime());
     document.getElementById('refreshBtn').style.display='';
   }).catch(function(err){
     var m=String(err);
-    if(m.indexOf('403')>-1||m.indexOf('401')>-1)setSync('err','Toegang geweigerd — controleer Firebase-regels.');
+    if(m.indexOf('403')>-1||m.indexOf('401')>-1)setSync('err','Toegang geweigerd — controleer de Firebase-regels (Instellingen → Beveiliging).');
+    else if(!navigator.onLine)setSync('err','Offline — wijzigingen worden bewaard en later gesynchroniseerd.');
     else if(isInitial){setSync('','Nieuw dagboek · '+nowTime());document.getElementById('refreshBtn').style.display='';}
     else setSync('err','Vernieuwen mislukt.');
   });
@@ -1961,17 +2152,72 @@ function loadFromServer(isInitial){
 var _pendingSave=false;
 var saveSeq=0;
 function saveToServer(){
+  writeCache();
   if(!dbUrl)return;
   clearTimeout(saveTimer);
-  _pendingSave=true;
-  saveTimer=setTimeout(function(){
-    setSync('busy','Opslaan…');
+  _pendingSave=true;_saveGen++;
+  // Vóór de eerste geslaagde load weten we niet wat er op de server staat; die load
+  // voegt de lokale wijzigingen samen en slaat daarna op.
+  if(!_loadedOnce){_pendingSave=false;return;}
+  saveTimer=setTimeout(function(){pushToServer(0);},400);
+}
+function pushToServer(attempt){
+  if(_pushing){_pushQueued=true;return;}
+  _pushing=true;
+  var gen=_saveGen;
+  setSync('busy','Opslaan…');
+  saveSeq++;
+  function finish(){
+    _pushing=false;
+    if(gen===_saveGen)_pendingSave=false;
+    if(_pushQueued){_pushQueued=false;if(_pendingSave)pushToServer(0);}
+  }
+  function mergeWith(rem){
+    var inc=normalizeData(rem.raw);
+    var s=canon(rem.raw);
+    if(s!==lastKnownJSON){detectChanges(data,inc);data=mergeData(baseObj(),data,inc);renderAll();}
+    serverETag=rem.etag;lastKnownJSON=s;
+  }
+  var conditional=!!serverETag&&!_noConditional;
+  // Zonder ETag eerst de nieuwste serverversie samenvoegen, zodat we niets overschrijven.
+  var pre=conditional?Promise.resolve():fetchRemote().then(mergeWith);
+  pre.then(function(){
     var body=JSON.stringify(data);
-    saveSeq++;
-    fetch(dataUrl(),{method:'PUT',headers:{'Content-Type':'application/json'},body:body})
-      .then(function(r){if(!r.ok)throw new Error();_pendingSave=false;setSync('','Opgeslagen · '+nowTime());})
-      .catch(function(){_pendingSave=false;setSync('err','Opslaan mislukt.');});
-  },400);
+    var headers={'Content-Type':'application/json','X-Firebase-ETag':'true'};
+    if(serverETag&&!_noConditional)headers['if-match']=serverETag;
+    return fetch(dataUrl(),{method:'PUT',headers:headers,body:body}).then(function(r){
+      if(r.status===412){
+        // Iemand anders heeft net opgeslagen: ophalen, samenvoegen, opnieuw proberen.
+        return fetchRemote().then(function(rem){
+          mergeWith(rem);
+          if(attempt>=4)throw new Error('conflict');
+          _pushing=false;pushToServer(attempt+1);
+          return 'retry';
+        });
+      }
+      if(!r.ok)throw new Error('status:'+r.status);
+      lastKnownJSON=canon(JSON.parse(body));
+      serverETag=r.headers.get('ETag')||null;
+      writeCache();
+      setSync('','Opgeslagen · '+nowTime());
+      finish();
+      if(!serverETag&&!_noConditional)loadFromServer(false);
+    },function(netErr){
+      // Faalt een conditionele PUT op netwerkniveau terwijl een gewone GET wél lukt, dan
+      // blokkeert de server de if-match header: val terug op ophalen+samenvoegen+PUT.
+      // Lukt de GET ook niet, dan zijn we gewoon offline.
+      if(!headers['if-match'])throw netErr;
+      return fetchRemote().then(function(rem){
+        mergeWith(rem);_noConditional=true;_pushing=false;pushToServer(attempt);return 'retry';
+      },function(){throw netErr;});
+    });
+  }).catch(function(err){
+    _pushing=false;_pendingSave=false;_pushQueued=false;
+    var m=String(err);
+    if(m.indexOf('401')>-1||m.indexOf('403')>-1)setSync('err','Toegang geweigerd — controleer de Firebase-regels (Instellingen → Beveiliging).');
+    else if(!navigator.onLine)setSync('err','Offline — wijzigingen worden bewaard en later gesynchroniseerd.');
+    else setSync('err','Opslaan mislukt — wordt opnieuw geprobeerd.');
+  });
 }
 
 document.addEventListener('visibilitychange',function(){
@@ -1979,15 +2225,21 @@ document.addEventListener('visibilitychange',function(){
     var dayChanged=refreshToday();
     if(dayChanged)renderAll();
     if(dbUrl)loadFromServer(false);
-  } else if(document.visibilityState==='hidden'&&dbUrl&&_pendingSave){
+  } else if(document.visibilityState==='hidden'&&dbUrl&&_pendingSave&&_loadedOnce&&!_pushing){
     // sendBeacon stuurt altijd POST; Firebase RTDB behandelt POST als "nieuw kind
-    // toevoegen" i.p.v. overschrijven, dus dat zou de data corrumperen. Gebruik
-    // daarom fetch met keepalive:true zodat het een echte PUT blijft die de
-    // browser ook na het verbergen van het tabblad nog afmaakt.
+    // toevoegen" i.p.v. overschrijven. Daarom fetch met keepalive (blijft een PUT).
+    // Lukt dit niet (bv. conflict of >64 KB), dan staat de wijziging nog in de lokale
+    // cache en wordt hij bij de volgende keer openen samengevoegd en opgeslagen.
     clearTimeout(saveTimer);
     var body=JSON.stringify(data);
+    var headers={'Content-Type':'application/json','X-Firebase-ETag':'true'};
+    if(serverETag&&!_noConditional)headers['if-match']=serverETag;
     saveSeq++;
-    fetch(dataUrl(),{method:'PUT',headers:{'Content-Type':'application/json'},body:body,keepalive:true}).catch(function(){});
+    try{
+      fetch(dataUrl(),{method:'PUT',headers:headers,body:body,keepalive:true}).then(function(r){
+        if(r.ok){lastKnownJSON=canon(JSON.parse(body));serverETag=r.headers.get('ETag')||null;writeCache();}
+      }).catch(function(){});
+    }catch(e){}
     _pendingSave=false;
   }
 });
@@ -2112,6 +2364,7 @@ function init(){
     document.getElementById('setupOverlay').style.display='none';
     try{var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);window.history.replaceState({},'',u.toString());}catch(e){}
     if(!myName)document.getElementById('nameBanner').style.display='flex';
+    if(readCache())setSync('busy','Laatst bekende versie · bijwerken…');
     loadFromServer(true);startAutoSync();
   } else {
     document.getElementById('setupOverlay').style.display='flex';
@@ -2127,7 +2380,7 @@ document.getElementById('setupSubmitBtn').addEventListener('click',function(){
   var err=document.getElementById('setupError');err.textContent='';
   if(!raw){err.textContent='Vul de database-URL in.';return;}
   if(!raw.startsWith('https://')){err.textContent='URL moet beginnen met https://';return;}
-  dbUrl=raw.replace(/\/$/,'');plannerKey=uid();
+  dbUrl=raw.replace(/\/$/,'');plannerKey=newPlannerKey();
   if(mn){myName=mn;localStorage.setItem('plannerMyName',mn);}
   if(pn){partnerName=pn;localStorage.setItem('plannerPartnerName',pn);}
   localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);
@@ -2151,6 +2404,7 @@ document.getElementById('herstelSubmitBtn').addEventListener('click',function(){
   var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);
   window.history.replaceState({},'',u.toString());
   document.getElementById('setupOverlay').style.display='none';
+  if(readCache())renderAll();
   updateAssigneeLabels();updateGreeting();loadFromServer(true);startAutoSync();
 });
 document.getElementById('herstelKeyInput').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('herstelSubmitBtn').click();});
@@ -2201,7 +2455,7 @@ function openSettingsSheet(){
   document.getElementById('settingsPartnerName').value=partnerName;
   document.getElementById('settingsCity').value=localStorage.getItem('plannerCity')||'';
   document.getElementById('instellingenOverlay').classList.add('open');
-  showQrCode();
+  showQrCode();checkSecurity();
 }
 document.getElementById('settingsBtn').addEventListener('click',openSettingsSheet);
 document.getElementById('weatherBar').addEventListener('click',function(){
@@ -2634,16 +2888,85 @@ document.getElementById('openTodayBtn').addEventListener('click',function(){open
 
 // Quick add
 var quickAddOffset=0;
-// Vandaag zoekbalk → open zoeken overlay
-document.getElementById('vandaagZoekInput').addEventListener('click',function(){
-  document.getElementById('zoekenOverlay').classList.add('open');
-  setTimeout(function(){var zi=document.getElementById('zoekInput');zi.focus();},100);
-});
-document.getElementById('vandaagZoekInput').addEventListener('focus',function(){
-  this.blur();
+// Vandaag zoekknop → open zoeken overlay
+document.getElementById('vandaagZoekBtn').addEventListener('click',function(){
   document.getElementById('zoekenOverlay').classList.add('open');
   setTimeout(function(){document.getElementById('zoekInput').focus();},100);
 });
+
+// ── Snel toevoegen met gewone taal ───────────────────────────
+// "vuilnis buiten morgen 19:00 !" -> taak morgen, herinnering 19:00, avond, hoge prio.
+// Herkent: vandaag/morgen/overmorgen, weekdagen, "volgende week", 12-10 of 12/10,
+// tijden (9:00, 9.30, om 9), ! of !! (hoge prio), @naam / @ik, #categorie.
+var QA_DAYS=['zondag','maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag'];
+var QA_CATS={huis:'huis',thuis:'huis',samen:'samen',boodschappen:'boodschappen',onderhoud:'onderhoud',regelen:'regelen',financien:'financien','financiën':'financien',geld:'financien',sport:'sport'};
+function parseQuickAdd(raw){
+  var s=' '+raw+' ',res={date:null,dateLabel:'',time:null,priority:'normaal',assignedTo:null,category:'huis'};
+  function take(re,fn){var m=s.match(re);if(m){fn(m);s=s.replace(re,' ');}}
+  var base=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+  take(/\s!{1,3}(?=\s)/,function(){res.priority='hoog';});
+  take(/\s#([a-zà-ÿ]+)(?=\s)/i,function(m){var c=QA_CATS[m[1].toLowerCase()];if(c)res.category=c;});
+  take(/\s@([^\s]+)(?=\s)/,function(m){
+    var n=m[1].toLowerCase();
+    if(n==='ik'||n==='mij'||(myName&&n===myName.toLowerCase()))res.assignedTo='me';
+    else if(n==='partner'||(partnerName&&n===partnerName.toLowerCase()))res.assignedTo='partner';
+  });
+  take(/\s(?:om\s+)?([01]?\d|2[0-3])[:.]([0-5]\d)(?:\s*uur)?(?=\s)/i,function(m){res.time=pad(+m[1])+':'+m[2];});
+  if(!res.time)take(/\som\s+([01]?\d|2[0-3])(?:\s*uur)?(?=\s)/i,function(m){res.time=pad(+m[1])+':00';});
+  take(/\s(overmorgen|morgen|vandaag)(?=\s)/i,function(m){
+    var w=m[1].toLowerCase();res.date=addDays(base,w==='vandaag'?0:w==='morgen'?1:2);res.dateLabel=w;
+  });
+  if(!res.date)take(/\s(?:op\s+|aanstaande\s+|a\.s\.\s+)?(zondag|maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag)(?=\s)/i,function(m){
+    var target=QA_DAYS.indexOf(m[1].toLowerCase()),diff=(target-base.getDay()+7)%7;
+    res.date=addDays(base,diff===0?7:diff);res.dateLabel=m[1].toLowerCase();
+  });
+  if(!res.date)take(/\svolgende\s+week(?=\s)/i,function(){res.date=addDays(getMonday(base),7);res.dateLabel='volgende week';});
+  if(!res.date)take(/\s(?:op\s+)?(\d{1,2})[-\/](\d{1,2})(?=\s)/,function(m){
+    var d=new Date(base.getFullYear(),+m[2]-1,+m[1]);
+    if(d.getMonth()===+m[2]-1){if(d<base)d.setFullYear(d.getFullYear()+1);res.date=d;res.dateLabel='';}
+  });
+  if(!res.date)res.date=base;
+  res.text=s.replace(/\s+/g,' ').trim();
+  res.key=dateKey(res.date.getFullYear(),res.date.getMonth(),res.date.getDate());
+  if(res.time){var h=+res.time.split(':')[0];res.period=h<12?'ochtend':h<18?'middag':'avond';}
+  return res;
+}
+function quickAddSummary(p){
+  var dayTxt=p.key===todayKey()?'vandaag':formatTitle(p.key);
+  if(p.dateLabel==='morgen'||p.dateLabel==='overmorgen')dayTxt=p.dateLabel+' ('+DAY_NAMES[weekday(p.key)]+' '+formatDateShort(p.key)+')';
+  var parts=['📅 <b>'+escHtml(dayTxt)+'</b>'];
+  if(p.time)parts.push('🔔 '+p.time);
+  if(p.priority==='hoog')parts.push('🔴 hoog');
+  if(p.assignedTo)parts.push('👤 '+escHtml(assignLabel(p.assignedTo)));
+  if(p.category!=='huis')parts.push(getCat(p.category).emoji+' '+getCat(p.category).label);
+  return parts.join(' · ');
+}
+(function(){
+  var inp=document.getElementById('quickAddInput'),prev=document.getElementById('quickAddPreview');
+  inp.addEventListener('input',function(){
+    var v=inp.value.trim();
+    if(!v){prev.innerHTML='';return;}
+    var p=parseQuickAdd(v);
+    prev.innerHTML=p.text?quickAddSummary(p):'';
+  });
+  document.getElementById('quickAddForm').addEventListener('submit',function(e){
+    e.preventDefault();
+    var v=inp.value.trim();if(!v)return;
+    var p=parseQuickAdd(v);
+    if(!p.text){showToast('Typ ook wat er moet gebeuren');return;}
+    if(!data.tasks[p.key])data.tasks[p.key]=[];
+    var task={id:uid(),text:p.text,done:false,category:p.category,priority:p.priority,assignedTo:p.assignedTo,author:myName||null,orderStatus:null,period:p.period||null,reminder:p.time?{date:p.key,time:p.time}:null};
+    data.tasks[p.key].push(task);
+    inp.value='';prev.innerHTML='';
+    saveToServer();renderVandaag();renderCalendar();
+    if(p.time){requestNotifPermission();scheduleReminders();}
+    var where=p.key===todayKey()?'vandaag':p.key===dateKey(addDays(today,1).getFullYear(),addDays(today,1).getMonth(),addDays(today,1).getDate())?'morgen':DAY_NAMES[weekday(p.key)]+' '+formatDateShort(p.key);
+    showUndoToast('Toegevoegd voor '+where,function(){
+      var arr=data.tasks[p.key]||[];var i=arr.indexOf(task);if(i>-1)arr.splice(i,1);
+      saveToServer();renderVandaag();renderCalendar();
+    });
+  });
+})();
 
 // === KALENDER ===
 function renderCalendar(){if(calMode==='month')renderMonth();else renderWeek();}
@@ -2928,10 +3251,15 @@ function renderSheetTasks(){
     body.appendChild(movePicker);
     if(!os){var addOrderBtn=document.createElement('span');addOrderBtn.style.cssText='font-size:10px;color:var(--accent);cursor:pointer;padding:2px 5px;border:1px solid var(--accent);border-radius:10px;';addOrderBtn.textContent='📦';addOrderBtn.title='Markeer als besteld';addOrderBtn.addEventListener('click',function(){t.orderStatus='besteld';saveToServer();renderSheetTasks();});badges.appendChild(addOrderBtn);}
     var del=document.createElement('button');del.className='task-del';del.textContent='✕';
-    del.addEventListener('click',function(){var arr=data.tasks[openDateKey];arr.splice(arr.indexOf(t),1);saveToServer();renderSheetTasks();renderCalendar();renderVandaag();});
+    function removeWithUndo(){
+      var key=openDateKey,arr=data.tasks[key];var idx=arr?arr.indexOf(t):-1;if(idx<0)return;
+      arr.splice(idx,1);saveToServer();renderSheetTasks();renderCalendar();renderVandaag();
+      showUndoToast('Taak verwijderd',function(){if(!data.tasks[key])data.tasks[key]=[];data.tasks[key].splice(idx,0,t);saveToServer();renderSheetTasks();renderCalendar();renderVandaag();});
+    }
+    del.addEventListener('click',removeWithUndo);
     taskActions.appendChild(moveBtn);taskActions.appendChild(del);
     item.appendChild(check);item.appendChild(body);item.appendChild(taskActions);list.appendChild(item);
-    addSwipe(item,function(){var arr=data.tasks[openDateKey];var idx=arr.indexOf(t);if(idx>-1)arr.splice(idx,1);saveToServer();renderSheetTasks();renderCalendar();renderVandaag();});
+    addSwipe(item,removeWithUndo);
   });
 }
 function moveTask(task,fromKey,toKey){
@@ -2983,13 +3311,11 @@ function checkRecurringSuggestion(text){
     });
   });
   if(Object.keys(weeksSeen).length>=3){
-    showToast('💡 "'+text+'" staat al 3× — terugkerende taak maken?',5000,function(){
-      document.getElementById('openTodayBtn').click();
-      setTimeout(function(){
-        document.querySelectorAll('.nav-item').forEach(function(b){if(b.dataset.view==='meerView')b.click();});
-        setTimeout(function(){document.getElementById('openRecurring')&&document.getElementById('openRecurring').click();},300);
-      },200);
-    });
+    showUndoToast('💡 "'+text+'" staat al 3×.',function(){
+      closeSheet();
+      document.getElementById('recurringOverlay').classList.add('open');renderRecurringList();
+      document.getElementById('recNewText').value=text;
+    },'Maak vaste taak');
   }
 }
 
@@ -3175,7 +3501,7 @@ function renderBoodSuggestions(){
   suggestions.forEach(function(k){
     var f=freq[k];
     var chip=document.createElement('div');chip.className='bood-suggest-chip';
-    chip.innerHTML='+ '+f.text+' <span>'+f.count+'×</span>';
+    chip.innerHTML='+ '+escHtml(f.text)+' <span>'+f.count+'×</span>';
     chip.addEventListener('click',function(){
       if(!data.boodschappen)data.boodschappen=[];
       var already=data.boodschappen.some(function(b){return !b.done&&b.text.toLowerCase().trim()===k;});
@@ -3632,13 +3958,18 @@ function renderBestellingen(){
 }
 
 // === VASTE TAKEN ===
-document.querySelectorAll('.interval-tab').forEach(function(btn){
+// Alleen de tabs mét data-interval: de verlanglijst-tabs gebruiken dezelfde class, en
+// een klik daarop zette selectedInterval anders op undefined (vaste taak verscheen nooit).
+document.querySelectorAll('.interval-tab[data-interval]').forEach(function(btn){
   btn.addEventListener('click',function(){
-    selectedInterval=this.dataset.interval;document.querySelectorAll('.interval-tab').forEach(function(b){b.classList.remove('active');});this.classList.add('active');
+    selectedInterval=this.dataset.interval;document.querySelectorAll('.interval-tab[data-interval]').forEach(function(b){b.classList.remove('active');});this.classList.add('active');
     document.getElementById('intervalConfigWeek').style.display=selectedInterval==='week'?'':'none';
     document.getElementById('intervalConfigMonth').style.display=selectedInterval==='month'?'':'none';
     document.getElementById('intervalConfigYear').style.display=selectedInterval==='year'?'':'none';
   });
+});
+document.getElementById('recEveryWeeks').addEventListener('change',function(){
+  document.getElementById('recStartWeek').style.display=this.value!=='1'?'':'none';
 });
 document.getElementById('dayPicker').addEventListener('click',function(e){
   var btn=e.target.closest('.day-toggle');if(!btn)return;
@@ -3651,15 +3982,23 @@ document.getElementById('recAddBtn').addEventListener('click',function(){
   if(selectedInterval==='week'&&!selectedDays.length){err.textContent='Kies ten minste één dag.';return;}
   if(!data.recurring)data.recurring=[];
   var rec={id:uid(),text:text,interval:selectedInterval,category:document.getElementById('recNewCat').value,priority:document.getElementById('recNewPrio').value,createdAt:todayKey()};
-  if(selectedInterval==='week')rec.days=selectedDays.slice();
+  if(selectedInterval==='week'){
+    rec.days=selectedDays.slice();
+    var every=parseInt(document.getElementById('recEveryWeeks').value,10)||1;
+    if(every>1){
+      rec.everyWeeks=every;
+      var sw=parseInt(document.getElementById('recStartWeek').value,10)||0;
+      var m0=addDays(getMonday(today),7*sw);rec.anchorDate=dateKey(m0.getFullYear(),m0.getMonth(),m0.getDate());
+    }
+  }
   if(selectedInterval==='month')rec.dayOfMonth=parseInt(document.getElementById('recDayOfMonth').value,10)||1;
   if(selectedInterval==='year'){rec.dayOfMonth=parseInt(document.getElementById('recYearDay').value,10)||1;rec.month=parseInt(document.getElementById('recYearMonth').value,10)||0;}
   data.recurring.push(rec);document.getElementById('recNewText').value='';
   selectedDays=[];document.querySelectorAll('.day-toggle').forEach(function(b){b.classList.remove('active');});
   saveToServer();renderRecurringList();renderCalendar();renderVandaag();
 });
-function recIntervalLabel(r){var iv=r.interval||'week';if(iv==='week')return 'Elke '+(r.days||[]).sort().map(function(d){return DAY_NAMES[d];}).join(', ');if(iv==='biweek')return 'Om de 2 weken op vrijdag';if(iv==='month')return 'Elke maand op de '+(r.dayOfMonth||1)+'e';if(iv==='year')return 'Elk jaar op '+(r.dayOfMonth||1)+' '+MONTH_NAMES[r.month||0];return '';}
-function recIntervalDays(r){var iv=r.interval||'week';if(iv==='week')return(r.days&&r.days.length)?(7/r.days.length):7;if(iv==='biweek')return 14;if(iv==='month')return 30;if(iv==='year')return 365;return 7;}
+function recIntervalLabel(r){var iv=r.interval||'week';if(iv==='week')return (r.everyWeeks>1?(r.everyWeeks===2?'Om de week':'Elke '+r.everyWeeks+' weken')+' op ':'Elke ')+(r.days||[]).sort().map(function(d){return DAY_NAMES[d];}).join(', ');if(iv==='biweek')return 'Om de 2 weken op vrijdag';if(iv==='month')return 'Elke maand op de '+(r.dayOfMonth||1)+'e';if(iv==='year')return 'Elk jaar op '+(r.dayOfMonth||1)+' '+MONTH_NAMES[r.month||0];return '';}
+function recIntervalDays(r){var iv=r.interval||'week';if(iv==='week')return((r.days&&r.days.length)?(7/r.days.length):7)*(r.everyWeeks||1);if(iv==='biweek')return 14;if(iv==='month')return 30;if(iv==='year')return 365;return 7;}
 function recLastDoneKey(r){var last=null;for(var k in(data.recurringDone||{})){if((data.recurringDone[k]||[]).indexOf(r.id)>-1){if(!last||k>last)last=k;}}return last;}
 function recDirtiness(r){var lastKey=recLastDoneKey(r);var refKey=lastKey||r.createdAt||null;if(!refKey)return null;var refDate=keyToDate(refKey);var daysSince=Math.round((today-refDate)/(24*3600*1000));if(daysSince<0)daysSince=0;var ivDays=recIntervalDays(r);var ratio=ivDays>0?(daysSince/ivDays):0;return{daysSince:daysSince,ratio:ratio,everDone:!!lastKey};}
 function renderStatistieken(){
@@ -4141,7 +4480,7 @@ document.getElementById('geheugenZoek').addEventListener('input',function(){rend
 function renderHuisgeheugen(q){
   var list=document.getElementById('geheugenList');if(!list)return;list.innerHTML='';
   var items=(data.huisgeheugen||[]).filter(function(e){return !q||e.tekst.toLowerCase().indexOf(q)>-1||(e.auteur&&e.auteur.toLowerCase().indexOf(q)>-1);});
-  if(!items.length){list.innerHTML='<div class="geheugen-empty">'+(q?'Geen resultaten voor "'+q+'"':'Nog niets gelogd. Rond taken af om het logboek te vullen.')+'</div>';return;}
+  if(!items.length){list.innerHTML='<div class="geheugen-empty">'+(q?'Geen resultaten voor "'+escHtml(q)+'"':'Nog niets gelogd. Rond taken af om het logboek te vullen.')+'</div>';return;}
   var byMonth={};
   items.forEach(function(e){
     var d=e.datum||'';var key=d.slice(0,7);
@@ -4433,7 +4772,7 @@ document.getElementById('zoekInput').addEventListener('input',function(){
   (data.notities||[]).forEach(function(n){if((n.titel&&n.titel.toLowerCase().indexOf(q)>-1)||(n.tekst&&n.tekst.toLowerCase().indexOf(q)>-1))hits.push({icon:'📝',text:n.titel||'Naamloos',sub:n.tekst?n.tekst.slice(0,60)+'…':'',section:'Notitieboek',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.getElementById('notitieboekOverlay').classList.add('open');renderNotities();}});});
   // Vervaldata
   (data.vervaldata||[]).forEach(function(v){if(v.naam.toLowerCase().indexOf(q)>-1||(v.notitie&&v.notitie.toLowerCase().indexOf(q)>-1))hits.push({icon:KLUIS_ICONS[v.categorie]||'📄',text:v.naam,sub:'Verloopt: '+formatDateShort(v.vervaldatum),section:'Vervaldata-kluis',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.getElementById('kluisOverlay').classList.add('open');renderKluis();}});});
-  if(!hits.length){res.innerHTML='<div class="zoek-empty">Geen resultaten voor "'+q+'"</div>';return;}
+  if(!hits.length){res.innerHTML='<div class="zoek-empty">Geen resultaten voor "'+escHtml(q)+'"</div>';return;}
   // Group by section
   var sections={};hits.forEach(function(h){if(!sections[h.section])sections[h.section]=[];sections[h.section].push(h);});
   Object.keys(sections).forEach(function(sec){
@@ -4879,10 +5218,10 @@ function renderGezinsDNA(){
   function makeCard(emoji,label,value,sub,wide,accent,barPct){
     var card=document.createElement('div');
     card.className='dna-card'+(wide?' dna-card-wide':'')+(accent?' dna-card-accent':'');
-    card.innerHTML='<span class="dna-card-emoji">'+emoji+'</span>'
-      +'<div class="dna-card-label">'+label+'</div>'
-      +'<div class="dna-card-value">'+value+'</div>'
-      +'<div class="dna-card-sub">'+sub+'</div>';
+    card.innerHTML='<span class="dna-card-emoji">'+escHtml(emoji)+'</span>'
+      +'<div class="dna-card-label">'+escHtml(label)+'</div>'
+      +'<div class="dna-card-value">'+escHtml(value)+'</div>'
+      +'<div class="dna-card-sub">'+escHtml(sub)+'</div>';
     if(barPct!==undefined){
       var bw=document.createElement('div');bw.className='dna-bar-wrap';
       var bf=document.createElement('div');bf.className='dna-bar-fill';bf.style.width='0%';
@@ -4903,9 +5242,9 @@ function renderGezinsDNA(){
     card.className='dna-card'+(wide?' dna-card-wide':'');
     rows.forEach(function(r){
       var row=document.createElement('div');row.className='dna-insight-row';
-      row.innerHTML='<div class="dna-insight-icon">'+r.icon+'</div>'
-        +'<div class="dna-insight-text">'+r.text+'</div>'
-        +'<div class="dna-insight-val">'+r.val+'</div>';
+      row.innerHTML='<div class="dna-insight-icon">'+escHtml(r.icon)+'</div>'
+        +'<div class="dna-insight-text">'+escHtml(r.text)+'</div>'
+        +'<div class="dna-insight-val">'+escHtml(r.val)+'</div>';
       card.appendChild(row);
     });
     grid.appendChild(card);
@@ -5075,7 +5414,7 @@ function showBriefing(force){
   if(totalOpen>0){
     var ul=document.createElement('ul');ul.className='briefing-task-list';
     var allOpen=dayTasks.map(function(t){return t.text;}).concat(recOpen.map(function(r){return '↻ '+r.text;})).slice(0,4);
-    allOpen.forEach(function(txt){var li=document.createElement('li');li.innerHTML='<span style="color:var(--accent);font-size:14px;">●</span> '+txt;ul.appendChild(li);});
+    allOpen.forEach(function(txt){var li=document.createElement('li');li.innerHTML='<span style="color:var(--accent);font-size:14px;">●</span> '+escHtml(txt);ul.appendChild(li);});
     if(totalOpen>4){var li=document.createElement('li');li.style.color='var(--muted)';li.textContent='… en '+(totalOpen-4)+' meer';ul.appendChild(li);}
     tSec.appendChild(ul);
   }
@@ -5928,8 +6267,8 @@ function applyWeather(json){
 })();
 
 // Offline indicator
-window.addEventListener('online',function(){showToast('Verbinding hersteld ✓');});
-window.addEventListener('offline',function(){showToast('Je bent offline — wijzigingen worden niet opgeslagen');});
+window.addEventListener('online',function(){showToast('Verbinding hersteld ✓');if(dbUrl)loadFromServer(false);});
+window.addEventListener('offline',function(){showToast('Je bent offline — wijzigingen worden bewaard en later gesynchroniseerd');});
 
 
 // === DYNAMISCHE ACHTERGROND ===
@@ -6045,19 +6384,106 @@ function renderHeatmap(container){
 
 
 // QR-code genereren
+// De deel-link ís de toegang tot de planner, dus de QR-code wordt lokaal gemaakt (vroeger
+// ging de volledige link naar api.qrserver.com). Alleen de bibliotheek komt van een CDN.
+var _qrLibPromise=null;
+function loadQrLib(){
+  if(window.QRCode)return Promise.resolve();
+  if(!_qrLibPromise)_qrLibPromise=new Promise(function(res,rej){
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.integrity='sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA==';
+    s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
+    s.onload=res;s.onerror=function(){_qrLibPromise=null;rej();};
+    document.head.appendChild(s);
+  });
+  return _qrLibPromise;
+}
 function showQrCode(){
   var card=document.getElementById('qrCard');
-  var img=document.getElementById('qrCodeImg');
+  var box=document.getElementById('qrCodeBox');
   if(!dbUrl||!plannerKey){card.style.display='none';return;}
   var link=buildShareLink();
-  img.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=000000&bgcolor=ffffff&data='+encodeURIComponent(link);
   card.style.display='block';
+  if(box.dataset.link===link&&box.firstChild)return;
+  box.innerHTML='<span style="font-size:12px;color:#888;line-height:1.4;">QR-code laden…</span>';
+  loadQrLib().then(function(){
+    box.innerHTML='';box.dataset.link=link;
+    new window.QRCode(box,{text:link,width:180,height:180,correctLevel:window.QRCode.CorrectLevel.M});
+  }).catch(function(){box.innerHTML='<span style="font-size:12px;color:#888;line-height:1.4;">QR-code niet beschikbaar (offline?)</span>';});
 }
 
-// Inline onclick-attributes in de HTML draaien in global scope en kunnen deze closure-functies
-// anders niet zien (gaf "X is not defined" bij klikken) -> hier expliciet exposen.
-window.showBriefing=showBriefing;
-window.renderMaaltijdplanner=renderMaaltijdplanner;
+// === BEVEILIGING ===
+// Alleen de eigen planner (via de geheime sleutel uit de link) is leesbaar; de root en de
+// lijst met alle planners niet. Sleutels korter dan 12 tekens worden geweigerd.
+var FIREBASE_RULES=JSON.stringify({rules:{'.read':false,'.write':false,planners:{'$plannerId':{'.read':'$plannerId.length >= 12','.write':'$plannerId.length >= 12'}}}},null,2);
+document.getElementById('rulesBox').value=FIREBASE_RULES;
+document.getElementById('setupRulesBox').value=FIREBASE_RULES;
+document.getElementById('copyRulesBtn').addEventListener('click',function(){
+  var box=document.getElementById('rulesBox');
+  (navigator.clipboard?navigator.clipboard.writeText(FIREBASE_RULES):Promise.reject()).then(function(){showToast('Regels gekopieerd ✓');})
+    .catch(function(){box.focus();box.select();showToast('Selecteer en kopieer de regels handmatig');});
+});
+function checkSecurity(){
+  var el=document.getElementById('securityStatus');
+  if(!dbUrl){el.className='sec-status';el.textContent='Nog geen database gekoppeld';return;}
+  el.className='sec-status';el.textContent='Controleren…';
+  fetch(dbUrl.replace(/\/$/,'')+'/planners.json?shallow=true',{cache:'no-store'}).then(function(r){
+    if(r.status===401||r.status===403){el.className='sec-status ok';el.textContent='✓ Goed beveiligd: andere planners zijn niet op te vragen';}
+    else if(r.ok){el.className='sec-status warn';el.textContent='⚠️ Open: iedereen met de database-URL kan alle data lezen en wijzigen. Stel de regels hieronder in.';}
+    else{el.className='sec-status';el.textContent='Kon niet controleren (status '+r.status+')';}
+  }).catch(function(){el.className='sec-status';el.textContent='Kon niet controleren (offline?)';});
+}
+document.getElementById('checkSecurityBtn').addEventListener('click',checkSecurity);
+function warnIfDatabaseOpen(){
+  var k='plannerSecWarned';
+  try{if(localStorage.getItem(k)===todayKey())return;}catch(e){}
+  fetch(dbUrl.replace(/\/$/,'')+'/planners.json?shallow=true',{cache:'no-store'}).then(function(r){
+    if(!r.ok)return;
+    try{localStorage.setItem(k,todayKey());}catch(e){}
+    showUndoToast('⚠️ Jullie database staat open voor iedereen.',openSettingsSheet,'Beveiligen');
+  }).catch(function(){});
+}
+
+// === BACK-UP ===
+document.getElementById('exportBackupBtn').addEventListener('click',function(){
+  var blob=new Blob([JSON.stringify({app:'huisplan',version:1,exportedAt:new Date().toISOString(),data:data},null,1)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='huisplan-backup-'+todayKey()+'.json';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+  showToast('Back-up gedownload ✓');
+});
+document.getElementById('importBackupInput').addEventListener('change',function(){
+  var f=this.files[0];this.value='';if(!f)return;
+  var reader=new FileReader();
+  reader.onload=function(){
+    var parsed;try{parsed=JSON.parse(reader.result);}catch(e){showToast('Dit is geen geldig back-upbestand');return;}
+    var incoming=parsed&&parsed.app==='huisplan'?parsed.data:parsed;
+    if(!isPlainObj(incoming)||!('tasks' in incoming)){showToast('Dit is geen geldig back-upbestand');return;}
+    var when=parsed.exportedAt?new Date(parsed.exportedAt).toLocaleDateString('nl-NL'):'onbekende datum';
+    customConfirm('Back-up van '+when+' terugzetten? Wijzigingen van na die datum gaan verloren.',function(){
+      var prev=data;
+      data=normalizeData(incoming);saveToServer();renderAll();
+      showUndoToast('Back-up teruggezet',function(){data=prev;saveToServer();renderAll();});
+    },{okText:'Terugzetten'});
+  };
+  reader.readAsText(f);
+});
+
+// Inline onclick-attributes draaien in global scope en zien de variabelen in deze closure
+// niet (de "Wis"-balk bij boodschappen deed daardoor niets, en "Vanavond" zette de
+// maaltijdweek niet terug). Daarom hier gewone listeners.
+document.getElementById('openBriefingBtn').addEventListener('click',function(){showBriefing(true);});
+document.getElementById('vanavondEten').addEventListener('click',function(){
+  maaltijdWeekOffset=0;document.getElementById('maaltijdOverlay').classList.add('open');renderMaaltijdplanner();
+});
+document.getElementById('boodDoneBanner').addEventListener('click',function(){
+  var removed=(data.boodschappen||[]).filter(function(b){return b.done;});
+  data.boodschappen=(data.boodschappen||[]).filter(function(b){return !b.done;});
+  saveToServer();renderBoodschappen();renderVandaag();
+  showUndoToast((removed.length===1?'1 afgevinkt item':removed.length+' afgevinkte items')+' verwijderd',function(){
+    data.boodschappen=(data.boodschappen||[]).concat(removed);saveToServer();renderBoodschappen();renderVandaag();
+  });
+});
 
 })();
 </script>
