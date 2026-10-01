@@ -345,7 +345,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .cadeau-check.checked{background:var(--green);border-color:var(--green);}
 .cadeau-text{flex:1;font-size:13px;color:var(--text);}
 .cadeau-text.done{text-decoration:line-through;color:var(--done);}
-.cadeau-meta{font-size:8px;color:var(--muted);}
+.cadeau-meta{font-size:10.5px;color:var(--muted);}
 .cadeau-del{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px;}
 .cadeau-empty{font-size:12px;color:var(--muted);font-style:italic;padding:4px 2px;}
 
@@ -926,12 +926,20 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
     </div>
 
     <div class="cadeau-section">
-      <div class="cadeau-header">🎁 Cadeaus</div>
+      <div class="cadeau-header">📦 Te bestellen</div>
       <div class="cadeau-add boodschappen-add">
-        <input type="text" id="cadeauInput" placeholder="Cadeau toevoegen…" maxlength="200">
-        <button id="cadeauAddBtn">+</button>
+        <input type="text" id="teBestellenInput" placeholder="Iets om online te bestellen…" maxlength="200">
+        <button id="teBestellenAddBtn" aria-label="Toevoegen aan te bestellen">+</button>
       </div>
-      <div class="cadeau-list" id="cadeauList"></div>
+      <div class="cadeau-list" id="teBestellenList"></div>
+    </div>
+    <div class="cadeau-section">
+      <div class="cadeau-header">🏬 Overige winkels</div>
+      <div class="cadeau-add boodschappen-add">
+        <input type="text" id="overigeInput" placeholder="Bv. lampjes bij de Action…" maxlength="200">
+        <button id="overigeAddBtn" aria-label="Toevoegen aan overige winkels">+</button>
+      </div>
+      <div class="cadeau-list" id="overigeList"></div>
     </div>
   </div>
 
@@ -2071,7 +2079,7 @@ function normalizeData(inc){
   inc=isPlainObj(inc)?inc:{};
   ['tasks','notes','recurringDone'].forEach(function(k){if(!isPlainObj(inc[k]))inc[k]={};});
   Object.keys(inc.tasks).forEach(function(k){if(!Array.isArray(inc.tasks[k]))inc.tasks[k]=[];});
-  ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget','budgetCustomCats','gewoonten','verjaardagen','cadeaus'].forEach(function(k){if(!Array.isArray(inc[k]))inc[k]=[];});
+  ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget','budgetCustomCats','gewoonten','verjaardagen','cadeaus','teBestellen','overigeAankopen'].forEach(function(k){if(!Array.isArray(inc[k]))inc[k]=[];});
   ['maaltijdplan','boodCatOverrides','gewoontenDone','verlanglijstjes','wieIsWaar','notitieboekMeta'].forEach(function(k){if(!isPlainObj(inc[k]))inc[k]={};});
   if(!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];
   if(!inc.notitieboek)inc.notitieboek='';
@@ -3673,42 +3681,55 @@ document.getElementById('clearDoneBoodschappen').addEventListener('click',functi
   saveToServer();renderBoodschappen();showToast('Afgevinkte items verwijderd');
 });
 
-// === CADEAUS (vast blok onderaan boodschappen, los van de boodschappenlijst) ===
-function renderCadeaus(){
-  var list=document.getElementById('cadeauList');if(!list)return;list.innerHTML='';
-  var items=data.cadeaus||[];
+// === EXTRA LIJSTEN onder de boodschappen: "Te bestellen" en "Overige winkels" ===
+// (Vervangen de oude Cadeaus-lijst; data.cadeaus blijft in de database bewaard, alleen niet meer getoond.)
+var EXTRA_LIJSTEN=[
+  {key:'teBestellen',list:'teBestellenList',input:'teBestellenInput',btn:'teBestellenAddBtn',empty:'Niets om te bestellen'},
+  {key:'overigeAankopen',list:'overigeList',input:'overigeInput',btn:'overigeAddBtn',empty:'Niets voor andere winkels'}
+];
+function renderExtraLijst(cfg){
+  var list=document.getElementById(cfg.list);if(!list)return;list.innerHTML='';
+  var items=data[cfg.key]||[];
   if(!items.length){
-    var empty=document.createElement('div');empty.className='cadeau-empty';empty.textContent='Nog geen cadeaus op het lijstje';list.appendChild(empty);return;
+    var empty=document.createElement('div');empty.className='cadeau-empty';empty.textContent=cfg.empty;list.appendChild(empty);return;
   }
-  function renderCadeauItem(c){
+  function renderItem(c){
     var item=document.createElement('div');item.className='cadeau-item';
     var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
     var check=document.createElement('div');check.className='cadeau-check'+(c.done?' checked':'');check.textContent=c.done?'✓':'';
-    check.addEventListener('click',function(){c.done=!c.done;saveToServer();renderCadeaus();});
+    check.addEventListener('click',function(){haptic(check);c.done=!c.done;saveToServer();renderExtraLijst(cfg);});
     var body=document.createElement('div');body.style='flex:1;min-width:0;';
     var txt=document.createElement('div');txt.className='cadeau-text'+(c.done?' done':'');txt.textContent=c.text;body.appendChild(txt);
     if(c.addedBy){var meta=document.createElement('div');meta.className='cadeau-meta';meta.textContent='door '+c.addedBy;body.appendChild(meta);}
-    var del=document.createElement('button');del.className='cadeau-del';del.textContent='✕';
-    del.addEventListener('click',function(){var idx=data.cadeaus.indexOf(c);if(idx>-1)data.cadeaus.splice(idx,1);saveToServer();renderCadeaus();});
+    var del=document.createElement('button');del.className='cadeau-del';del.textContent='✕';del.setAttribute('aria-label','Verwijder '+c.text);
+    function remove(){
+      var arr=data[cfg.key]||[];var idx=arr.indexOf(c);if(idx<0)return;
+      arr.splice(idx,1);saveToServer();renderExtraLijst(cfg);
+      showUndoToast(c.text+' verwijderd',function(){if(!data[cfg.key])data[cfg.key]=[];data[cfg.key].splice(idx,0,c);saveToServer();renderExtraLijst(cfg);});
+    }
+    del.addEventListener('click',remove);
     item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
-    addSwipe(item,function(){var idx=data.cadeaus.indexOf(c);if(idx>-1)data.cadeaus.splice(idx,1);saveToServer();renderCadeaus();showUndoToast(c.text+' verwijderd',function(){data.cadeaus.splice(idx,0,c);saveToServer();renderCadeaus();});});
+    addSwipe(item,remove);
   }
   var undone=items.filter(function(c){return !c.done;});
   var done=items.filter(function(c){return c.done;});
-  undone.forEach(renderCadeauItem);
+  undone.forEach(renderItem);
   if(done.length){
     var div=document.createElement('div');div.className='bood-done-divider';div.textContent='Afgevinkt';list.appendChild(div);
-    done.forEach(renderCadeauItem);
+    done.forEach(renderItem);
   }
 }
-function addCadeau(){
-  var input=document.getElementById('cadeauInput');var text=input.value.trim();if(!text)return;
-  if(!data.cadeaus)data.cadeaus=[];
-  data.cadeaus.push({id:uid(),text:text,done:false,addedBy:myName||null,addedDate:todayKey()});
-  input.value='';saveToServer();renderCadeaus();input.focus();
-}
-document.getElementById('cadeauAddBtn').addEventListener('click',addCadeau);
-document.getElementById('cadeauInput').addEventListener('keydown',function(e){if(e.key==='Enter')addCadeau();});
+function renderCadeaus(){EXTRA_LIJSTEN.forEach(renderExtraLijst);}
+EXTRA_LIJSTEN.forEach(function(cfg){
+  function add(){
+    var input=document.getElementById(cfg.input);var text=input.value.trim();if(!text)return;
+    if(!data[cfg.key])data[cfg.key]=[];
+    data[cfg.key].push({id:uid(),text:text,done:false,addedBy:myName||null,addedDate:todayKey()});
+    input.value='';saveToServer();renderExtraLijst(cfg);input.focus();
+  }
+  document.getElementById(cfg.btn).addEventListener('click',add);
+  document.getElementById(cfg.input).addEventListener('keydown',function(e){if(e.key==='Enter')add();});
+});
 
 
 // === GEWOONTETRACKER ===
@@ -4475,18 +4496,9 @@ function renderVerjaardagen(){
     var meta=document.createElement('div');meta.className='kluis-meta';meta.textContent=metaParts.join(' · ');
     item.appendChild(meta);
     var actionsRow=document.createElement('div');actionsRow.style.cssText='display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;';
-    var giftBtn=document.createElement('button');giftBtn.className='verj-cadeau-btn';giftBtn.textContent='🎁 Cadeau toevoegen';
-    (function(vi){giftBtn.addEventListener('click',function(){
-      document.getElementById('verjaardagenOverlay').classList.remove('open');
-      document.querySelector('[data-view="boodschappenView"]').click();
-      setTimeout(function(){
-        var ci=document.getElementById('cadeauInput');if(ci){ci.value='Cadeau voor '+vi.naam;ci.focus();}
-        var cs=document.querySelector('.cadeau-section');if(cs)cs.scrollIntoView({behavior:'smooth'});
-      },150);
-    });})(v);
     var jaarBtn=document.createElement('button');jaarBtn.className='verj-cadeau-btn';jaarBtn.textContent=v.jaar?'✏️ Geboortejaar':'🎈 Leeftijd instellen';
     (function(vi){jaarBtn.addEventListener('click',function(){promptVerjJaar(vi);});})(v);
-    actionsRow.appendChild(giftBtn);actionsRow.appendChild(jaarBtn);
+    actionsRow.appendChild(jaarBtn);
     item.appendChild(actionsRow);
     list.appendChild(item);
   });
