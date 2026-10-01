@@ -1015,6 +1015,78 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 #meerView .list{margin-bottom:4px;}
 .menu-row .list-row__meta{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .menu-row .list-row__trail .ic{color:var(--subtle);}
+
+/* ══ VOLLEDIGE SCHERMEN, DAGVENSTER EN DIALOGEN (stap 3a) ══════════════
+   Eén laag die de bestaande schermen (Onderhoud, Garanties, Bestellingen, enz.)
+   dezelfde componenten van het design system geeft. */
+.full-overlay{background:var(--bg);}
+.full-body{padding:16px;}
+/* Formulierkaarten */
+.add-card,.rec-add-card,.best-add-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--sh-1);padding:16px;margin-bottom:var(--sp-5);}
+.add-card h3,.rec-add-card h3,.best-add-card h3{margin:0 0 12px;font-size:var(--fs-head);font-weight:700;}
+.field-label{display:block;margin:4px 0 6px;font-size:var(--fs-detail);font-weight:600;color:var(--muted);}
+.full-overlay input[type=text],.full-overlay input[type=url],.full-overlay input[type=date],.full-overlay input[type=time],.full-overlay input[type=number],.full-overlay input:not([type]),.full-overlay textarea,.full-overlay select,
+.sheet input[type=text],.sheet input[type=date],.sheet input[type=time],.sheet textarea,.sheet select{border:1px solid var(--border)!important;border-radius:var(--r-md)!important;background:var(--card)!important;color:var(--text)!important;min-height:48px;}
+.full-overlay textarea,.sheet textarea{min-height:88px;padding-top:12px!important;}
+.meta-select{height:44px;padding:0 10px;border-radius:var(--r-md);}
+.setup-error{color:var(--danger);font-size:var(--fs-detail);min-height:0;}
+/* Knoppen */
+.add-card-btn,.primary-btn{height:48px;border-radius:var(--r-md);background:var(--accent);color:#fff;font:600 16px var(--font);border:none;}
+.add-card-btn.secondary{background:var(--surface-2);color:var(--text);border:none;font-size:15px;}
+.close-btn{display:flex;align-items:center;justify-content:center;height:48px;margin-top:12px;border:none;border-radius:var(--r-md);background:var(--surface-2);color:var(--text);font:600 16px var(--font);cursor:pointer;}
+.today-btn{height:36px;padding:0 12px;border:none;border-radius:var(--r-pill);background:var(--surface-2);color:var(--text);font:600 14px var(--font);cursor:pointer;}
+.notitie-add-btn,.maaltijd-bood-btn,.foto-upload-btn,.vl-add-cat-btn,.vl-add-item-btn,.backlog-plan-btn,.recept-link-btn,.ond-done-btn,.best-quick-done,.verj-cadeau-btn,.vl-apply-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border:1px solid var(--border)!important;border-radius:var(--r-md)!important;background:var(--card)!important;color:var(--text)!important;font:600 14px var(--font)!important;cursor:pointer;}
+.notitie-add-btn,.maaltijd-bood-btn{width:100%;min-height:48px;margin-bottom:var(--sp-4);}
+.ds-glyph-btn{width:36px!important;height:36px!important;min-width:36px;padding:0!important;display:inline-flex!important;align-items:center;justify-content:center;border:none!important;border-radius:var(--r-md)!important;background:transparent!important;color:var(--subtle)!important;cursor:pointer;flex-shrink:0;}
+.ds-glyph-btn:active{background:var(--surface-2)!important;}
+/* Filters en tabs */
+.recept-cat-btn,.kluis-cat-btn,.bood-cat-btn{height:36px;padding:0 14px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--card);color:var(--text);font:600 14px var(--font);white-space:nowrap;cursor:pointer;}
+.recept-cat-btn.active,.kluis-cat-btn.active,.bood-cat-btn.active{background:var(--text);border-color:var(--text);color:var(--bg);}
+.recept-cat-row,.kluis-cat-row{display:flex;gap:8px;overflow-x:auto;margin:0 -16px 16px;padding:0 16px;scrollbar-width:none;}
+.interval-tabs,.view-tabs,.period-row{display:flex;gap:4px;padding:4px;border-radius:var(--r-md);background:var(--surface-2);}
+.view-tabs{margin:12px 16px 4px;}
+.interval-tab,.view-tab,.period-btn{flex:1;height:36px;border:none!important;border-radius:9px;background:transparent!important;color:var(--muted)!important;font:600 14px var(--font)!important;cursor:pointer;}
+.interval-tab.active,.view-tab.active,.period-btn.active{background:var(--card)!important;color:var(--text)!important;box-shadow:var(--sh-1);}
+.day-toggle{width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--text);font:600 14px var(--font);cursor:pointer;}
+.day-toggle.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.theme-swatch{width:40px;height:40px;}
+/* Lijstitems in de schermen: dezelfde kaart als het design system */
+.ond-item,.onderhoud-item,.gar-item,.best-item,.kluis-item,.backlog-item,.notitie-card,.recept-card,.geheugen-item,.rec-list-item,.briefje-card,.vl-item,.zoek-result-item,.week-day-row,.maaltijd-dag,.wiw-dag,.stat-block,.dna-card{background:var(--card)!important;border:1px solid var(--border)!important;border-left-width:1px!important;border-radius:var(--r-lg)!important;box-shadow:var(--sh-1)!important;}
+.ond-name,.gar-name,.best-name,.kluis-naam,.backlog-text,.notitie-titel,.recept-card-naam,.rec-list-name,.geheugen-tekst{font-size:var(--fs-body)!important;font-weight:600!important;color:var(--text);}
+.ond-meta,.gar-meta,.best-meta,.kluis-meta,.backlog-meta,.notitie-meta,.recept-card-meta,.geheugen-meta,.rec-list-days{font-size:var(--fs-detail)!important;color:var(--muted)!important;}
+.ond-section-label,.backlog-section-label,.best-group-label,.dna-section-title,.stat-block-title,.zoek-result-section,.geheugen-month,.sec-label{font-size:var(--fs-label)!important;font-weight:600!important;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)!important;}
+.kluis-badge,.gar-exp-badge,.order-badge,.assign-badge,.author-badge,.streak-badge,.cat-badge{display:inline-flex;align-items:center;font-size:12px!important;font-weight:600!important;border-radius:6px!important;padding:1px 6px!important;background:var(--surface-2)!important;color:var(--muted)!important;border:none!important;}
+.ond-prog-bg,.gar-prog-bg,.kluis-prog-bg,.budget-prog-bar,.stat-bar-bg,.week-bar,.dna-bar-wrap,.rec-dirt-bar{background:var(--surface-2)!important;border-radius:var(--r-pill)!important;}
+.empty-msg,.zoek-empty,.geheugen-empty,.cadeau-empty{margin:8px 0;padding:22px 16px;text-align:center;border:1.5px dashed var(--border);border-radius:var(--r-lg);color:var(--muted);font-size:var(--fs-small);background:transparent;}
+.month-row{padding:8px 8px 4px;}
+.month-title{font-size:var(--fs-title);font-weight:700;}
+.zoek-bar{padding:12px 16px;background:var(--bg);border-bottom:1px solid var(--border);}
+.zoek-input{height:48px;border-radius:var(--r-md)!important;}
+/* Bottom sheets en dialogen (dagvenster, bevestigen, snoozen, tekstinvoer, inplannen) */
+.overlay .sheet,.add-sheet{background:var(--card);border-radius:var(--r-xl) var(--r-xl) 0 0;box-shadow:var(--sh-2);}
+.sheet-handle,.add-sheet-handle{width:40px;height:4px;border-radius:var(--r-pill);background:var(--border);margin:8px auto 12px;}
+.sheet-title{font-size:18px!important;font-weight:700!important;letter-spacing:-.01em;margin-bottom:12px;}
+.snooze-choice-btn{height:48px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--card);color:var(--text);font:600 16px var(--font);cursor:pointer;}
+#confirmOkBtn,#promptOkBtn{height:48px;border-radius:var(--r-md)!important;font:600 16px var(--font)!important;}
+#promptOkBtn{background:var(--accent)!important;}
+#confirmOkBtn{background:var(--danger)!important;}
+.task-item,.md-sheet-item,.rec-task-item{background:var(--card)!important;border:1px solid var(--border)!important;border-left-width:1px!important;border-radius:var(--r-md)!important;box-shadow:none!important;}
+.task-check,.rec-check,.md-done-check,.week-check,.vandaag-check{border-color:#b9b4c7!important;}
+.task-check.checked,.rec-check.checked,.md-done-check.checked,.week-check.checked,.vandaag-check.checked{background:var(--accent)!important;border-color:var(--accent)!important;}
+.multiday-toggle{font-size:var(--fs-small);color:var(--text);}
+.smart-hint{border-radius:var(--r-md);background:var(--surface-2);border:none;}
+/* Melding onderaan */
+.toast{border-radius:var(--r-md)!important;background:var(--text)!important;color:var(--bg)!important;box-shadow:var(--sh-2)!important;font:500 15px var(--font)!important;padding:12px 14px 12px 16px!important;}
+.toast button{border:none!important;background:rgba(127,127,127,.25)!important;color:inherit!important;border-radius:var(--r-sm)!important;height:32px;padding:0 10px!important;font:600 14px var(--font)!important;}
+.ond-del-btn,.gar-del-btn,.backlog-del-btn,.best-del,.kluis-del,.recept-del,.notitie-del,.budget-del,.vl-item-del{min-height:40px;padding:0 14px;border:1px solid var(--border)!important;border-radius:var(--r-md)!important;background:var(--card)!important;color:var(--danger)!important;font:600 14px var(--font)!important;cursor:pointer;}
+.ds-glyph-btn.ond-del-btn,.ds-glyph-btn.gar-del-btn,.ds-glyph-btn.backlog-del-btn,.ds-glyph-btn.best-del,.ds-glyph-btn.kluis-del,.ds-glyph-btn.recept-del,.ds-glyph-btn.notitie-del,.ds-glyph-btn.budget-del,.ds-glyph-btn.vl-item-del{border:none!important;padding:0!important;min-height:0;color:var(--subtle)!important;}
+/* Vakanties: smalle schermen niet laten overlopen; aftelling is informatie, geen actie (dus niet paars) */
+#vakantiesContent input,#vakantiesContent select{min-width:0;}
+#vakantiesContent div[style*="display:flex"],#vakantiesContent div[style*="display: flex"]{flex-wrap:wrap;}
+#vakantiesContent div[style*="var(--accent)"]{background:var(--surface-2)!important;color:var(--text)!important;}
+.full-overlay{max-width:100vw;overflow-x:hidden;}
+#vakantiesContent{overflow-x:hidden;}
+#vakantiesContent>*{max-width:100%;}
 </style>
 </head>
 <body>
@@ -1362,7 +1434,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
         </div>
         <label class="multiday-toggle"><input type="checkbox" id="multiDayToggle"> Taak over meerdere dagen</label>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:13px;color:var(--muted);">
-          <span>🔔</span>
+          <svg class="ic sm" style="color:var(--muted)"><use href="#i-bell"/></svg>
           <input type="time" id="newTaskReminder" style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;background:var(--bg);color:var(--text);" title="Herinneringstijd (optioneel)">
           <span style="font-size:12px;">Herinnering (optioneel)</span>
         </div>
@@ -1514,7 +1586,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
       </select>
       <input type="text" id="ondNote" placeholder="Notitie (optioneel)" maxlength="200">
       <label class="field-label">Foto (optioneel)</label>
-      <label class="foto-upload-btn">📷 Foto kiezen <input type="file" id="ondFotoInput" accept="image/*" style="display:none;"></label>
+      <label class="foto-upload-btn"><svg class="ic sm"><use href="#i-camera"/></svg>Foto kiezen <input type="file" id="ondFotoInput" accept="image/*" style="display:none;"></label>
       <img id="ondFotoPreview" class="foto-preview" style="display:none;" alt="">
       <div class="setup-error" id="ondError"></div>
       <button class="add-card-btn" id="ondAddBtn">Toevoegen</button>
@@ -1576,7 +1648,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
       <input type="text" id="garSerial" placeholder="Serienummer (optioneel)" maxlength="100">
       <input type="text" id="garNote" placeholder="Notitie (optioneel)" maxlength="200">
       <label class="field-label">Foto / bonnetje (optioneel)</label>
-      <label class="foto-upload-btn">📷 Foto kiezen <input type="file" id="garFotoInput" accept="image/*" style="display:none;"></label>
+      <label class="foto-upload-btn"><svg class="ic sm"><use href="#i-camera"/></svg>Foto kiezen <input type="file" id="garFotoInput" accept="image/*" style="display:none;"></label>
       <img id="garFotoPreview" class="foto-preview" style="display:none;" alt="">
       <div class="setup-error" id="garError"></div>
       <button class="add-card-btn" id="garAddBtn">Toevoegen</button>
@@ -3623,7 +3695,7 @@ function renderSheetTasks(){
     moveBtn.addEventListener('click',function(e){e.stopPropagation();moveVisible=!moveVisible;movePicker.style.display=moveVisible?'block':'none';if(moveVisible)moveDateInput.focus();});
     moveDateInput.addEventListener('change',function(){var toKey=this.value;if(!toKey||toKey===openDateKey){movePicker.style.display='none';moveVisible=false;return;}moveTask(t,openDateKey,toKey);movePicker.style.display='none';moveVisible=false;});
     body.appendChild(movePicker);
-    if(!os){var addOrderBtn=document.createElement('span');addOrderBtn.style.cssText='font-size:10px;color:var(--accent);cursor:pointer;padding:2px 5px;border:1px solid var(--accent);border-radius:10px;';addOrderBtn.textContent='📦';addOrderBtn.title='Markeer als besteld';addOrderBtn.addEventListener('click',function(){t.orderStatus='besteld';saveToServer();renderSheetTasks();});badges.appendChild(addOrderBtn);}
+    if(!os){var addOrderBtn=document.createElement('span');addOrderBtn.style.cssText='font-size:10px;color:var(--accent);cursor:pointer;padding:2px 5px;border:1px solid var(--accent);border-radius:10px;';addOrderBtn.innerHTML=icon('package','xs');addOrderBtn.setAttribute('role','button');addOrderBtn.title='Markeer als besteld';addOrderBtn.addEventListener('click',function(){t.orderStatus='besteld';saveToServer();renderSheetTasks();});badges.appendChild(addOrderBtn);}
     var del=document.createElement('button');del.className='task-del';del.textContent='✕';
     function removeWithUndo(){
       var key=openDateKey,arr=data.tasks[key];var idx=arr?arr.indexOf(t):-1;if(idx<0)return;
@@ -6958,6 +7030,52 @@ document.getElementById('boodDoneBanner').addEventListener('click',function(){
     data.boodschappen=(data.boodschappen||[]).concat(removed);saveToServer();renderBoodschappen();renderVandaag();
   });
 });
+
+
+// ── Design system: emoji en tekens als interface-icoon centraal vervangen ──
+// Veel schermen bouwen hun eigen knoppen met tekens als ✕, ✎, 🗑 of ‹ ›. In plaats van
+// elk scherm apart aan te passen, zet deze routine ze om naar de lijn-iconen, zodra
+// ze op de pagina verschijnen. Emoji in wat gebruikers zelf typen, in tips, in de
+// briefing en in reactieknoppen (👍 2) blijven ongemoeid.
+var DS_GLYPHS={'✕':['x','Verwijderen'],'×':['x','Verwijderen'],'✖':['x','Verwijderen'],'✎':['pencil','Bewerken'],'✏':['pencil','Bewerken'],'✏️':['pencil','Bewerken'],
+  '🗑':['trash','Verwijderen'],'🗑️':['trash','Verwijderen'],'📅':['calendar','Inplannen'],'💤':['clock','Snoozen'],'⋯':['more','Meer opties'],'…':['more','Meer opties'],
+  '‹':['chevron-left','Vorige'],'›':['chevron-right','Volgende'],'←':['chevron-left','Terug'],'→':['chevron-right','Verder'],'↻':['refresh','Opnieuw']};
+var DS_EMOJI_LEAD=/^(?:[←-⇿⌀-➿⬀-⯿\u{1F000}-\u{1FAFF}][️‍\u{1F3FB}-\u{1F3FF}]*\s*)+/u;
+var DS_LABELS='label,.cat-badge,.order-badge,.ond-name,.gar-name,.best-name,.kluis-naam,.backlog-text,.rec-list-name,.wiw-dag-naam,.maaltijd-dag-naam,.sec-label,.ond-section-label,.backlog-section-label,.best-group-label,.dna-section-title,.stat-block-title,.zoek-result-section,.geheugen-month,.field-label,.full-overlay h3,.vl-cat-name,.maaltijd-dag-naam,option';
+function dsStripLead(el){
+  var n=el.firstChild;
+  while(n&&n.nodeType===3&&!n.nodeValue.trim())n=n.nextSibling;
+  if(!n||n.nodeType!==3)return;
+  var rest=n.nodeValue.replace(DS_EMOJI_LEAD,'');
+  // alleen als er daarna nog woorden staan (dus nooit een emoji-reactie leeghalen)
+  if(rest!==n.nodeValue&&/[A-Za-zÀ-ÿ0-9]/.test(rest))n.nodeValue=rest;
+}
+function dsPolish(root){
+  if(!root||root.nodeType!==1)return;
+  if(root.closest&&root.closest('#briefingOverlay,#toast'))return;
+  var btns=root.matches&&root.matches('button')?[root]:[];
+  btns=btns.concat(Array.prototype.slice.call(root.querySelectorAll('button')));
+  btns.forEach(function(b){
+    if(b.closest('#briefingOverlay,.reaction-row,.task-reactions,.reaction-picker,.theme-swatches'))return;
+    if(b.querySelector('svg'))return;
+    var t=b.textContent.trim();var g=DS_GLYPHS[t];
+    if(g){
+      if(!b.getAttribute('aria-label'))b.setAttribute('aria-label',b.title||g[1]);
+      b.innerHTML=icon(g[0],'sm');b.classList.add('ds-glyph-btn');return;
+    }
+    dsStripLead(b);
+  });
+  var labels=root.matches&&root.matches(DS_LABELS)?[root]:[];
+  labels.concat(Array.prototype.slice.call(root.querySelectorAll(DS_LABELS))).forEach(dsStripLead);
+}
+(function(){
+  var pending=[],scheduled=false;
+  new MutationObserver(function(muts){
+    muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1)pending.push(n);else if(n.nodeType===3&&n.parentElement)pending.push(n.parentElement);});});
+    if(!scheduled&&pending.length){scheduled=true;Promise.resolve().then(function(){var list=pending;pending=[];scheduled=false;list.forEach(dsPolish);});}
+  }).observe(document.body,{childList:true,subtree:true});
+  dsPolish(document.body);
+})();
 
 })();
 </script>
