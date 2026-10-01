@@ -1010,6 +1010,11 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .lijst-add{display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid var(--border);}
 .lijst-add .field{height:44px;box-shadow:none;background:var(--bg);}
 .lijst-add .btn-square{width:44px;height:44px;}
+
+/* ══ SCHERM: Meer ══ */
+#meerView .list{margin-bottom:4px;}
+.menu-row .list-row__meta{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.menu-row .list-row__trail .ic{color:var(--subtle);}
 </style>
 </head>
 <body>
@@ -1235,131 +1240,53 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 
   <!-- DATA -->
   <div class="view" id="meerView">
+    <h1 class="screen-title">Meer</h1>
     <div id="meerFavorieten" style="display:none;">
-      <div class="meer-section-header">⭐ Veelgebruikt</div>
-      <div class="meer-grid" id="meerFavGrid"></div>
+      <div class="section-label">Veelgebruikt</div>
+      <div class="tile-grid" id="meerFavGrid"></div>
     </div>
-    <div class="meer-section-header">🏠 Thuis</div>
-    <div class="meer-grid">
-      <div class="meer-card meer-card-onderhoud" id="openOnderhoud">
-        <div class="meer-card-icon">🔧</div>
-        <div class="meer-card-title">Onderhoud</div>
-        <div class="meer-card-sub" id="onderhoudSub">Huis- en onderhoudstaken</div>
-      </div>
-      <div class="meer-card meer-card-garanties" id="openGaranties">
-        <div class="meer-card-icon">📄</div>
-        <div class="meer-card-title">Garanties</div>
-        <div class="meer-card-sub" id="garantiesSub">Verloopdata bijhouden</div>
-      </div>
-      <div class="meer-card meer-card-bestellen" id="openBestellingen">
-        <div class="meer-card-icon">📦</div>
-        <div class="meer-card-title">Bestellingen</div>
-        <div class="meer-card-sub" id="bestellingenSub">Bijhouden wat je hebt besteld</div>
-      </div>
-      <div class="meer-card meer-card-vakanties" id="openVakanties">
-        <div class="meer-card-icon">✈️</div>
-        <div class="meer-card-title">Vakanties</div>
-        <div class="meer-card-sub" id="vakantiesSub">Paklijst &amp; to-do</div>
-      </div>
-      <div class="meer-card meer-card-wiw" id="openWieIsWaar">
-        <div class="meer-card-icon">📍</div>
-        <div class="meer-card-title">Wie is waar</div>
-        <div class="meer-card-sub" id="wieIsWaarSub">Weekschema thuis/werk/reis</div>
-      </div>
-      <div class="meer-card meer-card-budget" id="openBudget">
-        <div class="meer-card-icon">💰</div>
-        <div class="meer-card-title">Vaste lasten</div>
-        <div class="meer-card-sub" id="budgetSub">Vaste lasten overzicht</div>
-      </div>
+    <div class="section-label">Thuis</div>
+    <div class="list">
+      <button class="list-row link menu-row" id="openOnderhoud" type="button"><span class="icon-sq tint-home"><svg class="ic"><use href="#i-wrench"/></svg></span><span class="list-row__body"><span class="list-row__title">Onderhoud</span><span class="list-row__meta" id="onderhoudSub">Huis- en onderhoudstaken</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openGaranties" type="button"><span class="icon-sq tint-home"><svg class="ic"><use href="#i-file"/></svg></span><span class="list-row__body"><span class="list-row__title">Garanties</span><span class="list-row__meta" id="garantiesSub">Verloopdata bijhouden</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openBestellingen" type="button"><span class="icon-sq tint-home"><svg class="ic"><use href="#i-package"/></svg></span><span class="list-row__body"><span class="list-row__title">Bestellingen</span><span class="list-row__meta" id="bestellingenSub">Bijhouden wat je hebt besteld</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openVakanties" type="button"><span class="icon-sq tint-home"><svg class="ic"><use href="#i-plane"/></svg></span><span class="list-row__body"><span class="list-row__title">Vakanties</span><span class="list-row__meta" id="vakantiesSub">Paklijst en to-do</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openWieIsWaar" type="button"><span class="icon-sq tint-home"><svg class="ic"><use href="#i-map-pin"/></svg></span><span class="list-row__body"><span class="list-row__title">Wie is waar</span><span class="list-row__meta" id="wieIsWaarSub">Weekschema thuis, werk, reis</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openBudget" type="button"><span class="icon-sq tint-home"><svg class="ic"><use href="#i-wallet"/></svg></span><span class="list-row__body"><span class="list-row__title">Vaste lasten</span><span class="list-row__meta" id="budgetSub">Vaste lasten overzicht</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
     </div>
-    <div class="meer-section-header">🍽 Eten</div>
-    <div class="meer-grid">
-      <div class="meer-card meer-card-maaltijd" id="openMaaltijdplanner">
-        <div class="meer-card-icon">🍽</div>
-        <div class="meer-card-title">Maaltijdplanner</div>
-        <div class="meer-card-sub" id="maaltijdSub">Plan je weekmaaltijden</div>
-      </div>
-      <div class="meer-card meer-card-recepten" id="openRecepten">
-        <div class="meer-card-icon">👨‍🍳</div>
-        <div class="meer-card-title">Recepten</div>
-        <div class="meer-card-sub" id="receptenSub">Favoriete recepten &amp; links</div>
-      </div>
+    <div class="section-label">Eten</div>
+    <div class="list">
+      <button class="list-row link menu-row" id="openMaaltijdplanner" type="button"><span class="icon-sq tint-food"><svg class="ic"><use href="#i-utensils"/></svg></span><span class="list-row__body"><span class="list-row__title">Maaltijdplanner</span><span class="list-row__meta" id="maaltijdSub">Plan je weekmaaltijden</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openRecepten" type="button"><span class="icon-sq tint-food"><svg class="ic"><use href="#i-chef"/></svg></span><span class="list-row__body"><span class="list-row__title">Recepten</span><span class="list-row__meta" id="receptenSub">Favoriete recepten en links</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
     </div>
-    <div class="meer-section-header">📋 Taken &amp; gewoonten</div>
-    <div class="meer-grid">
-      <div class="meer-card meer-card-vastetaken" id="openVasteTaken">
-        <div class="meer-card-icon">↻</div>
-        <div class="meer-card-title">Vaste taken</div>
-        <div class="meer-card-sub">Wekelijks &amp; maandelijks</div>
-      </div>
-      <div class="meer-card meer-card-gewoonten" id="openGewoonten">
-        <div class="meer-card-icon">🔁</div>
-        <div class="meer-card-title">Gewoonten</div>
-        <div class="meer-card-sub" id="gewoontenSub">Dagelijkse streaks</div>
-      </div>
-      <div class="meer-card meer-card-notitieboek" id="openNotitieboek">
-        <div class="meer-card-icon">📝</div>
-        <div class="meer-card-title">Notitieboek</div>
-        <div class="meer-card-sub">Gedeelde notities</div>
-      </div>
-      <div class="meer-card meer-card-backlog" id="openBacklog">
-        <div class="meer-card-icon">📋</div>
-        <div class="meer-card-title">Backlog</div>
-        <div class="meer-card-sub" id="backlogSub">Ideeën &amp; ooit-lijst</div>
-      </div>
+    <div class="section-label">Taken en gewoonten</div>
+    <div class="list">
+      <button class="list-row link menu-row" id="openVasteTaken" type="button"><span class="icon-sq tint-tasks"><svg class="ic"><use href="#i-repeat"/></svg></span><span class="list-row__body"><span class="list-row__title">Vaste taken</span><span class="list-row__meta" id="vasteTakenSub">Wekelijks en maandelijks</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openGewoonten" type="button"><span class="icon-sq tint-tasks"><svg class="ic"><use href="#i-flame"/></svg></span><span class="list-row__body"><span class="list-row__title">Gewoonten</span><span class="list-row__meta" id="gewoontenSub">Dagelijkse reeksen</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openNotitieboek" type="button"><span class="icon-sq tint-tasks"><svg class="ic"><use href="#i-notebook"/></svg></span><span class="list-row__body"><span class="list-row__title">Notitieboek</span><span class="list-row__meta">Gedeelde notities</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openBacklog" type="button"><span class="icon-sq tint-tasks"><svg class="ic"><use href="#i-list-todo"/></svg></span><span class="list-row__body"><span class="list-row__title">Backlog</span><span class="list-row__meta" id="backlogSub">Ideeën en ooit-lijst</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
     </div>
-    <div class="meer-section-header">🎂 Verjaardagen &amp; cadeaus</div>
-    <div class="meer-grid">
-      <div class="meer-card meer-card-verjaardagen" id="openVerjaardagen">
-        <div class="meer-card-icon">🎂</div>
-        <div class="meer-card-title">Verjaardagen</div>
-        <div class="meer-card-sub" id="verjaardagenSub">Wie is er jarig?</div>
-      </div>
-      <div class="meer-card meer-card-verlanglijst" id="openVerlanglijst">
-        <div class="meer-card-icon">🎁</div>
-        <div class="meer-card-title">Verlanglijstje</div>
-        <div class="meer-card-sub">Cadeau-ideeën per persoon</div>
-      </div>
+    <div class="section-label">Mensen</div>
+    <div class="list">
+      <button class="list-row link menu-row" id="openVerjaardagen" type="button"><span class="icon-sq tint-people"><svg class="ic"><use href="#i-cake"/></svg></span><span class="list-row__body"><span class="list-row__title">Verjaardagen</span><span class="list-row__meta" id="verjaardagenSub">Wie is er jarig?</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openVerlanglijst" type="button"><span class="icon-sq tint-people"><svg class="ic"><use href="#i-gift"/></svg></span><span class="list-row__body"><span class="list-row__title">Verlanglijstje</span><span class="list-row__meta">Cadeau-ideeën per persoon</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
     </div>
-    <div class="meer-section-header">📊 Terugkijken &amp; bewaren</div>
-    <div class="meer-grid">
-      <div class="meer-card meer-card-weekoverzicht" id="openWeekOverzicht">
-        <div class="meer-card-icon">📊</div>
-        <div class="meer-card-title">Weekoverzicht</div>
-        <div class="meer-card-sub" id="weekOverzichtSub">Wat heb je gedaan?</div>
-      </div>
-      <div class="meer-card meer-card-statistieken" id="openStatistieken">
-        <div class="meer-card-icon">📈</div>
-        <div class="meer-card-title">Statistieken</div>
-        <div class="meer-card-sub">Inzichten &amp; trends</div>
-      </div>
-      <div class="meer-card meer-card-dna" id="openGezinsDNA">
-        <div class="meer-card-icon">🧬</div>
-        <div class="meer-card-title">Gezins-DNA</div>
-        <div class="meer-card-sub">Wat zegt onze data over ons?</div>
-      </div>
-      <div class="meer-card meer-card-geheugen" id="openHuisgeheugen">
-        <div class="meer-card-icon">🧠</div>
-        <div class="meer-card-title">Huisgeheugen</div>
-        <div class="meer-card-sub" id="huisgeheugenSub">Alles wat is afgerond</div>
-      </div>
-      <div class="meer-card meer-card-kluis" id="openKluis">
-        <div class="meer-card-icon">🔐</div>
-        <div class="meer-card-title">Vervaldata-kluis</div>
-        <div class="meer-card-sub" id="kluisSub">Paspoort, verzekering…</div>
-      </div>
-      <div class="meer-card meer-card-zoeken" id="openZoeken">
-        <div class="meer-card-icon">🔍</div>
-        <div class="meer-card-title">Zoeken</div>
-        <div class="meer-card-sub">Zoek door alles</div>
-      </div>
+    <div class="section-label">Terugkijken en bewaren</div>
+    <div class="list">
+      <button class="list-row link menu-row" id="openWeekOverzicht" type="button"><span class="icon-sq tint-back"><svg class="ic"><use href="#i-chart"/></svg></span><span class="list-row__body"><span class="list-row__title">Weekoverzicht</span><span class="list-row__meta" id="weekOverzichtSub">Wat heb je gedaan?</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openStatistieken" type="button"><span class="icon-sq tint-back"><svg class="ic"><use href="#i-trending"/></svg></span><span class="list-row__body"><span class="list-row__title">Statistieken</span><span class="list-row__meta">Inzichten en trends</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openGezinsDNA" type="button"><span class="icon-sq tint-back"><svg class="ic"><use href="#i-sparkles"/></svg></span><span class="list-row__body"><span class="list-row__title">Gezins-DNA</span><span class="list-row__meta">Wat zegt onze data over ons?</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openHuisgeheugen" type="button"><span class="icon-sq tint-back"><svg class="ic"><use href="#i-archive"/></svg></span><span class="list-row__body"><span class="list-row__title">Huisgeheugen</span><span class="list-row__meta" id="huisgeheugenSub">Alles wat is afgerond</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openKluis" type="button"><span class="icon-sq tint-back"><svg class="ic"><use href="#i-shield"/></svg></span><span class="list-row__body"><span class="list-row__title">Vervaldata-kluis</span><span class="list-row__meta" id="kluisSub">Paspoort, verzekering…</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="openZoeken" type="button"><span class="icon-sq tint-back"><svg class="ic"><use href="#i-search"/></svg></span><span class="list-row__body"><span class="list-row__title">Zoeken</span><span class="list-row__meta">Zoek door alles</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
     </div>
-    <div style="padding:0 16px 8px;">
-      <button style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--muted);cursor:pointer;" id="settingsBtn">⚙️ Instellingen & namen</button>
+    <div class="section-label">App</div>
+    <div class="list">
+      <button class="list-row link menu-row" id="settingsBtn" type="button"><span class="icon-sq tint-app"><svg class="ic"><use href="#i-settings"/></svg></span><span class="list-row__body"><span class="list-row__title">Instellingen</span><span class="list-row__meta">Namen, thema, beveiliging en back-up</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
+      <button class="list-row link menu-row" id="pwaInstallBtn" type="button" style="display:none;"><span class="icon-sq tint-app"><svg class="ic"><use href="#i-download"/></svg></span><span class="list-row__body"><span class="list-row__title">Installeer als app</span><span class="list-row__meta">Op je beginscherm, werkt ook offline</span></span><span class="list-row__trail"><svg class="ic sm"><use href="#i-chevron-right"/></svg></span></button>
     </div>
-    <div style="padding:0 16px 16px;font-size:11px;color:var(--muted);text-align:center;" id="pwaInstallRow" style="display:none;">
-      <button id="pwaInstallBtn" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;display:none;">📱 Installeer als app</button>
-    </div>
+    <div id="pwaInstallRow" hidden></div>
+    <div style="height:24px"></div>
   </div>
 
   <!-- GEWOONTETRACKER OVERLAY -->
@@ -2443,6 +2370,14 @@ function normalizeData(inc){
   if(!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=defaultPersonen();
   if(!inc.notitieboek)inc.notitieboek='';
   inc.lijsten.forEach(function(l){if(l&&!Array.isArray(l.items))l.items=[];});
+  // Firebase bewaart geen lege lijsten/objecten: een vakantie zonder paklijst of to-do's
+  // kwam daardoor zonder die velden terug en liet het Vakanties-scherm crashen.
+  inc.vakanties.forEach(function(v){
+    if(!v)return;
+    if(!isPlainObj(v.paklijst))v.paklijst={};
+    Object.keys(v.paklijst).forEach(function(p){if(!Array.isArray(v.paklijst[p]))v.paklijst[p]=[];});
+    if(!Array.isArray(v.todos))v.todos=[];
+  });
   return inc;
 }
 function mergeData(base,local,remote){var m=normalizeData(merge3(base,local,remote));dedupeTasks(m,local);return m;}
@@ -4310,12 +4245,12 @@ function renderMeerStats(){
   document.getElementById('backlogSub').textContent=bl>0?bl+' idee'+(bl===1?'':'ën'):'Ideeën & ooit-lijst';
   var garExp=(data.garanties||[]).filter(function(g){return g.verloopt&&daysUntil(g.verloopt)<=90&&daysUntil(g.verloopt)>=0;}).length;
   document.getElementById('garantiesSub').textContent=garExp>0?garExp+' '+(garExp===1?'verloopt':'verlopen')+' binnenkort':'Verloopdata bijhouden';
-  function setCardBadge(cardId,count,color){
+  // Teller in de menurij (rood = vraagt aandacht); kleurparameter blijft voor compatibiliteit
+  function setCardBadge(cardId,count){
     var card=document.getElementById(cardId);if(!card)return;
-    var ob=card.querySelector('.meer-warn-badge');if(ob)ob.remove();
-    if(count>0){var b=document.createElement('div');b.className='meer-warn-badge';b.textContent=count;
-      b.style.cssText='position:absolute;top:8px;right:8px;background:'+color+';color:#fff;border-radius:10px;padding:2px 7px;font-size:10px;font-weight:700;z-index:2;';
-      card.appendChild(b);}
+    var trail=card.querySelector('.list-row__trail')||card;
+    var ob=trail.querySelector('.badge');if(ob)ob.remove();
+    if(count>0){var b=ui.el('span','badge',String(count));trail.insertBefore(b,trail.firstChild);}
   }
   var ondWarn=(data.onderhoud||[]).filter(function(o){
     if(!o.lastDone)return true;
@@ -4328,7 +4263,7 @@ function renderMeerStats(){
   var nextVakStat=(data.vakanties||[]).filter(function(v){return v.startDatum&&v.startDatum>=todayKey();}).sort(function(a,b){return a.startDatum<b.startDatum?-1:1;})[0];
   if(nextVakStat){
     var vsd=daysUntil(nextVakStat.startDatum);
-    document.getElementById('vakantiesSub').textContent=vsd===0?'✈️ Vandaag: '+nextVakStat.naam:vsd===1?nextVakStat.naam+' is morgen':nextVakStat.naam+' over '+vsd+' dagen';
+    document.getElementById('vakantiesSub').textContent=vsd===0?'Vandaag: '+nextVakStat.naam:vsd===1?nextVakStat.naam+' is morgen':nextVakStat.naam+' over '+vsd+' dagen';
   } else {
     document.getElementById('vakantiesSub').textContent=vakCount>0?vakCount+' profiel'+(vakCount===1?'':'en'):'Paklijst & to-do';
   }
@@ -4351,7 +4286,7 @@ function renderMeerStats(){
       var dN=daysUntilBirthday(nextBd.datum);
       var nextAge=ageAtNextBirthday(nextBd.datum,nextBd.jaar);
       var ageSuf=nextAge!==null?' ('+nextAge+')':'';
-      verjEl.textContent=dN===0?'🎂 Vandaag: '+nextBd.naam+ageSuf+'!':dN===1?nextBd.naam+ageSuf+' is morgen jarig':nextBd.naam+ageSuf+' over '+dN+' dagen';
+      verjEl.textContent=dN===0?nextBd.naam+ageSuf+' is vandaag jarig':dN===1?nextBd.naam+ageSuf+' is morgen jarig':nextBd.naam+ageSuf+' over '+dN+' dagen';
     }
   }
   setCardBadge('openVerjaardagen',(data.verjaardagen||[]).filter(function(b){return daysUntilBirthday(b.datum)===0;}).length,'#e17055');
@@ -4362,7 +4297,7 @@ function renderMeerStats(){
 // bovenaan Meer. Kopieën van de echte tegels; een tik opent het origineel.
 function getMeerClicks(){try{return JSON.parse(localStorage.getItem('plannerMeerClicks')||'{}');}catch(e){return {};}}
 document.getElementById('meerView').addEventListener('click',function(e){
-  var card=e.target.closest('.meer-card');if(!card)return;
+  var card=e.target.closest('.menu-row');if(!card)return;
   var id=card.id;if(!id)return; // een kopie roept orig.click() aan en telt zo via het origineel
   var c=getMeerClicks();c[id]=(c[id]||0)+1;
   try{localStorage.setItem('plannerMeerClicks',JSON.stringify(c));}catch(err){}
@@ -4370,17 +4305,21 @@ document.getElementById('meerView').addEventListener('click',function(e){
 function renderMeerFavorieten(){
   var wrap=document.getElementById('meerFavorieten'),grid=document.getElementById('meerFavGrid');if(!wrap||!grid)return;
   var c=getMeerClicks();
-  var top=Object.keys(c).filter(function(id){return c[id]>=3&&document.getElementById(id);})
+  var top=Object.keys(c).filter(function(id){var el=document.getElementById(id);return c[id]>=3&&el&&el.classList.contains('menu-row')&&el.style.display!=='none';})
     .sort(function(a,b){return c[b]-c[a];}).slice(0,4);
   grid.innerHTML='';
   if(!top.length){wrap.style.display='none';return;}
   wrap.style.display='';
   top.forEach(function(id){
+    // Tegel opgebouwd uit de menurij: zelfde icoon, titel en actuele status
     var orig=document.getElementById(id);
-    var copy=orig.cloneNode(true);copy.removeAttribute('id');copy.dataset.for=id;
-    copy.querySelectorAll('[id]').forEach(function(n){n.removeAttribute('id');});
-    copy.addEventListener('click',function(ev){ev.stopPropagation();orig.click();});
-    grid.appendChild(copy);
+    var tile=ui.el('button','tile');tile.type='button';
+    tile.appendChild(orig.querySelector('.icon-sq').cloneNode(true));
+    var txt=ui.el('span');txt.appendChild(ui.el('span','tile__title',orig.querySelector('.list-row__title').textContent));
+    var sub=ui.el('span','tile__sub',orig.querySelector('.list-row__meta').textContent);sub.style.display='block';txt.appendChild(sub);
+    tile.appendChild(txt);
+    tile.addEventListener('click',function(ev){ev.stopPropagation();orig.click();});
+    grid.appendChild(tile);
   });
 }
 
