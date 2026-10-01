@@ -337,6 +337,13 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 /* Cadeaus: vast apart blok onderaan boodschappen, los van de boodschappencategorieën */
 .cadeau-section{padding:4px 16px 4px;}
 .cadeau-header{font-size:13px;font-weight:700;color:var(--text);padding-top:12px;border-top:1px solid var(--border);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.lijst-toggle{flex:1;display:flex;align-items:center;gap:6px;background:none;border:none;padding:4px 0;font:inherit;color:inherit;cursor:pointer;text-align:left;min-height:32px;}
+.lijst-chevron{display:inline-block;width:14px;color:var(--muted);transition:transform .15s;}
+.lijst-collapsed .lijst-chevron{transform:rotate(-90deg);}
+.lijst-collapsed .lijst-body{display:none;}
+.lijst-count{font-size:11px;font-weight:700;background:var(--accent-light);color:var(--accent);border-radius:10px;padding:1px 8px;}
+.lijst-menu-btn{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 8px;line-height:1;min-width:36px;min-height:32px;}
+.lijst-new-btn{width:100%;padding:10px;background:none;border:1px dashed var(--border);border-radius:10px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;}
 .cadeau-add{padding:0 0 8px;}
 .cadeau-list{display:flex;flex-direction:column;gap:5px;}
 .cadeau-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card);border:1px solid var(--border);border-radius:10px;position:relative;overflow:hidden;transition:transform .15s;}
@@ -925,21 +932,9 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
       <button id="clearDoneBoodschappen">🗑 Verwijder afgevinkte</button>
     </div>
 
-    <div class="cadeau-section">
-      <div class="cadeau-header">📦 Te bestellen</div>
-      <div class="cadeau-add boodschappen-add">
-        <input type="text" id="teBestellenInput" placeholder="Iets om online te bestellen…" maxlength="200">
-        <button id="teBestellenAddBtn" aria-label="Toevoegen aan te bestellen">+</button>
-      </div>
-      <div class="cadeau-list" id="teBestellenList"></div>
-    </div>
-    <div class="cadeau-section">
-      <div class="cadeau-header">🏬 Overige winkels</div>
-      <div class="cadeau-add boodschappen-add">
-        <input type="text" id="overigeInput" placeholder="Bv. lampjes bij de Action…" maxlength="200">
-        <button id="overigeAddBtn" aria-label="Toevoegen aan overige winkels">+</button>
-      </div>
-      <div class="cadeau-list" id="overigeList"></div>
+    <div id="extraLijsten"></div>
+    <div style="padding:4px 16px 16px;">
+      <button class="lijst-new-btn" id="lijstNieuwBtn">+ Nieuwe lijst</button>
     </div>
   </div>
 
@@ -2079,10 +2074,11 @@ function normalizeData(inc){
   inc=isPlainObj(inc)?inc:{};
   ['tasks','notes','recurringDone'].forEach(function(k){if(!isPlainObj(inc[k]))inc[k]={};});
   Object.keys(inc.tasks).forEach(function(k){if(!Array.isArray(inc.tasks[k]))inc.tasks[k]=[];});
-  ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget','budgetCustomCats','gewoonten','verjaardagen','cadeaus','teBestellen','overigeAankopen'].forEach(function(k){if(!Array.isArray(inc[k]))inc[k]=[];});
+  ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget','budgetCustomCats','gewoonten','verjaardagen','cadeaus','lijsten'].forEach(function(k){if(!Array.isArray(inc[k]))inc[k]=[];});
   ['maaltijdplan','boodCatOverrides','gewoontenDone','verlanglijstjes','wieIsWaar','notitieboekMeta'].forEach(function(k){if(!isPlainObj(inc[k]))inc[k]={};});
   if(!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];
   if(!inc.notitieboek)inc.notitieboek='';
+  inc.lijsten.forEach(function(l){if(l&&!Array.isArray(l.items))l.items=[];});
   return inc;
 }
 function mergeData(base,local,remote){var m=normalizeData(merge3(base,local,remote));dedupeTasks(m,local);return m;}
@@ -2143,6 +2139,13 @@ function runMigrations(){
     (data.multiDayTasks||[]).forEach(function(t){fix(t,t.author);});
     (data.bestellingen||[]).forEach(function(b){fix(b,b.addedBy);});
     if(changed){saveToServer();renderAll();}
+  }
+  if(!data.lijstenSeeded){
+    // Eenmalig: standaardlijsten onder de boodschappen (vaste id's -> geen dubbele bij twee telefoons)
+    if(!data.lijsten)data.lijsten=[];
+    STANDAARD_LIJSTEN.forEach(function(s){if(!findLijst(s.id))data.lijsten.push({id:s.id,naam:s.naam,items:[]});});
+    data.lijstenSeeded=true;
+    saveToServer();renderCadeaus();
   }
   if(!data.budgetSeeded){
     // Eenmalig: vaste-lastenlijst vullen met standaard categorieën/posten
@@ -3681,56 +3684,125 @@ document.getElementById('clearDoneBoodschappen').addEventListener('click',functi
   saveToServer();renderBoodschappen();showToast('Afgevinkte items verwijderd');
 });
 
-// === EXTRA LIJSTEN onder de boodschappen: "Te bestellen" en "Overige winkels" ===
-// (Vervangen de oude Cadeaus-lijst; data.cadeaus blijft in de database bewaard, alleen niet meer getoond.)
-var EXTRA_LIJSTEN=[
-  {key:'teBestellen',list:'teBestellenList',input:'teBestellenInput',btn:'teBestellenAddBtn',empty:'Niets om te bestellen'},
-  {key:'overigeAankopen',list:'overigeList',input:'overigeInput',btn:'overigeAddBtn',empty:'Niets voor andere winkels'}
-];
-function renderExtraLijst(cfg){
-  var list=document.getElementById(cfg.list);if(!list)return;list.innerHTML='';
-  var items=data[cfg.key]||[];
-  if(!items.length){
-    var empty=document.createElement('div');empty.className='cadeau-empty';empty.textContent=cfg.empty;list.appendChild(empty);return;
-  }
-  function renderItem(c){
-    var item=document.createElement('div');item.className='cadeau-item';
-    var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
-    var check=document.createElement('div');check.className='cadeau-check'+(c.done?' checked':'');check.textContent=c.done?'✓':'';
-    check.addEventListener('click',function(){haptic(check);c.done=!c.done;saveToServer();renderExtraLijst(cfg);});
-    var body=document.createElement('div');body.style='flex:1;min-width:0;';
-    var txt=document.createElement('div');txt.className='cadeau-text'+(c.done?' done':'');txt.textContent=c.text;body.appendChild(txt);
-    if(c.addedBy){var meta=document.createElement('div');meta.className='cadeau-meta';meta.textContent='door '+c.addedBy;body.appendChild(meta);}
-    var del=document.createElement('button');del.className='cadeau-del';del.textContent='✕';del.setAttribute('aria-label','Verwijder '+c.text);
-    function remove(){
-      var arr=data[cfg.key]||[];var idx=arr.indexOf(c);if(idx<0)return;
-      arr.splice(idx,1);saveToServer();renderExtraLijst(cfg);
-      showUndoToast(c.text+' verwijderd',function(){if(!data[cfg.key])data[cfg.key]=[];data[cfg.key].splice(idx,0,c);saveToServer();renderExtraLijst(cfg);});
-    }
-    del.addEventListener('click',remove);
-    item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
-    addSwipe(item,remove);
-  }
-  var undone=items.filter(function(c){return !c.done;});
-  var done=items.filter(function(c){return c.done;});
-  undone.forEach(renderItem);
-  if(done.length){
-    var div=document.createElement('div');div.className='bood-done-divider';div.textContent='Afgevinkt';list.appendChild(div);
-    done.forEach(renderItem);
-  }
-}
-function renderCadeaus(){EXTRA_LIJSTEN.forEach(renderExtraLijst);}
-EXTRA_LIJSTEN.forEach(function(cfg){
-  function add(){
-    var input=document.getElementById(cfg.input);var text=input.value.trim();if(!text)return;
-    if(!data[cfg.key])data[cfg.key]=[];
-    data[cfg.key].push({id:uid(),text:text,done:false,addedBy:myName||null,addedDate:todayKey()});
-    input.value='';saveToServer();renderExtraLijst(cfg);input.focus();
-  }
-  document.getElementById(cfg.btn).addEventListener('click',add);
-  document.getElementById(cfg.input).addEventListener('keydown',function(e){if(e.key==='Enter')add();});
-});
+// === EIGEN LIJSTEN onder de boodschappen ===
+// Elk huishouden kan eigen lijsten maken ("Te bestellen", "Bouwmarkt", "Apotheek"…).
+// data.lijsten = [{id, naam, items:[{id,text,done,addedBy,addedDate}]}]. De standaardlijsten
+// hebben vaste id's, zodat twee telefoons die ze tegelijk aanmaken er niet twee van maken.
+// Vervangt de oude Cadeaus-lijst; data.cadeaus blijft in de database bewaard, alleen niet getoond.
+var STANDAARD_LIJSTEN=[{id:'te-bestellen',naam:'📦 Te bestellen'},{id:'overige-winkels',naam:'🏬 Overige winkels'}];
+function getLijstDicht(){try{return JSON.parse(localStorage.getItem('plannerLijstDicht')||'[]');}catch(e){return [];}}
+function setLijstDicht(ids){try{localStorage.setItem('plannerLijstDicht',JSON.stringify(ids));}catch(e){}}
+function findLijst(id){return (data.lijsten||[]).filter(function(l){return l.id===id;})[0];}
 
+function renderCadeaus(){
+  var wrap=document.getElementById('extraLijsten');if(!wrap)return;
+  // Focus en half getypte tekst bewaren: renderAll draait ook bij elke sync.
+  var act=document.activeElement,actId=act&&act.dataset?act.dataset.lijstInput:null,actVal=actId?act.value:'';
+  wrap.innerHTML='';
+  var dicht=getLijstDicht();
+  (data.lijsten||[]).forEach(function(l){
+    if(!Array.isArray(l.items))l.items=[];
+    var open=l.items.filter(function(c){return !c.done;});
+    var sec=document.createElement('div');sec.className='cadeau-section'+(dicht.indexOf(l.id)>-1?' lijst-collapsed':'');
+    var hdr=document.createElement('div');hdr.className='cadeau-header';
+    var tog=document.createElement('button');tog.className='lijst-toggle';tog.setAttribute('aria-expanded',dicht.indexOf(l.id)>-1?'false':'true');
+    var chev=document.createElement('span');chev.className='lijst-chevron';chev.textContent='▾';
+    var nm=document.createElement('span');nm.textContent=l.naam;
+    tog.appendChild(chev);tog.appendChild(nm);
+    if(open.length){var cnt=document.createElement('span');cnt.className='lijst-count';cnt.textContent=open.length;tog.appendChild(cnt);}
+    tog.addEventListener('click',function(){
+      var d=getLijstDicht(),i=d.indexOf(l.id);if(i>-1)d.splice(i,1);else d.push(l.id);setLijstDicht(d);renderCadeaus();
+    });
+    var menu=document.createElement('button');menu.className='lijst-menu-btn';menu.textContent='⋯';menu.setAttribute('aria-label','Opties voor '+l.naam);
+    menu.addEventListener('click',function(){openLijstMenu(l);});
+    hdr.appendChild(tog);hdr.appendChild(menu);sec.appendChild(hdr);
+
+    var body=document.createElement('div');body.className='lijst-body';
+    var addRow=document.createElement('div');addRow.className='cadeau-add boodschappen-add';
+    var inp=document.createElement('input');inp.type='text';inp.maxLength=200;inp.placeholder='Toevoegen aan '+l.naam.replace(/^\S+\s/,'').toLowerCase()+'…';inp.dataset.lijstInput=l.id;
+    var btn=document.createElement('button');btn.textContent='+';btn.setAttribute('aria-label','Toevoegen aan '+l.naam);
+    function add(){
+      var text=inp.value.trim();if(!text)return;
+      var cur=findLijst(l.id);if(!cur)return;if(!Array.isArray(cur.items))cur.items=[];
+      cur.items.push({id:uid(),text:text,done:false,addedBy:myName||null,addedDate:todayKey()});
+      inp.value='';saveToServer();renderCadeaus();
+      var again=document.querySelector('[data-lijst-input="'+l.id+'"]');if(again)again.focus();
+    }
+    btn.addEventListener('click',add);
+    inp.addEventListener('keydown',function(e){if(e.key==='Enter')add();});
+    addRow.appendChild(inp);addRow.appendChild(btn);body.appendChild(addRow);
+
+    var list=document.createElement('div');list.className='cadeau-list';body.appendChild(list);
+    if(!l.items.length){var empty=document.createElement('div');empty.className='cadeau-empty';empty.textContent='Nog leeg';list.appendChild(empty);}
+    function renderItem(c){
+      var item=document.createElement('div');item.className='cadeau-item';
+      var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
+      var check=document.createElement('div');check.className='cadeau-check'+(c.done?' checked':'');check.textContent=c.done?'✓':'';
+      check.setAttribute('role','checkbox');check.setAttribute('aria-checked',c.done?'true':'false');
+      check.addEventListener('click',function(){haptic(check);c.done=!c.done;saveToServer();renderCadeaus();});
+      var b=document.createElement('div');b.style='flex:1;min-width:0;';
+      var txt=document.createElement('div');txt.className='cadeau-text'+(c.done?' done':'');txt.textContent=c.text;b.appendChild(txt);
+      if(c.addedBy){var meta=document.createElement('div');meta.className='cadeau-meta';meta.textContent='door '+c.addedBy;b.appendChild(meta);}
+      var del=document.createElement('button');del.className='cadeau-del';del.textContent='✕';del.setAttribute('aria-label','Verwijder '+c.text);
+      function remove(){
+        var cur=findLijst(l.id);if(!cur)return;var idx=cur.items.indexOf(c);if(idx<0)return;
+        cur.items.splice(idx,1);saveToServer();renderCadeaus();
+        showUndoToast(c.text+' verwijderd',function(){var cur2=findLijst(l.id);if(!cur2)return;cur2.items.splice(idx,0,c);saveToServer();renderCadeaus();});
+      }
+      del.addEventListener('click',remove);
+      item.appendChild(check);item.appendChild(b);item.appendChild(del);list.appendChild(item);
+      addSwipe(item,remove);
+    }
+    open.forEach(renderItem);
+    var done=l.items.filter(function(c){return c.done;});
+    if(done.length){
+      var div=document.createElement('div');div.className='bood-done-divider';div.textContent='Afgevinkt';list.appendChild(div);
+      done.forEach(renderItem);
+    }
+    sec.appendChild(body);wrap.appendChild(sec);
+  });
+  if(actId){var back=document.querySelector('[data-lijst-input="'+actId+'"]');if(back){back.value=actVal;back.focus();}}
+}
+
+function openLijstMenu(l){
+  openAddSheet(function(body){
+    var title=document.createElement('div');title.className='sheet-title';title.textContent=l.naam;body.appendChild(title);
+    function action(label,fn,danger){
+      var b=document.createElement('button');b.className='add-card-btn'+(danger?'':' secondary');b.textContent=label;b.style.marginTop='8px';
+      if(danger){b.style.background='var(--danger)';}
+      b.addEventListener('click',function(){closeAddSheet();fn();});body.appendChild(b);
+    }
+    action('✏️ Naam wijzigen',function(){
+      customPrompt('Naam van de lijst:',l.naam,function(v){
+        v=(v||'').trim();if(!v||v===l.naam)return;var cur=findLijst(l.id);if(!cur)return;cur.naam=v;saveToServer();renderCadeaus();
+      });
+    });
+    var doneCount=(l.items||[]).filter(function(c){return c.done;}).length;
+    if(doneCount)action('🧹 Afgevinkte wissen ('+doneCount+')',function(){
+      var cur=findLijst(l.id);if(!cur)return;var removed=cur.items.filter(function(c){return c.done;});
+      cur.items=cur.items.filter(function(c){return !c.done;});saveToServer();renderCadeaus();
+      showUndoToast(removed.length+' gewist',function(){var c2=findLijst(l.id);if(!c2)return;c2.items=c2.items.concat(removed);saveToServer();renderCadeaus();});
+    });
+    action('🗑 Lijst verwijderen',function(){
+      var n=(l.items||[]).length;
+      customConfirm('"'+l.naam+'" verwijderen'+(n?' met '+n+' item'+(n===1?'':'s'):'')+'?',function(){
+        var idx=(data.lijsten||[]).map(function(x){return x.id;}).indexOf(l.id);if(idx<0)return;var gone=data.lijsten[idx];
+        data.lijsten.splice(idx,1);saveToServer();renderCadeaus();
+        showUndoToast('Lijst verwijderd',function(){data.lijsten.splice(idx,0,gone);saveToServer();renderCadeaus();});
+      });
+    },true);
+  });
+}
+
+document.getElementById('lijstNieuwBtn').addEventListener('click',function(){
+  customPrompt('Naam van de nieuwe lijst:','',function(v){
+    v=(v||'').trim();if(!v)return;
+    if(!data.lijsten)data.lijsten=[];
+    data.lijsten.push({id:uid(),naam:v,items:[]});
+    saveToServer();renderCadeaus();
+    setTimeout(function(){var all=document.querySelectorAll('[data-lijst-input]');var last=all[all.length-1];if(last){last.scrollIntoView({behavior:'smooth',block:'center'});last.focus();}},50);
+  },{placeholder:'Bv. 🔨 Bouwmarkt',okText:'Maken'});
+});
 
 // === GEWOONTETRACKER ===
 function renderGewoonten(){
