@@ -1785,7 +1785,13 @@ function resizeImageToBase64(file,maxPx,cb){
   };reader.readAsDataURL(file);
 }
 var _garFotoB64=null,_ondFotoB64=null;
-function personColor(assignedTo){if(!assignedTo||assignedTo==='')return null;if(assignedTo==='me')return 'var(--accent)';if(assignedTo==='partner')return '#e67e22';return null;}
+// Toewijzingen worden opgeslagen als naam ('Sanne'), niet als 'me'/'partner': die waren
+// relatief aan het toestel waarop ze werden ingevuld, waardoor een taak die Bas aan
+// zichzelf gaf op de telefoon van Sanne als "voor Sanne" verscheen.
+function personKey(rel){if(rel==='me')return myName||'me';if(rel==='partner')return partnerName||'partner';return rel||null;}
+function sameName(a,b){return !!a&&!!b&&String(a).trim().toLowerCase()===String(b).trim().toLowerCase();}
+function isMe(v){return v==='me'||sameName(v,myName);}
+function personColor(assignedTo){if(!assignedTo)return null;return isMe(assignedTo)?'var(--accent)':'#e67e22';}
 function nowTime(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());}
 function showToast(m){var e=document.getElementById('toast');e.textContent=m;e.classList.add('show');clearTimeout(showToast._t);showToast._t=setTimeout(function(){e.classList.remove('show');},2400);}
 function customConfirm(message,onYes,opts){
@@ -1882,14 +1888,21 @@ var WIW_STATUSES=['thuis','werk','reis','sporten','afwezig'];
 var WIW_ICONS={thuis:'🏠',werk:'💼',reis:'✈️',sporten:'🏃',afwezig:'🌙'};
 var WIW_LABELS={thuis:'Thuis',werk:'Werk',reis:'Op reis',sporten:'Sporten',afwezig:'Afwezig'};
 var WIW_COLORS={thuis:'#27ae60',werk:'#0984e3',reis:'#6c5ce7',sporten:'#e84393',afwezig:'#636e72'};
-function getWiwStatus(dk,person){return (data.wieIsWaar&&data.wieIsWaar[dk]&&data.wieIsWaar[dk][person])||'thuis';}
+// Opgeslagen per naam (zie personKey); oude 'me'/'partner'-sleutels worden nog gelezen
+// en bij de eerstvolgende wijziging van die dag opgeruimd.
+function getWiwStatus(dk,person){
+  var day=data.wieIsWaar&&data.wieIsWaar[dk];if(!day)return 'thuis';
+  return day[personKey(person)]||day[person]||'thuis';
+}
 function cycleWiwStatus(dk,person){
   if(!data.wieIsWaar)data.wieIsWaar={};
   if(!data.wieIsWaar[dk])data.wieIsWaar[dk]={};
-  var cur=data.wieIsWaar[dk][person]||'thuis';
+  var cur=getWiwStatus(dk,person);
   var next=WIW_STATUSES[(WIW_STATUSES.indexOf(cur)+1)%WIW_STATUSES.length];
-  data.wieIsWaar[dk][person]=next;
-  if((data.wieIsWaar[dk].me||'thuis')==='thuis'&&(data.wieIsWaar[dk].partner||'thuis')==='thuis')delete data.wieIsWaar[dk];
+  var day=data.wieIsWaar[dk];
+  ['me','partner'].forEach(function(p){if(day[p]&&personKey(p)!==p){if(!day[personKey(p)])day[personKey(p)]=day[p];delete day[p];}});
+  day[personKey(person)]=next;
+  if(Object.keys(day).every(function(k){return day[k]==='thuis';}))delete data.wieIsWaar[dk];
   saveToServer();
 }
 
@@ -2107,6 +2120,21 @@ function runMigrations(){
     // Migratie: ongeldige vertrekdatum (bv. jaar 0020 door foutieve invoer) opschonen
     corruptVak.forEach(function(v){v.startDatum='';});
     saveToServer();renderMeerStats();
+  }
+  // Migratie: oude relatieve toewijzingen ('me'/'partner') omzetten naar een naam, op basis
+  // van wie het item aanmaakte. Beide toestellen komen zo op dezelfde uitkomst uit.
+  if(myName&&partnerName){
+    var changed=false;
+    var fix=function(it,by){
+      if(!it||(it.assignedTo!=='me'&&it.assignedTo!=='partner')||!by)return;
+      var other=sameName(by,myName)?partnerName:sameName(by,partnerName)?myName:null;
+      var v=it.assignedTo==='me'?by:other;
+      if(v){it.assignedTo=v;changed=true;}
+    };
+    Object.keys(data.tasks||{}).forEach(function(k){(data.tasks[k]||[]).forEach(function(t){fix(t,t.author);});});
+    (data.multiDayTasks||[]).forEach(function(t){fix(t,t.author);});
+    (data.bestellingen||[]).forEach(function(b){fix(b,b.addedBy);});
+    if(changed){saveToServer();renderAll();}
   }
   if(!data.budgetSeeded){
     // Eenmalig: vaste-lastenlijst vullen met standaard categorieën/posten
@@ -2787,14 +2815,14 @@ function renderVandaag(){
     (function(task2){
       function updA(){var v=task2.assignedTo||'';
         if(v===''){assignBtn.textContent='👤';assignBtn.style.color='var(--muted)';}
-        else if(v==='me'){assignBtn.textContent='👤';assignBtn.style.color='var(--accent)';}
+        else if(isMe(v)){assignBtn.textContent='👤';assignBtn.style.color='var(--accent)';}
         else{assignBtn.textContent='👥';assignBtn.style.color='#e67e22';}
-        assignBtn.title=v===''?'Toewijzen…':v==='me'?'Ik – klik om te wijzigen':'Partner – klik om te wijzigen';
+        assignBtn.title=v===''?'Toewijzen…':assignLabel(v)+' – klik om te wijzigen';
       }
       updA();
       assignBtn.addEventListener('click',function(){
         var v=task2.assignedTo||'';
-        task2.assignedTo=v===''?'me':v==='me'?'partner':'';
+        task2.assignedTo=v===''?personKey('me'):isMe(v)?personKey('partner'):null;
         saveToServer();renderVandaag();
       });
     })(t);
@@ -2908,8 +2936,8 @@ function parseQuickAdd(raw){
   take(/\s#([a-zà-ÿ]+)(?=\s)/i,function(m){var c=QA_CATS[m[1].toLowerCase()];if(c)res.category=c;});
   take(/\s@([^\s]+)(?=\s)/,function(m){
     var n=m[1].toLowerCase();
-    if(n==='ik'||n==='mij'||(myName&&n===myName.toLowerCase()))res.assignedTo='me';
-    else if(n==='partner'||(partnerName&&n===partnerName.toLowerCase()))res.assignedTo='partner';
+    if(n==='ik'||n==='mij'||(myName&&n===myName.toLowerCase()))res.assignedTo=personKey('me');
+    else if(n==='partner'||(partnerName&&n===partnerName.toLowerCase()))res.assignedTo=personKey('partner');
   });
   take(/\s(?:om\s+)?([01]?\d|2[0-3])[:.]([0-5]\d)(?:\s*uur)?(?=\s)/i,function(m){res.time=pad(+m[1])+':'+m[2];});
   if(!res.time)take(/\som\s+([01]?\d|2[0-3])(?:\s*uur)?(?=\s)/i,function(m){res.time=pad(+m[1])+':00';});
@@ -3115,7 +3143,7 @@ function renderWeek(){
         var tbody=document.createElement('div');tbody.className='week-task-body';
         var txt=document.createElement('span');txt.className='week-task-text'+(t.done?' done':'');txt.textContent=t.text;
         tbody.appendChild(txt);
-        if(t.assignedTo&&t.assignedTo!==''){var asgn=document.createElement('div');asgn.className='week-task-assign';asgn.textContent='👤 '+(t.assignedTo==='me'?(myName||'Ik'):(partnerName||'Partner'));tbody.appendChild(asgn);}
+        if(t.assignedTo&&t.assignedTo!==''){var asgn=document.createElement('div');asgn.className='week-task-assign';asgn.textContent='👤 '+assignLabel(t.assignedTo);tbody.appendChild(asgn);}
         var cpill=document.createElement('div');cpill.className='week-cat-pill';cpill.style.background=cat.color;cpill.textContent=cat.emoji;
         row.appendChild(check);row.appendChild(tbody);row.appendChild(cpill);body.appendChild(row);
       });
@@ -3416,7 +3444,7 @@ function addTask(){
     var sDate=document.getElementById('mdStartDate').value,eDate=document.getElementById('mdEndDate').value;
     if(!sDate||!eDate||eDate<sDate){showToast('Controleer de datums.');return;}
     if(!data.multiDayTasks)data.multiDayTasks=[];
-    data.multiDayTasks.push({id:uid(),text:text,done:false,startDate:sDate,endDate:eDate,category:cat,priority:prio,assignedTo:assignee||null,author:myName||null});
+    data.multiDayTasks.push({id:uid(),text:text,done:false,startDate:sDate,endDate:eDate,category:cat,priority:prio,assignedTo:personKey(assignee),author:myName||null});
     input.value='';document.getElementById('multiDayToggle').checked=false;document.getElementById('multiDayDates').style.display='none';
     saveToServer();renderMdTasks();renderCalendar();
   } else {
@@ -3424,7 +3452,7 @@ function addTask(){
     var normText=text.toLowerCase().trim();
     var isDup=(data.tasks[openDateKey]||[]).some(function(t){return t.text.toLowerCase().trim()===normText;});
     if(isDup){showToast('⚠️ "'+text+'" staat al op deze dag.');document.getElementById('autocompleteList').style.display='none';return;}
-    var reminderTime=document.getElementById('newTaskReminder').value||null;data.tasks[openDateKey].push({id:uid(),text:text,done:false,category:cat,priority:prio,assignedTo:assignee||null,author:myName||null,orderStatus:null,period:selectedPeriod||null,reminder:reminderTime?{date:openDateKey,time:reminderTime}:null});
+    var reminderTime=document.getElementById('newTaskReminder').value||null;data.tasks[openDateKey].push({id:uid(),text:text,done:false,category:cat,priority:prio,assignedTo:personKey(assignee),author:myName||null,orderStatus:null,period:selectedPeriod||null,reminder:reminderTime?{date:openDateKey,time:reminderTime}:null});
     input.value='';document.getElementById('newTaskReminder').value='';
     var acl=document.getElementById('autocompleteList');if(acl)acl.style.display='none';
     saveToServer();renderSheetTasks();renderCalendar();renderVandaag();
@@ -3925,7 +3953,7 @@ document.getElementById('bestAddBtn').addEventListener('click',function(){
   var text=document.getElementById('bestNewText').value.trim();var err=document.getElementById('bestError');err.textContent='';
   if(!text){err.textContent='Vul een omschrijving in.';return;}
   if(!data.bestellingen)data.bestellingen=[];
-  data.bestellingen.push({id:uid(),text:text,status:'open',category:document.getElementById('bestNewCat').value,assignedTo:document.getElementById('bestNewWie').value||null,addedDate:document.getElementById('bestOrderDate').value||todayKey(),expectedDate:document.getElementById('bestExpected').value||null,note:document.getElementById('bestNewNote').value.trim()||null,tracking:document.getElementById('bestNewTracking').value.trim()||null});
+  data.bestellingen.push({id:uid(),text:text,status:'open',category:document.getElementById('bestNewCat').value,assignedTo:personKey(document.getElementById('bestNewWie').value),addedDate:document.getElementById('bestOrderDate').value||todayKey(),expectedDate:document.getElementById('bestExpected').value||null,note:document.getElementById('bestNewNote').value.trim()||null,tracking:document.getElementById('bestNewTracking').value.trim()||null});
   document.getElementById('bestNewText').value='';document.getElementById('bestOrderDate').value='';document.getElementById('bestExpected').value='';document.getElementById('bestNewNote').value='';document.getElementById('bestNewTracking').value='';
   saveToServer();renderBestellingen();
 });
