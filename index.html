@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Huisplan">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <title>Huisplan</title>
 <style>
 /* ══ DESIGN SYSTEM: tokens ══════════════════════════════════════════
@@ -811,7 +811,7 @@ button:focus-visible,a:focus-visible,[role=button]:focus-visible{outline:2px sol
 /* App-balk */
 header{height:56px;padding:0 8px 0 16px;gap:10px;border-bottom:none;background:var(--bg);}
 header h1{font-size:18px;font-weight:700;display:flex;align-items:center;gap:10px;letter-spacing:-.01em;}
-header h1 img{width:28px!important;height:28px!important;border-radius:var(--r-sm)!important;margin:0!important;}
+header h1 img{width:28px!important;height:28px!important;border-radius:0!important;margin:0!important;}
 
 /* Synchronisatie: alleen zichtbaar als er iets mis is (offline of fout) */
 .sync-row{display:none;margin:0 16px 8px;padding:10px 12px 10px 14px;border:none;border-radius:var(--r-md);font-size:var(--fs-small);font-weight:500;gap:10px;}
@@ -836,6 +836,156 @@ header h1 img{width:28px!important;height:28px!important;border-radius:var(--r-s
 .full-header .icon-btn{order:-1;}
 .overlay-header{display:flex;align-items:center;gap:4px;}
 .overlay-close{background:transparent;border:none;width:var(--tap);height:var(--tap);border-radius:var(--r-md);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
+
+/* ══ DESIGN SYSTEM: componentbibliotheek ════════════════════════════
+   Herbruikbare bouwstenen voor alle schermen (ook toekomstige: onboarding,
+   accounts, huishoudleden, abonnementen). In JS te maken met de helpers
+   ui.* (zie het script). Regels:
+   · paars (--accent) alleen voor primaire acties en actieve/geselecteerde staat
+   · chips alleen voor dingen die je kunt aantikken (filters, snelle acties)
+   · informatie zonder actie = tekst, .tag of .badge, geen chip */
+
+/* Typografie en sectiekoppen */
+.screen-title{margin:4px 16px 12px;font-size:var(--fs-display);line-height:34px;font-weight:700;letter-spacing:-.01em;}
+.section-head{display:flex;align-items:center;gap:4px;padding:var(--sp-5) 8px var(--sp-2) 16px;}
+.section-head h2{flex:1;margin:0;font-size:var(--fs-title);line-height:26px;font-weight:700;letter-spacing:-.01em;}
+.section-label{display:flex;align-items:center;gap:6px;padding:var(--sp-4) 16px var(--sp-2) 18px;font-size:var(--fs-label);line-height:16px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+.section-label .aside{margin-left:auto;text-transform:none;letter-spacing:0;font-size:var(--fs-detail);font-weight:600;color:var(--muted);background:none;border:none;padding:0;cursor:pointer;font-family:var(--font);}
+
+/* Knoppen */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border-radius:var(--r-md);border:1px solid transparent;font:600 15px/1 var(--font);cursor:pointer;white-space:nowrap;text-decoration:none;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:active{background:var(--accent-strong);}
+.btn-secondary{background:var(--surface-2);color:var(--text);}
+.btn-outline{background:var(--card);border-color:var(--border);color:var(--text);}
+.btn-ghost{background:transparent;color:var(--text);}
+.btn-danger{background:var(--danger-soft);color:var(--danger);}
+.btn-sm{height:36px;padding:0 12px;font-size:14px;border-radius:var(--r-pill);}
+.btn-block{width:100%;}
+.btn-square{width:52px;height:52px;padding:0;flex-shrink:0;}
+.btn:disabled{opacity:.45;cursor:default;}
+
+/* Invoer */
+.field{width:100%;height:52px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--card);padding:0 14px;color:var(--text);box-shadow:var(--sh-1);}
+.field::placeholder{color:var(--subtle);}
+.input-row{display:flex;gap:8px;margin:0 16px;}
+.input-row .field{flex:1;min-width:0;}
+.select-link{appearance:none;-webkit-appearance:none;border:none;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235f5b6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 4px center/16px;padding:6px 26px 6px 2px;font-weight:600;color:var(--text);cursor:pointer;max-width:100%;}
+
+/* Chips: alleen interactief */
+.chip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--card);color:var(--text);font:600 14px var(--font);cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.chip.is-active{background:var(--text);border-color:var(--text);color:var(--bg);}
+.chip .chip-x{margin-right:-6px;width:24px;height:24px;border:none;background:none;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer;}
+.chip-row{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:0 16px;scrollbar-width:none;}
+.chip-row::-webkit-scrollbar{display:none;}
+
+/* Kaarten en lijsten */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--sh-1);}
+.list{margin:0 16px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--sh-1);overflow:hidden;}
+.list-row{position:relative;display:flex;align-items:center;gap:6px;min-height:60px;padding:6px 4px 6px 4px;border-top:1px solid var(--border);background:var(--card);overflow:hidden;transition:transform .15s,opacity .15s;}
+.list-row:first-child{border-top:none;}
+.list-row.compact{min-height:48px;padding-top:2px;padding-bottom:2px;}
+.list-row.link{cursor:pointer;padding-left:12px;padding-right:10px;gap:12px;width:100%;border-left:none;border-right:none;border-bottom:none;text-align:left;font-family:var(--font);color:var(--text);}
+.list-row.link:active{background:var(--surface-2);}
+.list-row__body{flex:1;min-width:0;padding:4px 0;}
+.list-row__title{display:block;font-size:var(--fs-body);line-height:22px;font-weight:500;overflow-wrap:anywhere;}
+.list-row.link .list-row__title{font-weight:600;}
+.list-row__title.is-done{color:var(--subtle);text-decoration:line-through;}
+.list-row__meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font-size:var(--fs-detail);line-height:18px;color:var(--muted);margin-top:1px;}
+.list-row__meta.warn{color:var(--warn);}
+.list-row__trail{display:flex;align-items:center;gap:6px;flex-shrink:0;color:var(--subtle);}
+.list-row .swipe-del-bg,.list-row .task-swipe-bg,.list-row .boodschap-swipe-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;padding-right:18px;background:var(--danger);color:#fff;font-weight:600;font-size:14px;opacity:0;pointer-events:none;z-index:0;}
+.list-row>*:not(.swipe-del-bg):not(.task-swipe-bg):not(.boodschap-swipe-bg){position:relative;z-index:1;}
+.list-row.swiping{background:var(--card);}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block;}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;line-height:16px;font-weight:600;border-radius:6px;padding:1px 6px;background:var(--surface-2);color:var(--muted);}
+.tag.danger{background:var(--danger-soft);color:var(--danger);}
+.badge{min-width:20px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--danger);color:#fff;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
+.badge.neutral{background:var(--surface-2);color:var(--muted);}
+
+/* Afvinken: cirkel van 24 in een raakvlak van 44 */
+.check{width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:none;background:none;padding:0;cursor:pointer;}
+.check__ring{width:24px;height:24px;border-radius:50%;border:2px solid #b9b4c7;display:flex;align-items:center;justify-content:center;color:#fff;transition:background .15s,border-color .15s;}
+.check__ring .ic{width:14px;height:14px;stroke-width:3;}
+.check.is-high .check__ring{border-color:var(--danger);}
+.check.is-done .check__ring{background:var(--accent);border-color:var(--accent);}
+
+/* Gekleurd icoonvlak (groepen in menu's) */
+.icon-sq{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--tint,var(--muted));background:color-mix(in srgb,var(--tint,var(--muted)) 14%,transparent);}
+.icon-sq .ic{width:20px;height:20px;}
+.tint-home{--tint:#c0622a;}.tint-food{--tint:#c24646;}.tint-tasks{--tint:#2f74c0;}.tint-people{--tint:#c03d7c;}.tint-back{--tint:#1b8a73;}.tint-app{--tint:var(--muted);}
+
+/* Tegel (Veelgebruikt) */
+.tile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:0 16px;}
+.tile{display:flex;flex-direction:column;gap:10px;min-height:104px;padding:14px;border-radius:var(--r-lg);background:var(--card);border:1px solid var(--border);box-shadow:var(--sh-1);cursor:pointer;text-align:left;font-family:var(--font);color:var(--text);}
+.tile .icon-sq{width:40px;height:40px;border-radius:12px;}
+.tile__title{font-size:16px;line-height:20px;font-weight:700;}
+.tile__sub{font-size:var(--fs-detail);line-height:18px;color:var(--muted);margin-top:2px;}
+
+/* Gesegmenteerde keuze */
+.seg{display:flex;gap:4px;padding:4px;border-radius:var(--r-md);background:var(--surface-2);}
+.seg button{flex:1;height:36px;border:none;border-radius:9px;background:transparent;font:600 14px var(--font);color:var(--muted);cursor:pointer;}
+.seg button.is-active{background:var(--card);color:var(--text);box-shadow:var(--sh-1);}
+
+/* Tip (informeel, mag een emoji bevatten) en lege staat */
+.tip{display:flex;align-items:center;gap:8px;margin:0 16px 12px;padding:10px 4px 10px 14px;border-radius:var(--r-md);background:var(--surface-2);color:var(--text);font-size:14px;line-height:20px;}
+.tip>span{flex:1;}
+.empty{margin:0 16px;padding:22px 16px;text-align:center;border:1.5px dashed var(--border);border-radius:var(--r-lg);color:var(--muted);font-size:14px;line-height:20px;}
+.empty strong{display:block;color:var(--text);font-size:16px;margin-bottom:2px;}
+
+/* Actiemenu in de bottom sheet */
+.sheet-heading{margin:0 0 6px;font-size:18px;font-weight:700;overflow-wrap:anywhere;}
+.action-list{display:flex;flex-direction:column;}
+.action-row{display:flex;align-items:center;gap:14px;width:100%;min-height:52px;padding:0 4px;border:none;border-top:1px solid var(--border);background:none;font:500 16px var(--font);color:var(--text);text-align:left;cursor:pointer;}
+.action-row:first-child{border-top:none;}
+.action-row .ic{color:var(--muted);}
+.action-row .trail{margin-left:auto;color:var(--accent);}
+.action-row.danger,.action-row.danger .ic{color:var(--danger);}
+.reaction-row{display:flex;gap:8px;padding:6px 0 10px;}
+.reaction-row button{width:44px;height:44px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--card);font-size:20px;cursor:pointer;}
+
+/* Opslaan-status in de app-balk (alleen tijdens opslaan) */
+.save-status{display:none;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--muted);}
+.save-status.show{display:inline-flex;}
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--muted);border-radius:50%;animation:spin .7s linear infinite;}
+
+/* ══ SCHERM: Vandaag ══ */
+.vandaag-section{margin:0 0 4px;}
+.hero{margin:4px 16px 0;display:flex;flex-direction:column;gap:12px;}
+.hero__top{display:flex;align-items:flex-start;gap:4px;}
+.hero__text{flex:1;min-width:0;}
+.hero__title{margin:0;font-size:var(--fs-display);line-height:34px;font-weight:700;letter-spacing:-.01em;}
+.hero__date{margin-top:2px;font-size:var(--fs-small);color:var(--muted);}
+#heroEditBtn{margin:-4px -10px 0 0;}
+.hero__pills{display:flex;flex-wrap:wrap;gap:8px;}
+.hero__stat-pills{display:contents;}
+.hero__pills .chip .ic{color:var(--muted);}
+.hero__pill-sub,.hero__pill-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;}
+.hero__pill-sub{font-weight:500;color:var(--muted);}
+.hero__meal{display:flex;align-items:center;gap:12px;width:100%;padding:8px 10px 8px 8px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--card);box-shadow:var(--sh-1);color:var(--text);font-family:var(--font);text-align:left;cursor:pointer;}
+.hero__meal>.ic{color:var(--subtle);}
+.hero__meal-text{flex:1;min-width:0;display:flex;flex-direction:column;}
+.hero__meal-label{font-size:var(--fs-label);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+.hero__meal .vanavond-naam{font-size:var(--fs-body);font-weight:600;}
+.hero-prefs-note{margin:0 0 8px;font-size:var(--fs-detail);color:var(--muted);}
+.quick-add-preview{margin:6px 18px 0;min-height:16px;font-size:var(--fs-label);color:var(--muted);}
+.quick-add-preview b{color:var(--text);}
+#vandaagTasks .list+.section-label{padding-top:var(--sp-4);}
+#vandaagTasks>.list:first-child{margin-top:var(--sp-3);}
+.koppelgesprek-block{margin-top:8px;padding:10px 12px;border-radius:var(--r-md);background:var(--surface-2);border:none;}
+.koppelgesprek-topic{font-weight:700;font-size:var(--fs-small);color:var(--text);margin-bottom:4px;}
+.koppelgesprek-q{font-size:var(--fs-detail);color:var(--muted);padding:2px 0;line-height:18px;}
+.task-reactions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.upcoming-strip{padding:0 16px 8px;gap:8px;}
+.upcoming-day{min-width:92px;padding:12px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--card);box-shadow:var(--sh-1);}
+.upcoming-day.has-tasks{border-color:var(--border);background:var(--card);}
+.upcoming-day-name{font-size:var(--fs-label);font-weight:600;letter-spacing:.06em;color:var(--muted);}
+.upcoming-day-date{font-size:var(--fs-head);font-weight:700;margin-bottom:6px;}
+.upcoming-day-count{font-size:var(--fs-detail);font-weight:600;color:var(--text);}
+.upcoming-day-tasks,.upcoming-day-empty{font-size:var(--fs-label);color:var(--muted);line-height:16px;}
+.season-banner,.week-score-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border:none;border-radius:var(--r-md);background:var(--surface-2);font-size:var(--fs-small);font-weight:500;line-height:20px;gap:8px;}
+.season-banner .icon-btn,.week-score-banner .icon-btn{margin-left:auto;flex-shrink:0;}
+.name-banner{margin:0 16px 12px;border:1px solid var(--border);background:var(--card);border-radius:var(--r-lg);box-shadow:var(--sh-1);}
 </style>
 </head>
 <body>
@@ -906,7 +1056,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:var(--r-s
 </svg>
 <div class="setup-overlay" id="setupOverlay">
   <div class="setup-card">
-    <h2><img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>" alt="" style="width:26px;height:26px;border-radius:6px;vertical-align:-5px;margin-right:7px;">Welkom bij jullie Huisplan</h2>
+    <h2><img src="logo.svg" alt="" width="32" height="32" style="vertical-align:-7px;margin-right:8px;">Welkom bij jullie Huisplan</h2>
     <p>Om de planner <strong>live te delen</strong>, gebruik je een gratis Firebase-database. Eenmalig (~5 min):</p>
     <ol>
       <li>Ga naar <a href="https://console.firebase.google.com/" target="_blank">console.firebase.google.com</a> en log in.</li>
@@ -937,7 +1087,8 @@ header h1 img{width:28px!important;height:28px!important;border-radius:var(--r-s
 
 <div class="app">
   <header>
-    <h1><img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>" alt="" style="width:22px;height:22px;border-radius:5px;vertical-align:-4px;margin-right:6px;">Huisplan</h1>
+    <h1><img src="logo.svg" alt="" width="28" height="28">Huisplan</h1>
+    <span class="save-status" id="saveStatus" role="status" aria-live="polite"><span class="spinner"></span>Opslaan…</span>
     <button class="icon-btn" id="shareBtn" title="Delen" aria-label="Planner delen"><svg class="ic"><use href="#i-share"/></svg></button>
   </header>
   <div class="sync-row" id="syncRow" role="status" aria-live="polite">
@@ -952,11 +1103,11 @@ header h1 img{width:28px!important;height:28px!important;border-radius:var(--r-s
   </div>
   <div class="season-banner" id="seasonBanner" style="display:none;">
     <span id="seasonBannerText"></span>
-    <button class="season-banner-close" id="seasonBannerClose" title="Sluiten">✕</button>
+    <button class="icon-btn" id="seasonBannerClose" aria-label="Tip sluiten"><svg class="ic sm"><use href="#i-x"/></svg></button>
   </div>
   <div class="week-score-banner" id="weekScoreBanner">
     <span id="weekScoreText"></span>
-    <button class="week-score-close" id="weekScoreClose">✕</button>
+    <button class="icon-btn" id="weekScoreClose" aria-label="Sluiten"><svg class="ic sm"><use href="#i-x"/></svg></button>
   </div>
   <div class="name-banner" id="nameBanner" style="display:none;">
     <span>👤 Naam:</span>
@@ -967,50 +1118,43 @@ header h1 img{width:28px!important;height:28px!important;border-radius:var(--r-s
 
   <!-- VANDAAG -->
   <div class="view active" id="vandaagView">
-    <div class="compact-header" id="compactHeader">
-      <div class="compact-header-left">
-        <div class="compact-greeting" id="greetingText">Goedemorgen!</div>
-        <div class="compact-date" id="greetingDate"></div>
-        <div class="compact-weather" id="weatherBar">
-          <span id="weatherIcon">🌤</span>
-          <span id="weatherTemp">—°</span>
-          <span id="weatherDesc" class="compact-weather-desc">Laden…</span>
+    <section class="hero" id="compactHeader" aria-label="Vandaag in het kort">
+      <div class="hero__top">
+        <div class="hero__text">
+          <h1 class="hero__title" id="greetingText">Goedemorgen!</h1>
+          <div class="hero__date" id="greetingDate"></div>
         </div>
-        <div id="weatherLoc" style="display:none;"><span id="weatherLocText"></span></div>
-        <div id="weatherFeels" style="display:none;"></div>
-        <div class="compact-meal" id="vanavondEten" style="display:none;">
-          <span class="compact-meal-icon">🍽️</span>
-          <span class="compact-meal-text">Vanavond: <span class="vanavond-naam"></span></span>
-          <span class="compact-meal-arrow">›</span>
-        </div>
+        <button class="icon-btn" id="heroEditBtn" type="button" aria-label="Kies wat je hier ziet"><svg class="ic sm"><use href="#i-settings"/></svg></button>
       </div>
-      <div class="compact-header-right">
-        <div class="compact-stat-badges" id="statChips"></div>
+      <div class="hero__pills">
+        <button class="chip" id="weatherBar" type="button"><svg class="ic sm"><use id="weatherIconUse" href="#i-cloud-sun"/></svg><span id="weatherTemp">—°</span><span id="weatherDesc" class="hero__pill-sub">Laden…</span></button>
+        <span id="statChips" class="hero__stat-pills"></span>
       </div>
-    </div>
-    <div class="vak-banner" id="vakBanner">
-      <span id="vakBannerText" class="vak-banner-text"></span>
-      <span>✈️</span>
-    </div>
-    <div class="verval-banner" id="vervalBanner"></div>
+      <button class="hero__meal" id="vanavondEten" type="button" style="display:none;"><span class="icon-sq tint-food"><svg class="ic"><use href="#i-utensils"/></svg></span><span class="hero__meal-text"><span class="hero__meal-label">Vanavond</span><span class="vanavond-naam"></span></span><svg class="ic sm"><use href="#i-chevron-right"/></svg></button>
+      <span id="weatherIcon" hidden>🌤</span>
+      <span id="weatherLoc" hidden><span id="weatherLocText"></span></span>
+      <span id="weatherFeels" hidden></span>
+    </section>
+    <div id="vakBanner" hidden><span id="vakBannerText"></span></div>
+    <div id="vervalBanner" hidden></div>
     <div class="overdue-banner" id="overdueBanner"><span id="overdueBannerText" class="overdue-banner-text"></span><button id="overdueBannerBtn" class="overdue-banner-btn">Naar vandaag ›</button></div>
     <div class="vandaag-section">
-      <div class="vandaag-section-title">
-        <span>Vandaag</span>
-        <button class="vandaag-open-btn" id="openTodayBtn">Dag openen ›</button>
-        <button class="vandaag-open-btn" id="openBriefingBtn" style="margin-left:6px;">📰 Briefing</button>
-        <button class="vandaag-open-btn" id="vandaagZoekBtn" style="margin-left:6px;" title="Zoek door alles" aria-label="Zoeken">🔍</button>
+      <div class="section-head">
+        <h2>Vandaag</h2>
+        <button class="icon-btn" id="openBriefingBtn" type="button" aria-label="Dagelijkse briefing"><svg class="ic"><use href="#i-newspaper"/></svg></button>
+        <button class="icon-btn" id="vandaagZoekBtn" type="button" aria-label="Zoek door alles"><svg class="ic"><use href="#i-search"/></svg></button>
+        <button class="btn btn-secondary btn-sm" id="openTodayBtn" type="button">Dag openen</button>
       </div>
-      <form class="quick-add" id="quickAddForm" autocomplete="off">
-        <input type="text" id="quickAddInput" maxlength="200" enterkeyhint="done" placeholder="+ Taak, bv. ‘bellen morgen 9:00’" aria-label="Taak snel toevoegen">
-        <button type="submit" aria-label="Toevoegen">+</button>
+      <form class="input-row" id="quickAddForm" autocomplete="off">
+        <input type="text" class="field" id="quickAddInput" maxlength="200" enterkeyhint="done" placeholder="+ Taak, bv. ‘bellen morgen 9:00’" aria-label="Taak snel toevoegen">
+        <button class="btn btn-primary btn-square" type="submit" aria-label="Toevoegen"><svg class="ic lg"><use href="#i-plus"/></svg></button>
       </form>
       <div class="quick-add-preview" id="quickAddPreview"></div>
       <div id="vandaagTasks"></div>
       <div id="gewoontenToday" style="padding:0;"></div>
     </div>
     <div class="vandaag-section">
-      <div class="vandaag-section-title"><span>Komende dagen</span></div>
+      <div class="section-head"><h2>Komende dagen</h2></div>
       <div class="upcoming-strip" id="upcomingStrip"></div>
     </div>
   </div>
@@ -1880,6 +2024,68 @@ function newPlannerKey(){
   catch(e){return uid()+uid();}
 }
 function escHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+// ── Design system: helpers om componenten te maken (zie CSS "componentbibliotheek").
+// Elk scherm bouwt hiermee zijn rijen, knoppen en menu's, zodat alles er hetzelfde uitziet.
+function icon(name,cls){return '<svg class="ic'+(cls?' '+cls:'')+'" aria-hidden="true"><use href="#i-'+name+'"/></svg>';}
+var ui={
+  el:function(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;},
+  iconEl:function(name,cls){var s=document.createElement('span');s.style.display='contents';s.innerHTML=icon(name,cls);return s.firstChild;},
+  // Afvinkcirkel. opts: {done, high, label}
+  check:function(opts,onToggle){
+    var b=ui.el('button','check'+(opts.done?' is-done':'')+(opts.high?' is-high':''));
+    b.type='button';b.setAttribute('role','checkbox');b.setAttribute('aria-checked',opts.done?'true':'false');
+    b.setAttribute('aria-label',(opts.done?'Niet meer afgevinkt: ':'Afvinken: ')+(opts.label||''));
+    var ring=ui.el('span','check__ring');if(opts.done)ring.innerHTML=icon('check');b.appendChild(ring);
+    b.addEventListener('click',function(e){e.stopPropagation();onToggle(b);});
+    return b;
+  },
+  // Lijstrij. opts: {title, done, meta:[nodes|strings], warn, compact, swipeLabel}
+  row:function(opts){
+    var r=ui.el('div','list-row'+(opts.compact?' compact':''));
+    if(opts.swipeLabel){r.appendChild(ui.el('div','swipe-del-bg',opts.swipeLabel));}
+    var body=ui.el('div','list-row__body');
+    var t=ui.el('span','list-row__title'+(opts.done?' is-done':''),opts.title);body.appendChild(t);
+    if(opts.meta&&opts.meta.length){
+      var m=ui.el('div','list-row__meta'+(opts.warn?' warn':''));
+      // Onderdelen worden gescheiden door een puntje; een array is één onderdeel (bv. [bolletje, 'Huis']).
+      var first=true;
+      opts.meta.forEach(function(x){
+        if(x==null||x===''||(Array.isArray(x)&&!x.length))return;
+        if(!first)m.appendChild(ui.el('span',null,'·'));first=false;
+        var part=ui.el('span');part.style.cssText='display:inline-flex;align-items:center;gap:5px;';
+        (Array.isArray(x)?x:[x]).forEach(function(y){part.appendChild(typeof y==='string'?document.createTextNode(y):y);});
+        m.appendChild(part);
+      });
+      body.appendChild(m);
+    }
+    r._body=body;
+    return r;
+  },
+  dot:function(color){var d=ui.el('span','dot');d.style.background=color;return d;},
+  iconBtn:function(name,label,onClick){
+    var b=ui.el('button','icon-btn');b.type='button';b.setAttribute('aria-label',label);b.innerHTML=icon(name);
+    if(onClick)b.addEventListener('click',function(e){e.stopPropagation();onClick(e);});return b;
+  },
+  // Actiemenu in de bottom sheet. items: [{icon, label, onClick, danger, selected}]
+  actionSheet:function(title,items,extra){
+    openAddSheet(function(body){
+      if(title)body.appendChild(ui.el('div','sheet-heading',title));
+      if(extra)body.appendChild(extra);
+      var list=ui.el('div','action-list');
+      items.forEach(function(it){
+        if(!it)return;
+        var b=ui.el('button','action-row'+(it.danger?' danger':''));b.type='button';
+        b.innerHTML=icon(it.icon)+'<span></span>'+(it.selected?'<span class="trail">'+icon('check','sm')+'</span>':'');
+        b.querySelector('span').textContent=it.label;
+        b.addEventListener('click',function(){closeAddSheet();it.onClick();});
+        list.appendChild(b);
+      });
+      body.appendChild(list);
+    });
+  },
+  empty:function(title,text){var e=ui.el('div','empty');var s=ui.el('strong',null,title);e.appendChild(s);if(text)e.appendChild(document.createTextNode(text));return e;}
+};
 var _undoStack=[];
 function showUndoToast(msg,undoFn,btnLabel){
   var e=document.getElementById('toast');
@@ -1996,6 +2202,8 @@ function setSync(s,t){
   d.className='sync-dot'+(s==='busy'?' busy':s==='err'?' err':'');e.textContent=t;
   var problem=s==='err',offline=problem&&(!navigator.onLine||/offline/i.test(t));
   row.classList.toggle('show',problem);row.classList.toggle('offline',offline);row.classList.toggle('error',problem&&!offline);
+  // Alleen tijdens echt opslaan een rustige melding in de app-balk (niet bij ophalen).
+  document.getElementById('saveStatus').classList.toggle('show',s==='busy'&&/^Opslaan/.test(t));
 }
 function assignLabel(v){if(!v||v==='')return '';if(v==='me')return myName||'Ik';if(v==='partner')return partnerName||'Partner';return v;}
 function getCat(c){return CATS[c]||CATS.overig;}
@@ -2756,6 +2964,67 @@ function launchConfetti(){
   requestAnimationFrame(frame);
 }
 
+// ── Vandaag-kop: maximaal 3 tikbare pillen (weer + de 2 dringendste zaken) ──
+// Wat er mag verschijnen kies je per telefoon via het instellingen-icoon in de kop.
+var HERO_OPTIONS=[
+  {key:'weer',label:'Weer'},
+  {key:'vervaldata',label:'Vervaldata en garanties'},
+  {key:'verjaardag',label:'Verjaardag deze week'},
+  {key:'vakantie',label:'Aftellen naar vakantie'},
+  {key:'bestellingen',label:'Bestellingen onderweg'},
+  {key:'onderhoud',label:'Onderhoud dat eraan komt'},
+  {key:'eten',label:'Vanavond eten'}
+];
+var HERO_MAX_PILLS=3;
+function getHeroPrefs(){try{var p=JSON.parse(localStorage.getItem('plannerHeroPills')||'{}');return p&&typeof p==='object'?p:{};}catch(e){return {};}}
+function heroOn(k){return getHeroPrefs()[k]!==false;}
+function openOverlay(id,render){document.getElementById(id).classList.add('open');if(render)render();}
+function heroPill(iconName,text,onClick){
+  var b=ui.el('button','chip');b.type='button';b.innerHTML=icon(iconName,'sm');
+  b.appendChild(ui.el('span','hero__pill-text',text));b.addEventListener('click',onClick);return b;
+}
+function renderHeroPills(tk){
+  var wrap=document.getElementById('statChips');if(!wrap)return;wrap.innerHTML='';
+  var weather=document.getElementById('weatherBar');
+  var showWeather=heroOn('weer');weather.style.display=showWeather?'':'none';
+  var room=HERO_MAX_PILLS-(showWeather?1:0);
+  var pills=[];
+  if(heroOn('vervaldata')){
+    var u=getUrgentExpiries(1)[0];
+    if(u)pills.push(heroPill(u.type==='garantie'?'file':'shield',u.naam+' · '+(u.dagen===0?'vandaag':u.dagen===1?'morgen':u.dagen+' d'),function(){
+      if(u.type==='garantie')openOverlay('garantiesOverlay',renderGaranties);else openOverlay('kluisOverlay',renderKluis);
+    }));
+  }
+  if(heroOn('verjaardag')){
+    var bd=(data.verjaardagen||[]).filter(function(b){return daysUntilBirthday(b.datum)<=7;}).sort(function(a,b){return daysUntilBirthday(a.datum)-daysUntilBirthday(b.datum);})[0];
+    if(bd){var bdn=daysUntilBirthday(bd.datum);pills.push(heroPill('cake',bd.naam+' · '+(bdn===0?'vandaag jarig':bdn===1?'morgen':bdn+' d'),function(){openOverlay('verjaardagenOverlay',renderVerjaardagen);}));}
+  }
+  if(heroOn('vakantie')){
+    var nv=(data.vakanties||[]).filter(function(v){return v.startDatum&&v.startDatum>=tk;}).sort(function(a,b){return a.startDatum<b.startDatum?-1:1;})[0];
+    if(nv){var vd=Math.round((keyToDate(nv.startDatum)-keyToDate(tk))/864e5);
+      pills.push(heroPill('plane',(nv.naam||'Vakantie')+' · '+(vd===0?'vandaag':vd===1?'morgen':vd+' d'),function(){openOverlay('vakantiesOverlay',renderVakanties);}));}
+  }
+  if(heroOn('bestellingen')){
+    var ob=(data.bestellingen||[]).filter(function(b){return b.status!=='geleverd';}).length;
+    if(ob)pills.push(heroPill('package',ob+(ob===1?' bestelling':' bestellingen'),function(){openOverlay('bestellingenOverlay',function(){updateBestWieLabels();renderBestellingen();});}));
+  }
+  if(heroOn('onderhoud')){
+    var due=(data.onderhoud||[]).filter(function(o){if(!o.lastDone)return true;var d=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*864e5);return d<=new Date(today.getTime()+14*864e5);});
+    if(due.length)pills.push(heroPill('wrench',due.length===1?due[0].text:due.length+' onderhoudstaken',function(){openOverlay('onderhoudOverlay',renderOnderhoud);}));
+  }
+  pills.slice(0,Math.max(0,room)).forEach(function(p){wrap.appendChild(p);});
+}
+document.getElementById('heroEditBtn').addEventListener('click',function openHeroPrefs(){
+  var p=getHeroPrefs();
+  ui.actionSheet('Wat zie je bovenaan Vandaag?',HERO_OPTIONS.map(function(o){
+    var on=p[o.key]!==false;
+    return {icon:on?'check':'x',label:o.label,selected:on,onClick:function(){
+      var q=getHeroPrefs();q[o.key]=!on;try{localStorage.setItem('plannerHeroPills',JSON.stringify(q));}catch(e){}
+      renderVandaag();openHeroPrefs();
+    }};
+  }),ui.el('p','hero-prefs-note','Er staan nooit meer dan '+HERO_MAX_PILLS+' items tegelijk, de dringendste eerst.'));
+});
+
 function renderVandaag(){
   refreshToday();
   updateGreeting();loadWeather();
@@ -2778,54 +3047,7 @@ function renderVandaag(){
     return due<=new Date(today.getTime()+14*24*60*60*1000);
   }).length;
 
-  var chips=document.getElementById('statChips');chips.innerHTML='';
-  // Voortgangsbadge (0/3) en Backlog-chip bewust verwijderd uit Vandaag-header (niet relevant genoeg, op verzoek).
-  function makeChip(num,label,hl,onclick){
-    var c=document.createElement('div');c.className='stat-badge';
-    if(onclick)c.addEventListener('click',onclick);
-    c.textContent=num+' '+label;
-    chips.appendChild(c);
-  }
-
-  if(openBest>0)makeChip(openBest,openBest===1?'Bestelling':'Bestellingen',true,function(){document.getElementById('bestellingenOverlay').classList.add('open');updateBestWieLabels();renderBestellingen();});
-  if(ondDue>0){var ondFirst=(data.onderhoud||[]).filter(function(o){if(!o.lastDone)return true;var due=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);return due<=new Date(today.getTime()+14*24*60*60*1000);})[0];makeChip(ondDue,ondDue===1&&ondFirst?'🔧 '+ondFirst.text.substr(0,24)+(ondFirst.text.length>24?'…':''):'🔧 Onderhoud',true,function(){document.getElementById('onderhoudOverlay').classList.add('open');renderOnderhoud();});}
-
-
-  // Vakantie banner
-  var vb=document.getElementById('vakBanner');var vbt=document.getElementById('vakBannerText');
-  if(vb&&vbt){
-    var nextVak=(data.vakanties||[]).filter(function(v){return v.startDatum&&v.startDatum>=tk;}).sort(function(a,b){return a.startDatum<b.startDatum?-1:1;})[0];
-    if(nextVak){
-      var vdays=Math.round((keyToDate(nextVak.startDatum)-keyToDate(tk))/(1000*60*60*24));
-      vb.classList.add('visible');
-      vbt.textContent=vdays===0?'Vandaag vertrek: '+nextVak.naam:vdays===1?'Morgen vertrek: '+nextVak.naam:'Nog '+vdays+' dagen: '+nextVak.naam;
-      vb.onclick=function(){document.querySelectorAll('.nav-item').forEach(function(b){if(b.dataset.view==='meerView')b.click();});setTimeout(function(){document.getElementById('vakantiesOverlay')&&document.getElementById('vakantiesOverlay').classList.add('open');if(typeof renderVakanties==='function')renderVakanties();},300);};
-    } else {vb.classList.remove('visible');}
-  }
-  // Vervaldata banner
-  var vvb=document.getElementById('vervalBanner');
-  if(vvb){
-    vvb.innerHTML='';
-    var urgentVerval=getUrgentExpiries(3);
-    if(urgentVerval.length){
-      vvb.classList.add('visible');
-      urgentVerval.forEach(function(v){
-        var d=v.dagen;
-        var cls=d<=7?'urgent':d<=30?'soon':'notice';
-        var row=document.createElement('div');row.className='verval-banner-item '+cls;
-        var ico=document.createElement('span');ico.className='verval-banner-icon';ico.textContent=v.icon;
-        var txt=document.createElement('div');txt.className='verval-banner-text';txt.textContent=v.naam;
-        var daysEl=document.createElement('div');daysEl.className='verval-banner-days';
-        daysEl.textContent=d===0?'Vandaag!':d===1?'Morgen':'Nog '+d+' dagen';
-        row.appendChild(ico);row.appendChild(txt);row.appendChild(daysEl);
-        row.addEventListener('click',function(){
-          if(v.type==='garantie'){document.getElementById('garantiesOverlay').classList.add('open');renderGaranties();}
-          else{document.getElementById('kluisOverlay').classList.add('open');renderKluis();}
-        });
-        vvb.appendChild(row);
-      });
-    } else {vvb.classList.remove('visible');}
-  }
+  renderHeroPills(tk);
   // Verlopen taken automatisch doorschuiven naar vandaag (losse taken van eerdere dagen, nog niet afgerond)
   (function(){
     var odb=document.getElementById('overdueBanner');
@@ -2852,7 +3074,7 @@ function renderVandaag(){
   (function(){
     var vanavondEl=document.getElementById('vanavondEten');if(!vanavondEl)return;
     var mp=data.maaltijdplan&&data.maaltijdplan[tk];
-    if(!mp){vanavondEl.style.display='none';return;}
+    if(!mp||!heroOn('eten')){vanavondEl.style.display='none';return;}
     var naam='';
     if(mp.type==='vrij')naam=mp.tekst||'';
     else if(mp.type==='recept'){
@@ -2866,133 +3088,154 @@ function renderVandaag(){
 
   var container=document.getElementById('vandaagTasks');container.innerHTML='';
 
-  // Period groups
-  var PERIODS=[{key:'ochtend',label:'🌅 Ochtend'},{key:'middag',label:'🌞 Middag'},{key:'avond',label:'🌙 Avond'}];
+  // Dagdelen: taken zonder dagdeel bovenaan, daarna ochtend/middag/avond met een kopje.
+  var PERIODS=[{key:'ochtend',label:'Ochtend',icon:'sunrise'},{key:'middag',label:'Middag',icon:'sun'},{key:'avond',label:'Avond',icon:'moon'}];
   var tasksByPeriod={ochtend:[],middag:[],avond:[],other:[]};
   dayTasks.forEach(function(t){if(t.period&&tasksByPeriod[t.period])tasksByPeriod[t.period].push(t);else tasksByPeriod.other.push(t);});
-  var hasPeriods=tasksByPeriod.ochtend.length||tasksByPeriod.middag.length||tasksByPeriod.avond.length;
 
-  recToday.forEach(function(r){
+  function maybeConfetti(){
+    var tk2=todayKey();var allT=(data.tasks[tk2]||[]);var rec2=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,tk2);});
+    var rd2=(data.recurringDone&&data.recurringDone[tk2])||[];var tot=allT.length+rec2.length;
+    var dn=allT.filter(function(x){return x.done;}).length+rd2.length;if(tot>0&&dn===tot)launchConfetti();
+  }
+  function sectionLabel(text,iconName){
+    var l=ui.el('div','section-label');l.innerHTML=icon(iconName,'xs');l.appendChild(document.createTextNode(text));return l;
+  }
+
+  function recRow(r){
     var isDone=recDone.indexOf(r.id)>-1;
     var isCarried=!recAppliesToDate(r,tk);
     var cat=getCat(r.category);
-    var item=document.createElement('div');item.className='vandaag-task';
-    var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Overslaan';item.appendChild(sbg);
-    var check=document.createElement('div');check.className='vandaag-check'+(isDone?' checked':'');check.textContent=isDone?'✓':'';
-    check.addEventListener('click',function(){haptic(check);
+    var row=ui.row({title:r.text,done:isDone,warn:isCarried&&!isDone,swipeLabel:'Overslaan',
+      meta:[[ui.iconEl(isCarried?'clock':'repeat','xs'),isCarried?'Gemist, alsnog afronden':'Vaste taak'],[ui.dot(cat.color),cat.label]]});
+    var chk=ui.check({done:isDone,label:r.text},function(b){
+      haptic(b.firstChild);
       if(!data.recurringDone)data.recurringDone={};
       if(!data.recurringDone[tk])data.recurringDone[tk]=[];
       var idx=data.recurringDone[tk].indexOf(r.id);
       if(idx>-1)data.recurringDone[tk].splice(idx,1);else{data.recurringDone[tk].push(r.id);logHuis('taak','↻ '+r.text,myName||'');}
-      saveToServer();renderVandaag();
-      var allT2=(data.tasks[tk]||[]);var rec2=(data.recurring||[]).filter(function(r2){return recAppliesToDate(r2,tk);});var rd2=(data.recurringDone&&data.recurringDone[tk])||[];var tot=allT2.length+rec2.length;var dn=allT2.filter(function(x){return x.done;}).length+rd2.length;if(tot>0&&dn===tot)launchConfetti();
+      saveToServer();renderVandaag();maybeConfetti();
     });
-    var body=document.createElement('div');body.className='vandaag-task-body';
-    var txt=document.createElement('div');txt.className='vandaag-task-text'+(isDone?' done':'');txt.textContent=cat.emoji+' ↻ '+r.text;
-    var meta=document.createElement('div');meta.className='vandaag-task-meta';meta.innerHTML='<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:'+(isCarried?'#e67e22':'var(--accent)')+';opacity:.7;margin-right:4px;vertical-align:middle;"></span>'+(isCarried?'⏰ Gemist — alsnog afronden':'Vaste taak');
-    body.appendChild(txt);body.appendChild(meta);
     if(r.koppelgesprek&&!isDone){
       var anch=r.anchorDate||'2026-06-19';var ap=anch.split('-').map(Number);var ad=new Date(ap[0],ap[1]-1,ap[2]);
-      var pd=keyToDate(tk);var diffDays=Math.round((pd-ad)/(24*3600*1000));
-      var biweekNum=Math.max(0,Math.floor(diffDays/14));
-      var topicData=COUPLE_TOPICS[biweekNum%COUPLE_TOPICS.length];
-      var kBlock=document.createElement('div');kBlock.className='koppelgesprek-block';
-      var kTopic=document.createElement('div');kTopic.className='koppelgesprek-topic';kTopic.textContent=topicData.topic;kBlock.appendChild(kTopic);
-      topicData.questions.forEach(function(q){var qEl=document.createElement('div');qEl.className='koppelgesprek-q';qEl.textContent='· '+q;kBlock.appendChild(qEl);});
-      body.appendChild(kBlock);
+      var diffDays=Math.round((keyToDate(tk)-ad)/(24*3600*1000));
+      var topicData=COUPLE_TOPICS[Math.max(0,Math.floor(diffDays/14))%COUPLE_TOPICS.length];
+      var kBlock=ui.el('div','koppelgesprek-block');
+      kBlock.appendChild(ui.el('div','koppelgesprek-topic',topicData.topic));
+      topicData.questions.forEach(function(q){kBlock.appendChild(ui.el('div','koppelgesprek-q',q));});
+      row._body.appendChild(kBlock);
     }
-    item.appendChild(check);item.appendChild(body);container.appendChild(item);
-    addSwipe(item,function(){
+    row.appendChild(chk);row.appendChild(row._body);
+    addSwipe(row,function(){
       if(!data.recurringDone)data.recurringDone={};
       if(!data.recurringDone[tk])data.recurringDone[tk]=[];
       if(data.recurringDone[tk].indexOf(r.id)===-1)data.recurringDone[tk].push(r.id);
       saveToServer();renderVandaag();
     });
-  });
+    return row;
+  }
 
-  mdToday.forEach(function(md){
+  function mdRow(md){
     var cat=getCat(md.category);
-    var item=document.createElement('div');item.className='vandaag-task';
-    var check=document.createElement('div');check.className='vandaag-check'+(md.done?' checked':'');check.textContent=md.done?'✓':'';
-    check.addEventListener('click',function(){md.done=!md.done;saveToServer();renderVandaag();renderCalendar();});
-    var body=document.createElement('div');body.className='vandaag-task-body';
-    var txt=document.createElement('div');txt.className='vandaag-task-text'+(md.done?' done':'');txt.textContent=cat.emoji+' '+md.text;
-    var meta=document.createElement('div');meta.className='vandaag-task-meta';meta.innerHTML='<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#27ae60;opacity:.7;margin-right:4px;vertical-align:middle;"></span>t/m '+formatDateShort(md.endDate);
-    body.appendChild(txt);body.appendChild(meta);item.appendChild(check);item.appendChild(body);container.appendChild(item);
-  });
+    var row=ui.row({title:md.text,done:md.done,meta:[[ui.dot(cat.color),cat.label],'t/m '+formatDateShort(md.endDate)]});
+    var chk=ui.check({done:md.done,label:md.text},function(){md.done=!md.done;saveToServer();renderVandaag();renderCalendar();});
+    row.appendChild(chk);row.appendChild(row._body);
+    return row;
+  }
 
-  function renderOnePeriodTask(t){
-    var cat=getCat(t.category);
-    var item=document.createElement('div');item.className='vandaag-task prio-'+(t.priority||'normaal');var vpc=personColor(t.assignedTo);if(vpc)item.style.borderLeftColor=vpc.replace('var(--accent)','#5b4fe0');
-    var sbg=document.createElement('div');sbg.className='swipe-del-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
-    var check=document.createElement('div');check.className='vandaag-check'+(t.done?' checked':'');check.textContent=t.done?'✓':'';
-    check.addEventListener('click',function(){haptic(check);t.done=!t.done;
-    if(t.done){logHuis('taak',t.text,myName||'');}
-    saveToServer();renderVandaag();renderCalendar();
-    if(t.done){var tk2=todayKey();var allT=(data.tasks[tk2]||[]);var rec2=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,tk2);});var rd2=(data.recurringDone&&data.recurringDone[tk2])||[];var tot=allT.length+rec2.length;var dn=allT.filter(function(x){return x.done;}).length+rd2.length;if(tot>0&&dn===tot)launchConfetti();}
+  function taskActions(task,key){
+    var reacts=ui.el('div','reaction-row');
+    ['👍','❤️','😄','🔥','✅'].forEach(function(em){
+      var b=ui.el('button',null,em);b.type='button';b.setAttribute('aria-label','Reageer met '+em);
+      b.addEventListener('click',function(){
+        if(!task.reactions)task.reactions={};if(!task.reactions[em])task.reactions[em]=[];
+        var i=task.reactions[em].indexOf(myName||'ik');if(i>-1)task.reactions[em].splice(i,1);else task.reactions[em].push(myName||'ik');
+        if(task.reactions[em].length===0)delete task.reactions[em];
+        closeAddSheet();saveToServer();renderVandaag();
+      });
+      reacts.appendChild(b);
     });
-    var body=document.createElement('div');body.className='vandaag-task-body';
-    var txt=document.createElement('div');txt.className='vandaag-task-text'+(t.done?' done':'');txt.textContent=t.text;
-    var meta=document.createElement('div');meta.className='vandaag-task-meta';
-    var parts=[cat.emoji+' '+cat.label];
-    if(t.assignedTo){var al=assignLabel(t.assignedTo);if(al)parts.push('voor '+al);}
-    meta.textContent=parts.join(' · ');
-    body.appendChild(txt);body.appendChild(meta);
+    ui.actionSheet(task.text,[
+      {icon:'pencil',label:'Bewerken',onClick:function(){
+        customPrompt('Taak bewerken:',task.text,function(newText){
+          if(newText&&newText.trim()&&newText.trim()!==task.text){task.text=newText.trim();saveToServer();renderVandaag();}
+        },{okText:'Opslaan'});
+      }},
+      {icon:'clock',label:'Snoozen naar…',onClick:function(){
+        customSnoozeChoice(function(days){
+          if(!days)return;
+          var nd=addDays(keyToDate(key),days);var toKey=dateKey(nd.getFullYear(),nd.getMonth(),nd.getDate());
+          if(!data.tasks[key])return;var idx=data.tasks[key].indexOf(task);if(idx===-1)return;
+          data.tasks[key].splice(idx,1);if(!data.tasks[toKey])data.tasks[toKey]=[];data.tasks[toKey].push(task);
+          saveToServer();renderVandaag();renderCalendar();showToast('Verplaatst naar '+formatDateShort(toKey));
+        });
+      }},
+      {icon:'user',label:task.assignedTo?'Toegewezen aan '+assignLabel(task.assignedTo):'Toewijzen…',onClick:function(){
+        var cur=task.assignedTo||'';
+        var opts=[{icon:'users',label:'Iedereen',val:null,selected:!cur}];
+        if(myName)opts.push({icon:'user',label:myName,val:personKey('me'),selected:!!cur&&isMe(cur)});
+        if(partnerName)opts.push({icon:'user',label:partnerName,val:personKey('partner'),selected:!!cur&&!isMe(cur)&&sameName(cur,partnerName)});
+        if(!myName&&!partnerName){opts.push({icon:'user',label:'Ik',val:'me',selected:cur==='me'},{icon:'user',label:'Partner',val:'partner',selected:cur==='partner'});}
+        ui.actionSheet('Toewijzen',opts.map(function(o){return {icon:o.icon,label:o.label,selected:o.selected,onClick:function(){task.assignedTo=o.val;saveToServer();renderVandaag();}};}));
+      }},
+      {icon:'trash',label:'Verwijderen',danger:true,onClick:function(){removeTask(task,key);}}
+    ],reacts);
+  }
+  function removeTask(task,key){
+    var arr=data.tasks[key];if(!arr)return;var idx=arr.indexOf(task);if(idx<0)return;arr.splice(idx,1);
+    saveToServer();renderVandaag();renderCalendar();
+    showUndoToast('Taak verwijderd',function(){if(!data.tasks[key])data.tasks[key]=[];data.tasks[key].splice(idx,0,task);saveToServer();renderVandaag();renderCalendar();});
+  }
+
+  function taskRow(t){
+    var cat=getCat(t.category);
+    var meta=[[ui.dot(cat.color),cat.label]];
+    if(t.assignedTo){var al=assignLabel(t.assignedTo);if(al)meta.push('voor '+al);}
+    if(t.reminder&&t.reminder.time)meta.push([ui.iconEl('bell','xs'),t.reminder.time]);
+    if(t.priority==='hoog'&&!t.done){var tag=ui.el('span','tag danger','Belangrijk');meta.push(tag);}
+    var row=ui.row({title:t.text,done:t.done,meta:meta,swipeLabel:'Verwijderen'});
+    var chk=ui.check({done:t.done,high:t.priority==='hoog',label:t.text},function(b){
+      haptic(b.firstChild);t.done=!t.done;
+      if(t.done){logHuis('taak',t.text,myName||'');}
+      saveToServer();renderVandaag();renderCalendar();
+      if(t.done)maybeConfetti();
+    });
     var vReactions=t.reactions||{};
     var vKeys=Object.keys(vReactions).filter(function(e){return vReactions[e].length>0;});
-    if(vKeys.length>0){var vRow=document.createElement('div');vRow.className='task-reactions';vKeys.forEach(function(emoji){var rb=document.createElement('button');var isMine=vReactions[emoji].indexOf(myName||'ik')>-1;rb.className='reaction-btn'+(isMine?' mine':'');rb.textContent=emoji+' ';var cnt=document.createElement('span');cnt.className='reaction-count';cnt.textContent=vReactions[emoji].length;rb.appendChild(cnt);(function(em,task){rb.addEventListener('click',function(){if(!task.reactions)task.reactions={};if(!task.reactions[em])task.reactions[em]=[];var idx=task.reactions[em].indexOf(myName||'ik');if(idx>-1)task.reactions[em].splice(idx,1);else task.reactions[em].push(myName||'ik');if(task.reactions[em].length===0)delete task.reactions[em];saveToServer();renderVandaag();});})(emoji,t);vRow.appendChild(rb);});body.appendChild(vRow);}
-    var editBtn=document.createElement('button');editBtn.textContent='✎';editBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 5px;flex-shrink:0;';
-    (function(task,taskKey){editBtn.addEventListener('click',function(){
-      customPrompt('Taak bewerken:',task.text,function(newText){
-        if(newText&&newText.trim()&&newText.trim()!==task.text){task.text=newText.trim();saveToServer();renderVandaag();}
-      },{okText:'Opslaan'});
-    });})(t,tk);
-    item.appendChild(check);item.appendChild(body);item.appendChild(editBtn);container.appendChild(item);
-    var snoozeBtn=document.createElement('button');snoozeBtn.textContent='💤';snoozeBtn.title='Snooze';snoozeBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 5px;flex-shrink:0;';
-    (function(task,fromKey){snoozeBtn.addEventListener('click',function(){
-      customSnoozeChoice(function(days){
-        if(!days)return;
-        var nd=addDays(keyToDate(fromKey),days);var toKey=dateKey(nd.getFullYear(),nd.getMonth(),nd.getDate());
-        if(!data.tasks[fromKey])return;var idx=data.tasks[fromKey].indexOf(task);if(idx===-1)return;
-        data.tasks[fromKey].splice(idx,1);if(!data.tasks[toKey])data.tasks[toKey]=[];data.tasks[toKey].push(task);
-        saveToServer();renderVandaag();renderCalendar();showToast('Versnoozed naar '+formatDateShort(toKey));
+    if(vKeys.length>0){
+      var vRow=ui.el('div','task-reactions');
+      vKeys.forEach(function(emoji){
+        var rb=ui.el('button','reaction-btn'+(vReactions[emoji].indexOf(myName||'ik')>-1?' mine':''),emoji+' ');rb.type='button';
+        rb.appendChild(ui.el('span','reaction-count',String(vReactions[emoji].length)));
+        rb.addEventListener('click',function(e){
+          e.stopPropagation();
+          if(!t.reactions)t.reactions={};if(!t.reactions[emoji])t.reactions[emoji]=[];
+          var idx=t.reactions[emoji].indexOf(myName||'ik');if(idx>-1)t.reactions[emoji].splice(idx,1);else t.reactions[emoji].push(myName||'ik');
+          if(t.reactions[emoji].length===0)delete t.reactions[emoji];saveToServer();renderVandaag();
+        });
+        vRow.appendChild(rb);
       });
-    });})(t,tk);
-    item.insertBefore(snoozeBtn,item.lastChild);
-    var assignBtn=document.createElement('button');assignBtn.title='Toewijzen';
-    assignBtn.style.cssText='background:none;border:none;font-size:13px;cursor:pointer;padding:2px 4px;flex-shrink:0;line-height:1;';
-    (function(task2){
-      function updA(){var v=task2.assignedTo||'';
-        if(v===''){assignBtn.textContent='👤';assignBtn.style.color='var(--muted)';}
-        else if(isMe(v)){assignBtn.textContent='👤';assignBtn.style.color='var(--accent)';}
-        else{assignBtn.textContent='👥';assignBtn.style.color='#e67e22';}
-        assignBtn.title=v===''?'Toewijzen…':assignLabel(v)+' – klik om te wijzigen';
-      }
-      updA();
-      assignBtn.addEventListener('click',function(){
-        var v=task2.assignedTo||'';
-        task2.assignedTo=v===''?personKey('me'):isMe(v)?personKey('partner'):null;
-        saveToServer();renderVandaag();
-      });
-    })(t);
-    item.appendChild(assignBtn);
-    (function(task,key){addSwipe(item,function(){
-      var arr=data.tasks[key];var idx=arr.indexOf(task);if(idx>-1)arr.splice(idx,1);
-      saveToServer();renderVandaag();renderCalendar();
-      showUndoToast('Taak verwijderd',function(){if(!data.tasks[key])data.tasks[key]=[];data.tasks[key].splice(idx,0,task);saveToServer();renderVandaag();renderCalendar();});
-    });})(t,tk);
-    return item;
+      row._body.appendChild(vRow);
+    }
+    row.appendChild(chk);row.appendChild(row._body);
+    row.appendChild(ui.iconBtn('more','Opties voor '+t.text,function(){taskActions(t,tk);}));
+    addSwipe(row,function(){removeTask(t,tk);});
+    return row;
   }
-  // Altijd periode-secties tonen (zelfs leeg) voor dagstructuur
-  tasksByPeriod.other.forEach(function(t){container.appendChild(renderOnePeriodTask(t));});
+
+  var mainList=ui.el('div','list');
+  recToday.forEach(function(r){mainList.appendChild(recRow(r));});
+  mdToday.forEach(function(md){mainList.appendChild(mdRow(md));});
+  tasksByPeriod.other.forEach(function(t){mainList.appendChild(taskRow(t));});
+  if(mainList.children.length)container.appendChild(mainList);
   PERIODS.forEach(function(p){
     if(!tasksByPeriod[p.key].length)return;
-    var lbl=document.createElement('div');lbl.className='period-section-label';lbl.textContent=p.label;
-    container.appendChild(lbl);
-    tasksByPeriod[p.key].forEach(function(t){container.appendChild(renderOnePeriodTask(t));});
+    container.appendChild(sectionLabel(p.label,p.icon));
+    var l=ui.el('div','list');
+    tasksByPeriod[p.key].forEach(function(t){l.appendChild(taskRow(t));});
+    container.appendChild(l);
   });
-
-  if(container.children.length===0){var e=document.createElement('div');e.className='vandaag-empty';e.innerHTML='<div style="font-size:32px;margin-bottom:8px">🎉</div><div>Geen taken voor vandaag!</div>';container.appendChild(e);}
+  if(container.children.length===0)container.appendChild(ui.empty('Niets meer voor vandaag','Voeg hierboven iets toe of geniet van de rust.'));
 
   // Gewoonten vandaag
   (function(){
@@ -3000,31 +3243,26 @@ function renderVandaag(){
     var gwList=data.gewoonten||[];if(!gwList.length)return;
     var gwDoneToday=(data.gewoontenDone&&data.gewoontenDone[tk])||[];
     var gwDoneCount=gwList.filter(function(g){return gwDoneToday.indexOf(g.id)>-1;}).length;
-    var gwHdr=document.createElement('div');gwHdr.className='period-section-label';gwHdr.style.cssText='cursor:pointer;display:flex;align-items:center;justify-content:space-between;';
-    var gwLeft=document.createElement('span');gwLeft.textContent='🔁 Gewoonten vandaag';
-    var gwBadge=document.createElement('span');gwBadge.style.cssText='font-size:11px;background:var(--accent);color:#fff;border-radius:10px;padding:1px 8px;';
-    gwBadge.textContent=gwDoneCount+'/'+gwList.length;
-    gwHdr.appendChild(gwLeft);gwHdr.appendChild(gwBadge);
-    gwHdr.addEventListener('click',function(){document.getElementById('gewoontenOverlay').classList.add('open');renderGewoonten();});
-    gwDiv.appendChild(gwHdr);
+    var lbl=sectionLabel('Gewoonten','flame');
+    var aside=ui.el('button','aside',gwDoneCount+' van '+gwList.length);aside.type='button';aside.setAttribute('aria-label','Gewoonten openen');
+    aside.addEventListener('click',function(){document.getElementById('gewoontenOverlay').classList.add('open');renderGewoonten();});
+    lbl.appendChild(aside);gwDiv.appendChild(lbl);
+    var list=ui.el('div','list');
     gwList.forEach(function(gw2){
       var isDone=gwDoneToday.indexOf(gw2.id)>-1;
       var streak=0;var ck=new Date(today.getTime());
       while(streak<365){var k2=dateKey(ck.getFullYear(),ck.getMonth(),ck.getDate());var d2=(data.gewoontenDone&&data.gewoontenDone[k2])||[];if(d2.indexOf(gw2.id)>-1){streak++;ck=addDays(ck,-1);}else break;}
-      var row=document.createElement('div');row.className='vandaag-task';row.style.cssText='padding:8px 12px;';
-      var chk=document.createElement('div');chk.className='vandaag-check'+(isDone?' checked':'');chk.textContent=isDone?'✓':'';
-      (function(gwObj){chk.addEventListener('click',function(){
+      var row=ui.row({title:(gw2.icon?gw2.icon+' ':'')+gw2.text,done:isDone,meta:[streak>0?[ui.iconEl('flame','xs'),streak+' dag'+(streak===1?'':'en')+' op rij']:'Begin vandaag']});
+      var chk=ui.check({done:isDone,label:gw2.text},function(){
         if(!data.gewoontenDone)data.gewoontenDone={};
         if(!data.gewoontenDone[tk])data.gewoontenDone[tk]=[];
-        var idx=data.gewoontenDone[tk].indexOf(gwObj.id);
-        if(idx>-1)data.gewoontenDone[tk].splice(idx,1);else data.gewoontenDone[tk].push(gwObj.id);
+        var idx=data.gewoontenDone[tk].indexOf(gw2.id);
+        if(idx>-1)data.gewoontenDone[tk].splice(idx,1);else data.gewoontenDone[tk].push(gw2.id);
         saveToServer();renderVandaag();
-      });})(gw2);
-      var txt=document.createElement('div');txt.className='vandaag-task-text'+(isDone?' done':'');txt.textContent=(gw2.icon||'🔁')+' '+gw2.text;
-      var stk=document.createElement('div');stk.className='vandaag-task-meta';stk.textContent=streak>0?'🔥 '+streak+' dag'+(streak===1?'':'en')+' op rij':'Start vandaag!';
-      var body2=document.createElement('div');body2.className='vandaag-task-body';body2.appendChild(txt);body2.appendChild(stk);
-      row.appendChild(chk);row.appendChild(body2);gwDiv.appendChild(row);
+      });
+      row.appendChild(chk);row.appendChild(row._body);list.appendChild(row);
     });
+    gwDiv.appendChild(list);
   })();
   // Nav badges
   var openTodayCount=(dayTasks.filter(function(t){return !t.done;}).length)+(recToday.filter(function(r){return (data.recurringDone&&data.recurringDone[tk]||[]).indexOf(r.id)===-1;}).length);
@@ -3055,7 +3293,7 @@ function renderVandaag(){
       var pv=document.createElement('div');pv.className='upcoming-day-tasks';
       allNames.forEach(function(t,i){var sp=document.createElement('div');sp.textContent='· '+t;pv.appendChild(sp);});
       card.appendChild(pv);
-    } else {var em=document.createElement('div');em.className='upcoming-day-empty';em.textContent='Vrij ✓';card.appendChild(em);}
+    } else {var em=document.createElement('div');em.className='upcoming-day-empty';em.textContent='Vrij';card.appendChild(em);}
     (function(k){card.addEventListener('click',function(){openDay(k);});})(key);
     strip.appendChild(card);
   }
@@ -5377,8 +5615,6 @@ document.getElementById('closeBudgetBtn').addEventListener('click',function(){do
   var close=document.getElementById('seasonBannerClose');
   if(!banner||!txt)return;
   txt.textContent=match.emoji+' '+match.text;
-  banner.style.background='var(--accent-light)';
-  banner.style.borderColor='var(--accent)';
   banner.style.display='flex';
   close.addEventListener('click',function(){
     localStorage.setItem('seasonDismissed_'+match.key,'1');
@@ -5901,7 +6137,7 @@ function scheduleReminders(){
           // (mogelijk op een ander toestel), mag de herinnering niet meer afgaan.
           var stillExists=Object.keys(data.tasks||{}).some(function(dk2){return (data.tasks[dk2]||[]).some(function(t2){return t2.id===taskId&&!t2.done;});});
           if(!stillExists)return;
-          new Notification('Huisplan herinnering',{body:t.text,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%235b4fe0"/><text x="50" y="69" font-family="Arial,Helvetica,sans-serif" font-size="54" font-weight="700" fill="%23ffffff" text-anchor="middle">H</text></svg>'});
+          new Notification('Huisplan herinnering',{body:t.text,icon:'icon-192.png'});
         },msLeft);
       }
     });
@@ -6504,7 +6740,8 @@ function syncBriefingWeather(){
   bIcon.textContent=document.getElementById('weatherIcon').textContent;
   document.getElementById('briefingWeatherTemp').textContent=document.getElementById('weatherTemp').textContent;
   var descEl=document.getElementById('briefingWeatherDesc');
-  if(descEl)descEl.textContent=document.getElementById('weatherDesc').textContent;
+  var feelsTxt=document.getElementById('weatherFeels').textContent;
+  if(descEl)descEl.textContent=document.getElementById('weatherDesc').textContent+(feelsTxt?' · '+feelsTxt:'');
   var lblEl=document.getElementById('briefingWeatherLbl');
   var city=document.getElementById('weatherLocText').textContent;
   if(lblEl)lblEl.textContent='Het weer'+(city?' in '+city:'');
@@ -6514,7 +6751,8 @@ function loadWeather(){
   if(!city){
     document.getElementById('weatherIcon').textContent='📍';
     document.getElementById('weatherTemp').textContent='';
-    document.getElementById('weatherDesc').textContent='Tik om je stad in te stellen';
+    document.getElementById('weatherDesc').textContent='Stad instellen';
+    setWeatherIcon('map-pin');
     document.getElementById('weatherBar').classList.add('loading');
     syncBriefingWeather();
     return;
@@ -6534,6 +6772,15 @@ function loadWeather(){
       syncBriefingWeather();
     });
 }
+// Weercode (wttr.in) naar een lijn-icoon voor de Vandaag-kop; de emoji blijft voor de briefing.
+function weatherIconName(code){
+  if(code===113)return 'sun';if(code===116)return 'cloud-sun';if(code===119||code===122)return 'cloud';
+  if([143,248,260].indexOf(code)>-1)return 'cloud-fog';
+  if(code===200||code>=386)return 'cloud-lightning';
+  if([179,227,230,317,320,323,326,329,332,335,338,350,362,365,368,371,374,377].indexOf(code)>-1)return 'cloud-snow';
+  return 'cloud-rain';
+}
+function setWeatherIcon(name){var u=document.getElementById('weatherIconUse');if(u)u.setAttribute('href','#i-'+name);}
 function applyWeather(json){
   var cur=json.current_condition[0];
   var code=parseInt(cur.weatherCode);
@@ -6544,13 +6791,15 @@ function applyWeather(json){
   var city=json.nearest_area[0].areaName[0].value;
   document.getElementById('weatherIcon').textContent=icon;
   document.getElementById('weatherTemp').textContent=temp;
-  document.getElementById('weatherDesc').textContent=desc+' · voelt als '+feels;
+  document.getElementById('weatherDesc').textContent=desc;
+  document.getElementById('weatherFeels').textContent='voelt als '+feels;
+  setWeatherIcon(weatherIconName(code));
   document.getElementById('weatherLocText').textContent=city;
   document.getElementById('weatherBar').classList.remove('loading');
   // Wind info
   var wind=parseInt(cur.windspeedKmph);
   var windDir=cur.winddir16Point;
-  if(wind>10){document.getElementById('weatherFeels').textContent='💨 '+wind+' km/h';}
+  if(wind>10){document.getElementById('weatherFeels').textContent+=' · wind '+wind+' km/h';}
   syncBriefingWeather();
 }
 
