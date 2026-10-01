@@ -8,7 +8,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Huisplan">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%235b4fe0'/><text x='50' y='69' font-family='Arial,Helvetica,sans-serif' font-size='54' font-weight='700' fill='%23ffffff' text-anchor='middle'>H</text></svg>">
 <title>Huisplan</title>
 <style>
@@ -376,6 +377,10 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 .meer-card-verlanglijst::before{background:linear-gradient(90deg,#d63031,#ff7675);}
 .meer-card-verjaardagen::before{background:linear-gradient(90deg,#fdcb6e,#e17055);}
 .meer-card-wiw::before{background:linear-gradient(90deg,#0984e3,#74b9ff);}
+.meer-card-gewoonten::before{background:linear-gradient(90deg,#fd79a8,#e84393);}
+.meer-card-statistieken::before{background:linear-gradient(90deg,#6c5ce7,#a29bfe);}
+.meer-card-dna::before{background:linear-gradient(90deg,#6c5ce7,#fd79a8);}
+.meer-card-zoeken::before{background:linear-gradient(90deg,#00b894,#55efc4);}
 
 /* OVERLAYS */
 .overlay{position:fixed;inset:0;background:rgba(20,18,30,.5);display:none;align-items:flex-end;justify-content:center;z-index:80;}
@@ -794,11 +799,11 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
     <a class="setup-link-btn" href="https://console.firebase.google.com/" target="_blank">Open Firebase Console →</a>
     <input class="setup-input" type="text" id="dbUrlInput" placeholder="Plak hier je database-URL…" autocapitalize="off" spellcheck="false" autocorrect="off" inputmode="url">
     <div class="setup-divider">Jullie namen</div>
-    <input class="setup-input" type="text" id="setupMyName" placeholder="Jouw naam (bijv. Bas)" maxlength="20">
-    <input class="setup-input" type="text" id="setupPartnerName" placeholder="Naam van je vriendin" maxlength="20">
+    <input class="setup-input" type="text" id="setupMyName" placeholder="Jouw naam" maxlength="20">
+    <input class="setup-input" type="text" id="setupPartnerName" placeholder="Naam van je partner (optioneel)" maxlength="20">
     <div class="setup-error" id="setupError"></div>
     <button class="setup-submit" id="setupSubmitBtn">Aan de slag</button>
-    <p class="setup-hint">Heeft je vriendin al een gedeelde link? Dan hoeft zij dit niet in te stellen.</p>
+    <p class="setup-hint">Heeft je partner of huisgenoot al een gedeelde link? Open die dan gewoon, dan hoef je dit niet in te stellen.</p>
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(0,0,0,.08);">
       <p style="font-size:13px;color:#666;margin-bottom:10px;text-align:center;">Al een planner? Herstel met jouw herstelcode:</p>
       <input class="setup-input" type="text" id="herstelKeyInput" placeholder="Herstelcode (bijv. mq99xf7emmrc2)" autocapitalize="off" spellcheck="false" autocorrect="off" inputmode="text">
@@ -940,6 +945,10 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 
   <!-- DATA -->
   <div class="view" id="meerView">
+    <div id="meerFavorieten" style="display:none;">
+      <div class="meer-section-header">⭐ Veelgebruikt</div>
+      <div class="meer-grid" id="meerFavGrid"></div>
+    </div>
     <div class="meer-section-header">🏠 Thuis</div>
     <div class="meer-grid">
       <div class="meer-card meer-card-onderhoud" id="openOnderhoud">
@@ -967,12 +976,9 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         <div class="meer-card-title">Wie is waar</div>
         <div class="meer-card-sub" id="wieIsWaarSub">Weekschema thuis/werk/reis</div>
       </div>
-    </div>
-    <div class="meer-section-header">💰 Financiën</div>
-    <div class="meer-grid">
       <div class="meer-card meer-card-budget" id="openBudget">
         <div class="meer-card-icon">💰</div>
-        <div class="meer-card-title">Vaste Lasten</div>
+        <div class="meer-card-title">Vaste lasten</div>
         <div class="meer-card-sub" id="budgetSub">Vaste lasten overzicht</div>
       </div>
     </div>
@@ -996,10 +1002,10 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         <div class="meer-card-title">Vaste taken</div>
         <div class="meer-card-sub">Wekelijks &amp; maandelijks</div>
       </div>
-      <div class="meer-card" id="openGewoonten" style="background:linear-gradient(135deg,#fd79a8,#e84393);">
-        <div class="meer-card-icon on-color">🔁</div>
-        <div class="meer-card-title" style="color:#fff;">Gewoonten</div>
-        <div class="meer-card-sub" style="color:rgba(255,255,255,.8);" id="gewoontenSub">Dagelijkse streaks</div>
+      <div class="meer-card meer-card-gewoonten" id="openGewoonten">
+        <div class="meer-card-icon">🔁</div>
+        <div class="meer-card-title">Gewoonten</div>
+        <div class="meer-card-sub" id="gewoontenSub">Dagelijkse streaks</div>
       </div>
       <div class="meer-card meer-card-notitieboek" id="openNotitieboek">
         <div class="meer-card-icon">📝</div>
@@ -1012,11 +1018,6 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         <div class="meer-card-sub" id="backlogSub">Ideeën &amp; ooit-lijst</div>
       </div>
     </div>
-      <div class="meer-card" id="openGezinsDNA" style="background:linear-gradient(135deg,#6c5ce7,#fd79a8);grid-column:1/-1;">
-        <div class="meer-card-icon on-color">🧬</div>
-        <div class="meer-card-title" style="color:#fff;">Gezins-DNA</div>
-        <div class="meer-card-sub" style="color:rgba(255,255,255,.8);">Wat zegt onze data over ons?</div>
-      </div>
     <div class="meer-section-header">🎂 Verjaardagen &amp; cadeaus</div>
     <div class="meer-grid">
       <div class="meer-card meer-card-verjaardagen" id="openVerjaardagen">
@@ -1030,17 +1031,22 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         <div class="meer-card-sub">Cadeau-ideeën per persoon</div>
       </div>
     </div>
-    <div class="meer-section-header">📊 Terugkijken</div>
+    <div class="meer-section-header">📊 Terugkijken &amp; bewaren</div>
     <div class="meer-grid">
       <div class="meer-card meer-card-weekoverzicht" id="openWeekOverzicht">
         <div class="meer-card-icon">📊</div>
         <div class="meer-card-title">Weekoverzicht</div>
         <div class="meer-card-sub" id="weekOverzichtSub">Wat heb je gedaan?</div>
       </div>
-      <div class="meer-card" id="openStatistieken" style="background:linear-gradient(135deg,#6c5ce7,#a29bfe);">
-        <div class="meer-card-icon on-color">📈</div>
-        <div class="meer-card-title" style="color:#fff;">Statistieken</div>
-        <div class="meer-card-sub" style="color:rgba(255,255,255,.8);">Inzichten &amp; trends</div>
+      <div class="meer-card meer-card-statistieken" id="openStatistieken">
+        <div class="meer-card-icon">📈</div>
+        <div class="meer-card-title">Statistieken</div>
+        <div class="meer-card-sub">Inzichten &amp; trends</div>
+      </div>
+      <div class="meer-card meer-card-dna" id="openGezinsDNA">
+        <div class="meer-card-icon">🧬</div>
+        <div class="meer-card-title">Gezins-DNA</div>
+        <div class="meer-card-sub">Wat zegt onze data over ons?</div>
       </div>
       <div class="meer-card meer-card-geheugen" id="openHuisgeheugen">
         <div class="meer-card-icon">🧠</div>
@@ -1052,13 +1058,10 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         <div class="meer-card-title">Vervaldata-kluis</div>
         <div class="meer-card-sub" id="kluisSub">Paspoort, verzekering…</div>
       </div>
-    </div>
-    <div class="meer-section-header">🔎 Overig</div>
-    <div class="meer-grid">
-      <div class="meer-card" id="openZoeken" style="background:linear-gradient(135deg,#00b894,#55efc4);">
-        <div class="meer-card-icon on-color">🔍</div>
-        <div class="meer-card-title" style="color:#fff;">Zoeken</div>
-        <div class="meer-card-sub" style="color:rgba(255,255,255,.8);">Zoek door alles</div>
+      <div class="meer-card meer-card-zoeken" id="openZoeken">
+        <div class="meer-card-icon">🔍</div>
+        <div class="meer-card-title">Zoeken</div>
+        <div class="meer-card-sub">Zoek door alles</div>
       </div>
     </div>
     <div style="padding:0 16px 8px;">
@@ -1473,7 +1476,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
     </div>
     <div class="add-card">
       <h3>Item toevoegen</h3>
-      <input type="text" id="kluisNaam" placeholder="Naam (bijv. Paspoort Bas)" maxlength="100">
+      <input type="text" id="kluisNaam" placeholder="Naam (bijv. Paspoort)" maxlength="100">
       <select class="meta-select" id="kluisCat" style="width:100%;margin-bottom:8px;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
         <option value="paspoort">🛂 Paspoort</option>
         <option value="rijbewijs">🚗 Rijbewijs</option>
@@ -1589,6 +1592,10 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
         <label class="add-card-btn secondary" style="flex:1;text-align:center;">Terugzetten…<input type="file" id="importBackupInput" accept="application/json,.json" style="display:none;"></label>
       </div>
     </div>
+    <p style="text-align:center;font-size:12px;color:var(--muted);margin:4px 0 24px;">
+      <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--muted);">Privacyverklaring</a> ·
+      <a href="landing.html" target="_blank" rel="noopener" style="color:var(--muted);">Over Huisplan</a>
+    </p>
   </div>
 </div>
 
@@ -1677,7 +1684,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;}
 <div class="full-overlay" id="briefingOverlay" style="display:none;z-index:200;overflow-y:auto;background:var(--bg);padding:20px 16px 40px;">
   <div class="briefing-wrap">
     <div class="briefing-masthead">
-      <div class="briefing-logo">📰 DE THUISPLANNER</div>
+      <div class="briefing-logo">📰 HUISPLAN</div>
       <div class="briefing-dateline" id="briefingDateline"></div>
       <div class="briefing-rule"></div>
     </div>
@@ -1791,6 +1798,8 @@ var _garFotoB64=null,_ondFotoB64=null;
 // Toewijzingen worden opgeslagen als naam ('Sanne'), niet als 'me'/'partner': die waren
 // relatief aan het toestel waarop ze werden ingevuld, waardoor een taak die Bas aan
 // zichzelf gaf op de telefoon van Sanne als "voor Sanne" verscheen.
+// Standaard reisgenoten voor een nieuw huishouden: de ingevulde namen (bestaande lijsten blijven staan).
+function defaultPersonen(){var p=[myName,partnerName].filter(Boolean);return p.length?p:['Ik'];}
 function personKey(rel){if(rel==='me')return myName||'me';if(rel==='partner')return partnerName||'partner';return rel||null;}
 function sameName(a,b){return !!a&&!!b&&String(a).trim().toLowerCase()===String(b).trim().toLowerCase();}
 function isMe(v){return v==='me'||sameName(v,myName);}
@@ -2076,7 +2085,7 @@ function normalizeData(inc){
   Object.keys(inc.tasks).forEach(function(k){if(!Array.isArray(inc.tasks[k]))inc.tasks[k]=[];});
   ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget','budgetCustomCats','gewoonten','verjaardagen','cadeaus','lijsten'].forEach(function(k){if(!Array.isArray(inc[k]))inc[k]=[];});
   ['maaltijdplan','boodCatOverrides','gewoontenDone','verlanglijstjes','wieIsWaar','notitieboekMeta'].forEach(function(k){if(!isPlainObj(inc[k]))inc[k]={};});
-  if(!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];
+  if(!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=defaultPersonen();
   if(!inc.notitieboek)inc.notitieboek='';
   inc.lijsten.forEach(function(l){if(l&&!Array.isArray(l.items))l.items=[];});
   return inc;
@@ -2114,10 +2123,16 @@ function runMigrations(){
     koppelTask.anchorDate='2026-06-19';
     saveToServer();
   }
-  if(!koppelTask){
-    if(!data.recurring)data.recurring=[];
-    data.recurring.push({id:uid(),text:'Koppelgesprek 💑',interval:'biweek',anchorDate:'2026-06-19',koppelgesprek:true,category:'thuis',priority:'normaal'});
-    saveToServer();renderVandaag();renderCalendar();
+  // Het Koppelgesprek wordt niet meer automatisch bij iedereen aangemaakt (niet passend voor
+  // elk huishouden); bestaande huishoudens houden het, nieuwe kunnen het aanzetten bij Vaste taken.
+  // Een huishouden is "nieuw" als de eenmalige standaardvulling nog nooit heeft gedraaid.
+  var isNewHousehold=!data.budgetSeeded;
+  if(!data.winkelsSet){
+    // (Een lege lijst bewaart Firebase niet, vandaar de aparte vlag winkelsSet.)
+    var used=[];(data.boodschappen||[]).forEach(function(b){if(b.winkel&&used.indexOf(b.winkel)===-1)used.push(b.winkel);});
+    data.winkels=isNewHousehold?used:BOOD_WINKELS.concat(used.filter(function(w){return BOOD_WINKELS.indexOf(w)===-1;}));
+    data.winkelsSet=true;
+    saveToServer();renderBoodschappen();
   }
   var corruptVak=(data.vakanties||[]).filter(function(v){return v.startDatum&&(parseInt(String(v.startDatum).split('-')[0],10)<2000);});
   if(corruptVak.length){
@@ -2462,7 +2477,7 @@ function doShare(){
   var link=buildShareLink();
   if(navigator.share)navigator.share({title:'Ons Huisplan',url:link}).catch(function(){});
   else if(navigator.clipboard)navigator.clipboard.writeText(link).then(function(){showToast('Link gekopieerd!');}).catch(function(){prompt('Kopieer:',link);});
-  else prompt('Kopieer en stuur naar je vriendin:',link);
+  else prompt("Kopieer en stuur naar je partner of huisgenoot:",link);
 }
 document.getElementById('shareBtn').addEventListener('click',doShare);
 var _clb=document.getElementById('copyLinkBtn');if(_clb)_clb.addEventListener('click',doShare);
@@ -3497,20 +3512,34 @@ function initBoodCatRow(){
   });
 }
 
+// Winkels zijn per huishouden in te stellen (data.winkels). Bestaande huishoudens houden
+// AH/Vomar/Slager/Action; nieuwe beginnen zonder winkels (zie runMigrations).
+var WINKEL_ICONS={AH:'🔵',Vomar:'🔴',Slager:'🟤',Action:'🟡'};
+function getWinkels(){return Array.isArray(data.winkels)?data.winkels:(data.winkelsSet?[]:BOOD_WINKELS);}
 function initBoodWinkelRow(){
   var row=document.getElementById('boodWinkelRow');if(!row)return;row.innerHTML='';
-  var WICONS={AH:'🔵',Vomar:'🔴',Slager:'🟤',Action:'🟡'};
-  var all=document.createElement('button');all.className='bood-cat-btn active';all.dataset.winkel='';all.textContent='🏪 Alle';
-  all.addEventListener('click',function(){boodWinkelFilter='';document.querySelectorAll('[data-winkel]').forEach(function(b){b.classList.remove('active');});all.classList.add('active');renderBoodschappen();});
-  row.appendChild(all);
-  BOOD_WINKELS.forEach(function(w){
-    var btn=document.createElement('button');btn.className='bood-cat-btn';btn.dataset.winkel=w;
-    btn.textContent=(WICONS[w]||'🏪')+' '+w;
-    btn.addEventListener('click',function(){
-      boodWinkelFilter=w;document.querySelectorAll('[data-winkel]').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');renderBoodschappen();
-    });
+  var winkels=getWinkels();
+  if(boodWinkelFilter&&winkels.indexOf(boodWinkelFilter)===-1)boodWinkelFilter='';
+  if(winkels.length){
+    var all=document.createElement('button');all.className='bood-cat-btn'+(boodWinkelFilter?'':' active');all.dataset.winkel='';all.textContent='🏪 Alle';
+    all.addEventListener('click',function(){boodWinkelFilter='';renderBoodschappen();});
+    row.appendChild(all);
+  }
+  winkels.forEach(function(w){
+    var btn=document.createElement('button');btn.className='bood-cat-btn'+(boodWinkelFilter===w?' active':'');btn.dataset.winkel=w;
+    btn.textContent=(WINKEL_ICONS[w]||'🏪')+' '+w;
+    btn.addEventListener('click',function(){boodWinkelFilter=w;renderBoodschappen();});
     row.appendChild(btn);
   });
+  var edit=document.createElement('button');edit.className='bood-cat-btn';edit.textContent=winkels.length?'✏️':'🏪 Winkels instellen';
+  edit.setAttribute('aria-label','Winkels aanpassen');
+  edit.addEventListener('click',function(){
+    customPrompt('Jullie winkels, gescheiden door komma\'s:',getWinkels().join(', '),function(v){
+      var list=(v||'').split(',').map(function(s){return s.trim();}).filter(function(s,i,a){return s&&a.indexOf(s)===i;});
+      data.winkels=list;data.winkelsSet=true;saveToServer();renderBoodschappen();
+    },{placeholder:'Bv. AH, Lidl, Slager',okText:'Opslaan'});
+  });
+  row.appendChild(edit);
 }
 function renderBoodSuggestions(){
   var strip=document.getElementById('boodSuggestStrip');
@@ -3552,6 +3581,7 @@ function renderBoodSuggestions(){
   });
 }
 function renderBoodschappen(){
+  initBoodWinkelRow();
   renderVasteBoodschappen();
   renderBoodSuggestions();
   var list=document.getElementById('boodschappenList');list.innerHTML='';
@@ -3987,6 +4017,32 @@ function renderMeerStats(){
   }
   setCardBadge('openVerjaardagen',(data.verjaardagen||[]).filter(function(b){return daysUntilBirthday(b.datum)===0;}).length,'#e17055');
   if(typeof updateWiwSub==='function')updateWiwSub();
+  renderMeerFavorieten();
+}
+// "Veelgebruikt": de 4 tegels die op dit toestel het vaakst worden geopend (min. 3 keer),
+// bovenaan Meer. Kopieën van de echte tegels; een tik opent het origineel.
+function getMeerClicks(){try{return JSON.parse(localStorage.getItem('plannerMeerClicks')||'{}');}catch(e){return {};}}
+document.getElementById('meerView').addEventListener('click',function(e){
+  var card=e.target.closest('.meer-card');if(!card)return;
+  var id=card.id;if(!id)return; // een kopie roept orig.click() aan en telt zo via het origineel
+  var c=getMeerClicks();c[id]=(c[id]||0)+1;
+  try{localStorage.setItem('plannerMeerClicks',JSON.stringify(c));}catch(err){}
+},true);
+function renderMeerFavorieten(){
+  var wrap=document.getElementById('meerFavorieten'),grid=document.getElementById('meerFavGrid');if(!wrap||!grid)return;
+  var c=getMeerClicks();
+  var top=Object.keys(c).filter(function(id){return c[id]>=3&&document.getElementById(id);})
+    .sort(function(a,b){return c[b]-c[a];}).slice(0,4);
+  grid.innerHTML='';
+  if(!top.length){wrap.style.display='none';return;}
+  wrap.style.display='';
+  top.forEach(function(id){
+    var orig=document.getElementById(id);
+    var copy=orig.cloneNode(true);copy.removeAttribute('id');copy.dataset.for=id;
+    copy.querySelectorAll('[id]').forEach(function(n){n.removeAttribute('id');});
+    copy.addEventListener('click',function(ev){ev.stopPropagation();orig.click();});
+    grid.appendChild(copy);
+  });
 }
 
 document.getElementById('openBestellingen').addEventListener('click',function(){document.getElementById('bestellingenOverlay').classList.add('open');updateBestWieLabels();renderBestellingen();});
@@ -4209,6 +4265,18 @@ function renderStatistieken(){
 function renderRecurringList(){
   var list=document.getElementById('recList');list.innerHTML='';
   var recs=data.recurring||[];
+  // Koppelgesprek is optioneel: aan te zetten zolang het er nog niet is.
+  if(!recs.some(function(r){return r.koppelgesprek;})){
+    var kb=document.createElement('button');kb.className='add-card-btn secondary';kb.style.marginBottom='14px';
+    kb.textContent='💑 Koppelgesprek toevoegen — om de 2 weken, met gespreksvragen';
+    kb.addEventListener('click',function(){
+      if(!data.recurring)data.recurring=[];
+      var fri=addDays(today,(5-today.getDay()+7)%7); // eerstvolgende vrijdag (of vandaag)
+      data.recurring.push({id:uid(),text:'Koppelgesprek 💑',interval:'biweek',anchorDate:dateKey(fri.getFullYear(),fri.getMonth(),fri.getDate()),koppelgesprek:true,category:'samen',priority:'normaal',createdAt:todayKey()});
+      saveToServer();renderRecurringList();renderVandaag();renderCalendar();showToast('Koppelgesprek toegevoegd: om de twee weken op vrijdag');
+    });
+    list.appendChild(kb);
+  }
   if(!recs.length){var e=document.createElement('div');e.className='empty-msg';e.textContent='Nog geen vaste taken.';list.appendChild(e);return;}
   recs.forEach(function(r){
     var cat=getCat(r.category);var item=document.createElement('div');item.className='rec-list-item';
@@ -5722,7 +5790,7 @@ requestNotifPermission();
 // === VAKANTIES ===
 var activeVakId=null;
 function getVakanties(){if(!data.vakanties)data.vakanties=[];return data.vakanties;}
-function getVakantiePersonen(){if(!data.vakantiePersonen||!data.vakantiePersonen.length)data.vakantiePersonen=['Bas','Sanne','Lynn','Loïs'];return data.vakantiePersonen;}
+function getVakantiePersonen(){if(!data.vakantiePersonen||!data.vakantiePersonen.length)data.vakantiePersonen=defaultPersonen();return data.vakantiePersonen;}
 // ── Paklijst generator helpers ─────────────────────────────
 var PAK_TYPES={
   strand:{label:'🏖 Strand & zon',extra:['Zwemkleding','Zonnebrandcrème','Slippers','Strandlaken','Zonnebril','Hoed of pet']},
@@ -6377,6 +6445,11 @@ function applyWeather(json){
     localStorage.setItem('iosBannerDismissed','1');
   });
 })();
+
+// Service worker: app laadt ook zonder internet, en is installeerbaar (zie sw.js).
+if('serviceWorker' in navigator&&location.protocol!=='file:'){
+  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
+}
 
 // Offline indicator
 window.addEventListener('online',function(){showToast('Verbinding hersteld ✓');if(dbUrl)loadFromServer(false);});
