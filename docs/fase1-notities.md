@@ -39,3 +39,23 @@ gebeuren (en ook kinderen zonder account kunnen bevatten, bv. in `vakantiePerson
 De testversie zet `meta.schemaVersion = 1` alleen mee bij een gewone opslag, en de live-versie
 zet het niet. Een document zonder dit veld is dus gewoon versie 1.
 **Gevolg voor fase 1:** de import moet "ontbreekt" behandelen als versie 1.
+
+## 6. Stap 1.1: migraties toepassen loopt via de CLI, niet via de Claude-koppeling
+Bij het opbouwen van staging bleek dat de Supabase-koppeling van Claude bij elk statement met
+`drop` wacht op een bevestiging die in deze werkomgeving niet verschijnt (na 60 s afgebroken; er is
+dan niets uitgevoerd). Migratie 2 bevat `drop policy` en `drop function`, en een volledige
+herbouw van staging vraagt ook `drop`.
+**Gevolg:** schemawijzigingen met `drop` voeren we uit met de Supabase CLI (`supabase db push`)
+vanaf een eigen computer, zoals de roadmap ook voorschrijft. Dat is ook de juiste route voor 1.2.
+
+## 7. Bevindingen in het huidige schema (niet aangepast; voor 1.2)
+- De rollen `anon` en `authenticated` hebben alle tabelrechten (standaard bij Supabase). RLS laat
+  `anon` niets zien omdat er geen regels voor `anon` zijn, maar het intrekken van die rechten is een
+  extra slot op de deur.
+- De Supabase-adviseur meldt dat `create_household` en `accept_invite` als SECURITY DEFINER
+  aanroepbaar zijn voor ingelogde gebruikers. Dat is zo bedoeld (het zijn de RPC's van de app),
+  maar de roadmap vraagt in 1.2 "adviseurs zonder waarschuwingen": dan bewust accepteren en
+  documenteren, of de functies anders inrichten.
+- Het productieproject heet nog "bashoogstrajax@hotmail.com's Project"; hernoemen naar
+  bijvoorbeeld "huisplan-productie" (dashboard → Settings) voorkomt verwarring met staging.
+- Staging staat op het gratis abonnement en wordt na een week zonder activiteit gepauzeerd.

@@ -165,3 +165,14 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - De testversie (1.0.0 t/m 1.0.19, stappen 0.1 t/m 0.13) is overgenomen in de live-versie
   (`index.html`). Geen wijzigingen uit fase 1; nog steeds Firebase.
 - Enige verandering aan bestaande data: `meta.schemaVersion = 1` bij de eerstvolgende gewone opslag.
+
+## Fase 1, stap 1.1 — Supabase-omgevingen en migraties (geen app-wijziging)
+- Twee omgevingen: productie `tmkhpiomdnneeoscsjge` (bestaand, leeg) en staging
+  `rfgmaqqsjvsuibfucdrp` (nieuw, eu-west-1). Zie `supabase/README.md`.
+- De twee bestaande migraties staan letterlijk in `supabase/migrations/` (md5 gelijk aan productie).
+- `supabase/config.toml` voor de Supabase CLI; `supabase/tests/schema_fingerprint.sql` om staging
+  en productie te vergelijken.
+- `tests/supabase.test.js`: migratienamen en -volgorde, toegepaste migraties mogen niet meer
+  veranderen, geen service-role- of secret-sleutels in de repository, app gebruikt nog geen Supabase.
+- `.env` en `.env.*` in `.gitignore`.
+- Nog open: migratie 2 op staging en de vergelijking staging = productie (zie fase-1-notities, punt 6).
