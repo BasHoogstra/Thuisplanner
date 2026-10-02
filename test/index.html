@@ -1121,6 +1121,9 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .briefing-attn{display:flex;align-items:center;gap:8px;font-size:var(--fs-small);color:var(--text);padding:4px 0;}
 .briefing-attn .ic{color:var(--muted);}
 
+/* Eerlijke herinnering (0.10) */
+.reminder-note{margin:-2px 0 8px 26px;font-size:var(--fs-detail);line-height:18px;color:var(--muted);}
+
 /* Oude taken (0.5) */
 .overdue-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn);gap:8px;}
 .overdue-banner-text{font-size:var(--fs-small);font-weight:600;line-height:20px;}
@@ -1614,6 +1617,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
           <input type="time" id="newTaskReminder" style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;background:var(--bg);color:var(--text);" title="Herinneringstijd (optioneel)">
           <span style="font-size:12px;">Herinnering (optioneel)</span>
         </div>
+        <p class="reminder-note" id="reminderNote">Je krijgt een melding als Huisplan op dit toestel open is of op de achtergrond actief is.</p>
         <div class="multiday-dates" id="multiDayDates" style="display:none;">
           <input type="date" id="mdStartDate"><input type="date" id="mdEndDate">
         </div>
@@ -2180,7 +2184,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.15';
+var APP_VERSION='1.0.16';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -4059,7 +4063,7 @@ function bakjeToNotitie(item){
 }
 function bakjeDelete(item){
   var i=bakjeRemove(item);saveToServer();renderBakje();
-  showUndoToast('Weggegooid',function(){bakjeRestore(item,i);saveToServer();renderBakje();});
+  showUndoToast('Verwijderd',function(){bakjeRestore(item,i);saveToServer();renderBakje();});
 }
 function bakjePickDate(item){
   var p=parseQuickAdd(item.text);
@@ -4089,7 +4093,7 @@ function openBakjeItem(item){
   items.push({icon:'pencil',label:'Tekst aanpassen',onClick:function(){
     setTimeout(function(){customPrompt('Tekst aanpassen',item.text,function(v){v=String(v||'').trim();if(!v)return;item.text=v.slice(0,300);saveToServer();renderBakje();});},50);
   }});
-  items.push({icon:'trash',label:'Weggooien',danger:true,onClick:function(){bakjeDelete(item);}});
+  items.push({icon:'trash',label:'Verwijderen',danger:true,onClick:function(){bakjeDelete(item);}});
   var meta=[item.addedBy?'Van '+item.addedBy:'',bakjeAgo(item.addedAt)].filter(Boolean).join(' · ');
   ui.actionSheet(item.text,items,meta?ui.el('p','bakje-sheet-sub',meta):null);
 }
@@ -4108,7 +4112,7 @@ function renderBakje(){
     if(item.addedBy)meta.push(item.addedBy);
     meta.push(bakjeAgo(item.addedAt));
     if(g)meta.push(ui.el('span','tag',g.type==='taak'?'Taak '+bakjeWhere(g.p.key):'Boodschap?'));
-    var row=ui.row({title:item.text,meta:meta,swipeLabel:'Weggooien'});
+    var row=ui.row({title:item.text,meta:meta,swipeLabel:'Verwijderen'});
     row.classList.add('bakje-row');row.tabIndex=0;row.setAttribute('role','button');
     row.appendChild(row._body);
     var trail=ui.el('span','list-row__trail');trail.appendChild(ui.iconEl('chevron-right','sm'));row.appendChild(trail);
@@ -5400,7 +5404,7 @@ function renderOnderhoud(){
         saveToServer();renderOnderhoud();showToast('✓ Klaar! Volgende over '+o.intervalDays+' dagen.');
       },{okText:'Klaar'});
     });
-    var delBtn=document.createElement('button');delBtn.className='ond-del-btn';delBtn.textContent='Verwijder';
+    var delBtn=document.createElement('button');delBtn.className='ond-del-btn';delBtn.textContent='Verwijderen';
     if(o.foto){var oth=document.createElement('img');oth.className='foto-thumb';oth.src=o.foto;oth.addEventListener('click',function(){window.open(o.foto,'_blank');});item.appendChild(oth);}
     delBtn.addEventListener('click',function(){removeWithUndo(dataArr('onderhoud'),o,'Onderhoudstaak verwijderd',function(){renderOnderhoud();renderMeerStats();});});
     actions.appendChild(doneBtn);actions.appendChild(delBtn);item.appendChild(actions);
@@ -6223,13 +6227,12 @@ document.getElementById('closeBudgetBtn').addEventListener('click',function(){do
       done+=tasks.filter(function(t){return t.done;}).length;
     }
     if(total<3)return;
-    var pct=Math.round(done/total*100);
-    var emoji=pct>=90?'🏆':pct>=70?'🎉':pct>=50?'👍':'💪';
+    if(!done)return; // niets afgerond: geen melding (0.10)
     var banner=document.getElementById('weekScoreBanner');
     var txt=document.getElementById('weekScoreText');
     var close=document.getElementById('weekScoreClose');
     if(!banner||!txt)return;
-    txt.textContent=emoji+' Deze week '+done+' van '+total+' taken gedaan ('+pct+'%)!';
+    txt.textContent='Deze week samen '+done+(done===1?' taak':' taken')+' afgerond';
     banner.classList.add('visible');
     close.addEventListener('click',function(){
       localStorage.setItem('weekScoreDismissed_'+dateKey(now.getFullYear(),now.getMonth(),now.getDate()),'1');
@@ -6412,9 +6415,8 @@ function renderGezinsDNA(){
       var pct=Math.round(n/maxTaken*100);
       return {icon:'👤',text:a,val:n+(n===1?' taak':' taken')};
     });
-    if(dna.topPersoon){
-      makeCard('🏆','Meeste taken afgerond',dna.topPersoon,dna.topPersoonAantal+' taken in het logboek',false,true,100);
-    }
+    // Samen i.p.v. een winnaar (0.10); de verdeling per persoon staat eronder.
+    makeCard('✅','Samen afgerond',dna.totalTaken,'taken in het logboek',false,true);
     if(persPRows.length>1){makeInsightCard(persPRows,false);}
   }
 
@@ -6762,7 +6764,7 @@ function renderVakanties(){
   var vakTitle=ui.el('h2',null,activeVak.naam);
   var resetBtn=document.createElement('button');resetBtn.textContent='Reset afvinkjes';
   resetBtn.addEventListener('click',function(){getVakantiePersonen().forEach(function(p){(activeVak.paklijst[p]||[]).forEach(function(item){item.done=false;});});(activeVak.todos||[]).forEach(function(t){t.done=false;});saveToServer();renderVakanties();showToast('Afvinkjes gereset!');});
-  var delVakBtn=document.createElement('button');delVakBtn.textContent='Verwijder';
+  var delVakBtn=document.createElement('button');delVakBtn.textContent='Verwijderen';
   delVakBtn.addEventListener('click',function(){var gone=activeVak;customConfirm('Vakantie "'+gone.naam+'" verwijderen?',function(){
     removeWithUndo(dataArr('vakanties'),gone,'Vakantie verwijderd',function(){if(!(data.vakanties||[]).some(function(v){return v.id===activeVakId;}))activeVakId=(data.vakanties&&data.vakanties.length)?(data.vakanties.indexOf(gone)>-1?gone.id:data.vakanties[0].id):null;renderVakanties();renderMeerStats();});
   });});

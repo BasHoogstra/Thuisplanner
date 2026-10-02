@@ -119,3 +119,12 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   (zelfde als bovenaan Vandaag); aandachtspunten met lijn-iconen; geen emoji in koppen.
 - Inhoud, volgorde en het automatisch openen zijn ongewijzigd.
 - Afwijking: Weekoverzicht en Verlanglijstje zijn niet aangepast; die voldeden al na stap 3a.
+
+## 1.0.16 — Fase 0, stap 0.10 (testversie)
+- Herinnering: onder het tijdveld staat dat de melding alleen komt als Huisplan op dit toestel
+  open of op de achtergrond actief is (er zijn nog geen echte pushmeldingen; fase 4).
+- Woorden gelijkgetrokken: "Verwijder" en "Weggooien" zijn overal "Verwijderen".
+- Weekscore op vrijdag: geen percentage of oordeel meer, maar "Deze week samen N taken afgerond";
+  geen melding als er nog niets is afgerond.
+- Gezins-DNA: de kaart "Meeste taken afgerond" (een winnaar) is "Samen afgerond" geworden; de
+  verdeling per persoon blijft eronder staan.
