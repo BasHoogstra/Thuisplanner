@@ -42,6 +42,47 @@ Pas als staging klopt (zie *Controle* hieronder): dezelfde stappen met
 Nieuwe migratie: `npx supabase migration new korte_naam`, SQL schrijven, op staging toepassen,
 controleren, committen.
 
+### Regel: extensiefuncties altijd met `extensions.`
+
+De Supabase CLI (`db push`, `db reset --linked`) logt in als de tijdelijke rol `cli_login_postgres`.
+Die heeft geen eigen `search_path`, dus een migratie draait daar met `"$user", public`, **zonder**
+`extensions`. Het dashboard en de Claude-koppeling draaien als `postgres`, met
+`"$user", public, extensions`. Een functie uit een extensie zonder schemanaam werkt dus wel via het
+dashboard, maar faalt via de CLI (`function gen_random_bytes(integer) does not exist`).
+
+Daarom in elke migratie:
+- extensies expliciet: `create extension if not exists <naam> with schema extensions;`
+- functies uit extensies volledig: `extensions.gen_random_bytes(…)`, `extensions.crypt(…)`,
+  `extensions.uuid_generate_v4()` enzovoort. (`gen_random_uuid()` zit in Postgres zelf en mag zonder.)
+
+`tests/supabase.test.js` faalt als een migratie een bekende extensiefunctie zonder `extensions.` gebruikt.
+
+### Uitzondering op migratie 20261002064401
+
+Migraties die al in productie zijn uitgevoerd veranderen we normaal nooit. Voor
+`20261002064401_huishoudens_leden_items.sql` is één keer een bewuste uitzondering gemaakt
+(fase 1, stap 1.1), omdat `db reset --linked` op staging er anders op vastliep:
+
+- toegevoegd: `create extension if not exists pgcrypto with schema extensions;`
+- gewijzigd: `gen_random_bytes(18)` → `extensions.gen_random_bytes(18)` (standaardwaarde van
+  `household_invites.token`)
+
+| | md5 van het bestand |
+|---|---|
+| Zoals in productie uitgevoerd (2 okt 2026) | `d8f582e182523642a7c907c69f8190f7` |
+| Huidige versie in Git | `8e265fb9a05a12149af7737e43174b6b` |
+
+Gevolgen:
+- **De migratiehistorie van productie wijkt tekstueel af van Git.** In
+  `supabase_migrations.schema_migrations.statements` staat voor deze versie nog de oude tekst. Dat
+  is bewust zo gelaten.
+- **Het resulterende schema hoort gelijk te zijn.** In productie verwijst de standaardwaarde van
+  `household_invites.token` al naar `extensions.gen_random_bytes` (gecontroleerd met een leeg
+  `search_path`), en `pgcrypto` staat er al in `extensions`. De vingerafdruk hieronder moet dus op
+  staging en productie gelijk zijn.
+- **Productie voert dit bestand niet opnieuw uit.** De CLI vergelijkt alleen versienummers; versie
+  `20261002064401` staat al in productie.
+
 ## Controle: staging gelijk aan productie
 
 `tests/schema_fingerprint.sql` geeft een vingerafdruk van het app-schema (`public` en `private`):
@@ -59,5 +100,6 @@ md5 `3e81d04cd0775634d6bac6604db9aa3d`**.
 | `20261002064401` | `huishoudens_leden_items` | Tabellen `households`, `household_members`, `household_invites`, `items`; RLS; `create_household`, `accept_invite`; realtime op `items` |
 | `20261002064437` | `beveiliging_en_indexen_aanscherpen` | Hulpfuncties naar schema `private`, RLS-regels opnieuw met `(select auth.uid())`, rol-bescherming, indexen op verwijzingen |
 
-Beide bestanden zijn letterlijk de SQL die op 2 oktober 2026 in productie is uitgevoerd
-(gecontroleerd met md5 tegen `supabase_migrations.schema_migrations`).
+`20261002064437` is letterlijk de SQL die op 2 oktober 2026 in productie is uitgevoerd (md5 gelijk
+aan `supabase_migrations.schema_migrations`). `20261002064401` was dat ook, tot de bewuste
+uitzondering hierboven.

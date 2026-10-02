@@ -1,6 +1,12 @@
 -- Huisplan fase 1: huishoudens, leden, uitnodigingen en items.
 -- Toegang wordt in de database afgedwongen (RLS): alleen leden zien hun huishouden.
 
+-- pgcrypto levert gen_random_bytes. Op Supabase staat het in schema 'extensions'. De Supabase CLI
+-- voert migraties uit als cli_login_postgres, zonder 'extensions' in het search_path; daarom
+-- expliciet aanmaken (doet niets als het er al is) en volledig gekwalificeerd aanroepen.
+-- Toegevoegd na toepassen in productie; zie supabase/README.md ("Uitzondering op migratie 20261002064401").
+create extension if not exists pgcrypto with schema extensions;
+
 create table public.households (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(name) between 1 and 80),
@@ -21,7 +27,7 @@ create index household_members_user_idx on public.household_members(user_id);
 create table public.household_invites (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references public.households(id) on delete cascade,
-  token text not null unique default encode(gen_random_bytes(18), 'hex'),
+  token text not null unique default encode(extensions.gen_random_bytes(18), 'hex'),
   created_by uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default now() + interval '7 days',

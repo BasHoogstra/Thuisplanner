@@ -176,3 +176,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   veranderen, geen service-role- of secret-sleutels in de repository, app gebruikt nog geen Supabase.
 - `.env` en `.env.*` in `.gitignore`.
 - Nog open: migratie 2 op staging en de vergelijking staging = productie (zie fase-1-notities, punt 6).
+- Correctie: migratie `20261002064401` maakt `pgcrypto` nu expliciet aan en roept
+  `extensions.gen_random_bytes` aan. Zonder dat liep `supabase db reset --linked` vast, omdat de CLI
+  migraties uitvoert zonder `extensions` in het `search_path`. Bewuste uitzondering op "toegepaste
+  migraties veranderen niet": de productiehistorie wijkt daardoor tekstueel af van Git; het schema is
+  gelijk. Nieuwe test: geen extensiefuncties zonder `extensions.` in migraties.
