@@ -72,4 +72,21 @@ module.exports = {
     assert(state.db.boodschappen.some(b => b.id === 'b-melk'), 'Scrollen heeft de boodschap verwijderd');
     await c.close();
   },
+
+  async 'ongedaan maken blijft beschikbaar na een eerdere melding'(ctx) {
+    const fx = readFixture('huishouden.json');
+    const { page, state, ctx: c } = await openApp(ctx.browser, ctx.base, { data: fx });
+    await page.click('[data-view="boodschappenView"]');
+    await page.fill('#boodschapInput', 'Pindakaas');          // geeft de melding "Onder … geplaatst"
+    await page.press('#boodschapInput', 'Enter');
+    await page.waitForTimeout(600);
+    await page.click('#boodschappenList .list-row:has-text("Appels") .icon-btn[aria-label^="Opties"]');
+    await page.click('#addSheet .action-row:has-text("Verwijderen")');
+    await page.waitForTimeout(3000);                          // langer dan de eerste melding duurt
+    assert(await page.isVisible('#toast.show button'), '"Ongedaan maken" is verdwenen door de eerdere melding');
+    await page.click('#toast button');
+    await page.waitForTimeout(800);
+    assert(state.db.boodschappen.some(b => b.id === 'b-appels'), 'Ongedaan maken werkte niet');
+    await c.close();
+  },
 };

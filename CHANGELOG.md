@@ -41,3 +41,15 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Vaste taken op Vandaag hebben een menu met "Overslaan voor vandaag" (kon alleen met vegen).
 - Afwijking: bij notities, kluis, verjaardagen, recepten en gewoonten is de bevestigingsvraag
   vervangen door "Ongedaan maken", zodat alles op dezelfde manier werkt.
+
+## 1.0.4 — Fase 0, stap 0.5 (testversie)
+- Taken die automatisch naar vandaag worden doorgeschoven, krijgen het veld `movedFrom`
+  (oorspronkelijke datum) en tonen "oorspronkelijk di 27 sep". Oudere versies van de app laten
+  dit veld ongemoeid.
+- Onafgemaakte taken ouder dan 30 dagen bleven onzichtbaar op hun oude dag. Nu verschijnt op
+  Vandaag "Er staat 1 oude taak open" met de keuze Naar vandaag, Opnieuw plannen of Klaar,
+  elk met "Ongedaan maken"; bij meerdere ook "Alles naar vandaag".
+- Bugfix (hoort bij 0.4): een gewone melding verborg een direct daarna getoonde melding met
+  "Ongedaan maken" te vroeg, waardoor die niet meer aan te tikken was. Beide delen nu één timer.
+- Tests: `tests/oldtasks.test.js` en een regressietest in `tests/delete.test.js`; de
+  nagebootste database schermt de plannerlijst af zoals een goed beveiligde Firebase.

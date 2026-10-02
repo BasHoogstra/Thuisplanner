@@ -105,6 +105,8 @@ async function openApp(browser, base, opts = {}) {
       state.db = body; state.puts++; state.etag++; state.putBodies.push(body);
       return route.fulfill({ status: 200, headers: { ETag: 'e' + state.etag, 'content-type': 'application/json' }, body: req.postData() });
     }
+    // De lijst met alle planners is bij goed ingestelde regels afgeschermd (zoals in Firebase).
+    if (/\/planners\.json/.test(req.url())) return route.fulfill({ status: 401, body: '{"error":"Permission denied"}' });
     state.gets++;
     return route.fulfill({ status: 200, headers: { ETag: 'e' + state.etag, 'content-type': 'application/json' }, body: JSON.stringify(state.db) });
   });

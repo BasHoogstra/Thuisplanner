@@ -1017,6 +1017,11 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 #gezinsDnaOverlay .overlay-header{position:sticky;top:0;z-index:1;height:56px;margin:0 -16px 12px;padding:0 8px;background:var(--card);border-bottom:1px solid var(--border);}
 .dna-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
 
+/* Oude taken (0.5) */
+.overdue-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn);gap:8px;}
+.overdue-banner-text{font-size:var(--fs-small);font-weight:600;line-height:20px;}
+.overdue-banner-btn{height:36px;padding:0 12px;border-radius:var(--r-pill);background:var(--card);color:var(--text);font:600 14px var(--font);}
+
 /* Bewaking verhuisd / te oud */
 #writeGuardOverlay{z-index:300;}
 #writeGuardOverlay[hidden]{display:none;}
@@ -1292,7 +1297,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
     </section>
     <div id="vakBanner" hidden><span id="vakBannerText"></span></div>
     <div id="vervalBanner" hidden></div>
-    <div class="overdue-banner" id="overdueBanner"><span id="overdueBannerText" class="overdue-banner-text"></span><button id="overdueBannerBtn" class="overdue-banner-btn">Naar vandaag ›</button></div>
+    <div class="overdue-banner" id="overdueBanner"><span id="overdueBannerText" class="overdue-banner-text"></span><button id="overdueBannerBtn" class="overdue-banner-btn" type="button">Bekijken</button></div>
     <div class="vandaag-section">
       <div class="section-head">
         <h2>Vandaag</h2>
@@ -2065,7 +2070,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.3';
+var APP_VERSION='1.0.4';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -2184,7 +2189,8 @@ function showUndoToast(msg,undoFn,btnLabel){
   btn.addEventListener('click',function(){undoFn();e.classList.remove('show');});
   e.appendChild(txt);e.appendChild(btn);
   e.classList.add('show');
-  clearTimeout(showUndoToast._t);
+  // Eén gedeelde timer: een eerdere gewone melding mag deze niet voortijdig verbergen.
+  clearTimeout(showUndoToast._t);clearTimeout(showToast._t);
   showUndoToast._t=setTimeout(function(){e.classList.remove('show');e.innerHTML='';},4000);
 }
 // Eén manier van verwijderen (0.4): direct weg, met 'Ongedaan maken'. getArr zoekt de lijst
@@ -2227,7 +2233,7 @@ function sameName(a,b){return !!a&&!!b&&String(a).trim().toLowerCase()===String(
 function isMe(v){return v==='me'||sameName(v,myName);}
 function personColor(assignedTo){if(!assignedTo)return null;return isMe(assignedTo)?'var(--accent)':'#e67e22';}
 function nowTime(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());}
-function showToast(m){var e=document.getElementById('toast');e.textContent=m;e.classList.add('show');clearTimeout(showToast._t);showToast._t=setTimeout(function(){e.classList.remove('show');},2400);}
+function showToast(m){var e=document.getElementById('toast');e.textContent=m;e.classList.add('show');clearTimeout(showToast._t);clearTimeout(showUndoToast._t);showToast._t=setTimeout(function(){e.classList.remove('show');},2400);}
 function customConfirm(message,onYes,opts){
   opts=opts||{};
   var ov=document.getElementById('confirmOverlay');
@@ -3209,6 +3215,59 @@ document.getElementById('heroEditBtn').addEventListener('click',function openHer
   }),ui.el('p','hero-prefs-note','Er staan nooit meer dan '+HERO_MAX_PILLS+' items tegelijk, de dringendste eerst.'));
 });
 
+// ── Oude taken (0.5) ─────────────────────────────────────
+// Onafgemaakte taken van meer dan 30 dagen geleden. Ze blijven op hun datum staan tot iemand kiest.
+function getOldOpenTasks(){
+  var cutoffD=addDays(today,-30);var cutoffKey=dateKey(cutoffD.getFullYear(),cutoffD.getMonth(),cutoffD.getDate());
+  var out=[];
+  Object.keys(data.tasks||{}).sort().forEach(function(k){
+    if(k>=cutoffKey)return;
+    (data.tasks[k]||[]).forEach(function(t){if(t&&!t.done)out.push({key:k,task:t});});
+  });
+  return out;
+}
+function oldTaskAction(entry,action,toKey){
+  var from=entry.key,t=entry.task,arr=data.tasks[from];if(!arr)return;var idx=arr.indexOf(t);if(idx<0)return;
+  var prev={done:t.done,movedFrom:t.movedFrom};
+  if(action==='klaar'){t.done=true;logHuis('taak',t.text,myName||'');}
+  else{
+    arr.splice(idx,1);if(!data.tasks[toKey])data.tasks[toKey]=[];
+    if(!t.movedFrom)t.movedFrom=from;
+    data.tasks[toKey].push(t);
+  }
+  saveToServer();renderVandaag();renderCalendar();
+  showUndoToast(action==='klaar'?'Afgevinkt':'Verplaatst naar '+(toKey===todayKey()?'vandaag':formatDateShort(toKey)),function(){
+    if(action!=='klaar'){var a=data.tasks[toKey]||[],j=a.indexOf(t);if(j>-1)a.splice(j,1);if(!data.tasks[from])data.tasks[from]=[];data.tasks[from].splice(Math.min(idx,data.tasks[from].length),0,t);}
+    t.done=prev.done;if(prev.movedFrom===undefined)delete t.movedFrom;else t.movedFrom=prev.movedFrom;
+    saveToServer();renderVandaag();renderCalendar();
+  });
+}
+function openOldTask(entry){
+  ui.actionSheet(entry.task.text,[
+    {icon:'house',label:'Naar vandaag',onClick:function(){oldTaskAction(entry,'move',todayKey());}},
+    {icon:'calendar',label:'Opnieuw plannen…',onClick:function(){
+      openAddSheet(function(body){
+        body.appendChild(ui.el('div','sheet-heading','Op welke dag?'));
+        var inp=ui.el('input','field');inp.type='date';inp.value=todayKey();inp.setAttribute('aria-label','Datum');
+        var ok=ui.el('button','btn btn-primary btn-block','Inplannen');ok.type='button';ok.style.marginTop='12px';
+        ok.addEventListener('click',function(){var k=inp.value;if(!/^\d{4}-\d{2}-\d{2}$/.test(k)){showToast('Kies een datum');return;}closeAddSheet();oldTaskAction(entry,'move',k);});
+        body.appendChild(inp);body.appendChild(ok);
+      });
+    }},
+    {icon:'check',label:'Klaar',onClick:function(){oldTaskAction(entry,'klaar');}}
+  ],ui.el('p','bakje-sheet-sub','Stond op '+DAY_NAMES[weekday(entry.key)]+' '+formatDateShort(entry.key)));
+}
+document.getElementById('overdueBannerBtn').addEventListener('click',function(){
+  var old=getOldOpenTasks();if(!old.length)return;
+  if(old.length===1){openOldTask(old[0]);return;}
+  ui.actionSheet('Oude taken',old.map(function(e){
+    return {icon:'clock',label:e.task.text+' · '+formatDateShort(e.key),onClick:function(){setTimeout(function(){openOldTask(e);},60);}};
+  }).concat([{icon:'house',label:'Alles naar vandaag',onClick:function(){
+    getOldOpenTasks().forEach(function(e){var arr=data.tasks[e.key],i=arr.indexOf(e.task);if(i<0)return;arr.splice(i,1);if(!data.tasks[todayKey()])data.tasks[todayKey()]=[];if(!e.task.movedFrom)e.task.movedFrom=e.key;data.tasks[todayKey()].push(e.task);});
+    saveToServer();renderVandaag();renderCalendar();showToast('Oude taken staan nu op vandaag');
+  }}]));
+});
+
 function renderVandaag(){
   refreshToday();
   updateGreeting();loadWeather();
@@ -3246,12 +3305,20 @@ function renderVandaag(){
       overdue.forEach(function(o){
         var arr=data.tasks[o.key];if(!arr)return;var idx=arr.indexOf(o.task);if(idx>-1)arr.splice(idx,1);
         if(!data.tasks[tk])data.tasks[tk]=[];
+        // Oorspronkelijke datum bewaren, zodat zichtbaar blijft waar de taak vandaan komt (0.5).
+        if(!o.task.movedFrom)o.task.movedFrom=o.key;
         data.tasks[tk].push(o.task);
       });
       dayTasksRaw=data.tasks[tk];dayTasks=dayTasksRaw.slice().sort(function(a,b){return (prioOrder[a.priority||'normaal']||1)-(prioOrder[b.priority||'normaal']||1);});
       doneCount=dayTasks.filter(function(t){return t.done;}).length;totalCount=dayTasks.length+recToday.length;
       saveToServer();renderCalendar();
       showToast((overdue.length===1?'1 taak':overdue.length+' taken')+' van eerder doorgeschoven naar vandaag ↻');
+    }
+    // Taken ouder dan 30 dagen worden niet automatisch verplaatst; ze krijgen een melding (0.5).
+    var old=getOldOpenTasks();
+    if(odb&&old.length){
+      document.getElementById('overdueBannerText').textContent=old.length===1?'Er staat 1 oude taak open':'Er staan '+old.length+' oude taken open';
+      odb.classList.add('visible');
     }
   })();
   // ── Vanavond eten ─────────────────────────────────────────────
@@ -3382,6 +3449,7 @@ function renderVandaag(){
     if(t.assignedTo){var al=assignLabel(t.assignedTo);if(al)meta.push('voor '+al);}
     if(t.reminder&&t.reminder.time)meta.push([ui.iconEl('bell','xs'),t.reminder.time]);
     if(t.priority==='hoog'&&!t.done){var tag=ui.el('span','tag danger','Belangrijk');meta.push(tag);}
+    if(t.movedFrom&&t.movedFrom!==tk&&!t.done)meta.push([ui.iconEl('clock','xs'),'oorspronkelijk '+DAY_NAMES[weekday(t.movedFrom)]+' '+formatDateShort(t.movedFrom)]);
     var row=ui.row({title:t.text,done:t.done,meta:meta,swipeLabel:'Verwijderen'});
     var chk=ui.check({done:t.done,high:t.priority==='hoog',label:t.text},function(b){
       haptic(b.firstChild);t.done=!t.done;
