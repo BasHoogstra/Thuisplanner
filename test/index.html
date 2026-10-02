@@ -987,6 +987,31 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .season-banner .icon-btn,.week-score-banner .icon-btn{margin-left:auto;flex-shrink:0;}
 .name-banner{margin:0 16px 12px;border:1px solid var(--border);background:var(--card);border-radius:var(--r-lg);box-shadow:var(--sh-1);}
 
+/* ══ Vandaag | Week | Maand (stap 3b) ══ */
+.vandaag-seg{margin:4px 16px 12px;}
+.month-row{display:flex;align-items:center;justify-content:space-between;gap:4px;}
+.month-row__mid{display:flex;align-items:center;gap:8px;min-width:0;}
+.month-row__mid .month-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#vandaagKal .calendar{margin-top:4px;}
+
+/* ══ SCHERM: Bakje (stap 3b) ══ */
+.screen-intro{margin:-4px 16px 14px;font-size:var(--fs-small);line-height:20px;color:var(--muted);}
+.bakje-row{cursor:pointer;padding-left:16px;padding-right:10px;}
+.bakje-row:active{background:var(--surface-2);}
+.bakje-row .list-row__trail .ic{color:var(--subtle);}
+.bakje-sheet-sub{margin:-2px 0 10px;font-size:var(--fs-detail);color:var(--muted);overflow-wrap:anywhere;}
+
+/* Vakanties: paklijst in twee smalle kolommen, dus compacte rijen */
+.pak-add{display:flex;gap:6px;margin-bottom:8px;}
+.pak-add .field{height:44px;padding:0 10px;min-width:0;box-shadow:none;}
+.pak-add .btn-square{width:44px;height:44px;}
+.pak-list{margin:0;}
+.pak-list .list-row.compact{min-height:44px;gap:0;padding:0 8px 0 0;}
+.pak-list .check{width:40px;height:44px;}
+.pak-list .check__ring{width:22px;height:22px;}
+.pak-list .list-row__body{cursor:pointer;padding:10px 0;}
+.pak-list .list-row__title{font-size:15px;line-height:20px;overflow-wrap:break-word;-webkit-hyphens:auto;hyphens:auto;}
+
 /* ══ SCHERM: Boodschappen ══ */
 .bood-toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px 0 14px;}
 .bood-count{margin-left:auto;font-size:var(--fs-detail);color:var(--muted);}
@@ -1077,6 +1102,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .smart-hint{border-radius:var(--r-md);background:var(--surface-2);border:none;}
 /* Melding onderaan */
 .toast{border-radius:var(--r-md)!important;background:var(--text)!important;color:var(--bg)!important;box-shadow:var(--sh-2)!important;font:500 15px var(--font)!important;padding:12px 14px 12px 16px!important;}
+.toast.show button{pointer-events:auto;}/* de melding zelf laat tikken door, de knop niet */
 .toast button{border:none!important;background:rgba(127,127,127,.25)!important;color:inherit!important;border-radius:var(--r-sm)!important;height:32px;padding:0 10px!important;font:600 14px var(--font)!important;}
 .ond-del-btn,.gar-del-btn,.backlog-del-btn,.best-del,.kluis-del,.recept-del,.notitie-del,.budget-del,.vl-item-del{min-height:40px;padding:0 14px;border:1px solid var(--border)!important;border-radius:var(--r-md)!important;background:var(--card)!important;color:var(--danger)!important;font:600 14px var(--font)!important;cursor:pointer;}
 .ds-glyph-btn.ond-del-btn,.ds-glyph-btn.gar-del-btn,.ds-glyph-btn.backlog-del-btn,.ds-glyph-btn.best-del,.ds-glyph-btn.kluis-del,.ds-glyph-btn.recept-del,.ds-glyph-btn.notitie-del,.ds-glyph-btn.budget-del,.ds-glyph-btn.vl-item-del{border:none!important;padding:0!important;min-height:0;color:var(--subtle)!important;}
@@ -1219,6 +1245,12 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 
   <!-- VANDAAG -->
   <div class="view active" id="vandaagView">
+    <div class="seg vandaag-seg" id="vandaagSeg" role="tablist" aria-label="Weergave">
+      <button type="button" role="tab" class="is-active" data-mode="dag" aria-selected="true">Vandaag</button>
+      <button type="button" role="tab" data-mode="week" aria-selected="false">Week</button>
+      <button type="button" role="tab" data-mode="maand" aria-selected="false">Maand</button>
+    </div>
+    <div id="vandaagDag">
     <section class="hero" id="compactHeader" aria-label="Vandaag in het kort">
       <div class="hero__top">
         <div class="hero__text">
@@ -1258,27 +1290,35 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
       <div class="section-head"><h2>Komende dagen</h2></div>
       <div class="upcoming-strip" id="upcomingStrip"></div>
     </div>
+    </div>
+    <!-- Week en Maand (voorheen het tabblad Kalender) -->
+    <div id="vandaagKal" hidden>
+      <div class="month-row">
+        <button class="icon-btn" id="prevBtn" type="button" aria-label="Vorige"><svg class="ic"><use href="#i-chevron-left"/></svg></button>
+        <div class="month-row__mid">
+          <div class="month-title" id="navTitle"></div>
+          <button class="today-btn" id="todayBtn" type="button" hidden>Naar nu</button>
+        </div>
+        <button class="icon-btn" id="nextBtn" type="button" aria-label="Volgende"><svg class="ic"><use href="#i-chevron-right"/></svg></button>
+      </div>
+      <div class="calendar" id="calendarView">
+        <div class="weekdays"><span>ma</span><span>di</span><span>wo</span><span>do</span><span>vr</span><span>za</span><span>zo</span></div>
+        <div class="days" id="daysGrid"></div>
+      </div>
+      <div class="week-view" id="weekView" style="display:none;"></div>
+    </div>
   </div>
 
-  <!-- KALENDER -->
-  <div class="view" id="kalenderView">
-    <div class="view-tabs">
-      <button class="view-tab active" id="monthTab">📅 Maand</button>
-      <button class="view-tab" id="weekTab">📋 Week</button>
-    </div>
-    <div class="month-row">
-      <button class="icon-btn" id="prevBtn">‹</button>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <div class="month-title" id="navTitle"></div>
-        <button class="today-btn" id="todayBtn">Vandaag</button>
-      </div>
-      <button class="icon-btn" id="nextBtn">›</button>
-    </div>
-    <div class="calendar" id="calendarView">
-      <div class="weekdays"><span>ma</span><span>di</span><span>wo</span><span>do</span><span>vr</span><span>za</span><span>zo</span></div>
-      <div class="days" id="daysGrid"></div>
-    </div>
-    <div class="week-view" id="weekView" style="display:none;"></div>
+  <!-- BAKJE: alles wat je even kwijt wilt, later uitzoeken -->
+  <div class="view" id="bakjeView">
+    <h1 class="screen-title">Toevoegen</h1>
+    <p class="screen-intro">Zet hier alles neer wat je even kwijt wilt. Uitzoeken doe je later: tik op een item en maak er een taak, boodschap, idee of notitie van.</p>
+    <form class="input-row" id="bakjeForm" autocomplete="off">
+      <input type="text" class="field" id="bakjeInput" maxlength="300" enterkeyhint="done" placeholder="Wat schiet je te binnen?" aria-label="Iets toevoegen">
+      <button class="btn btn-primary btn-square" type="submit" aria-label="Toevoegen"><svg class="ic lg"><use href="#i-plus"/></svg></button>
+    </form>
+    <div id="bakjeList"></div>
+    <div style="height:24px"></div>
   </div>
 
   <!-- BOODSCHAPPEN -->
@@ -1373,7 +1413,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 
   <nav class="bottom-nav">
     <button class="nav-item active" data-view="vandaagView"><span class="nav-icon"><svg class="ic"><use href="#i-house"/></svg></span>Vandaag</button>
-    <button class="nav-item" data-view="kalenderView"><span class="nav-icon"><svg class="ic"><use href="#i-calendar"/></svg></span>Kalender</button>
+    <button class="nav-item" data-view="bakjeView"><span class="nav-icon"><svg class="ic"><use href="#i-plus"/></svg></span>Toevoegen</button>
     <button class="nav-item" data-view="boodschappenView"><span class="nav-icon"><svg class="ic"><use href="#i-cart"/></svg></span>Boodschappen</button>
     <button class="nav-item" data-view="meerView"><span class="nav-icon"><svg class="ic"><use href="#i-grid"/></svg></span>Meer</button>
   </nav>
@@ -2011,7 +2051,7 @@ var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','z
 var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
-var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[],verlanglijstjes:{},cadeaus:[],budget:[],budgetCustomCats:[],wieIsWaar:{}};
+var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[],verlanglijstjes:{},cadeaus:[],inbox:[],budget:[],budgetCustomCats:[],wieIsWaar:{}};
 var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -2437,7 +2477,7 @@ function normalizeData(inc){
   inc=isPlainObj(inc)?inc:{};
   ['tasks','notes','recurringDone'].forEach(function(k){if(!isPlainObj(inc[k]))inc[k]={};});
   Object.keys(inc.tasks).forEach(function(k){if(!Array.isArray(inc.tasks[k]))inc.tasks[k]=[];});
-  ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget','budgetCustomCats','gewoonten','verjaardagen','cadeaus','lijsten'].forEach(function(k){if(!Array.isArray(inc[k]))inc[k]=[];});
+  ['recurring','multiDayTasks','bestellingen','boodschappen','backlog','onderhoud','garanties','vakanties','vasteBoodschappen','boodschappenHistory','notities','vervaldata','briefjes','huisgeheugen','recepten','budget','budgetCustomCats','gewoonten','verjaardagen','cadeaus','lijsten','inbox'].forEach(function(k){if(!Array.isArray(inc[k]))inc[k]=[];});
   ['maaltijdplan','boodCatOverrides','gewoontenDone','verlanglijstjes','wieIsWaar','notitieboekMeta'].forEach(function(k){if(!isPlainObj(inc[k]))inc[k]={};});
   if(!Array.isArray(inc.vakantiePersonen)||!inc.vakantiePersonen.length)inc.vakantiePersonen=defaultPersonen();
   if(!inc.notitieboek)inc.notitieboek='';
@@ -2770,6 +2810,21 @@ function updateGreeting(){
   document.getElementById('greetingDate').textContent=days[now.getDay()]+' '+now.getDate()+' '+MONTH_NAMES[now.getMonth()]+' '+now.getFullYear();
 }
 
+// Gedeeld vanuit een andere app (Android, geïnstalleerde app): in het bakje zetten.
+function takeSharedIntoBakje(){
+  try{
+    var u=new URL(window.location.href),keys=['bakje_titel','bakje_tekst','bakje_url'];
+    if(!keys.some(function(k){return u.searchParams.has(k);}))return;
+    var parts=[];keys.forEach(function(k){var v=(u.searchParams.get(k)||'').trim();if(v&&parts.indexOf(v)===-1)parts.push(v);u.searchParams.delete(k);});
+    window.history.replaceState({},'',u.toString());
+    if(!parts.length)return;
+    if(!data.inbox)data.inbox=[];
+    data.inbox.push({id:uid(),text:parts.join(' ').replace(/\s+/g,' ').slice(0,300),addedBy:myName||null,addedAt:new Date().toISOString()});
+    saveToServer();renderBakje();
+    document.querySelector('[data-view="bakjeView"]').click();
+    showToast('Toegevoegd, uitzoeken kan later');
+  }catch(e){}
+}
 function init(){
   var urlDb=getParam('db'),urlP=getParam('p');
   var sDb=localStorage.getItem('plannerDbUrl'),sKey=localStorage.getItem('plannerKey');
@@ -2781,6 +2836,7 @@ function init(){
     try{var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);window.history.replaceState({},'',u.toString());}catch(e){}
     if(!myName)document.getElementById('nameBanner').style.display='flex';
     if(readCache())setSync('busy','Laatst bekende versie · bijwerken…');
+    takeSharedIntoBakje();
     loadFromServer(true);startAutoSync();
   } else {
     document.getElementById('setupOverlay').style.display='flex';
@@ -2845,10 +2901,12 @@ document.getElementById('shareBtn').addEventListener('click',doShare);
 var _clb=document.getElementById('copyLinkBtn');if(_clb)_clb.addEventListener('click',doShare);
 
 // Bottom nav
-var _navOrder=['vandaagView','kalenderView','boodschappenView','meerView'];
+var _navOrder=['vandaagView','bakjeView','boodschappenView','meerView'];
 document.querySelectorAll('.nav-item').forEach(function(btn){
   btn.addEventListener('click',function(){
     var curActive=document.querySelector('.view.active');
+    // Nogmaals op Vandaag tikken brengt je terug naar de dagweergave
+    if(curActive&&curActive.id==='vandaagView'&&btn.dataset.view==='vandaagView'){if(vandaagMode!=='dag')setVandaagMode('dag');window.scrollTo(0,0);return;}
     var curIdx=curActive?_navOrder.indexOf(curActive.id):-1;
     var newIdx=_navOrder.indexOf(btn.dataset.view);
     var dir=newIdx>=curIdx?'right':'left';
@@ -2857,8 +2915,8 @@ document.querySelectorAll('.nav-item').forEach(function(btn){
     btn.classList.add('active');
     var nv=document.getElementById(btn.dataset.view);
     nv.classList.add('active','slide-in-'+dir);
-    if(btn.dataset.view==='vandaagView')renderVandaag();
-    if(btn.dataset.view==='kalenderView')renderCalendar();
+    if(btn.dataset.view==='vandaagView'){if(vandaagMode==='dag')renderVandaag();else renderCalendar();}
+    if(btn.dataset.view==='bakjeView')renderBakje();
     if(btn.dataset.view==='boodschappenView'){renderBoodschappen();renderCadeaus();}
     if(btn.dataset.view==='meerView')renderMeerStats();
 
@@ -2926,7 +2984,7 @@ window.addEventListener('beforeinstallprompt',function(e){
 
 function renderAll(){
   if(typeof autoPrepVakantiePaklijsten==='function')autoPrepVakantiePaklijsten();
-  renderVandaag();renderCalendar();renderBoodschappen();renderCadeaus();renderMeerStats();
+  renderVandaag();renderCalendar();renderBakje();renderBoodschappen();renderCadeaus();renderMeerStats();
   if(document.getElementById('bestellingenOverlay').classList.contains('open'))renderBestellingen();
   if(document.getElementById('onderhoudOverlay').classList.contains('open'))renderOnderhoud();
   if(document.getElementById('backlogOverlay').classList.contains('open'))renderBacklog();
@@ -3415,7 +3473,7 @@ function quickAddSummary(p){
 })();
 
 // === KALENDER ===
-function renderCalendar(){if(calMode==='month')renderMonth();else renderWeek();}
+function renderCalendar(){if(calMode==='month')renderMonth();else renderWeek();updateTodayBtn();}
 
 function renderMonth(){
   document.getElementById('navTitle').textContent=MONTH_NAMES[viewMonth]+' '+viewYear;
@@ -3579,11 +3637,184 @@ function renderWeek(){
   }
 }
 
-document.getElementById('monthTab').addEventListener('click',function(){calMode='month';document.getElementById('monthTab').classList.add('active');document.getElementById('weekTab').classList.remove('active');document.getElementById('calendarView').style.display='';document.getElementById('weekView').style.display='none';renderCalendar();});
-document.getElementById('weekTab').addEventListener('click',function(){calMode='week';document.getElementById('weekTab').classList.add('active');document.getElementById('monthTab').classList.remove('active');document.getElementById('calendarView').style.display='none';document.getElementById('weekView').style.display='';renderCalendar();});
+// === VANDAAG | WEEK | MAAND ===
+// De kalender is geen eigen tabblad meer: Week en Maand zijn weergaven van Vandaag.
+var vandaagMode='dag';
+function setVandaagMode(mode){
+  vandaagMode=mode;
+  document.querySelectorAll('#vandaagSeg button').forEach(function(b){
+    var on=b.dataset.mode===mode;b.classList.toggle('is-active',on);b.setAttribute('aria-selected',on?'true':'false');
+  });
+  document.getElementById('vandaagDag').hidden=(mode!=='dag');
+  document.getElementById('vandaagKal').hidden=(mode==='dag');
+  if(mode==='dag'){renderVandaag();return;}
+  calMode=mode==='week'?'week':'month';
+  document.getElementById('calendarView').style.display=calMode==='month'?'':'none';
+  document.getElementById('weekView').style.display=calMode==='week'?'':'none';
+  renderCalendar();
+}
+document.getElementById('vandaagSeg').addEventListener('click',function(e){
+  var b=e.target.closest('button[data-mode]');if(!b||b.dataset.mode===vandaagMode)return;
+  setVandaagMode(b.dataset.mode);window.scrollTo(0,0);
+});
+// "Naar nu" alleen tonen als je een andere week of maand bekijkt
+function updateTodayBtn(){
+  var away=calMode==='month'?(viewYear!==today.getFullYear()||viewMonth!==today.getMonth()):(dateKey(viewWeekStart.getFullYear(),viewWeekStart.getMonth(),viewWeekStart.getDate())!==dateKey(getMonday(today).getFullYear(),getMonday(today).getMonth(),getMonday(today).getDate()));
+  document.getElementById('todayBtn').hidden=!away;
+}
 document.getElementById('prevBtn').addEventListener('click',function(){if(calMode==='month'){if(--viewMonth<0){viewMonth=11;viewYear--;}}else viewWeekStart=addDays(viewWeekStart,-7);renderCalendar();});
 document.getElementById('nextBtn').addEventListener('click',function(){if(calMode==='month'){if(++viewMonth>11){viewMonth=0;viewYear++;}}else viewWeekStart=addDays(viewWeekStart,7);renderCalendar();});
 document.getElementById('todayBtn').addEventListener('click',function(){viewYear=today.getFullYear();viewMonth=today.getMonth();viewWeekStart=getMonday(today);renderCalendar();});
+
+// === BAKJE ===
+// Snel iets kwijt zonder na te denken waar het hoort; later uitzoeken.
+// data.inbox = [{id, text, addedBy, addedAt (ISO-tijd)}]
+function bakjeAgo(iso){
+  var t=Date.parse(iso);if(!t)return '';
+  var min=Math.round((Date.now()-t)/60000);
+  if(min<1)return 'zojuist';if(min<60)return min+' min geleden';
+  var h=Math.round(min/60);if(h<24)return h+' uur geleden';
+  var d=Math.round(h/24);return d===1?'gisteren':d+' dagen geleden';
+}
+function bakjeWhere(key){
+  var tm=addDays(today,1);
+  if(key===todayKey())return 'vandaag';
+  if(key===dateKey(tm.getFullYear(),tm.getMonth(),tm.getDate()))return 'morgen';
+  return DAY_NAMES[weekday(key)]+' '+formatDateShort(key);
+}
+// Voorstel: een datum of tijd erin = taak; een bekend product = boodschap.
+function bakjeGuess(text){
+  var p=parseQuickAdd(text);
+  if(p.text&&(p.dateLabel||p.time||/\s(?:op\s+)?\d{1,2}[-\/]\d{1,2}(?=\s)/.test(' '+text+' ')))return {type:'taak',p:p};
+  if(text.split(/\s+/).length<=4&&autoBoodCat(text))return {type:'boodschap'};
+  return null;
+}
+function bakjeAdd(text){
+  text=String(text||'').trim();if(!text)return 0;
+  if(!data.inbox)data.inbox=[];
+  // Geplakte tekst met meerdere regels wordt één item per regel
+  var lines=text.split(/\r?\n/).map(function(l){return l.replace(/^[\s\-\*•·]+/,'').trim();}).filter(Boolean).slice(0,30);
+  var now=new Date().toISOString();
+  lines.forEach(function(l){data.inbox.push({id:uid(),text:l.slice(0,300),addedBy:myName||null,addedAt:now});});
+  saveToServer();renderBakje();
+  return lines.length;
+}
+function bakjeRemove(item){var i=(data.inbox||[]).indexOf(item);if(i>-1)data.inbox.splice(i,1);return i;}
+function bakjeRestore(item,i){if(!data.inbox)data.inbox=[];data.inbox.splice(Math.min(i<0?0:i,data.inbox.length),0,item);}
+// Item uit het bakje halen en ergens anders neerzetten, met ongedaan maken.
+function bakjeMove(item,doFn,undoFn,msg){
+  var i=bakjeRemove(item);
+  doFn();saveToServer();renderAll();
+  showUndoToast(msg,function(){undoFn();bakjeRestore(item,i);saveToServer();renderAll();});
+}
+function bakjeToTask(item,key,p){
+  p=p||parseQuickAdd(item.text);
+  var task={id:uid(),text:p.text||item.text,done:false,category:p.category,priority:p.priority,assignedTo:p.assignedTo,author:item.addedBy||myName||null,orderStatus:null,period:p.period||null,reminder:p.time?{date:key,time:p.time}:null};
+  bakjeMove(item,function(){if(!data.tasks[key])data.tasks[key]=[];data.tasks[key].push(task);},
+    function(){var a=data.tasks[key]||[],x=a.indexOf(task);if(x>-1)a.splice(x,1);},
+    'Taak voor '+bakjeWhere(key));
+  if(p.time){requestNotifPermission();scheduleReminders();}
+}
+function bakjeToBood(item){
+  var nk=item.text.toLowerCase().trim();
+  var b={id:uid(),text:item.text,done:false,cat:(data.boodCatOverrides&&data.boodCatOverrides[nk])||autoBoodCat(item.text)||'Overig',winkel:null,addedBy:item.addedBy||myName||null,addedDate:todayKey()};
+  bakjeMove(item,function(){if(!data.boodschappen)data.boodschappen=[];data.boodschappen.push(b);},
+    function(){var x=data.boodschappen.indexOf(b);if(x>-1)data.boodschappen.splice(x,1);},
+    'Op de boodschappenlijst');
+}
+function bakjeToLijst(item,l){
+  var it={id:uid(),text:item.text,done:false,addedBy:item.addedBy||myName||null,addedDate:todayKey()};
+  bakjeMove(item,function(){if(!Array.isArray(l.items))l.items=[];l.items.push(it);},
+    function(){var x=l.items.indexOf(it);if(x>-1)l.items.splice(x,1);},
+    'Op de lijst '+String(l.naam||'').replace(/^[^\wÀ-ÿ]+/,''));
+}
+function bakjeToBacklog(item){
+  var b={id:uid(),text:item.text,category:'huis',priority:'normaal',addedDate:todayKey()};
+  bakjeMove(item,function(){if(!data.backlog)data.backlog=[];data.backlog.push(b);},
+    function(){var x=data.backlog.indexOf(b);if(x>-1)data.backlog.splice(x,1);},
+    'Naar de backlog');
+}
+function bakjeToNotitie(item){
+  var now=new Date();
+  var n={id:uid(),titel:item.text.length>40?item.text.slice(0,40)+'…':item.text,tekst:item.text,editedBy:item.addedBy||myName||'',editedAt:pad(now.getHours())+':'+pad(now.getMinutes())};
+  bakjeMove(item,function(){if(!data.notities)data.notities=[];data.notities.unshift(n);},
+    function(){var x=data.notities.indexOf(n);if(x>-1)data.notities.splice(x,1);},
+    'Bewaard in het notitieboek');
+}
+function bakjeDelete(item){
+  var i=bakjeRemove(item);saveToServer();renderBakje();
+  showUndoToast('Weggegooid',function(){bakjeRestore(item,i);saveToServer();renderBakje();});
+}
+function bakjePickDate(item){
+  var p=parseQuickAdd(item.text);
+  openAddSheet(function(body){
+    body.appendChild(ui.el('div','sheet-heading','Taak op welke dag?'));
+    body.appendChild(ui.el('p','bakje-sheet-sub',p.text||item.text));
+    var inp=ui.el('input','field');inp.type='date';inp.value=p.key>todayKey()?p.key:todayKey();inp.setAttribute('aria-label','Datum');
+    var ok=ui.el('button','btn btn-primary btn-block','Inplannen');ok.type='button';ok.style.marginTop='12px';
+    ok.addEventListener('click',function(){var k=inp.value;if(!/^\d{4}-\d{2}-\d{2}$/.test(k)){showToast('Kies een datum');return;}closeAddSheet();bakjeToTask(item,k,p);});
+    body.appendChild(inp);body.appendChild(ok);
+  });
+}
+function bakjePickLijst(item){
+  ui.actionSheet('Op welke lijst?',(data.lijsten||[]).map(function(l){
+    return {icon:'list-todo',label:String(l.naam||'Lijst').replace(/^[^\wÀ-ÿ]+/,''),onClick:function(){bakjeToLijst(item,l);}};
+  }));
+}
+function openBakjeItem(item){
+  var g=bakjeGuess(item.text),p=g&&g.type==='taak'?g.p:null;
+  var taak={icon:'check',label:p?'Taak voor '+bakjeWhere(p.key)+(p.time?' om '+p.time:''):'Taak voor vandaag',onClick:function(){bakjeToTask(item,p?p.key:todayKey(),p);}};
+  var bood={icon:'cart',label:'Op de boodschappenlijst',onClick:function(){bakjeToBood(item);}};
+  var items=g&&g.type==='boodschap'?[bood,taak]:[taak,bood];
+  items.splice(1,0,{icon:'calendar',label:'Taak op een andere dag…',onClick:function(){bakjePickDate(item);}});
+  if((data.lijsten||[]).length)items.push({icon:'list-todo',label:'Op een eigen lijst…',onClick:function(){bakjePickLijst(item);}});
+  items.push({icon:'sparkles',label:'Naar de backlog (ooit)',onClick:function(){bakjeToBacklog(item);}});
+  items.push({icon:'notebook',label:'Bewaren als notitie',onClick:function(){bakjeToNotitie(item);}});
+  items.push({icon:'pencil',label:'Tekst aanpassen',onClick:function(){
+    setTimeout(function(){customPrompt('Tekst aanpassen',item.text,function(v){v=String(v||'').trim();if(!v)return;item.text=v.slice(0,300);saveToServer();renderBakje();});},50);
+  }});
+  items.push({icon:'trash',label:'Weggooien',danger:true,onClick:function(){bakjeDelete(item);}});
+  var meta=[item.addedBy?'Van '+item.addedBy:'',bakjeAgo(item.addedAt)].filter(Boolean).join(' · ');
+  ui.actionSheet(item.text,items,meta?ui.el('p','bakje-sheet-sub',meta):null);
+}
+function renderBakje(){
+  var items=(data.inbox||[]).filter(function(x){return x&&x.text;});
+  var nb=document.querySelector('[data-view="bakjeView"]');
+  if(nb){var bb=nb.querySelector('.nav-badge');if(!bb){bb=document.createElement('span');bb.className='nav-badge';nb.appendChild(bb);}if(items.length){bb.textContent=items.length;bb.style.display='';}else bb.style.display='none';}
+  var wrap=document.getElementById('bakjeList');if(!wrap)return;
+  wrap.innerHTML='';
+  if(!items.length){var e=ui.empty('Niets meer uit te zoeken','Een idee, iets om te kopen of iets wat geregeld moet worden? Zet het hier neer en geef het later een plek.');e.style.marginTop='16px';wrap.appendChild(e);return;}
+  var lab=ui.el('div','section-label','Uitzoeken ('+items.length+')');wrap.appendChild(lab);
+  var list=ui.el('div','list');
+  items.slice().sort(function(a,b){return String(b.addedAt||'').localeCompare(String(a.addedAt||''));}).forEach(function(item){
+    var g=bakjeGuess(item.text);
+    var meta=[];
+    if(item.addedBy)meta.push(item.addedBy);
+    meta.push(bakjeAgo(item.addedAt));
+    if(g)meta.push(ui.el('span','tag',g.type==='taak'?'Taak '+bakjeWhere(g.p.key):'Boodschap?'));
+    var row=ui.row({title:item.text,meta:meta,swipeLabel:'Weggooien'});
+    row.classList.add('bakje-row');row.tabIndex=0;row.setAttribute('role','button');
+    row.appendChild(row._body);
+    var trail=ui.el('span','list-row__trail');trail.appendChild(ui.iconEl('chevron-right','sm'));row.appendChild(trail);
+    row.addEventListener('click',function(){openBakjeItem(item);});
+    row.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();openBakjeItem(item);}});
+    addSwipe(row,function(){bakjeDelete(item);});
+    list.appendChild(row);
+  });
+  wrap.appendChild(list);
+}
+document.getElementById('bakjeForm').addEventListener('submit',function(e){
+  e.preventDefault();
+  var inp=document.getElementById('bakjeInput');
+  var n=bakjeAdd(inp.value);if(!n)return;
+  inp.value='';inp.focus();
+  if(n>1)showToast(n+' dingen toegevoegd');
+});
+// Plakken van meerdere regels: direct als losse items toevoegen
+document.getElementById('bakjeInput').addEventListener('paste',function(e){
+  var t=(e.clipboardData||window.clipboardData);t=t&&t.getData('text');
+  if(t&&/\n/.test(t.trim())){e.preventDefault();var n=bakjeAdd(t);if(n)showToast(n+' dingen toegevoegd');}
+});
 
 // === DAY SHEET ===
 function openDay(key){
@@ -5297,6 +5528,7 @@ document.getElementById('zoekInput').addEventListener('input',function(){
   // Bestellingen
   (data.bestellingen||[]).forEach(function(b){if(b.text.toLowerCase().indexOf(q)>-1)hits.push({icon:'📦',text:b.text,sub:STATUS_LABEL[b.status]||'',section:'Bestellingen',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.getElementById('bestellingenOverlay').classList.add('open');renderBestellingen();}});});
   // Backlog
+  (data.inbox||[]).forEach(function(b){if(b&&b.text&&b.text.toLowerCase().indexOf(q)>-1)hits.push({icon:'📥',text:b.text,sub:'Toevoegen, nog uitzoeken'+(b.addedBy?' · '+b.addedBy:''),section:'Toevoegen',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.querySelector('[data-view="bakjeView"]').click();}});});
   (data.backlog||[]).forEach(function(b){if(b.text.toLowerCase().indexOf(q)>-1)hits.push({icon:'📋',text:b.text,sub:'Backlog',section:'Backlog',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.getElementById('backlogOverlay').classList.add('open');renderBacklog();}});});
   // Notities
   (data.notities||[]).forEach(function(n){if((n.titel&&n.titel.toLowerCase().indexOf(q)>-1)||(n.tekst&&n.tekst.toLowerCase().indexOf(q)>-1))hits.push({icon:'📝',text:n.titel||'Naamloos',sub:n.tekst?n.tekst.slice(0,60)+'…':'',section:'Notitieboek',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.getElementById('notitieboekOverlay').classList.add('open');renderNotities();}});});
@@ -6441,10 +6673,9 @@ function renderVakanties(){
       var items=activeVak.paklijst[person]||(activeVak.paklijst[person]=[]);
       var sec=document.createElement('div');sec.style.cssText='min-width:0;';
       var hdr=document.createElement('div');hdr.style.cssText='font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;';hdr.textContent=displayName;sec.appendChild(hdr);
-      var addRow=document.createElement('div');addRow.style.cssText='display:flex;gap:6px;margin-bottom:8px;';
-      var inp=document.createElement('input');inp.type='text';inp.placeholder='Item toevoegen…';
-      inp.style.cssText='flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:16px;background:var(--bg);color:var(--text);';
-      var aib=document.createElement('button');aib.textContent='+';aib.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 12px;font-size:18px;cursor:pointer;';
+      var addRow=ui.el('div','pak-add');
+      var inp=ui.el('input','field');inp.type='text';inp.placeholder='Toevoegen…';inp.setAttribute('aria-label','Item toevoegen voor '+displayName);inp.setAttribute('enterkeyhint','done');
+      var aib=ui.el('button','btn btn-primary btn-square');aib.type='button';aib.setAttribute('aria-label','Toevoegen');aib.innerHTML=icon('plus');
       (function(p,list,input,btn){
   var _busy=false;
   function doAdd(){if(_busy)return;var t=input.value.trim();if(!t)return;_busy=true;list.push({id:uid(),text:t,done:false});input.value='';saveToServer();renderVakanties();_busy=false;}
@@ -6458,17 +6689,22 @@ function renderVakanties(){
 })(person,items,inp,aib);
       addRow.appendChild(inp);addRow.appendChild(aib);sec.appendChild(addRow);
       var sortedItems=items.slice().sort(function(a,b){return (a.done?1:0)-(b.done?1:0);});
+      var pl=ui.el('div','list pak-list');
       sortedItems.forEach(function(item){
-        var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:5px;';
-        var chk=document.createElement('div');chk.style.cssText='width:20px;height:20px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:10px;color:#fff;'+(item.done?'background:var(--accent);':'');chk.textContent=item.done?'✓':'';
-        chk.addEventListener('click',function(){item.done=!item.done;saveToServer();renderVakanties();});
-        var txt=document.createElement('span');txt.style.cssText='flex:1;font-size:13px;'+(item.done?'text-decoration:line-through;color:var(--done);':'');txt.textContent=item.text;
-        var editBtn=document.createElement('button');editBtn.textContent='\u270f';editBtn.title='Bewerken';editBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px;';
-        var del=document.createElement('button');del.textContent='✕';del.style.cssText='background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px;';
-        (function(p,it,r,t){editBtn.addEventListener('click',function(){var inp=document.createElement('input');inp.type='text';inp.value=it.text;inp.style.cssText='flex:1;font-size:13px;border:1px solid var(--accent);border-radius:6px;padding:2px 6px;background:var(--card);color:var(--text);min-width:0;';var _done=false;function save(){if(_done)return;_done=true;var v=inp.value.trim();if(v)it.text=v;saveToServer();renderVakanties();}inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();save();}if(e.key==='Escape'){_done=true;renderVakanties();}});inp.addEventListener('blur',save);r.replaceChild(inp,t);setTimeout(function(){inp.focus();inp.select();},50);});})(person,item,row,txt);
-        (function(p,it){del.addEventListener('click',function(){var arr=activeVak.paklijst[p];var idx=arr.indexOf(it);if(idx>-1)arr.splice(idx,1);saveToServer();renderVakanties();});})(person,item);
-        row.appendChild(chk);row.appendChild(txt);row.appendChild(editBtn);row.appendChild(del);sec.appendChild(row);
+        var row=ui.row({title:item.text,done:item.done,compact:true,swipeLabel:'Weg'});
+        function remove(){var arr=activeVak.paklijst[person];var idx=arr.indexOf(item);if(idx>-1)arr.splice(idx,1);saveToServer();renderVakanties();}
+        row.appendChild(ui.check({done:item.done,label:item.text},function(){item.done=!item.done;saveToServer();renderVakanties();}));
+        row.appendChild(row._body);
+        row._body.addEventListener('click',function(){
+          ui.actionSheet(item.text,[
+            {icon:'pencil',label:'Tekst aanpassen',onClick:function(){setTimeout(function(){customPrompt('Tekst aanpassen',item.text,function(v){v=String(v||'').trim();if(!v)return;item.text=v;saveToServer();renderVakanties();});},50);}},
+            {icon:'trash',label:'Verwijderen',danger:true,onClick:remove}
+          ]);
+        });
+        addSwipe(row,remove);
+        pl.appendChild(row);
       });
+      if(items.length)sec.appendChild(pl);
       if(!items.length){var em=document.createElement('div');em.style.cssText='font-size:12px;color:var(--muted);padding:4px 2px;';em.textContent='Geen items.';sec.appendChild(em);}
       pakGrid.appendChild(sec);
     });
@@ -6655,7 +6891,7 @@ document.getElementById('addSheetBackdrop').addEventListener('click',closeAddShe
 
 // === SWIPE TABS ===
 (function(){
-  var views=['vandaagView','kalenderView','boodschappenView','meerView'];
+  var views=['vandaagView','bakjeView','boodschappenView','meerView'];
   var mainEl=document.getElementById('views');if(!mainEl)return;
   var sx=0,sy=0,isDrag=false;
   mainEl.addEventListener('touchstart',function(e){sx=e.touches[0].clientX;sy=e.touches[0].clientY;isDrag=true;},{passive:true});
@@ -6671,7 +6907,7 @@ document.getElementById('addSheetBackdrop').addEventListener('click',closeAddShe
     document.getElementById(views[next]).classList.add('active');
     document.querySelector('[data-view="'+views[next]+'"]').classList.add('active');
     if(views[next]==='vandaagView')renderVandaag();
-    if(views[next]==='kalenderView')renderCalendar();
+    if(views[next]==='bakjeView')renderBakje();
     if(views[next]==='boodschappenView'){renderBoodschappen();renderCadeaus();}
     if(views[next]==='meerView')renderMeerStats();
   },{passive:true});
