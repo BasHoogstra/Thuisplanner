@@ -53,3 +53,15 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   "Ongedaan maken" te vroeg, waardoor die niet meer aan te tikken was. Beide delen nu één timer.
 - Tests: `tests/oldtasks.test.js` en een regressietest in `tests/delete.test.js`; de
   nagebootste database schermt de plannerlijst af zoals een goed beveiligde Firebase.
+
+## 1.0.5 — Fase 0, stap 0.6 (testversie)
+- Dagvenster (Dag openen, plus in Week, dag in Maand) gebruikt dezelfde rijen als Vandaag:
+  afvinkcirkel, gegevens in één regel, menu per taak. Alles wat eerder losse knopjes waren zit
+  in dat menu: bewerken, verplaatsen naar een datum, toewijzen, bestelstatus (besteld → geleverd
+  → weg), verwijderen met ongedaan maken, reacties. Vegen om te verwijderen blijft.
+- Het invoerformulier is volledig gebleven; categorie, prioriteit, voor wie, dagdeel, meerdere
+  dagen en herinnering staan achter "Meer opties". De opgeslagen taak is identiek aan voorheen (getest).
+- Het actiemenu kan nu ook boven het dagvenster openen (stond eronder).
+- `recIntervalLabel` sorteert de dagen niet meer in de data zelf.
+- Bekend, ongewijzigd gelaten: afvinken in het dagvenster schrijft geen regel in het
+  Huisgeheugen, afvinken op Vandaag wel (was al zo).

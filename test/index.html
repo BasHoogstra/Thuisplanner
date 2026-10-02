@@ -1017,6 +1017,20 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 #gezinsDnaOverlay .overlay-header{position:sticky;top:0;z-index:1;height:56px;margin:0 -16px 12px;padding:0 8px;background:var(--card);border-bottom:1px solid var(--border);}
 .dna-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
 
+/* Dagvenster in het design system (0.6) */
+#sheetOverlay .sec-label{font-size:var(--fs-label);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 2px 6px;}
+#sheetOverlay .list{margin:0;}
+#sheetOverlay .empty{margin:0;}
+.sheet-add{margin:12px 0 0;}
+.sheet-more-btn{margin:8px 0 4px;color:var(--muted);gap:6px;}
+.sheet-more-btn[aria-expanded="true"] .ic{transform:rotate(180deg);}
+#sheetMoreOpts{padding-top:4px;}
+.tag.ok{background:var(--ok-soft,#e3f3ea);color:var(--green);}
+
+/* Het actiemenu (bottom sheet) moet ook boven het dagvenster (.overlay, z 80) kunnen openen (0.6) */
+.add-sheet-backdrop{z-index:85;}
+.add-sheet{z-index:86;}
+
 /* Oude taken (0.5) */
 .overdue-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn);gap:8px;}
 .overdue-banner-text{font-size:var(--fs-small);font-weight:600;line-height:20px;}
@@ -1453,19 +1467,19 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
     <div class="sheet-title" id="sheetTitle"></div>
     <div class="sheet-scroll">
       <div class="notes-section">
-        <div class="sec-label">📝 Notitie</div>
+        <div class="sec-label">Notitie</div>
         <textarea class="notes-area" id="notesArea" placeholder="Schrijf een notitie voor deze dag…" rows="2"></textarea>
       </div>
       <div class="rec-section" id="recSection" style="display:none;">
-        <div class="sec-label">↻ Vaste taken vandaag</div>
+        <div class="sec-label">Vaste taken</div>
         <div id="recTaskList"></div>
       </div>
       <div class="multiday-section" id="mdSection" style="display:none;">
-        <div class="sec-label">📅 Meerdag-taken</div>
+        <div class="sec-label">Meerdere dagen</div>
         <div id="mdTaskList"></div>
       </div>
       <div class="tasks-section">
-        <div class="sec-label">✅ Taken</div>
+        <div class="sec-label">Taken</div>
         <div id="taskList"></div>
       </div>
       <div class="smart-hint" id="smartDayHint">
@@ -1473,11 +1487,13 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
         <button class="smart-hint-btn" id="smartDayHintBtn" style="display:none;"></button>
       </div>
       <div class="add-section">
-        <div class="add-row">
-          <input type="text" id="newTaskInput" placeholder="Nieuwe taak…" maxlength="200" autocomplete="off">
-          <button id="addTaskBtn">+</button>
+        <div class="input-row sheet-add">
+          <input type="text" class="field" id="newTaskInput" placeholder="Nieuwe taak…" maxlength="200" autocomplete="off" aria-label="Nieuwe taak voor deze dag">
+          <button class="btn btn-primary btn-square" id="addTaskBtn" type="button" aria-label="Taak toevoegen"><svg class="ic lg"><use href="#i-plus"/></svg></button>
         </div>
         <div class="autocomplete-list" id="autocompleteList"></div>
+        <button class="btn btn-ghost btn-sm sheet-more-btn" id="sheetMoreBtn" type="button" aria-expanded="false" aria-controls="sheetMoreOpts"><svg class="ic xs"><use href="#i-chevron-down"/></svg>Meer opties</button>
+        <div id="sheetMoreOpts" hidden>
         <div class="meta-row">
           <select class="meta-select" id="newTaskCat">
             <option value="huis">🏠 Huis</option><option value="samen">💜 Samen</option>
@@ -1507,6 +1523,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
         </div>
         <div class="multiday-dates" id="multiDayDates" style="display:none;">
           <input type="date" id="mdStartDate"><input type="date" id="mdEndDate">
+        </div>
         </div>
       </div>
     </div>
@@ -2070,7 +2087,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.4';
+var APP_VERSION='1.0.5';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -3987,6 +4004,7 @@ document.getElementById('bakjeInput').addEventListener('paste',function(e){
 // === DAY SHEET ===
 function openDay(key){
   openDateKey=key;
+  var mo=document.getElementById('sheetMoreOpts');if(mo){mo.hidden=true;document.getElementById('sheetMoreBtn').setAttribute('aria-expanded','false');}
   document.getElementById('sheetTitle').textContent=formatTitle(key);
   document.getElementById('newTaskInput').value='';
   selectedPeriod='';document.querySelectorAll('.period-btn').forEach(function(b){b.classList.toggle('active',b.dataset.period==='');});
@@ -4022,90 +4040,133 @@ document.getElementById('multiDayToggle').addEventListener('change',function(){d
 
 function renderRecurring(){
   if(!openDateKey)return;
-  var recs=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,openDateKey);});
+  var key=openDateKey;
+  var recs=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,key);});
   var sec=document.getElementById('recSection'),list=document.getElementById('recTaskList');list.innerHTML='';
   if(!recs.length){sec.style.display='none';return;}sec.style.display='';
-  var done=(data.recurringDone&&data.recurringDone[openDateKey])||[];
+  var done=(data.recurringDone&&data.recurringDone[key])||[];
+  var l=ui.el('div','list');
   recs.forEach(function(r){
-    var isDone=done.indexOf(r.id)>-1;
-    var item=document.createElement('div');item.className='rec-task-item';
-    var check=document.createElement('div');check.className='rec-check'+(isDone?' checked':'');check.textContent=isDone?'✓':'';
-    check.addEventListener('click',function(){
-      if(!data.recurringDone)data.recurringDone={};if(!data.recurringDone[openDateKey])data.recurringDone[openDateKey]=[];
-      var idx=data.recurringDone[openDateKey].indexOf(r.id);
-      if(idx>-1)data.recurringDone[openDateKey].splice(idx,1);else data.recurringDone[openDateKey].push(r.id);
-      saveToServer();renderRecurring();renderCalendar();
-    });
-    var cat=getCat(r.category);var txt=document.createElement('div');txt.className='rec-text'+(isDone?' done':'');txt.textContent=cat.emoji+' '+r.text;
-    item.appendChild(check);item.appendChild(txt);list.appendChild(item);
+    var isDone=done.indexOf(r.id)>-1,cat=getCat(r.category);
+    var row=ui.row({title:r.text,done:isDone,compact:true,meta:[[ui.iconEl('repeat','xs'),recIntervalLabel(r)],[ui.dot(cat.color),cat.label]]});
+    row.appendChild(ui.check({done:isDone,label:r.text},function(){
+      if(!data.recurringDone)data.recurringDone={};if(!data.recurringDone[key])data.recurringDone[key]=[];
+      var idx=data.recurringDone[key].indexOf(r.id);
+      if(idx>-1)data.recurringDone[key].splice(idx,1);else data.recurringDone[key].push(r.id);
+      saveToServer();renderRecurring();renderCalendar();renderVandaag();
+    }));
+    row.appendChild(row._body);l.appendChild(row);
   });
+  list.appendChild(l);
 }
 function renderMdTasks(){
   if(!openDateKey)return;
   var mds=(data.multiDayTasks||[]).filter(function(md){return md.startDate<=openDateKey&&md.endDate>=openDateKey;});
   var sec=document.getElementById('mdSection'),list=document.getElementById('mdTaskList');list.innerHTML='';
   if(!mds.length){sec.style.display='none';return;}sec.style.display='';
+  var l=ui.el('div','list');
   mds.forEach(function(md){
-    var cat=getCat(md.category);var item=document.createElement('div');item.className='md-sheet-item prio-'+(md.priority||'normaal');item.style.borderLeftColor=cat.color;
-    var check=document.createElement('div');check.className='md-done-check'+(md.done?' checked':'');check.textContent=md.done?'✓':'';
-    check.addEventListener('click',function(){md.done=!md.done;saveToServer();renderMdTasks();renderCalendar();});
-    var body=document.createElement('div');body.className='md-body';
-    var txt=document.createElement('div');txt.className='md-text'+(md.done?' done':'');txt.textContent=cat.emoji+' '+md.text;
-    var range=document.createElement('div');range.className='md-range';range.textContent=formatDateShort(md.startDate)+' → '+formatDateShort(md.endDate);
-    if(md.assignedTo){var al=assignLabel(md.assignedTo);if(al)range.textContent+=' · voor '+al;}
-    body.appendChild(txt);body.appendChild(range);
-    var del=document.createElement('button');del.className='task-del';del.textContent='✕';
-    del.addEventListener('click',function(){removeWithUndo(dataArr('multiDayTasks'),md,'Taak verwijderd',function(){renderMdTasks();renderCalendar();renderVandaag();});});
-    item.appendChild(check);item.appendChild(body);item.appendChild(del);list.appendChild(item);
+    var cat=getCat(md.category);
+    var meta=[[ui.dot(cat.color),cat.label],formatDateShort(md.startDate)+' t/m '+formatDateShort(md.endDate)];
+    if(md.assignedTo){var al=assignLabel(md.assignedTo);if(al)meta.push('voor '+al);}
+    var row=ui.row({title:md.text,done:md.done,meta:meta,swipeLabel:'Verwijderen'});
+    function remove(){removeWithUndo(dataArr('multiDayTasks'),md,'Taak verwijderd',function(){renderMdTasks();renderCalendar();renderVandaag();});}
+    row.appendChild(ui.check({done:md.done,label:md.text},function(){md.done=!md.done;saveToServer();renderMdTasks();renderCalendar();renderVandaag();}));
+    row.appendChild(row._body);
+    row.appendChild(ui.iconBtn('more','Opties voor '+md.text,function(){ui.actionSheet(md.text,[{icon:'trash',label:'Verwijderen',danger:true,onClick:remove}]);}));
+    addSwipe(row,remove);
+    l.appendChild(row);
   });
+  list.appendChild(l);
+}
+// Menu van een taak in het dagvenster: alles wat eerder losse knopjes waren (0.6).
+function sheetTaskMenu(t,key){
+  function rerender(){renderSheetTasks();renderCalendar();renderVandaag();}
+  var reacts=ui.el('div','reaction-row');
+  ['👍','❤️','😄','🔥','✅'].forEach(function(em){
+    var b=ui.el('button',null,em);b.type='button';b.setAttribute('aria-label','Reageer met '+em);
+    b.addEventListener('click',function(){
+      if(!t.reactions)t.reactions={};if(!t.reactions[em])t.reactions[em]=[];
+      var i=t.reactions[em].indexOf(myName||'ik');if(i>-1)t.reactions[em].splice(i,1);else t.reactions[em].push(myName||'ik');
+      if(t.reactions[em].length===0)delete t.reactions[em];
+      closeAddSheet();saveToServer();rerender();
+    });
+    reacts.appendChild(b);
+  });
+  var os=t.orderStatus||null;
+  ui.actionSheet(t.text,[
+    {icon:'pencil',label:'Bewerken',onClick:function(){
+      setTimeout(function(){customPrompt('Taak bewerken:',t.text,function(v){v=String(v||'').trim();if(v&&v!==t.text){t.text=v;saveToServer();rerender();}},{okText:'Opslaan'});},50);
+    }},
+    {icon:'calendar',label:'Verplaatsen naar…',onClick:function(){
+      openAddSheet(function(body){
+        body.appendChild(ui.el('div','sheet-heading','Naar welke dag?'));
+        var inp=ui.el('input','field');inp.type='date';inp.value=key;inp.setAttribute('aria-label','Datum');
+        var ok=ui.el('button','btn btn-primary btn-block','Verplaatsen');ok.type='button';ok.style.marginTop='12px';
+        ok.addEventListener('click',function(){var k=inp.value;if(!/^\d{4}-\d{2}-\d{2}$/.test(k)||k===key){closeAddSheet();return;}closeAddSheet();moveTask(t,key,k);});
+        body.appendChild(inp);body.appendChild(ok);
+      });
+    }},
+    {icon:'user',label:t.assignedTo?'Toegewezen aan '+assignLabel(t.assignedTo):'Toewijzen…',onClick:function(){
+      var cur=t.assignedTo||'';
+      var opts=[{icon:'users',label:'Iedereen',val:null,selected:!cur}];
+      if(myName)opts.push({icon:'user',label:myName,val:personKey('me'),selected:!!cur&&isMe(cur)});
+      if(partnerName)opts.push({icon:'user',label:partnerName,val:personKey('partner'),selected:!!cur&&!isMe(cur)&&sameName(cur,partnerName)});
+      if(!myName&&!partnerName){opts.push({icon:'user',label:'Ik',val:'me',selected:cur==='me'},{icon:'user',label:'Partner',val:'partner',selected:cur==='partner'});}
+      setTimeout(function(){ui.actionSheet('Toewijzen',opts.map(function(o){return {icon:o.icon,label:o.label,selected:o.selected,onClick:function(){t.assignedTo=o.val;saveToServer();rerender();}};}));},60);
+    }},
+    {icon:'package',label:!os?'Markeer als besteld':os==='besteld'?'Markeer als geleverd':'Bestelstatus weghalen',onClick:function(){
+      t.orderStatus=!os?'besteld':os==='besteld'?'geleverd':null;saveToServer();rerender();
+    }},
+    {icon:'trash',label:'Verwijderen',danger:true,onClick:function(){removeSheetTask(t,key);}}
+  ],reacts);
+}
+function removeSheetTask(t,key){
+  var arr=data.tasks[key];var idx=arr?arr.indexOf(t):-1;if(idx<0)return;
+  arr.splice(idx,1);saveToServer();renderSheetTasks();renderCalendar();renderVandaag();
+  showUndoToast('Taak verwijderd',function(){if(!data.tasks[key])data.tasks[key]=[];data.tasks[key].splice(Math.min(idx,data.tasks[key].length),0,t);saveToServer();renderSheetTasks();renderCalendar();renderVandaag();});
 }
 function renderSheetTasks(){
   if(!openDateKey)return;
+  var key=openDateKey;
   var list=document.getElementById('taskList');list.innerHTML='';
-  var tasks=data.tasks[openDateKey]||[];
-  if(!tasks.length){var e=document.createElement('div');e.className='empty-msg';e.innerHTML='<div style="font-size:28px;margin-bottom:6px">✨</div><div>Nog geen taken</div>';list.appendChild(e);return;}
+  var tasks=data.tasks[key]||[];
+  if(!tasks.length){list.appendChild(ui.empty('Nog geen taken','Voeg hieronder een taak toe.'));return;}
+  var l=ui.el('div','list');
   tasks.forEach(function(t){
-    var item=document.createElement('div');item.className='task-item prio-'+(t.priority||'normaal');
-    var sbg=document.createElement('div');sbg.className='task-swipe-bg';sbg.textContent='🗑 Verwijder';item.appendChild(sbg);
-    var check=document.createElement('div');check.className='task-check'+(t.done?' checked':'');check.textContent=t.done?'✓':'';
-    check.addEventListener('click',function(){t.done=!t.done;saveToServer();renderSheetTasks();renderCalendar();renderVandaag();});
-    var body=document.createElement('div');body.className='task-body';
-    var txt=document.createElement('div');txt.className='task-text'+(t.done?' done':'');txt.textContent=t.text;
-    var badges=document.createElement('div');badges.className='task-badges';
-    var cat=getCat(t.category);var cb=document.createElement('span');cb.className='cat-badge';cb.style.background=cat.color;cb.textContent=cat.emoji+' '+cat.label;badges.appendChild(cb);
-    var os=t.orderStatus||null;
-    if(os){var ob=document.createElement('span');ob.className='order-badge '+os;ob.textContent=os==='besteld'?'📦 Besteld':'✓ Geleverd';ob.addEventListener('click',function(){t.orderStatus=os==='besteld'?'geleverd':null;os=t.orderStatus;saveToServer();renderSheetTasks();});badges.appendChild(ob);}
-    if(t.assignedTo){var al=assignLabel(t.assignedTo);if(al){var ab=document.createElement('span');ab.className='assign-badge';ab.textContent='voor '+al;badges.appendChild(ab);}}
-    if(t.author){var au=document.createElement('span');au.className='author-badge';au.textContent='door '+t.author;badges.appendChild(au);}
-    body.appendChild(txt);body.appendChild(badges);
-    var sReactions=t.reactions||{};var sKeys=Object.keys(sReactions).filter(function(e){return sReactions[e].length>0;});
-    if(sKeys.length>0){var sRow=document.createElement('div');sRow.className='task-reactions';sKeys.forEach(function(emoji){var rb=document.createElement('button');var isMine=sReactions[emoji].indexOf(myName||'ik')>-1;rb.className='reaction-btn'+(isMine?' mine':'');rb.textContent=emoji+' ';var cnt=document.createElement('span');cnt.className='reaction-count';cnt.textContent=sReactions[emoji].length;rb.appendChild(cnt);(function(em,task){rb.addEventListener('click',function(){if(!task.reactions)task.reactions={};if(!task.reactions[em])task.reactions[em]=[];var idx=task.reactions[em].indexOf(myName||'ik');if(idx>-1)task.reactions[em].splice(idx,1);else task.reactions[em].push(myName||'ik');if(task.reactions[em].length===0)delete task.reactions[em];saveToServer();renderSheetTasks();});})(emoji,t);sRow.appendChild(rb);});body.appendChild(sRow);}
-    var reactionEmojis=['👍','❤️','😄','🔥','✅'];
-    var rAddBtn=document.createElement('button');rAddBtn.className='reaction-add-btn';rAddBtn.textContent='+';
-    var rPicker=document.createElement('div');rPicker.className='reaction-picker';rPicker.style.display='none';
-    reactionEmojis.forEach(function(emoji){var pb=document.createElement('button');pb.className='reaction-picker-btn';pb.textContent=emoji;(function(em,task){pb.addEventListener('click',function(){if(!task.reactions)task.reactions={};if(!task.reactions[em])task.reactions[em]=[];var idx=task.reactions[em].indexOf(myName||'ik');if(idx>-1)task.reactions[em].splice(idx,1);else task.reactions[em].push(myName||'ik');if(task.reactions[em].length===0)delete task.reactions[em];rPicker.style.display='none';saveToServer();renderSheetTasks();});})(emoji,t);rPicker.appendChild(pb);});
-    rAddBtn.addEventListener('click',function(){rPicker.style.display=rPicker.style.display==='none'?'flex':'none';});
-    body.appendChild(rAddBtn);body.appendChild(rPicker);
-    var taskActions=document.createElement('div');taskActions.className='task-actions';
-    var moveBtn=document.createElement('button');moveBtn.className='task-move';moveBtn.textContent='📅';moveBtn.title='Verplaatsen';
-    var movePicker=document.createElement('div');movePicker.className='move-picker';
-    var moveDateInput=document.createElement('input');moveDateInput.type='date';moveDateInput.value=openDateKey;movePicker.appendChild(moveDateInput);
-    var moveVisible=false;
-    moveBtn.addEventListener('click',function(e){e.stopPropagation();moveVisible=!moveVisible;movePicker.style.display=moveVisible?'block':'none';if(moveVisible)moveDateInput.focus();});
-    moveDateInput.addEventListener('change',function(){var toKey=this.value;if(!toKey||toKey===openDateKey){movePicker.style.display='none';moveVisible=false;return;}moveTask(t,openDateKey,toKey);movePicker.style.display='none';moveVisible=false;});
-    body.appendChild(movePicker);
-    if(!os){var addOrderBtn=document.createElement('span');addOrderBtn.style.cssText='font-size:10px;color:var(--accent);cursor:pointer;padding:2px 5px;border:1px solid var(--accent);border-radius:10px;';addOrderBtn.innerHTML=icon('package','xs');addOrderBtn.setAttribute('role','button');addOrderBtn.title='Markeer als besteld';addOrderBtn.addEventListener('click',function(){t.orderStatus='besteld';saveToServer();renderSheetTasks();});badges.appendChild(addOrderBtn);}
-    var del=document.createElement('button');del.className='task-del';del.textContent='✕';
-    function removeWithUndo(){
-      var key=openDateKey,arr=data.tasks[key];var idx=arr?arr.indexOf(t):-1;if(idx<0)return;
-      arr.splice(idx,1);saveToServer();renderSheetTasks();renderCalendar();renderVandaag();
-      showUndoToast('Taak verwijderd',function(){if(!data.tasks[key])data.tasks[key]=[];data.tasks[key].splice(idx,0,t);saveToServer();renderSheetTasks();renderCalendar();renderVandaag();});
+    var cat=getCat(t.category);
+    var meta=[[ui.dot(cat.color),cat.label]];
+    if(t.assignedTo){var al=assignLabel(t.assignedTo);if(al)meta.push('voor '+al);}
+    if(t.author)meta.push('door '+t.author);
+    if(t.reminder&&t.reminder.time)meta.push([ui.iconEl('bell','xs'),t.reminder.time]);
+    if(t.orderStatus)meta.push(ui.el('span','tag'+(t.orderStatus==='geleverd'?' ok':''),t.orderStatus==='besteld'?'Besteld':'Geleverd'));
+    if(t.priority==='hoog'&&!t.done)meta.push(ui.el('span','tag danger','Belangrijk'));
+    var row=ui.row({title:t.text,done:t.done,meta:meta,swipeLabel:'Verwijderen'});
+    row.appendChild(ui.check({done:t.done,high:t.priority==='hoog',label:t.text},function(){
+      t.done=!t.done;
+      saveToServer();renderSheetTasks();renderCalendar();renderVandaag();
+    }));
+    var rx=t.reactions||{},rk=Object.keys(rx).filter(function(e){return rx[e]&&rx[e].length>0;});
+    if(rk.length){
+      var rRow=ui.el('div','task-reactions');
+      rk.forEach(function(emoji){
+        var rb=ui.el('button','reaction-btn'+(rx[emoji].indexOf(myName||'ik')>-1?' mine':''),emoji+' ');rb.type='button';
+        rb.appendChild(ui.el('span','reaction-count',String(rx[emoji].length)));
+        rb.addEventListener('click',function(e){
+          e.stopPropagation();
+          var i=t.reactions[emoji].indexOf(myName||'ik');if(i>-1)t.reactions[emoji].splice(i,1);else t.reactions[emoji].push(myName||'ik');
+          if(t.reactions[emoji].length===0)delete t.reactions[emoji];saveToServer();renderSheetTasks();renderVandaag();
+        });
+        rRow.appendChild(rb);
+      });
+      row._body.appendChild(rRow);
     }
-    del.addEventListener('click',removeWithUndo);
-    taskActions.appendChild(moveBtn);taskActions.appendChild(del);
-    item.appendChild(check);item.appendChild(body);item.appendChild(taskActions);list.appendChild(item);
-    addSwipe(item,removeWithUndo);
+    row.appendChild(row._body);
+    row.appendChild(ui.iconBtn('more','Opties voor '+t.text,function(){sheetTaskMenu(t,key);}));
+    addSwipe(row,function(){removeSheetTask(t,key);});
+    l.appendChild(row);
   });
+  list.appendChild(l);
 }
 function moveTask(task,fromKey,toKey){
   var arr=data.tasks[fromKey];var idx=arr.indexOf(task);if(idx===-1)return;
@@ -4279,6 +4340,9 @@ function addTask(){
   input.focus();
 }
 document.getElementById('addTaskBtn').addEventListener('click',addTask);
+document.getElementById('sheetMoreBtn').addEventListener('click',function(){
+  var mo=document.getElementById('sheetMoreOpts');mo.hidden=!mo.hidden;this.setAttribute('aria-expanded',mo.hidden?'false':'true');
+});
 document.getElementById('newTaskInput').addEventListener('keydown',function(e){if(e.key==='Enter')addTask();});
 document.getElementById('periodRow').addEventListener('click',function(e){
   var btn=e.target.closest('.period-btn');if(!btn)return;
@@ -4923,7 +4987,7 @@ document.getElementById('recAddBtn').addEventListener('click',function(){
   selectedDays=[];document.querySelectorAll('.day-toggle').forEach(function(b){b.classList.remove('active');});
   saveToServer();renderRecurringList();renderCalendar();renderVandaag();
 });
-function recIntervalLabel(r){var iv=r.interval||'week';if(iv==='week')return (r.everyWeeks>1?(r.everyWeeks===2?'Om de week':'Elke '+r.everyWeeks+' weken')+' op ':'Elke ')+(r.days||[]).sort().map(function(d){return DAY_NAMES[d];}).join(', ');if(iv==='biweek')return 'Om de 2 weken op vrijdag';if(iv==='month')return 'Elke maand op de '+(r.dayOfMonth||1)+'e';if(iv==='year')return 'Elk jaar op '+(r.dayOfMonth||1)+' '+MONTH_NAMES[r.month||0];return '';}
+function recIntervalLabel(r){var iv=r.interval||'week';if(iv==='week')return (r.everyWeeks>1?(r.everyWeeks===2?'Om de week':'Elke '+r.everyWeeks+' weken')+' op ':'Elke ')+(r.days||[]).slice().sort().map(function(d){return DAY_NAMES[d];}).join(', ');if(iv==='biweek')return 'Om de 2 weken op vrijdag';if(iv==='month')return 'Elke maand op de '+(r.dayOfMonth||1)+'e';if(iv==='year')return 'Elk jaar op '+(r.dayOfMonth||1)+' '+MONTH_NAMES[r.month||0];return '';}
 function recIntervalDays(r){var iv=r.interval||'week';if(iv==='week')return((r.days&&r.days.length)?(7/r.days.length):7)*(r.everyWeeks||1);if(iv==='biweek')return 14;if(iv==='month')return 30;if(iv==='year')return 365;return 7;}
 function recLastDoneKey(r){var last=null;for(var k in(data.recurringDone||{})){if((data.recurringDone[k]||[]).indexOf(r.id)>-1){if(!last||k>last)last=k;}}return last;}
 function recDirtiness(r){var lastKey=recLastDoneKey(r);var refKey=lastKey||r.createdAt||null;if(!refKey)return null;var refDate=keyToDate(refKey);var daysSince=Math.round((today-refDate)/(24*3600*1000));if(daysSince<0)daysSince=0;var ivDays=recIntervalDays(r);var ratio=ivDays>0?(daysSince/ivDays):0;return{daysSince:daysSince,ratio:ratio,everDone:!!lastKey};}
