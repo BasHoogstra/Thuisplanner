@@ -148,3 +148,15 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   opruimen van oude briefjes gebeurde al niet.)
 - Controle: alle 60 screenshots van de rooktest (licht en donker) zijn vóór en na het opruimen
   byte-identiek; volledige testset geslaagd.
+
+## 1.0.19 — Fase 0, stap 0.13 (testversie)
+- Dataformaat vastgelegd: `docs/dataformaat-v1.md` (beschrijving) en
+  `docs/dataformaat-v1.schema.json` (JSON-schema). Het schema is ruim: onbekende velden blijven
+  toegestaan.
+- De app zet `meta.schemaVersion = 1` als dat ontbreekt, **alleen bij een opslag die toch al
+  gebeurt**. Alleen openen veroorzaakt geen extra schrijfactie, een bestaande waarde wordt nooit
+  overschreven en de rest van `meta` blijft staan.
+- Achterwaarts compatibel: getest dat de live-versie het veld bewaart als zij opslaat.
+- Tests: `tests/schema.test.js` (de testdata en wat de app opslaat voldoen aan het schema, het
+  schema keurt foute data af, en de live-versie houdt het veld). De andere tests negeren alleen
+  dit ene nieuwe veld.

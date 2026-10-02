@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://huisplan.local/dataformaat-v1.schema.json",
+  "title": "Huisplan planner-document, schemaversie 1",
+  "description": "Eén document per huishouden (Firebase: /planners/{sleutel}.json). Ruim schema: velden die hier niet staan blijven toegestaan, omdat oudere en nieuwere app-versies dezelfde data delen. Firebase bewaart geen null, lege lijsten of lege objecten; de app vult die bij het laden zelf aan. Zie docs/dataformaat-v1.md.",
+  "type": "object",
+  "$defs": {
+    "datum": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "datumOfLeeg": { "type": ["string", "null"], "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$" },
+    "tekstOfNull": { "type": ["string", "null"] },
+    "getalOfNull": { "type": ["number", "null"] },
+    "idLijst": { "type": "array", "items": { "type": "string" } },
+    "persoon": { "type": ["string", "null"] },
+    "prioriteit": { "enum": ["hoog", "normaal", "laag", null] },
+    "metId": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" } } },
+    "simpelItem": {
+      "type": "object",
+      "required": ["id", "text"],
+      "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "done": { "type": "boolean" } }
+    },
+    "taak": {
+      "type": "object",
+      "required": ["id", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "done": { "type": "boolean" },
+        "category": { "type": ["string", "null"] },
+        "priority": { "$ref": "#/$defs/prioriteit" },
+        "assignedTo": { "$ref": "#/$defs/persoon" },
+        "author": { "$ref": "#/$defs/persoon" },
+        "orderStatus": { "enum": ["open", "besteld", "geleverd", null] },
+        "period": { "enum": ["ochtend", "middag", "avond", null] },
+        "reminder": {
+          "type": ["object", "null"],
+          "properties": { "date": { "$ref": "#/$defs/datum" }, "time": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" } }
+        },
+        "reactions": { "type": "object", "additionalProperties": { "$ref": "#/$defs/idLijst" } },
+        "movedFrom": { "$ref": "#/$defs/datum" }
+      }
+    }
+  },
+  "properties": {
+    "meta": {
+      "type": "object",
+      "description": "Technische gegevens. schemaVersion zet de app (vanaf 1.0.19) bij opslaan als die ontbreekt. migratedTo en minAppVersion worden alleen door de verhuizing (fase 1) gezet en blokkeren dan het opslaan.",
+      "properties": {
+        "schemaVersion": { "type": "integer", "minimum": 1 },
+        "migratedTo": { "type": "object", "properties": { "url": { "type": "string" } } },
+        "minAppVersion": { "type": "string", "pattern": "^\\d+(\\.\\d+)*$" }
+      }
+    },
+    "tasks": {
+      "type": "object",
+      "propertyNames": { "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+      "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/taak" } }
+    },
+    "notes": {
+      "type": "object",
+      "propertyNames": { "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+      "additionalProperties": { "type": "string" }
+    },
+    "recurring": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" },
+          "interval": { "enum": ["week", "biweek", "month", "year"], "description": "Ontbreekt = week." },
+          "days": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 6 } },
+          "everyWeeks": { "type": "integer", "minimum": 1 },
+          "anchorDate": { "$ref": "#/$defs/datum" },
+          "dayOfMonth": { "type": "integer", "minimum": 1, "maximum": 31 },
+          "koppelgesprek": { "type": "boolean" },
+          "category": { "type": ["string", "null"] },
+          "priority": { "$ref": "#/$defs/prioriteit" },
+          "createdAt": { "$ref": "#/$defs/datum" }
+        }
+      }
+    },
+    "recurringDone": {
+      "type": "object",
+      "propertyNames": { "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+      "additionalProperties": { "$ref": "#/$defs/idLijst" }
+    },
+    "multiDayTasks": {
+      "type": "array",
+      "items": {
+        "allOf": [{ "$ref": "#/$defs/taak" }],
+        "required": ["id", "text", "startDate", "endDate"],
+        "properties": { "startDate": { "$ref": "#/$defs/datum" }, "endDate": { "$ref": "#/$defs/datum" } }
+      }
+    },
+    "bestellingen": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" },
+          "status": { "enum": ["open", "besteld", "geleverd"] },
+          "assignedTo": { "$ref": "#/$defs/persoon" },
+          "addedDate": { "$ref": "#/$defs/datumOfLeeg" },
+          "expectedDate": { "$ref": "#/$defs/datumOfLeeg" },
+          "note": { "$ref": "#/$defs/tekstOfNull" },
+          "tracking": { "$ref": "#/$defs/tekstOfNull" },
+          "addedBy": { "$ref": "#/$defs/persoon" }
+        }
+      }
+    },
+    "boodschappen": {
+      "type": "array",
+      "items": {
+        "allOf": [{ "$ref": "#/$defs/simpelItem" }],
+        "properties": {
+          "cat": { "type": "string" },
+          "winkel": { "$ref": "#/$defs/tekstOfNull" },
+          "addedBy": { "$ref": "#/$defs/persoon" },
+          "addedDate": { "$ref": "#/$defs/datumOfLeeg" },
+          "qty": { "type": "number", "minimum": 1 }
+        }
+      }
+    },
+    "vasteBoodschappen": { "type": "array", "items": { "$ref": "#/$defs/simpelItem" } },
+    "boodschappenHistory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text"],
+        "properties": { "text": { "type": "string" }, "norm": { "type": "string" }, "date": { "$ref": "#/$defs/datum" } }
+      }
+    },
+    "boodCatOverrides": { "type": "object", "additionalProperties": { "type": "string" } },
+    "winkels": { "type": "array", "items": { "type": "string" } },
+    "lijsten": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "naam"],
+        "properties": {
+          "id": { "type": "string" },
+          "naam": { "type": "string" },
+          "items": { "type": "array", "items": { "$ref": "#/$defs/simpelItem" } }
+        }
+      }
+    },
+    "notitieboek": { "type": "string" },
+    "notitieboekMeta": { "type": "object" },
+    "notities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" }, "titel": { "type": "string" }, "tekst": { "type": "string" },
+          "editedBy": { "type": "string" }, "editedAt": { "type": "string" }
+        }
+      }
+    },
+    "backlog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string" }, "text": { "type": "string" }, "category": { "type": ["string", "null"] },
+          "priority": { "$ref": "#/$defs/prioriteit" }, "addedDate": { "$ref": "#/$defs/datumOfLeeg" }
+        }
+      }
+    },
+    "onderhoud": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "intervalDays"],
+        "properties": {
+          "id": { "type": "string" }, "text": { "type": "string" },
+          "lastDone": { "$ref": "#/$defs/datumOfLeeg" },
+          "intervalDays": { "type": "integer", "minimum": 1 },
+          "intervalLabel": { "type": "string" },
+          "category": { "type": ["string", "null"] },
+          "note": { "$ref": "#/$defs/tekstOfNull" },
+          "foto": { "$ref": "#/$defs/tekstOfNull" },
+          "log": {
+            "type": "array",
+            "items": { "type": "object", "required": ["date"], "properties": { "date": { "$ref": "#/$defs/datum" }, "note": { "$ref": "#/$defs/tekstOfNull" } } }
+          }
+        }
+      }
+    },
+    "garanties": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string" }, "text": { "type": "string" },
+          "gekocht": { "$ref": "#/$defs/datumOfLeeg" }, "verloopt": { "$ref": "#/$defs/datumOfLeeg" },
+          "winkel": { "$ref": "#/$defs/tekstOfNull" }, "serienummer": { "$ref": "#/$defs/tekstOfNull" },
+          "note": { "$ref": "#/$defs/tekstOfNull" }, "foto": { "$ref": "#/$defs/tekstOfNull" }
+        }
+      }
+    },
+    "vervaldata": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "naam"],
+        "properties": {
+          "id": { "type": "string" }, "naam": { "type": "string" }, "categorie": { "type": "string" },
+          "vervaldatum": { "$ref": "#/$defs/datumOfLeeg" }, "herinnering": { "type": "integer" },
+          "notitie": { "$ref": "#/$defs/tekstOfNull" }
+        }
+      }
+    },
+    "vakanties": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "naam"],
+        "properties": {
+          "id": { "type": "string" }, "naam": { "type": "string" },
+          "startDatum": { "$ref": "#/$defs/datumOfLeeg" },
+          "bestemming": { "type": "string" },
+          "paklijst": { "type": "object", "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/simpelItem" } } },
+          "todos": { "type": "array", "items": { "$ref": "#/$defs/simpelItem" } },
+          "notes": { "type": "string" },
+          "budget": {
+            "type": "object",
+            "properties": {
+              "bedrag": { "type": "number" },
+              "uitgaven": {
+                "type": "array",
+                "items": { "type": "object", "required": ["desc", "amount"], "properties": { "desc": { "type": "string" }, "amount": { "type": "number" }, "date": { "$ref": "#/$defs/datum" } } }
+              }
+            }
+          },
+          "_tab": { "type": "string", "description": "Schermstand (laatst geopend tabblad). Hoort eigenlijk niet in gedeelde data; zie docs/fase1-notities.md." }
+        }
+      }
+    },
+    "vakantiePersonen": { "type": "array", "items": { "type": "string" } },
+    "huisgeheugen": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "tekst"],
+        "properties": {
+          "id": { "type": "string" }, "type": { "type": "string" }, "tekst": { "type": "string" },
+          "datum": { "$ref": "#/$defs/datum" }, "auteur": { "type": "string" }, "ts": { "type": "number" }
+        }
+      }
+    },
+    "recepten": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "naam"],
+        "properties": {
+          "id": { "type": "string" }, "naam": { "type": "string" }, "categorie": { "type": "string" },
+          "link": { "$ref": "#/$defs/tekstOfNull" }, "notitie": { "$ref": "#/$defs/tekstOfNull" },
+          "ingredienten": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "maaltijdplan": {
+      "type": "object",
+      "propertyNames": { "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": { "enum": ["recept", "vrij"] }, "receptId": { "type": "string" }, "naam": { "type": "string" },
+          "tekst": { "type": "string" }, "ingredienten": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "gewoonten": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "icon": { "type": "string" }, "createdDate": { "$ref": "#/$defs/datum" } }
+      }
+    },
+    "gewoontenDone": {
+      "type": "object",
+      "propertyNames": { "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+      "additionalProperties": { "$ref": "#/$defs/idLijst" }
+    },
+    "verjaardagen": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "naam", "datum"],
+        "properties": {
+          "id": { "type": "string" }, "naam": { "type": "string" },
+          "datum": { "type": "string", "pattern": "^\\d{2}-\\d{2}$" },
+          "jaar": { "type": ["integer", "null"] }
+        }
+      }
+    },
+    "verlanglijstjes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["id", "text"],
+          "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "claimedBy": { "$ref": "#/$defs/persoon" }, "addedAt": { "$ref": "#/$defs/datumOfLeeg" } }
+        }
+      }
+    },
+    "cadeaus": { "type": "array", "items": { "$ref": "#/$defs/simpelItem" }, "description": "Oude cadeaulijst. Wordt niet meer getoond, maar blijft bewaard." },
+    "briefjes": { "type": "array", "items": { "$ref": "#/$defs/metId" }, "description": "Oude koelkastbriefjes. Wordt niet meer getoond, maar blijft bewaard." },
+    "inbox": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "addedBy": { "$ref": "#/$defs/persoon" }, "addedAt": { "type": "string" } }
+      }
+    },
+    "budget": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "cat", "naam"],
+        "properties": {
+          "id": { "type": "string" }, "cat": { "type": "string" }, "naam": { "type": "string" }, "instantie": { "type": "string" },
+          "periode": { "type": "string" }, "bedrag": { "type": "number" }, "bedragNieuw": { "type": "number" }, "advies": { "type": "string" }
+        }
+      }
+    },
+    "budgetCustomCats": { "type": "array", "items": { "type": "string" } },
+    "wieIsWaar": {
+      "type": "object",
+      "propertyNames": { "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+      "additionalProperties": { "type": "object", "additionalProperties": { "type": "string" } }
+    },
+    "winkelsSet": { "type": "boolean" },
+    "lijstenSeeded": { "type": "boolean" },
+    "budgetSeeded": { "type": "boolean" }
+  }
+}

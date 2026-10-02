@@ -59,8 +59,15 @@ function firebaseCanon(v) {
 }
 
 // Lijst van paden waar a en b verschillen (na firebaseCanon). Lijsten met id's worden op id vergeleken.
-function diffPaths(a, b, base = '') {
+// Vanaf stap 0.13 zet de app bij opslaan meta.schemaVersion = 1 als dat ontbreekt. Dat ene
+// toegevoegde veld telt hier niet mee (tests/schema.test.js controleert het apart), tenzij
+// { strictMeta: true } wordt meegegeven.
+function diffPaths(a, b, base = '', opts = {}) {
   a = firebaseCanon(a); b = firebaseCanon(b);
+  if (!opts.strictMeta && b && b.meta && b.meta.schemaVersion === 1 && !(a && a.meta && 'schemaVersion' in a.meta)) {
+    b = clone(b); delete b.meta.schemaVersion;
+    if (!Object.keys(b.meta).length) delete b.meta;
+  }
   const out = [];
   (function walk(x, y, p) {
     if (JSON.stringify(x) === JSON.stringify(y)) return;
