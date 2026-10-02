@@ -1052,6 +1052,17 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .month-day .list,.month-day .empty{margin:0;}
 .month-day-note{display:flex;align-items:flex-start;gap:6px;margin:10px 2px 0;font-size:var(--fs-small);color:var(--muted);}
 
+/* Formulier als sheet achter 'Nieuw …' (0.8) */
+.form-sheet-open{margin-bottom:16px;}
+.form-sheet{display:none!important;}
+.form-sheet.open{display:block!important;position:fixed!important;left:0;right:0;bottom:0;z-index:90;margin:0 auto!important;max-width:480px;max-height:88vh;overflow-y:auto;border-radius:20px 20px 0 0!important;padding:18px 16px calc(18px + env(safe-area-inset-bottom))!important;box-shadow:0 -8px 30px rgba(0,0,0,.18)!important;animation:formSheetIn .22s cubic-bezier(.32,1,.23,1) both;}
+.form-sheet h3{padding-right:44px;}
+.form-sheet-close{position:absolute;top:8px;right:8px;}
+.form-sheet-backdrop{display:none;position:fixed;inset:0;background:rgba(20,18,30,.45);z-index:89;}
+.form-sheet-backdrop.open{display:block;}
+@keyframes formSheetIn{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.form-sheet.open{animation:none;}}
+
 /* Oude taken (0.5) */
 .overdue-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn);gap:8px;}
 .overdue-banner-text{font-size:var(--fs-small);font-weight:600;line-height:20px;}
@@ -2109,7 +2120,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.6';
+var APP_VERSION='1.0.7';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -7100,12 +7111,37 @@ function autoFocusOverlay(overlayId,inputId){
   });
   obs.observe(o,{attributes:true});
 }
-autoFocusOverlay('bestellingenOverlay','bestNewText');
-autoFocusOverlay('onderhoudOverlay','ondNewText');
-autoFocusOverlay('garantiesOverlay','garNewText');
-autoFocusOverlay('backlogOverlay','backlogNewText');
-autoFocusOverlay('recurringOverlay','recNewText');
 autoFocusOverlay('verlanglijstOverlay','wishNewText');
+
+// ── Formulieren achter een knop (0.8) ───────────────────────
+// Het bestaande formulier (velden, id's, opslaan) blijft ongewijzigd; het opent als sheet
+// achter de knop 'Nieuw …' en sluit na een geslaagde toevoeging (geen foutmelding).
+function makeFormSheet(overlayId,cardSel,label,addBtnId,errId,firstInputId){
+  var ov=document.getElementById(overlayId);if(!ov)return;
+  var card=ov.querySelector(cardSel);if(!card)return;
+  card.classList.add('form-sheet');card.setAttribute('role','dialog');card.setAttribute('aria-modal','true');card.setAttribute('aria-label',label);
+  var bd=document.createElement('div');bd.className='form-sheet-backdrop';ov.appendChild(bd);
+  var x=ui.iconBtn('x','Sluiten',function(){close();});x.classList.add('form-sheet-close');card.insertBefore(x,card.firstChild);
+  var openBtn=ui.el('button','btn btn-primary btn-block form-sheet-open');openBtn.type='button';
+  openBtn.innerHTML=icon('plus','sm');openBtn.appendChild(document.createTextNode(label));
+  card.parentNode.insertBefore(openBtn,card);
+  function open(){card.classList.add('open');bd.classList.add('open');var f=document.getElementById(firstInputId);if(f)setTimeout(function(){f.focus();},120);}
+  function close(){card.classList.remove('open');bd.classList.remove('open');var e=document.getElementById(errId);if(e)e.textContent='';}
+  openBtn.addEventListener('click',open);
+  bd.addEventListener('click',close);
+  card.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
+  document.getElementById(addBtnId).addEventListener('click',function(){setTimeout(function(){var e=document.getElementById(errId);if(!e||!e.textContent.trim())close();},0);});
+  // Scherm dicht: formulier ook dicht
+  new MutationObserver(function(){if(!ov.classList.contains('open'))close();}).observe(ov,{attributes:true,attributeFilter:['class']});
+}
+makeFormSheet('onderhoudOverlay','.add-card','Nieuwe onderhoudstaak','ondAddBtn','ondError','ondNewText');
+makeFormSheet('garantiesOverlay','.add-card','Garantie toevoegen','garAddBtn','garError','garNewText');
+makeFormSheet('kluisOverlay','.add-card','Vervaldatum toevoegen','kluisAddBtn','kluisError','kluisNaam');
+makeFormSheet('bestellingenOverlay','.best-add-card','Nieuwe bestelling','bestAddBtn','bestError','bestNewText');
+makeFormSheet('receptenOverlay','.add-card','Recept toevoegen','receptAddBtn','receptError','receptNaam');
+makeFormSheet('verjaardagenOverlay','.add-card','Verjaardag toevoegen','verjAddBtn','verjError','verjNaam');
+makeFormSheet('backlogOverlay','.add-card','Idee toevoegen','backlogAddBtn','backlogError','backlogNewText');
+makeFormSheet('recurringOverlay','.rec-add-card','Nieuwe vaste taak','recAddBtn','recError','recNewText');
 
 
 // === WEERSWIDGET ===

@@ -73,3 +73,11 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Onder de maand de lijst van de geselecteerde dag (standaard vandaag) met afvinken en
   "Dag openen". Eerste tik selecteert een dag, nogmaals tikken opent het dagvenster.
 - Elke cel heeft een toegankelijk label ("vrijdag 2 oktober, 7 items") en werkt met het toetsenbord.
+
+## 1.0.7 — Fase 0, stap 0.8 (testversie)
+- Onderhoud, Garanties, Vervaldata-kluis, Bestellingen, Recepten, Verjaardagen, Backlog en
+  Vaste taken openen op de inhoud. Het invoerformulier staat achter de knop "Nieuw …"/"… toevoegen"
+  en opent als sheet; het sluit na een geslaagde toevoeging en blijft open bij een fout.
+- Velden, id's, validatie en het opgeslagen object zijn ongewijzigd (getest per scherm).
+- Bij het openen van deze schermen springt het toetsenbord niet meer omhoog; de focus gaat
+  naar het eerste veld zodra het formulier opent.
