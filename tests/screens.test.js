@@ -21,4 +21,51 @@ module.exports = {
     assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
     await c.close();
   },
+
+  async 'Vakanties: wisselen, subtabbladen en menu (resetten, kopiëren, verwijderen)'(ctx) {
+    const fx = readFixture('huishouden.json');
+    fx.vakanties.push({ id: 'va-zomer', naam: 'Zomer Frankrijk', startDatum: '2027-07-10', paklijst: { Bas: [], Sanne: [], Lynn: [], Freya: [] }, todos: [], notes: '' });
+    const { page, state, ctx: c } = await openApp(ctx.browser, ctx.base, { data: fx });
+    await openMeer(page, 'openVakanties');
+    const body = () => page.textContent('#vakantiesContent');
+    assert((await body()).includes('Nog 79 dagen'), 'Aftelling ontbreekt');
+    for (const t of ['To-do', 'Notities', 'Budget', 'Paklijsten']) {
+      await page.click('#vakantiesContent .vak-subtabs .chip:has-text("' + t + '")'); await page.waitForTimeout(150);
+      assert(await page.getAttribute('#vakantiesContent .vak-subtabs .chip.is-active', 'aria-selected') === 'true' && (await page.textContent('#vakantiesContent .vak-subtabs .chip.is-active')) === t, 'Subtabblad ' + t + ' niet actief');
+    }
+    // afvinkjes resetten (Badtas van Sanne staat afgevinkt)
+    let b = state.puts;
+    await page.click('#vakantiesContent .vak-head .icon-btn');
+    await page.click('#addSheet .action-row:has-text("Afvinkjes resetten")');
+    await waitForPut(state, b);
+    assert(state.db.vakanties[0].paklijst.Sanne[0].done === false, 'Afvinkjes niet gereset');
+    // wisselen naar Zomer en kopiëren van Kerst
+    await page.click('#vakantiesContent .vak-chips .chip:has-text("Zomer Frankrijk")'); await page.waitForTimeout(200);
+    assert((await page.textContent('#vakantiesContent .vak-head h2')) === 'Zomer Frankrijk', 'Niet gewisseld');
+    await page.click('#vakantiesContent .vak-head .icon-btn');
+    await page.click('#addSheet .action-row:has-text("Kopieer van")');
+    await page.waitForTimeout(300);
+    await page.click('#addSheet .action-row:has-text("Kerst in Oostenrijk")');
+    await page.waitForTimeout(300);
+    assert(await page.isVisible('#confirmOverlay.open'), 'Bevestiging verschijnt niet');
+    b = state.puts;
+    await page.click('#confirmOkBtn');
+    await waitForPut(state, b);
+    const zomer = state.db.vakanties.find(v => v.id === 'va-zomer');
+    assert(zomer.paklijst.Bas.length === 1 && zomer.paklijst.Bas[0].text === 'Skibril' && zomer.todos[0].text === 'Skipassen boeken' && zomer.notes === 'Appartement 3B', 'Kopiëren werkte niet: ' + JSON.stringify(zomer));
+    // verwijderen met bevestiging en ongedaan maken
+    b = state.puts;
+    await page.click('#vakantiesContent .vak-head .icon-btn');
+    await page.click('#addSheet .action-row:has-text("Vakantie verwijderen")');
+    await page.waitForTimeout(300);
+    await page.click('#confirmOkBtn');
+    await waitForPut(state, b);
+    assert(!state.db.vakanties.some(v => v.id === 'va-zomer'), 'Niet verwijderd');
+    b = state.puts;
+    await page.click('#toast button');
+    await waitForPut(state, b);
+    assert(state.db.vakanties.some(v => v.id === 'va-zomer'), 'Ongedaan maken werkte niet');
+    assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
+    await c.close();
+  },
 };

@@ -85,3 +85,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 ## 1.0.8 — Fase 0, stap 0.9a (testversie): Wie is waar
 - Lijn-iconen i.p.v. emoji voor de statussen (twee nieuwe iconen: werk, sporten), "Vandaag"-label
   i.p.v. ster, blokjes zijn echte knoppen met een toegankelijk label, tekst minimaal 13 px.
+
+## 1.0.9 — Fase 0, stap 0.9b (testversie): Vakanties
+- Nieuwe vakantie toevoegen zoals op Vandaag; vakanties en de vijf subtabbladen als chips op één
+  regel (To-do liep over twee regels); kop met één menu voor kopiëren, afvinkjes resetten en
+  verwijderen; labels en aftelling zonder emoji.
+- "Kopieer van…" gebruikte de browservensters `prompt()` en `confirm()` ("voer het nummer in");
+  nu een keuzemenu en de eigen bevestigingsdialoog. Het kopiëren zelf is ongewijzigd.
