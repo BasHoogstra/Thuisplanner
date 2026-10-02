@@ -1300,11 +1300,11 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 
   <!-- BAKJE: alles wat je even kwijt wilt, later uitzoeken -->
   <div class="view" id="bakjeView">
-    <h1 class="screen-title">Bakje</h1>
-    <p class="screen-intro">Gooi er alles in wat je even kwijt wilt. Uitzoeken doe je later: tik op een item en maak er een taak, boodschap, idee of notitie van.</p>
+    <h1 class="screen-title">Toevoegen</h1>
+    <p class="screen-intro">Zet hier alles neer wat je even kwijt wilt. Uitzoeken doe je later: tik op een item en maak er een taak, boodschap, idee of notitie van.</p>
     <form class="input-row" id="bakjeForm" autocomplete="off">
-      <input type="text" class="field" id="bakjeInput" maxlength="300" enterkeyhint="done" placeholder="Wat schiet je te binnen?" aria-label="In het bakje gooien">
-      <button class="btn btn-primary btn-square" type="submit" aria-label="In het bakje"><svg class="ic lg"><use href="#i-plus"/></svg></button>
+      <input type="text" class="field" id="bakjeInput" maxlength="300" enterkeyhint="done" placeholder="Wat schiet je te binnen?" aria-label="Iets toevoegen">
+      <button class="btn btn-primary btn-square" type="submit" aria-label="Toevoegen"><svg class="ic lg"><use href="#i-plus"/></svg></button>
     </form>
     <div id="bakjeList"></div>
     <div style="height:24px"></div>
@@ -1402,7 +1402,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 
   <nav class="bottom-nav">
     <button class="nav-item active" data-view="vandaagView"><span class="nav-icon"><svg class="ic"><use href="#i-house"/></svg></span>Vandaag</button>
-    <button class="nav-item" data-view="bakjeView"><span class="nav-icon"><svg class="ic"><use href="#i-inbox"/></svg></span>Bakje</button>
+    <button class="nav-item" data-view="bakjeView"><span class="nav-icon"><svg class="ic"><use href="#i-plus"/></svg></span>Toevoegen</button>
     <button class="nav-item" data-view="boodschappenView"><span class="nav-icon"><svg class="ic"><use href="#i-cart"/></svg></span>Boodschappen</button>
     <button class="nav-item" data-view="meerView"><span class="nav-icon"><svg class="ic"><use href="#i-grid"/></svg></span>Meer</button>
   </nav>
@@ -2811,7 +2811,7 @@ function takeSharedIntoBakje(){
     data.inbox.push({id:uid(),text:parts.join(' ').replace(/\s+/g,' ').slice(0,300),addedBy:myName||null,addedAt:new Date().toISOString()});
     saveToServer();renderBakje();
     document.querySelector('[data-view="bakjeView"]').click();
-    showToast('In het bakje gezet');
+    showToast('Toegevoegd, uitzoeken kan later');
   }catch(e){}
 }
 function init(){
@@ -3772,7 +3772,7 @@ function renderBakje(){
   if(nb){var bb=nb.querySelector('.nav-badge');if(!bb){bb=document.createElement('span');bb.className='nav-badge';nb.appendChild(bb);}if(items.length){bb.textContent=items.length;bb.style.display='';}else bb.style.display='none';}
   var wrap=document.getElementById('bakjeList');if(!wrap)return;
   wrap.innerHTML='';
-  if(!items.length){var e=ui.empty('Je bakje is leeg','Een idee, iets om te kopen of iets wat geregeld moet worden? Zet het hier neer en geef het later een plek.');e.style.marginTop='16px';wrap.appendChild(e);return;}
+  if(!items.length){var e=ui.empty('Niets meer uit te zoeken','Een idee, iets om te kopen of iets wat geregeld moet worden? Zet het hier neer en geef het later een plek.');e.style.marginTop='16px';wrap.appendChild(e);return;}
   var lab=ui.el('div','section-label','Uitzoeken ('+items.length+')');wrap.appendChild(lab);
   var list=ui.el('div','list');
   items.slice().sort(function(a,b){return String(b.addedAt||'').localeCompare(String(a.addedAt||''));}).forEach(function(item){
@@ -3797,12 +3797,12 @@ document.getElementById('bakjeForm').addEventListener('submit',function(e){
   var inp=document.getElementById('bakjeInput');
   var n=bakjeAdd(inp.value);if(!n)return;
   inp.value='';inp.focus();
-  if(n>1)showToast(n+' dingen in het bakje');
+  if(n>1)showToast(n+' dingen toegevoegd');
 });
 // Plakken van meerdere regels: direct als losse items toevoegen
 document.getElementById('bakjeInput').addEventListener('paste',function(e){
   var t=(e.clipboardData||window.clipboardData);t=t&&t.getData('text');
-  if(t&&/\n/.test(t.trim())){e.preventDefault();var n=bakjeAdd(t);if(n)showToast(n+' dingen in het bakje');}
+  if(t&&/\n/.test(t.trim())){e.preventDefault();var n=bakjeAdd(t);if(n)showToast(n+' dingen toegevoegd');}
 });
 
 // === DAY SHEET ===
@@ -5517,7 +5517,7 @@ document.getElementById('zoekInput').addEventListener('input',function(){
   // Bestellingen
   (data.bestellingen||[]).forEach(function(b){if(b.text.toLowerCase().indexOf(q)>-1)hits.push({icon:'📦',text:b.text,sub:STATUS_LABEL[b.status]||'',section:'Bestellingen',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.getElementById('bestellingenOverlay').classList.add('open');renderBestellingen();}});});
   // Backlog
-  (data.inbox||[]).forEach(function(b){if(b&&b.text&&b.text.toLowerCase().indexOf(q)>-1)hits.push({icon:'📥',text:b.text,sub:'Bakje'+(b.addedBy?' · '+b.addedBy:''),section:'Bakje',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.querySelector('[data-view="bakjeView"]').click();}});});
+  (data.inbox||[]).forEach(function(b){if(b&&b.text&&b.text.toLowerCase().indexOf(q)>-1)hits.push({icon:'📥',text:b.text,sub:'Toevoegen, nog uitzoeken'+(b.addedBy?' · '+b.addedBy:''),section:'Toevoegen',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.querySelector('[data-view="bakjeView"]').click();}});});
   (data.backlog||[]).forEach(function(b){if(b.text.toLowerCase().indexOf(q)>-1)hits.push({icon:'📋',text:b.text,sub:'Backlog',section:'Backlog',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.getElementById('backlogOverlay').classList.add('open');renderBacklog();}});});
   // Notities
   (data.notities||[]).forEach(function(n){if((n.titel&&n.titel.toLowerCase().indexOf(q)>-1)||(n.tekst&&n.tekst.toLowerCase().indexOf(q)>-1))hits.push({icon:'📝',text:n.titel||'Naamloos',sub:n.tekst?n.tekst.slice(0,60)+'…':'',section:'Notitieboek',action:function(){document.getElementById('zoekenOverlay').classList.remove('open');document.getElementById('notitieboekOverlay').classList.add('open');renderNotities();}});});
