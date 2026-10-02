@@ -10,7 +10,7 @@
     {"id": "m-me", "text": "Meerdaagse oude taak", "done": false, "startDate": "2026-10-02", "endDate": "2026-10-03", "category": "huis", "priority": "normaal", "assignedTo": "me", "author": "Bas"}
   ],
   "bestellingen": [
-    {"id": "be-partner", "text": "Pakket", "status": "onderweg", "category": "huis", "assignedTo": "partner", "addedDate": "2026-09-30", "expectedDate": "2026-10-04", "note": null, "addedBy": "Sanne"}
+    {"id": "be-partner", "text": "Pakket", "status": "besteld", "category": "huis", "assignedTo": "partner", "addedDate": "2026-09-30", "expectedDate": "2026-10-04", "note": null, "addedBy": "Sanne"}
   ],
   "vakantiePersonen": ["Bas", "Sanne"],
   "winkels": ["AH"],

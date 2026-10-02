@@ -32,7 +32,7 @@
     {"id": "m-logeren", "text": "Opa en oma logeren", "done": false, "startDate": "2026-10-02", "endDate": "2026-10-04", "category": "samen", "priority": "normaal", "assignedTo": null, "author": "Sanne"}
   ],
   "bestellingen": [
-    {"id": "be-jas", "text": "Regenjas Freya", "status": "onderweg", "category": "huis", "assignedTo": "Sanne", "addedDate": "2026-09-29", "expectedDate": "2026-10-04", "note": "Bestelnummer 12345", "tracking": "https://example.org/track/12345", "addedBy": "Sanne"},
+    {"id": "be-jas", "text": "Regenjas Freya", "status": "besteld", "category": "huis", "assignedTo": "Sanne", "addedDate": "2026-09-29", "expectedDate": "2026-10-04", "note": "Bestelnummer 12345", "tracking": "https://example.org/track/12345", "addedBy": "Sanne"},
     {"id": "be-lamp", "text": "Bureaulamp", "status": "geleverd", "category": "huis", "assignedTo": null, "addedDate": "2026-09-10", "expectedDate": "2026-09-14", "note": null, "addedBy": "Bas"}
   ],
   "boodschappen": [
@@ -61,7 +61,7 @@
     {"id": "g-tv", "text": "Televisie", "gekocht": "2023-03-15", "verloopt": "2028-03-15", "winkel": null, "serienummer": null, "note": "Vijf jaar garantie", "foto": null}
   ],
   "vakanties": [
-    {"id": "va-kerst", "naam": "Kerst in Oostenrijk", "startDatum": "2026-12-20", "bestemming": "Mayrhofen", "paklijst": {"Bas": [{"id": "p-ski", "text": "Skibril", "done": false}], "Sanne": [{"id": "p-badtas", "text": "Badtas", "done": true}], "Lynn": [], "Freya": []}, "todos": [{"id": "td-pas", "text": "Skipassen boeken", "done": false}], "notes": "Appartement 3B", "budget": {"bedrag": 2500, "uitgaven": [{"omschrijving": "Appartement", "bedrag": 1400}]}}
+    {"id": "va-kerst", "naam": "Kerst in Oostenrijk", "startDatum": "2026-12-20", "bestemming": "Mayrhofen", "paklijst": {"Bas": [{"id": "p-ski", "text": "Skibril", "done": false}], "Sanne": [{"id": "p-badtas", "text": "Badtas", "done": true}], "Lynn": [], "Freya": []}, "todos": [{"id": "td-pas", "text": "Skipassen boeken", "done": false}], "notes": "Appartement 3B", "budget": {"bedrag": 2500, "uitgaven": [{"desc": "Appartement", "amount": 1400, "date": "2026-09-15"}]}}
   ],
   "vasteBoodschappen": [{"id": "vb-melk", "text": "Melk"}, {"id": "vb-eieren", "text": "Eieren"}, {"id": "vb-kaas", "text": "Kaas"}],
   "boodschappenHistory": [{"text": "Melk", "norm": "melk", "date": "2026-09-24"}, {"text": "Melk", "norm": "melk", "date": "2026-09-17"}],

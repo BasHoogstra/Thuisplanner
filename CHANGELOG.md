@@ -28,3 +28,16 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   (Meer-teller, signalen, briefing, Vandaag).
 - Afwijking van de roadmap: "garanties en kluis gebruiken dezelfde naamvelden" vervalt; dat
   bleek bij nader onderzoek geen fout in de app (garanties gebruiken overal `text`, de kluis `naam`).
+
+## 1.0.3 — Fase 0, stap 0.4 (testversie)
+- Eén manier van verwijderen: losse items gaan direct weg met "Ongedaan maken" (vaste taken,
+  backlog, garanties, kluis, recepten, notities, verjaardagen, onderhoud, bestellingen,
+  gewoonten, favorieten, verlanglijstje, vaste lasten, meerdaagse taken, vakantie-to-do's,
+  uitgaven en paklijstitems). Ongedaan maken zet het item terug op dezelfde plek met hetzelfde id.
+- Grotere dingen (een hele vakantie, een eigen lijst, iemand uit de paklijsten) houden hun
+  bevestigingsvraag; een verwijderde vakantie is daarna ook ongedaan te maken.
+- Vegen telt alleen als de beweging duidelijk zijwaarts is; schuin scrollen verwijderde eerder
+  soms een item.
+- Vaste taken op Vandaag hebben een menu met "Overslaan voor vandaag" (kon alleen met vegen).
+- Afwijking: bij notities, kluis, verjaardagen, recepten en gewoonten is de bevestigingsvraag
+  vervangen door "Ongedaan maken", zodat alles op dezelfde manier werkt.
