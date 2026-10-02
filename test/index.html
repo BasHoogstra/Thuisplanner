@@ -1100,6 +1100,11 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .recept-bood-btn{width:100%;margin-top:8px;justify-content:flex-start;gap:6px;font-size:13px;white-space:normal;height:auto;min-height:36px;padding:6px 10px;text-align:left;line-height:18px;}
 .recept-link-btn{gap:6px;}
 
+/* Gezins-DNA iconen (0.9) */
+.dna-card .dna-ic{width:36px;height:36px;margin-bottom:8px;}
+.dna-insight-row .dna-ic{width:32px;height:32px;border-radius:9px;flex-shrink:0;}
+.dna-insight-row .dna-ic .ic{width:18px;height:18px;}
+
 /* Oude taken (0.5) */
 .overdue-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn);gap:8px;}
 .overdue-banner-text{font-size:var(--fs-small);font-weight:600;line-height:20px;}
@@ -2159,7 +2164,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.11';
+var APP_VERSION='1.0.12';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -5135,7 +5140,7 @@ function renderStatistieken(){
   var catTotal=Object.values(catCount).reduce(function(s,v){return s+v;},0);
   Object.keys(catCount).sort(function(a,b){return catCount[b]-catCount[a];}).slice(0,6).forEach(function(cat){
     var c=getCat(cat);var row=document.createElement('div');row.className='stat-bar-row';
-    var lbl=document.createElement('div');lbl.className='stat-bar-label';lbl.style.minWidth='80px';lbl.textContent=c.emoji+' '+c.label;
+    var lbl=document.createElement('div');lbl.className='stat-bar-label';lbl.style.minWidth='80px';lbl.style.display='flex';lbl.style.alignItems='center';lbl.style.gap='6px';lbl.appendChild(ui.dot(c.color));lbl.appendChild(document.createTextNode(c.label));
     var bg=document.createElement('div');bg.className='stat-bar-bg';
     var fill=document.createElement('div');fill.className='stat-bar-fill';fill.style.cssText='width:'+Math.round(catCount[cat]/catTotal*100)+'%;background:'+c.color;
     bg.appendChild(fill);
@@ -6317,10 +6322,13 @@ function renderGezinsDNA(){
   var dna=computeDNA();
   var grid=document.getElementById('dnaGrid');grid.innerHTML='';
 
+  // Lijn-iconen i.p.v. emoji (0.9); onbekende tekens vallen terug op een algemeen icoon.
+  var DNA_SVG={'✅':'check','🛒':'cart','🍽':'utensils','📅':'calendar','⚡':'trending','📦':'package','🏆':'star','🔥':'flame','👨‍🍳':'chef','🔧':'wrench','👤':'user'};
+  function dnaIcon(e){return '<span class="icon-sq tint-back dna-ic" aria-hidden="true">'+icon(DNA_SVG[e]||'sparkles')+'</span>';}
   function makeCard(emoji,label,value,sub,wide,accent,barPct){
     var card=document.createElement('div');
     card.className='dna-card'+(wide?' dna-card-wide':'')+(accent?' dna-card-accent':'');
-    card.innerHTML='<span class="dna-card-emoji">'+escHtml(emoji)+'</span>'
+    card.innerHTML=dnaIcon(emoji)
       +'<div class="dna-card-label">'+escHtml(label)+'</div>'
       +'<div class="dna-card-value">'+escHtml(value)+'</div>'
       +'<div class="dna-card-sub">'+escHtml(sub)+'</div>';
@@ -6344,7 +6352,7 @@ function renderGezinsDNA(){
     card.className='dna-card'+(wide?' dna-card-wide':'');
     rows.forEach(function(r){
       var row=document.createElement('div');row.className='dna-insight-row';
-      row.innerHTML='<div class="dna-insight-icon">'+escHtml(r.icon)+'</div>'
+      row.innerHTML=dnaIcon(r.icon)
         +'<div class="dna-insight-text">'+escHtml(r.text)+'</div>'
         +'<div class="dna-insight-val">'+escHtml(r.val)+'</div>';
       card.appendChild(row);

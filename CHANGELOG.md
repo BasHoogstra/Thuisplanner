@@ -103,3 +103,7 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - "Recept openen" en "… ingrediënten naar lijst" als gewone knoppen; lege staat bij Recepten.
 - De keuzelijst van de maaltijdplanner toont alleen de receptnaam (gebruikte de verwijderde emoji).
 - Rooktest controleert nu ook dat binnen elk scherm niets rechts buiten beeld valt.
+
+## 1.0.12 — Fase 0, stap 0.9e (testversie): Gezins-DNA en Statistieken
+- Gezins-DNA: lijn-iconen in een gekleurd vlak i.p.v. emoji op kaarten en inzichten.
+- Statistieken: categorieën met een gekleurde stip i.p.v. emoji.

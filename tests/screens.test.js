@@ -115,4 +115,22 @@ module.exports = {
     assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
     await c.close();
   },
+
+  async 'Gezins-DNA en Statistieken: lijn-iconen i.p.v. emoji, inhoud blijft'(ctx) {
+    const fx = readFixture('huishouden.json');
+    const { page, state, ctx: c } = await openApp(ctx.browser, ctx.base, { data: fx });
+    const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+    await openMeer(page, 'openGezinsDNA');
+    assert(await page.locator('#dnaGrid .dna-ic').count() >= 4, 'DNA: iconen ontbreken');
+    // Alleen de iconen van kaarten en inzichten; een gewoonte-icoon in de tekst is data en blijft.
+    assert(await page.locator('#dnaGrid .dna-card-emoji, #dnaGrid .dna-insight-icon').count() === 0, 'DNA: nog emoji-iconen');
+    assert(!emoji.test((await page.$$eval('#dnaGrid .dna-card-label', els => els.map(e => e.textContent).join(' ')))), 'DNA: emoji in de labels');
+    assert((await page.textContent('#dnaGrid')).includes('Taken afgerond'), 'DNA: inhoud ontbreekt');
+    await page.evaluate(() => document.querySelectorAll('.full-overlay.open').forEach(o => o.classList.remove('open')));
+    await openMeer(page, 'openStatistieken');
+    const st = await page.textContent('#statistiekenBody');
+    assert(st.includes('Taken per categorie') && st.includes('Financiën') && !emoji.test(st), 'Statistieken: ' + st.slice(0, 160));
+    assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
+    await c.close();
+  },
 };
