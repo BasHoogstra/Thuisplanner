@@ -12,6 +12,28 @@ async function noHorizontalScroll(page, label) {
   const w = await page.evaluate(() => document.documentElement.scrollWidth);
   assert(w <= 391, label + ': pagina is ' + w + ' px breed (horizontaal scrollen)');
 }
+// Niets mag buiten het scherm vallen, behalve binnen een container die zelf scrolt (zoals chiprijen).
+async function nothingOffscreen(page, label) {
+  const off = await page.evaluate(() => {
+    const W = window.innerWidth, root = document.querySelector('.full-overlay.open,.overlay.open') || document.querySelector('.view.active');
+    if (!root) return [];
+    const bad = [];
+    root.querySelectorAll('*').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height || r.right <= W + 1) return;
+      for (let a = el.parentElement; a && a !== root; a = a.parentElement) {
+        const ox = getComputedStyle(a).overflowX;
+        const ar = a.getBoundingClientRect();
+        if (ar.right > W + 1) continue;
+        if (ox === 'hidden') return;                                   // bewust afgeknipt
+        if ((ox === 'auto' || ox === 'scroll') && ar.height < 150) return; // horizontale rij, zoals chips
+      }
+      bad.push((el.id ? '#' + el.id : el.className || el.tagName) + ' (' + Math.round(r.right) + 'px)');
+    });
+    return bad.slice(0, 5);
+  });
+  assert(off.length === 0, label + ': valt buiten het scherm: ' + off.join(', '));
+}
 async function closeAll(page) {
   await page.evaluate(() => {
     document.querySelectorAll('.full-overlay.open,.overlay.open').forEach(o => o.classList.remove('open'));
@@ -39,7 +61,7 @@ module.exports = {
       await shot('05-taakmenu'); await closeAll(page);
       for (const v of ['bakjeView', 'boodschappenView', 'meerView']) {
         await page.click('[data-view="' + v + '"]'); await page.waitForTimeout(250);
-        await shot('06-' + v); await noHorizontalScroll(page, v);
+        await shot('06-' + v); await noHorizontalScroll(page, v); await nothingOffscreen(page, v);
       }
       let i = 10;
       for (const id of MEER) {
@@ -49,6 +71,7 @@ module.exports = {
         assert(open, id + ' opent geen scherm');
         await shot((i++) + '-' + id);
         await noHorizontalScroll(page, id);
+        await nothingOffscreen(page, id);
         await closeAll(page);
       }
       await page.click('[data-view="vandaagView"]');

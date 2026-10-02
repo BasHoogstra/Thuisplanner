@@ -96,3 +96,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 ## 1.0.10 — Fase 0, stap 0.9c (testversie): Gewoonten
 - Lijstrijen en afvinkcirkels zoals op Vandaag, prullenbak-knop, lege staat, invoer onderaan als
   veld met plusknop. Het gekozen icoon per gewoonte (data) blijft getoond.
+
+## 1.0.11 — Fase 0, stap 0.9d (testversie): Kluis, Huisgeheugen, Recepten
+- Lijn-iconen in een gekleurd vlak i.p.v. emoji (kluis per soort document, huisgeheugen per soort
+  gebeurtenis, recepten); de receptcategorie staat nu als tekst in de kaart.
+- "Recept openen" en "… ingrediënten naar lijst" als gewone knoppen; lege staat bij Recepten.
+- De keuzelijst van de maaltijdplanner toont alleen de receptnaam (gebruikte de verwijderde emoji).
+- Rooktest controleert nu ook dat binnen elk scherm niets rechts buiten beeld valt.

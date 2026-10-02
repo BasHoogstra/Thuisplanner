@@ -90,4 +90,29 @@ module.exports = {
     assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
     await c.close();
   },
+
+  async 'Kluis, Huisgeheugen, Recepten en Maaltijdplanner: zonder emoji-iconen, functies werken'(ctx) {
+    const fx = readFixture('huishouden.json');
+    const { page, state, ctx: c } = await openApp(ctx.browser, ctx.base, { data: fx });
+    await openMeer(page, 'openKluis');
+    assert(await page.locator('#kluisList .icon-sq').count() === 2, 'Kluis: iconen ontbreken');
+    await page.evaluate(() => document.querySelectorAll('.full-overlay.open').forEach(o => o.classList.remove('open')));
+    await openMeer(page, 'openHuisgeheugen');
+    await page.fill('#geheugenZoek', 'gras'); await page.waitForTimeout(300);
+    assert((await page.textContent('#geheugenList')).includes('Gras maaien'), 'Huisgeheugen: zoeken werkt niet');
+    await page.evaluate(() => document.querySelectorAll('.full-overlay.open').forEach(o => o.classList.remove('open')));
+    await openMeer(page, 'openRecepten');
+    const kaart = await page.textContent('#receptGrid .recept-card:has-text("Pasta pesto")');
+    assert(kaart.includes('Pasta') && kaart.includes('3 ingrediënten naar lijst'), 'Receptkaart onvolledig: ' + kaart);
+    const b = state.puts;
+    await page.click('#receptGrid .recept-card:has-text("Pasta pesto") .recept-bood-btn');
+    await waitForPut(state, b);
+    assert(['pasta', 'pesto', 'pijnboompitten'].every(i => state.db.boodschappen.some(x => x.text === i)), 'Ingrediënten niet op de lijst');
+    await page.evaluate(() => document.querySelectorAll('.full-overlay.open').forEach(o => o.classList.remove('open')));
+    await openMeer(page, 'openMaaltijdplanner');
+    const opts = await page.$$eval('#maaltijdWeek select >> nth=0', s => [...s[0].options].map(o => o.textContent));
+    assert(opts.includes('Pasta pesto'), 'Maaltijdplanner: recepten ontbreken in de keuzelijst: ' + opts.join(' | '));
+    assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
+    await c.close();
+  },
 };
