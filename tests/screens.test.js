@@ -146,4 +146,16 @@ module.exports = {
     assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
     await c.close();
   },
+
+  async 'Notitieboek: nieuwe notitie toevoegen'(ctx) {
+    const fx = readFixture('huishouden.json');
+    const { page, state, ctx: c } = await openApp(ctx.browser, ctx.base, { data: fx });
+    await openMeer(page, 'openNotitieboek');
+    const b = state.puts;
+    await page.click('#notitieAddBtn');
+    await waitForPut(state, b);
+    assert(state.db.notities.length === fx.notities.length + 1, 'Geen nieuwe notitie');
+    assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
+    await c.close();
+  },
 };

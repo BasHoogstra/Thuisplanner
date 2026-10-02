@@ -110,3 +110,6 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 
 ## 1.0.13 — Fase 0, stap 0.9f (testversie): Vaste lasten
 - Openklappen van een categorie met het chevron-icoon i.p.v. het teken ▸.
+
+## 1.0.14 — Fase 0, stap 0.9g (testversie): Notitieboek
+- "Nieuwe notitie" als primaire knop met icoon, zoals de andere schermen.
