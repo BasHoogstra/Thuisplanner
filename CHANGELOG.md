@@ -19,3 +19,12 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - De app schrijft deze velden zelf niet; dat gebeurt pas in fase 1.
 - Tests: `tests/guard.test.js`; de nagebootste database geeft nu net als Firebase een
   412 bij een verouderde ETag.
+
+## 1.0.2 — Fase 0, stap 0.3 (testversie)
+- Gezins-DNA heeft een zijmarge en een kop zoals de andere schermen; kaarten lopen niet meer buiten beeld.
+- Instellingen verwijst naar de deelknop in plaats van het niet-bestaande "Vandaag → Kopieer link".
+- De signalen bovenaan Vandaag staan echt op urgentie (dagen tot het moment), zoals de instelling belooft.
+- Onderhoud zonder "laatst gedaan" heet "Nog niet ingepland" en telt niet meer als dringend
+  (Meer-teller, signalen, briefing, Vandaag).
+- Afwijking van de roadmap: "garanties en kluis gebruiken dezelfde naamvelden" vervalt; dat
+  bleek bij nader onderzoek geen fout in de app (garanties gebruiken overal `text`, de kluis `naam`).

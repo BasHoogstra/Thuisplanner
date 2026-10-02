@@ -1012,6 +1012,11 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .pak-list .list-row__body{cursor:pointer;padding:10px 0;}
 .pak-list .list-row__title{font-size:15px;line-height:20px;overflow-wrap:break-word;-webkit-hyphens:auto;hyphens:auto;}
 
+/* Gezins-DNA: zijmarge en een kop zoals de andere volledige schermen (0.3) */
+#gezinsDnaOverlay .overlay-panel{flex:1;min-height:0;max-height:none!important;overflow-y:auto;padding:0 16px calc(24px + env(safe-area-inset-bottom));}
+#gezinsDnaOverlay .overlay-header{position:sticky;top:0;z-index:1;height:56px;margin:0 -16px 12px;padding:0 8px;background:var(--card);border-bottom:1px solid var(--border);}
+.dna-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+
 /* Bewaking verhuisd / te oud */
 #writeGuardOverlay{z-index:300;}
 #writeGuardOverlay[hidden]{display:none;}
@@ -1904,7 +1909,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
       <div style="text-align:center;">
         <div id="qrCodeBox" role="img" aria-label="QR-code met de deel-link" style="display:inline-block;padding:10px;background:#fff;border-radius:12px;border:1px solid var(--border);line-height:0;"></div>
       </div>
-      <p style="font-size:11px;color:var(--muted);text-align:center;margin:8px 0 0;">Of kopieer de link via Vandaag → Kopieer link</p>
+      <p style="font-size:11px;color:var(--muted);text-align:center;margin:8px 0 0;">Of deel de link met de deelknop rechtsboven in de app</p>
     </div>
     <div class="add-card" id="securityCard">
       <h3>🔒 Beveiliging</h3>
@@ -2060,7 +2065,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.1';
+var APP_VERSION='1.0.2';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -3136,31 +3141,41 @@ function renderHeroPills(tk){
   var weather=document.getElementById('weatherBar');
   var showWeather=heroOn('weer');weather.style.display=showWeather?'':'none';
   var room=HERO_MAX_PILLS-(showWeather?1:0);
-  var pills=[];
+  // Elk signaal krijgt het aantal dagen tot het moment; de dringendste komen eerst (0.3).
+  var pills=[];function add(days,el){pills.push({days:days,el:el,n:pills.length});}
   if(heroOn('vervaldata')){
     var u=getUrgentExpiries(1)[0];
-    if(u)pills.push(heroPill(u.type==='garantie'?'file':'shield',u.naam+' · '+(u.dagen===0?'vandaag':u.dagen===1?'morgen':u.dagen+' d'),function(){
+    if(u)add(u.dagen,heroPill(u.type==='garantie'?'file':'shield',u.naam+' · '+(u.dagen===0?'vandaag':u.dagen===1?'morgen':u.dagen+' d'),function(){
       if(u.type==='garantie')openOverlay('garantiesOverlay',renderGaranties);else openOverlay('kluisOverlay',renderKluis);
     }));
   }
   if(heroOn('verjaardag')){
     var bd=(data.verjaardagen||[]).filter(function(b){return daysUntilBirthday(b.datum)<=7;}).sort(function(a,b){return daysUntilBirthday(a.datum)-daysUntilBirthday(b.datum);})[0];
-    if(bd){var bdn=daysUntilBirthday(bd.datum);pills.push(heroPill('cake',bd.naam+' · '+(bdn===0?'vandaag jarig':bdn===1?'morgen':bdn+' d'),function(){openOverlay('verjaardagenOverlay',renderVerjaardagen);}));}
+    if(bd){var bdn=daysUntilBirthday(bd.datum);add(bdn,heroPill('cake',bd.naam+' · '+(bdn===0?'vandaag jarig':bdn===1?'morgen':bdn+' d'),function(){openOverlay('verjaardagenOverlay',renderVerjaardagen);}));}
   }
   if(heroOn('vakantie')){
     var nv=(data.vakanties||[]).filter(function(v){return v.startDatum&&v.startDatum>=tk;}).sort(function(a,b){return a.startDatum<b.startDatum?-1:1;})[0];
     if(nv){var vd=Math.round((keyToDate(nv.startDatum)-keyToDate(tk))/864e5);
-      pills.push(heroPill('plane',(nv.naam||'Vakantie')+' · '+(vd===0?'vandaag':vd===1?'morgen':vd+' d'),function(){openOverlay('vakantiesOverlay',renderVakanties);}));}
+      add(vd,heroPill('plane',(nv.naam||'Vakantie')+' · '+(vd===0?'vandaag':vd===1?'morgen':vd+' d'),function(){openOverlay('vakantiesOverlay',renderVakanties);}));}
   }
   if(heroOn('bestellingen')){
-    var ob=(data.bestellingen||[]).filter(function(b){return b.status!=='geleverd';}).length;
-    if(ob)pills.push(heroPill('package',ob+(ob===1?' bestelling':' bestellingen'),function(){openOverlay('bestellingenOverlay',function(){updateBestWieLabels();renderBestellingen();});}));
+    var obl=(data.bestellingen||[]).filter(function(b){return b.status!=='geleverd';});
+    var ob=obl.length;
+    if(ob){
+      // Urgentie: de eerstvolgende verwachte levering; zonder datum achteraan.
+      var bdays=obl.map(function(b){return b.expectedDate?Math.round((keyToDate(b.expectedDate)-keyToDate(tk))/864e5):9999;});
+      add(Math.max(0,Math.min.apply(null,bdays)),heroPill('package',ob+(ob===1?' bestelling':' bestellingen'),function(){openOverlay('bestellingenOverlay',function(){updateBestWieLabels();renderBestellingen();});}));
+    }
   }
   if(heroOn('onderhoud')){
-    var due=(data.onderhoud||[]).filter(function(o){if(!o.lastDone)return true;var d=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*864e5);return d<=new Date(today.getTime()+14*864e5);});
-    if(due.length)pills.push(heroPill('wrench',due.length===1?due[0].text:due.length+' onderhoudstaken',function(){openOverlay('onderhoudOverlay',renderOnderhoud);}));
+    var due=(data.onderhoud||[]).filter(function(o){if(!o.lastDone)return false;var d=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*864e5);return d<=new Date(today.getTime()+14*864e5);});
+    if(due.length){
+      var odays=due.map(function(o){return Math.round((keyToDate(o.lastDone).getTime()+o.intervalDays*864e5-keyToDate(tk).getTime())/864e5);});
+      add(Math.max(0,Math.min.apply(null,odays)),heroPill('wrench',due.length===1?due[0].text:due.length+' onderhoudstaken',function(){openOverlay('onderhoudOverlay',renderOnderhoud);}));
+    }
   }
-  pills.slice(0,Math.max(0,room)).forEach(function(p){wrap.appendChild(p);});
+  pills.sort(function(a,b){return (a.days-b.days)||(a.n-b.n);});
+  pills.slice(0,Math.max(0,room)).forEach(function(p){wrap.appendChild(p.el);});
 }
 document.getElementById('heroEditBtn').addEventListener('click',function openHeroPrefs(){
   var p=getHeroPrefs();
@@ -3190,7 +3205,7 @@ function renderVandaag(){
   var openBest=(data.bestellingen||[]).filter(function(b){return b.status!=='geleverd';}).length;
   var backlogCount=(data.backlog||[]).length;
   var ondDue=(data.onderhoud||[]).filter(function(o){
-    if(!o.lastDone)return true;
+    if(!o.lastDone)return false; // nog niet ingepland: niet dringend (0.3)
     var due=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);
     return due<=new Date(today.getTime()+14*24*60*60*1000);
   }).length;
@@ -4598,7 +4613,7 @@ function renderMeerStats(){
   var openBest=(data.bestellingen||[]).filter(function(b){return b.status!=='geleverd';}).length;
   document.getElementById('bestellingenSub').textContent=openBest>0?openBest+' open bestelling'+(openBest===1?'':'en'):'Bijhouden wat je hebt besteld';
   var ondDue=(data.onderhoud||[]).filter(function(o){
-    if(!o.lastDone)return true;
+    if(!o.lastDone)return false; // nog niet ingepland: niet dringend (0.3)
     var due=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);
     return due<=new Date(today.getTime()+14*24*60*60*1000);
   }).length;
@@ -4615,7 +4630,7 @@ function renderMeerStats(){
     if(count>0){var b=ui.el('span','badge',String(count));trail.insertBefore(b,trail.firstChild);}
   }
   var ondWarn=(data.onderhoud||[]).filter(function(o){
-    if(!o.lastDone)return true;
+    if(!o.lastDone)return false; // nog niet ingepland: niet dringend (0.3)
     var due=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);
     return Math.round((due-new Date())/(1000*60*60*24))<=14;
   }).length;
@@ -5055,17 +5070,17 @@ function renderOnderhoud(){
       daysLeft=Math.round((dueDate-now)/(1000*60*60*24));
       if(daysLeft<0)status='overdue';else if(daysLeft<=30)status='soon';
       var elapsed=o.intervalDays-daysLeft;pct=Math.min(100,Math.max(0,Math.round(elapsed/o.intervalDays*100)));
-    } else {status='overdue';pct=100;}
+    } else {status='nieuw';pct=0;}
     return {o:o,dueDate:dueDate,daysLeft:daysLeft,status:status,pct:pct};
   });
-  enriched.sort(function(a,b){var order={overdue:0,soon:1,ok:2};return (order[a.status]-order[b.status])||((a.daysLeft||0)-(b.daysLeft||0));});
+  enriched.sort(function(a,b){var order={overdue:0,soon:1,nieuw:2,ok:3};return (order[a.status]-order[b.status])||((a.daysLeft||0)-(b.daysLeft||0));});
   var lastSection='';
   enriched.forEach(function(e){
     var o=e.o,daysLeft=e.daysLeft,status=e.status,pct=e.pct;
-    var sectionLabel=status==='overdue'?'Actie vereist':status==='soon'?'Binnenkort':'Op schema';
+    var sectionLabel=status==='overdue'?'Actie vereist':status==='soon'?'Binnenkort':status==='nieuw'?'Nog niet ingepland':'Op schema';
     if(sectionLabel!==lastSection){
       var sl=document.createElement('div');sl.className='ond-section-label';
-      sl.textContent=(status==='overdue'?'🔴':status==='soon'?'🟠':'🟢')+' '+sectionLabel;
+      sl.textContent=(status==='overdue'?'🔴':status==='soon'?'🟠':status==='nieuw'?'⚪':'🟢')+' '+sectionLabel;
       list.appendChild(sl);lastSection=sectionLabel;
     }
     var cat=getCat(o.category);
@@ -5073,7 +5088,8 @@ function renderOnderhoud(){
     var header=document.createElement('div');header.className='ond-header';
     var name=document.createElement('div');name.className='ond-name';name.textContent=cat.emoji+' '+o.text;
     var due=document.createElement('div');due.className='ond-due '+status;
-    if(status==='overdue')due.textContent=daysLeft!==null?Math.abs(daysLeft)+' dg te laat':'Nooit gedaan';
+    if(status==='overdue')due.textContent=Math.abs(daysLeft)+' dg te laat';
+    else if(status==='nieuw')due.textContent='Nog nooit gedaan';
     else if(status==='soon')due.textContent='Over '+daysLeft+'d';
     else due.textContent='Over '+daysLeft+'d';
     header.appendChild(name);header.appendChild(due);item.appendChild(header);
@@ -6262,7 +6278,7 @@ function showBriefing(force){
   var bdToday=(data.verjaardagen||[]).filter(function(b){return b.datum===todayMMDD;});
   var openBestB=(data.bestellingen||[]).filter(function(b){return b.status!=='geleverd';});
   var ondDueB=(data.onderhoud||[]).filter(function(o){
-    if(!o.lastDone)return true;
+    if(!o.lastDone)return false; // nog niet ingepland: niet dringend (0.3)
     var due=new Date(keyToDate(o.lastDone).getTime()+o.intervalDays*24*60*60*1000);
     return due<=new Date(d.getTime()+14*24*60*60*1000);
   });
