@@ -135,3 +135,16 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - De keuze staat alleen in de lokale opslag van het toestel, niet in de gedeelde data.
 - De briefing blijft altijd met de knop te openen.
 - Tests: `tests/options.test.js`.
+
+## 1.0.18 — Fase 0, stap 0.12 (testversie)
+- Opgeruimd, alleen wat aantoonbaar nergens meer gebruikt wordt:
+  - vier functies die nergens werden aangeroepen: `renderBriefjes`, `openWatEtenWeFromBtn`,
+    `personColor`, `getMaaltijdWeekKey`;
+  - ruim 290 CSS-regels voor klassen die in geen enkele HTML of JavaScript meer voorkomen
+    (oude kop, oude Meer-kaarten, oude taak-, boodschappen- en cadeau-opmaak, briefjes).
+    Klassen die de app met code opbouwt (`status-…`, `prio-…`, `exp-…`) zijn bewust blijven staan.
+- Data blijft onaangeroerd: de velden `briefjes` en `cadeaus` blijven bestaan en worden nog
+  steeds gelezen en bewaard. (`renderBriefjes` werd nooit aangeroepen, dus het automatisch
+  opruimen van oude briefjes gebeurde al niet.)
+- Controle: alle 60 screenshots van de rooktest (licht en donker) zijn vóór en na het opruimen
+  byte-identiek; volledige testset geslaagd.
