@@ -133,4 +133,17 @@ module.exports = {
     assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
     await c.close();
   },
+
+  async 'Vaste lasten: categorie openklappen toont de posten'(ctx) {
+    const fx = readFixture('huishouden.json');
+    const { page, state, ctx: c } = await openApp(ctx.browser, ctx.base, { data: fx });
+    await openMeer(page, 'openBudget');
+    assert((await page.textContent('#budgetSummary')).includes('1330'), 'Totaal klopt niet');
+    await page.click('#budgetCatList >> text=Wonen'); await page.waitForTimeout(250);
+    const vals = await page.$$eval('#budgetCatList input', els => els.map(e => e.value));
+    assert(vals.includes('Hypotheek'), 'Posten verschijnen niet: ' + vals.join(', '));
+    assert(await page.locator('#budgetCatList .vl-cat-arrow.open svg').count() === 1, 'Pijl draait niet mee');
+    assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
+    await c.close();
+  },
 };
