@@ -71,6 +71,16 @@ module.exports = {
     assert(bad.length === 0, 'Gebruik extensions.<functie>() in migraties:\n    ' + bad.join('\n    '));
   },
 
+  async 'migraties: alleen LF-regeleinden (geen CR/CRLF)'() {
+    // Postgres bewaart functieteksten inclusief regeleinden. Een migratie met CRLF (bv. een
+    // Windows-checkout zonder .gitattributes) geeft daardoor een andere schema-vingerafdruk.
+    const bad = fs.readdirSync(MIG).filter(f => f.endsWith('.sql'))
+      .filter(f => fs.readFileSync(path.join(MIG, f)).includes(13));
+    assert(bad.length === 0, 'Migratie bevat CR/CRLF (normaliseer naar LF, zie supabase/README.md):\n    ' + bad.join('\n    '));
+    const attr = fs.existsSync(path.join(ROOT, '.gitattributes')) ? fs.readFileSync(path.join(ROOT, '.gitattributes'), 'utf8') : '';
+    assert(/^\*\.sql\s+text\s+eol=lf\s*$/m.test(attr), '.gitattributes mist: *.sql text eol=lf');
+  },
+
   async 'geen service-role- of secret-sleutels in de repository'() {
     const files = execSync('git ls-files -co --exclude-standard', { cwd: ROOT }).toString().split('\n').filter(Boolean)
       .filter(f => !/\.(png|jpg|jpeg|webp|ico|woff2?)$/i.test(f) && fs.existsSync(path.join(ROOT, f)));

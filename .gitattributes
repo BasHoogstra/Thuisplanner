@@ -1,0 +1,4 @@
+# SQL-migraties altijd met LF uitchecken, ook op Windows (core.autocrlf).
+# Postgres bewaart de tekst van functies inclusief regeleinden; met CRLF krijgt staging
+# een andere vingerafdruk dan productie. Zie supabase/README.md.
+*.sql text eol=lf

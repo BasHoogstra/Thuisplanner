@@ -181,3 +181,5 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   migraties uitvoert zonder `extensions` in het `search_path`. Bewuste uitzondering op "toegepaste
   migraties veranderen niet": de productiehistorie wijkt daardoor tekstueel af van Git; het schema is
   gelijk. Nieuwe test: geen extensiefuncties zonder `extensions.` in migraties.
+- `.gitattributes`: `*.sql text eol=lf`. Een Windows-checkout met CRLF gaf op staging functies met
+  CR-tekens en daardoor een andere schema-vingerafdruk dan productie. Nieuwe test: geen CR in migraties.

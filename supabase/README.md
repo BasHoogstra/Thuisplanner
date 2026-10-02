@@ -57,6 +57,19 @@ Daarom in elke migratie:
 
 `tests/supabase.test.js` faalt als een migratie een bekende extensiefunctie zonder `extensions.` gebruikt.
 
+### Regel: migraties altijd met LF-regeleinden
+
+Postgres bewaart de tekst van functies letterlijk, inclusief regeleinden. Wordt een migratie vanaf
+een Windows-checkout met CRLF uitgevoerd (`core.autocrlf`), dan krijgen de functies op die database
+CR-tekens in hun definitie. Ze werken hetzelfde, maar de schema-vingerafdruk wijkt dan af van
+productie (gezien bij stap 1.1 op staging: alle zes functies). Daarom:
+
+- `.gitattributes` bevat `*.sql text eol=lf`, zodat SQL-bestanden overal met LF worden uitgecheckt;
+- `tests/supabase.test.js` faalt als een migratiebestand op schijf een CR bevat.
+
+Een bestaande Windows-checkout eenmalig normaliseren (zonder lokale wijzigingen):
+`git pull`, `git rm --cached -r supabase`, `git reset --hard`.
+
 ### Uitzondering op migratie 20261002064401
 
 Migraties die al in productie zijn uitgevoerd veranderen we normaal nooit. Voor
