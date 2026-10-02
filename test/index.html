@@ -6370,54 +6370,6 @@ requestNotifPermission();
 var activeVakId=null;
 function getVakanties(){if(!data.vakanties)data.vakanties=[];return data.vakanties;}
 function getVakantiePersonen(){if(!data.vakantiePersonen||!data.vakantiePersonen.length)data.vakantiePersonen=defaultPersonen();return data.vakantiePersonen;}
-// ── Paklijst generator helpers ─────────────────────────────
-var PAK_TYPES={
-  strand:{label:'🏖 Strand & zon',extra:['Zwemkleding','Zonnebrandcrème','Slippers','Strandlaken','Zonnebril','Hoed of pet']},
-  stad:{label:'🏙 Stad & cultuur',extra:['Comfortabele schoenen','Paraplu','Powerbank']},
-  wintersport:{label:'⛷ Wintersport',extra:['Skipak','Handschoenen','Muts','Skibril','Thermokleding','Extra skisokken','Lippenbalsem']},
-  camping:{label:'⛺ Camping',extra:['Slaapzak','Hoofdlamp of zaklamp','Campingstoel','Multitool','Insectenspray']},
-  weekend:{label:'🎒 Weekendje weg',extra:[]},
-  algemeen:{label:'📦 Algemeen',extra:[]}
-};
-var PAK_BASIS=['Paspoort/ID-kaart','Portemonnee & bankkaart','Telefoon + oplader','Medicijnen','Toilettas','Zonnebril','Boek of entertainment'];
-function genereerPaklijstItems(type,nachten){
-  var n=Math.max(1,parseInt(nachten)||1);
-  var setjes=Math.min(n+1,7);
-  var items=['Onderbroeken ('+setjes+'x)','Sokken ('+setjes+'x)','T-shirts ('+setjes+'x)','Pyjama','Trui of vest','Extra broek of rok'].concat(PAK_BASIS);
-  var t=PAK_TYPES[type];
-  if(t&&t.extra.length)items=items.concat(t.extra);
-  return items;
-}
-function voegPakItemsToe(vak,items){
-  getVakantiePersonen().forEach(function(p){
-    var list=vak.paklijst[p]||(vak.paklijst[p]=[]);
-    var bestaand=list.map(function(i){return i.text.toLowerCase();});
-    items.forEach(function(txt){
-      if(bestaand.indexOf(txt.toLowerCase())===-1){list.push({id:uid(),text:txt,done:false});bestaand.push(txt.toLowerCase());}
-    });
-  });
-}
-// ── Automatisch paklijst klaarzetten als vertrek dichtbij komt ──
-function autoPrepVakantiePaklijsten(){
-  var prepped=[];
-  getVakanties().forEach(function(vak){
-    if(!vak.startDatum||vak._autoPakSet)return;
-    var d=daysUntil(vak.startDatum);
-    if(d<0||d>14){return;}
-    if(!vak.paklijst)vak.paklijst={};
-    getVakantiePersonen().forEach(function(p){if(!vak.paklijst[p])vak.paklijst[p]=[];});
-    var totItems=0;getVakantiePersonen().forEach(function(p){totItems+=vak.paklijst[p].length;});
-    vak._autoPakSet=true;
-    if(totItems>0)return;
-    voegPakItemsToe(vak,genereerPaklijstItems(vak.type||'algemeen',vak.nachten||7));
-    prepped.push({naam:vak.naam,dagen:d});
-  });
-  if(prepped.length){
-    saveToServer();
-    var f=prepped[0];
-    showToast(prepped.length===1?'📦 Paklijst voor "'+f.naam+'" klaargezet (nog '+f.dagen+' dag'+(f.dagen===1?'':'en')+')!':'📦 '+prepped.length+' paklijsten automatisch klaargezet!');
-  }
-}
 function renderVakanties(){
   var content=document.getElementById('vakantiesContent');content.innerHTML='';
   var vakanties=getVakanties();
