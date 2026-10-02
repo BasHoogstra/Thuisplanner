@@ -128,3 +128,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   geen melding als er nog niets is afgerond.
 - Gezins-DNA: de kaart "Meeste taken afgerond" (een winnaar) is "Samen afgerond" geworden; de
   verdeling per persoon blijft eronder staan.
+
+## 1.0.17 — Fase 0, stap 0.11 (testversie)
+- Instellingen → "Vandaag": ochtendbriefing, seizoenstips en het weekoverzicht op vrijdag zijn
+  per toestel uit te zetten. Standaard staat alles aan (zelfde gedrag als voorheen).
+- De keuze staat alleen in de lokale opslag van het toestel, niet in de gedeelde data.
+- De briefing blijft altijd met de knop te openen.
+- Tests: `tests/options.test.js`.
