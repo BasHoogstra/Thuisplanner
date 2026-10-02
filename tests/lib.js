@@ -97,6 +97,9 @@ async function openApp(browser, base, opts = {}) {
   await ctx.route(DB_URL + '/**', async route => {
     const req = route.request();
     if (req.method() === 'PUT') {
+      // Zoals Firebase: een voorwaardelijke PUT met een verouderde ETag geeft 412.
+      const ifMatch = req.headers()['if-match'];
+      if (ifMatch && ifMatch !== 'e' + state.etag) { state.conflicts = (state.conflicts || 0) + 1; return route.fulfill({ status: 412, headers: { ETag: 'e' + state.etag }, body: '' }); }
       const body = JSON.parse(req.postData());
       if (opts.onPut) opts.onPut(body);
       state.db = body; state.puts++; state.etag++; state.putBodies.push(body);
@@ -122,6 +125,9 @@ async function openApp(browser, base, opts = {}) {
   return { ctx, page, state, url };
 }
 
+// Simuleert een ander toestel dat de serverdata wijzigt.
+function serverWrite(state, mutate) { mutate(state.db); state.etag++; }
+
 async function waitForPut(state, before, timeout = 4000) {
   const t0 = Date.now();
   while (state.puts <= before) {
@@ -144,4 +150,4 @@ function shotPath(target, name) {
   return path.join(dir, name + '.png');
 }
 
-module.exports = { startServer, launch, openApp, readFixture, clone, firebaseCanon, diffPaths, waitForPut, assert, assertSameSet, shotPath, FIXED_NOW, DB_URL };
+module.exports = { serverWrite, startServer, launch, openApp, readFixture, clone, firebaseCanon, diffPaths, waitForPut, assert, assertSameSet, shotPath, FIXED_NOW, DB_URL };

@@ -8,3 +8,14 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   (licht en donker, 390 px breed). Draaien met `node tests/run.js` (testversie) of
   `node tests/run.js --target=root` (live-versie).
 - Versienummer `APP_VERSION` in de app.
+
+## 1.0.1 — Fase 0, stap 0.2 (testversie)
+- Bewaking: staat er in de serverdata `meta.migratedTo` (planner verhuisd) of een
+  `meta.minAppVersion` die nieuwer is dan de app, dan slaat de app niets meer op in Firebase
+  en toont een melding. Lokale wijzigingen blijven in de lokale cache. Verdwijnt de
+  markering, dan gaat de app gewoon verder en slaat de lokale wijzigingen alsnog op.
+- Geldt voor elk schrijfpad: gewoon opslaan, opnieuw proberen na een conflict en opslaan
+  bij het sluiten van de app.
+- De app schrijft deze velden zelf niet; dat gebeurt pas in fase 1.
+- Tests: `tests/guard.test.js`; de nagebootste database geeft nu net als Firebase een
+  412 bij een verouderde ETag.
