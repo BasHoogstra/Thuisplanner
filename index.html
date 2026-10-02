@@ -987,6 +987,17 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .season-banner .icon-btn,.week-score-banner .icon-btn{margin-left:auto;flex-shrink:0;}
 .name-banner{margin:0 16px 12px;border:1px solid var(--border);background:var(--card);border-radius:var(--r-lg);box-shadow:var(--sh-1);}
 
+/* Vakanties: paklijst in twee smalle kolommen, dus compacte rijen */
+.pak-add{display:flex;gap:6px;margin-bottom:8px;}
+.pak-add .field{height:44px;padding:0 10px;min-width:0;box-shadow:none;}
+.pak-add .btn-square{width:44px;height:44px;}
+.pak-list{margin:0;}
+.pak-list .list-row.compact{min-height:44px;gap:0;padding:0 8px 0 0;}
+.pak-list .check{width:40px;height:44px;}
+.pak-list .check__ring{width:22px;height:22px;}
+.pak-list .list-row__body{cursor:pointer;padding:10px 0;}
+.pak-list .list-row__title{font-size:15px;line-height:20px;overflow-wrap:break-word;-webkit-hyphens:auto;hyphens:auto;}
+
 /* ══ SCHERM: Boodschappen ══ */
 .bood-toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px 0 14px;}
 .bood-count{margin-left:auto;font-size:var(--fs-detail);color:var(--muted);}
@@ -6441,10 +6452,9 @@ function renderVakanties(){
       var items=activeVak.paklijst[person]||(activeVak.paklijst[person]=[]);
       var sec=document.createElement('div');sec.style.cssText='min-width:0;';
       var hdr=document.createElement('div');hdr.style.cssText='font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;';hdr.textContent=displayName;sec.appendChild(hdr);
-      var addRow=document.createElement('div');addRow.style.cssText='display:flex;gap:6px;margin-bottom:8px;';
-      var inp=document.createElement('input');inp.type='text';inp.placeholder='Item toevoegen…';
-      inp.style.cssText='flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:16px;background:var(--bg);color:var(--text);';
-      var aib=document.createElement('button');aib.textContent='+';aib.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 12px;font-size:18px;cursor:pointer;';
+      var addRow=ui.el('div','pak-add');
+      var inp=ui.el('input','field');inp.type='text';inp.placeholder='Toevoegen…';inp.setAttribute('aria-label','Item toevoegen voor '+displayName);inp.setAttribute('enterkeyhint','done');
+      var aib=ui.el('button','btn btn-primary btn-square');aib.type='button';aib.setAttribute('aria-label','Toevoegen');aib.innerHTML=icon('plus');
       (function(p,list,input,btn){
   var _busy=false;
   function doAdd(){if(_busy)return;var t=input.value.trim();if(!t)return;_busy=true;list.push({id:uid(),text:t,done:false});input.value='';saveToServer();renderVakanties();_busy=false;}
@@ -6458,17 +6468,22 @@ function renderVakanties(){
 })(person,items,inp,aib);
       addRow.appendChild(inp);addRow.appendChild(aib);sec.appendChild(addRow);
       var sortedItems=items.slice().sort(function(a,b){return (a.done?1:0)-(b.done?1:0);});
+      var pl=ui.el('div','list pak-list');
       sortedItems.forEach(function(item){
-        var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:5px;';
-        var chk=document.createElement('div');chk.style.cssText='width:20px;height:20px;border-radius:50%;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:10px;color:#fff;'+(item.done?'background:var(--accent);':'');chk.textContent=item.done?'✓':'';
-        chk.addEventListener('click',function(){item.done=!item.done;saveToServer();renderVakanties();});
-        var txt=document.createElement('span');txt.style.cssText='flex:1;font-size:13px;'+(item.done?'text-decoration:line-through;color:var(--done);':'');txt.textContent=item.text;
-        var editBtn=document.createElement('button');editBtn.textContent='\u270f';editBtn.title='Bewerken';editBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px;';
-        var del=document.createElement('button');del.textContent='✕';del.style.cssText='background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px;';
-        (function(p,it,r,t){editBtn.addEventListener('click',function(){var inp=document.createElement('input');inp.type='text';inp.value=it.text;inp.style.cssText='flex:1;font-size:13px;border:1px solid var(--accent);border-radius:6px;padding:2px 6px;background:var(--card);color:var(--text);min-width:0;';var _done=false;function save(){if(_done)return;_done=true;var v=inp.value.trim();if(v)it.text=v;saveToServer();renderVakanties();}inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();save();}if(e.key==='Escape'){_done=true;renderVakanties();}});inp.addEventListener('blur',save);r.replaceChild(inp,t);setTimeout(function(){inp.focus();inp.select();},50);});})(person,item,row,txt);
-        (function(p,it){del.addEventListener('click',function(){var arr=activeVak.paklijst[p];var idx=arr.indexOf(it);if(idx>-1)arr.splice(idx,1);saveToServer();renderVakanties();});})(person,item);
-        row.appendChild(chk);row.appendChild(txt);row.appendChild(editBtn);row.appendChild(del);sec.appendChild(row);
+        var row=ui.row({title:item.text,done:item.done,compact:true,swipeLabel:'Weg'});
+        function remove(){var arr=activeVak.paklijst[person];var idx=arr.indexOf(item);if(idx>-1)arr.splice(idx,1);saveToServer();renderVakanties();}
+        row.appendChild(ui.check({done:item.done,label:item.text},function(){item.done=!item.done;saveToServer();renderVakanties();}));
+        row.appendChild(row._body);
+        row._body.addEventListener('click',function(){
+          ui.actionSheet(item.text,[
+            {icon:'pencil',label:'Tekst aanpassen',onClick:function(){setTimeout(function(){customPrompt('Tekst aanpassen',item.text,function(v){v=String(v||'').trim();if(!v)return;item.text=v;saveToServer();renderVakanties();});},50);}},
+            {icon:'trash',label:'Verwijderen',danger:true,onClick:remove}
+          ]);
+        });
+        addSwipe(row,remove);
+        pl.appendChild(row);
       });
+      if(items.length)sec.appendChild(pl);
       if(!items.length){var em=document.createElement('div');em.style.cssText='font-size:12px;color:var(--muted);padding:4px 2px;';em.textContent='Geen items.';sec.appendChild(em);}
       pakGrid.appendChild(sec);
     });
