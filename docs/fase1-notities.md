@@ -18,3 +18,24 @@ naar de database en naar het andere toestel.
 **Gevolg voor fase 1:** in de mapping naar `items` dit veld niet als echte data behandelen
 (negeren of naar lokale opslag verplaatsen), anders veroorzaakt wisselen van tabblad
 synchronisatieverkeer en conflicten.
+
+## 3. Niet elke lijst heeft id's; sommige data is per datum of per persoon gegroepeerd
+Bij het vastleggen van het dataformaat (0.13) bleek: `boodschappenHistory` heeft geen `id`,
+`recurringDone`, `gewoontenDone`, `wieIsWaar`, `maaltijdplan` en `notes` zijn objecten per datum,
+`verlanglijstjes` en `vakanties[].paklijst` per persoon, en `verjaardagen.datum` is `MM-DD`
+zonder jaar. Vakantie-uitgaven hebben ook geen `id`.
+**Gevolg voor fase 1:** de mapping naar `items` (1.x) heeft voor deze vormen een eigen sleutel
+nodig (bv. datum + id, of persoon + id), en voor lijsten zonder id moet de import er een maken
+zonder dubbele rijen te veroorzaken bij een herhaalde import.
+
+## 4. Personen zijn namen, geen accounts
+`assignedTo`, `author`, `addedBy`, `claimedBy`, de sleutels van `verlanglijstjes`, `paklijst` en
+`wieIsWaar` zijn **namen** als tekst. Hernoemt iemand zichzelf in Instellingen, dan verwijzen
+oude items nog naar de oude naam.
+**Gevolg voor fase 1:** de koppeling naam → `household_members` moet bij de import expliciet
+gebeuren (en ook kinderen zonder account kunnen bevatten, bv. in `vakantiePersonen`).
+
+## 5. `meta.schemaVersion` staat er pas na een opslag
+De testversie zet `meta.schemaVersion = 1` alleen mee bij een gewone opslag, en de live-versie
+zet het niet. Een document zonder dit veld is dus gewoon versie 1.
+**Gevolg voor fase 1:** de import moet "ontbreekt" behandelen als versie 1.
