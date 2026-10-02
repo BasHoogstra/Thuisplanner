@@ -65,3 +65,11 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - `recIntervalLabel` sorteert de dagen niet meer in de data zelf.
 - Bekend, ongewijzigd gelaten: afvinken in het dagvenster schrijft geen regel in het
   Huisgeheugen, afvinken op Vandaag wel (was al zo).
+
+## 1.0.6 — Fase 0, stap 0.7 (testversie)
+- Maandweergave: cellen tonen stippen per taak in de kleur van de categorie (vaste taken als
+  ring, afgevinkt vaag) in plaats van afgekapte tekst; meerdaagse taken als dunne balk; een
+  klein vierkantje als er een dagnotitie is.
+- Onder de maand de lijst van de geselecteerde dag (standaard vandaag) met afvinken en
+  "Dag openen". Eerste tik selecteert een dag, nogmaals tikken opent het dagvenster.
+- Elke cel heeft een toegankelijk label ("vrijdag 2 oktober, 7 items") en werkt met het toetsenbord.

@@ -1031,6 +1031,27 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .add-sheet-backdrop{z-index:85;}
 .add-sheet{z-index:86;}
 
+/* Maandweergave (0.7) */
+.days{gap:4px;}
+.day{min-height:58px;padding:5px 4px 4px;border-left-width:1px;}
+.day:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+.day.selected{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text);}
+.day-top{justify-content:space-between;align-items:center;}
+.day-num{font-size:14px;font-weight:600;}
+.day.today .day-num{width:24px;height:24px;font-size:13px;}
+.day-note{width:6px;height:6px;border-radius:2px;background:var(--subtle);margin-right:2px;}
+.day-dots{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
+.mdot{width:7px;height:7px;border-radius:50%;display:block;}
+.mdot.rec{background:transparent;border:1.5px solid;}
+.mdot.done{opacity:.35;}
+.mdot-more{font-size:10px;line-height:8px;font-weight:700;color:var(--muted);}
+.md-bar{height:4px;padding:0;font-size:0;margin-top:3px;}
+.month-day{margin-top:4px;}
+.month-day .section-head{padding-left:2px;padding-right:0;}
+.month-day .section-head h2{font-size:var(--fs-head);}
+.month-day .list,.month-day .empty{margin:0;}
+.month-day-note{display:flex;align-items:flex-start;gap:6px;margin:10px 2px 0;font-size:var(--fs-small);color:var(--muted);}
+
 /* Oude taken (0.5) */
 .overdue-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn);gap:8px;}
 .overdue-banner-text{font-size:var(--fs-small);font-weight:600;line-height:20px;}
@@ -1345,6 +1366,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
       <div class="calendar" id="calendarView">
         <div class="weekdays"><span>ma</span><span>di</span><span>wo</span><span>do</span><span>vr</span><span>za</span><span>zo</span></div>
         <div class="days" id="daysGrid"></div>
+        <div class="month-day" id="monthDayList" aria-live="polite"></div>
       </div>
       <div class="week-view" id="weekView" style="display:none;"></div>
     </div>
@@ -2087,7 +2109,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.5';
+var APP_VERSION='1.0.6';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -3660,6 +3682,9 @@ function quickAddSummary(p){
 // === KALENDER ===
 function renderCalendar(){if(calMode==='month')renderMonth();else renderWeek();updateTodayBtn();}
 
+// Maand: stippen per taak in de cel, de geselecteerde dag als lijst eronder (0.7).
+// Eerste tik selecteert een dag, nogmaals tikken opent het dagvenster.
+var monthSelKey=null;
 function renderMonth(){
   document.getElementById('navTitle').textContent=MONTH_NAMES[viewMonth]+' '+viewYear;
   var grid=document.getElementById('daysGrid');grid.innerHTML='';
@@ -3667,6 +3692,8 @@ function renderMonth(){
   var offset=(first.getDay()+6)%7;
   var start=new Date(viewYear,viewMonth,1-offset);
   var tk=todayKey(),cells=[];
+  var monthPrefix=viewYear+'-'+pad(viewMonth+1)+'-';
+  if(!monthSelKey||monthSelKey.indexOf(monthPrefix)!==0)monthSelKey=tk.indexOf(monthPrefix)===0?tk:monthPrefix+'01';
   for(var i=0;i<42;i++){
     var d=new Date(start);d.setDate(start.getDate()+i);
     var key=dateKey(d.getFullYear(),d.getMonth(),d.getDate());
@@ -3676,42 +3703,37 @@ function renderMonth(){
     if(d.getMonth()!==viewMonth)cls+=' other-month';
     if(key===tk)cls+=' today';
     if(col>=5)cls+=' weekend';
+    if(key===monthSelKey)cls+=' selected';
     var dayTasks=data.tasks[key]||[];
     var recT=(data.recurring||[]).filter(function(r){return recAppliesToDate(r,key);});
-    var totalCount=dayTasks.length+recT.length;
+    var mdCount=(data.multiDayTasks||[]).filter(function(md){return md.startDate<=key&&md.endDate>=key;}).length;
     if(key<tk&&dayTasks.some(function(t){return !t.done;}))cls+=' overdue';
-    if(key>=tk&&totalCount>=5)cls+=' busy-3';
-    else if(key>=tk&&totalCount>=3)cls+=' busy-2';
-    else if(key>=tk&&totalCount>=1)cls+=' busy-1';
     cell.className=cls;
-    // header row
     var top=document.createElement('div');top.className='day-top';
     var num=document.createElement('div');num.className='day-num';num.textContent=d.getDate();
-    var icons=document.createElement('div');icons.className='day-icons';
-    if(data.notes&&data.notes[key])icons.textContent+='📝';
-    if(recT.length)icons.textContent+='↻';
-    top.appendChild(num);if(icons.textContent)top.appendChild(icons);cell.appendChild(top);
-    // task chips
-    var chips=document.createElement('div');chips.className='day-task-chips';
-    var allTasks=dayTasks.concat(recT.map(function(r){return {text:'↻ '+r.text,category:r.category,done:false};}));
-    var showMax=2;
-    allTasks.slice(0,showMax).forEach(function(t){
-      var chip=document.createElement('div');chip.className='day-chip'+(t.done?' done':'');
-      var cat=getCat(t.category);chip.style.background=cat.color;
-      chip.textContent=t.text;chips.appendChild(chip);
+    top.appendChild(num);
+    if(data.notes&&data.notes[key]){var nt=document.createElement('span');nt.className='day-note';nt.setAttribute('aria-hidden','true');top.appendChild(nt);}
+    cell.appendChild(top);
+    // Stippen: taken in de kleur van hun categorie (afgevinkt = vaag), vaste taken als ring.
+    var dots=document.createElement('div');dots.className='day-dots';
+    var all=dayTasks.map(function(t){return {c:getCat(t.category).color,done:t.done,rec:false};})
+      .concat(recT.map(function(r){return {c:getCat(r.category).color,done:((data.recurringDone&&data.recurringDone[key])||[]).indexOf(r.id)>-1,rec:true};}));
+    var maxDots=6;
+    all.slice(0,maxDots).forEach(function(x){
+      var dot=document.createElement('span');dot.className='mdot'+(x.done?' done':'')+(x.rec?' rec':'');
+      if(x.rec)dot.style.borderColor=x.c;else dot.style.background=x.c;dots.appendChild(dot);
     });
-    if(allTasks.length>showMax){var more=document.createElement('div');more.className='day-more';more.textContent='+'+( allTasks.length-showMax);chips.appendChild(more);}
-    cell.appendChild(chips);
-    // progress bar
-    if(dayTasks.length>0){
-      var done=dayTasks.filter(function(t){return t.done;}).length;
-      var prog=document.createElement('div');prog.className='day-prog';
-      var fill=document.createElement('div');fill.className='day-prog-fill';
-      fill.style.width=Math.round(done/dayTasks.length*100)+'%';
-      prog.appendChild(fill);cell.appendChild(prog);
-    }
+    if(all.length>maxDots){var more=document.createElement('span');more.className='mdot-more';more.textContent='+'+(all.length-maxDots);dots.appendChild(more);}
+    cell.appendChild(dots);
     var bars=document.createElement('div');bars.className='day-bars';cell.appendChild(bars);
-    (function(k){cell.addEventListener('click',function(){openDay(k);});})(key);
+    var total=dayTasks.length+recT.length+mdCount;
+    cell.setAttribute('role','button');cell.tabIndex=0;
+    cell.setAttribute('aria-label',DAY_FULL[col]+' '+d.getDate()+' '+MONTH_NAMES[d.getMonth()]+', '+(total===0?'niets gepland':total+(total===1?' item':' items'))+(key===monthSelKey?', geselecteerd':''));
+    (function(k){
+      function act(){if(k===monthSelKey){openDay(k);}else{monthSelKey=k;if(k.indexOf(monthPrefix)!==0){var dd=keyToDate(k);viewYear=dd.getFullYear();viewMonth=dd.getMonth();}renderCalendar();}}
+      cell.addEventListener('click',act);
+      cell.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();act();}});
+    })(key);
     grid.appendChild(cell);cells.push({key:key,col:col,barsEl:bars});
   }
   var mdTasks=(data.multiDayTasks||[]).slice().sort(function(a,b){return compareDates(a.startDate,b.startDate);});
@@ -3726,11 +3748,49 @@ function renderMonth(){
       if(isLast)cls+=' seg-last';
       bar.className=cls;bar.style.background=cat.color;
       if(md.done)bar.style.opacity='.4';
-      if(isFirst||isRowStart)bar.textContent=md.text;
       c.barsEl.appendChild(bar);
     });
   });
+  renderMonthDay();
   if(openDateKey){renderSheetTasks();renderRecurring();renderMdTasks();}
+}
+// Lijst van de geselecteerde dag onder de maand
+function renderMonthDay(){
+  var wrap=document.getElementById('monthDayList');if(!wrap)return;wrap.innerHTML='';
+  var key=monthSelKey;if(!key)return;
+  var head=ui.el('div','section-head');
+  head.appendChild(ui.el('h2',null,formatTitle(key)));
+  var ob=ui.el('button','btn btn-secondary btn-sm','Dag openen');ob.type='button';ob.addEventListener('click',function(){openDay(key);});
+  head.appendChild(ob);wrap.appendChild(head);
+  var list=ui.el('div','list');
+  var done=(data.recurringDone&&data.recurringDone[key])||[];
+  (data.multiDayTasks||[]).filter(function(md){return md.startDate<=key&&md.endDate>=key;}).forEach(function(md){
+    var cat=getCat(md.category);
+    var row=ui.row({title:md.text,done:md.done,compact:true,meta:[[ui.dot(cat.color),cat.label],'t/m '+formatDateShort(md.endDate)]});
+    row.appendChild(ui.check({done:md.done,label:md.text},function(){md.done=!md.done;saveToServer();renderCalendar();renderVandaag();}));
+    row.appendChild(row._body);list.appendChild(row);
+  });
+  (data.recurring||[]).filter(function(r){return recAppliesToDate(r,key);}).forEach(function(r){
+    var isDone=done.indexOf(r.id)>-1,cat=getCat(r.category);
+    var row=ui.row({title:r.text,done:isDone,compact:true,meta:[[ui.iconEl('repeat','xs'),'Vaste taak'],[ui.dot(cat.color),cat.label]]});
+    row.appendChild(ui.check({done:isDone,label:r.text},function(){
+      if(!data.recurringDone)data.recurringDone={};if(!data.recurringDone[key])data.recurringDone[key]=[];
+      var i=data.recurringDone[key].indexOf(r.id);if(i>-1)data.recurringDone[key].splice(i,1);else data.recurringDone[key].push(r.id);
+      saveToServer();renderCalendar();renderVandaag();
+    }));
+    row.appendChild(row._body);list.appendChild(row);
+  });
+  (data.tasks[key]||[]).forEach(function(t){
+    var cat=getCat(t.category),meta=[[ui.dot(cat.color),cat.label]];
+    if(t.assignedTo){var al=assignLabel(t.assignedTo);if(al)meta.push('voor '+al);}
+    if(t.reminder&&t.reminder.time)meta.push([ui.iconEl('bell','xs'),t.reminder.time]);
+    var row=ui.row({title:t.text,done:t.done,compact:true,meta:meta});
+    row.appendChild(ui.check({done:t.done,high:t.priority==='hoog',label:t.text},function(){t.done=!t.done;saveToServer();renderCalendar();renderVandaag();}));
+    row.appendChild(row._body);list.appendChild(row);
+  });
+  if(list.children.length)wrap.appendChild(list);
+  else wrap.appendChild(ui.empty('Niets gepland','Tik nogmaals op de dag of op Dag openen om iets toe te voegen.'));
+  if(data.notes&&data.notes[key]){var n=ui.el('p','month-day-note');n.appendChild(ui.iconEl('notebook','xs'));n.appendChild(document.createTextNode(' '+data.notes[key]));wrap.appendChild(n);}
 }
 
 function renderWeek(){
