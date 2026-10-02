@@ -113,3 +113,9 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 
 ## 1.0.14 — Fase 0, stap 0.9g (testversie): Notitieboek
 - "Nieuwe notitie" als primaire knop met icoon, zoals de andere schermen.
+
+## 1.0.15 — Fase 0, stap 0.9h (testversie): Ochtendbriefing
+- Letter en labels van de app i.p.v. de krantenletter; logo i.p.v. 📰; weericoon als lijn-icoon
+  (zelfde als bovenaan Vandaag); aandachtspunten met lijn-iconen; geen emoji in koppen.
+- Inhoud, volgorde en het automatisch openen zijn ongewijzigd.
+- Afwijking: Weekoverzicht en Verlanglijstje zijn niet aangepast; die voldeden al na stap 3a.

@@ -1109,6 +1109,18 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .vl-cat-arrow{display:inline-flex;color:var(--subtle);transition:transform .15s;}
 .vl-cat-arrow.open{transform:rotate(90deg);}
 
+/* Ochtendbriefing in de letter en componenten van de app (0.9) */
+.briefing-logo{display:flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font);font-size:20px;letter-spacing:0;}
+.briefing-section-label{font-family:var(--font);font-size:var(--fs-label);font-weight:600;letter-spacing:.06em;}
+.briefing-headline{font-family:var(--font);font-size:18px;}
+.briefing-temp{font-family:var(--font);font-size:28px;}
+.briefing-weather-icon{font-size:0;color:var(--muted);}
+.briefing-weather-icon .ic{width:36px;height:36px;}
+.briefing-quote{font-family:var(--font);font-size:16px;}
+.briefing-task-list li{font-size:var(--fs-small);gap:8px;}
+.briefing-attn{display:flex;align-items:center;gap:8px;font-size:var(--fs-small);color:var(--text);padding:4px 0;}
+.briefing-attn .ic{color:var(--muted);}
+
 /* Oude taken (0.5) */
 .overdue-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn);gap:8px;}
 .overdue-banner-text{font-size:var(--fs-small);font-weight:600;line-height:20px;}
@@ -2132,7 +2144,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 <div class="full-overlay" id="briefingOverlay" style="display:none;z-index:200;overflow-y:auto;background:var(--bg);padding:20px 16px 40px;">
   <div class="briefing-wrap">
     <div class="briefing-masthead">
-      <div class="briefing-logo">📰 HUISPLAN</div>
+      <div class="briefing-logo"><img src="logo.svg" alt="" width="28" height="28">Huisplan</div>
       <div class="briefing-dateline" id="briefingDateline"></div>
       <div class="briefing-rule"></div>
     </div>
@@ -2168,7 +2180,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.14';
+var APP_VERSION='1.0.15';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -6498,7 +6510,7 @@ function showBriefing(force){
   var wSec=document.createElement('div');wSec.className='briefing-section';
   var wLbl=document.createElement('div');wLbl.className='briefing-section-label';wLbl.id='briefingWeatherLbl';wLbl.textContent='Het weer'+( city?' in '+city:'');
   var wRow=document.createElement('div');wRow.className='briefing-weather-row';
-  var wIcon=document.createElement('div');wIcon.className='briefing-weather-icon';wIcon.id='briefingWeatherIcon';wIcon.textContent=icon;
+  var wIcon=document.createElement('div');wIcon.className='briefing-weather-icon';wIcon.id='briefingWeatherIcon';wIcon.innerHTML='<svg class="ic" aria-hidden="true"><use href="'+(document.getElementById('weatherIconUse').getAttribute('href')||'#i-cloud-sun')+'"/></svg>';
   var wTemp=document.createElement('div');wTemp.className='briefing-temp';wTemp.id='briefingWeatherTemp';wTemp.textContent=temp;
   var wInfo=document.createElement('div');wInfo.className='briefing-weather-info';
   wInfo.innerHTML='<div id="briefingWeatherDesc" style="font-size:14px;color:var(--text);">'+desc+'</div>';
@@ -6522,13 +6534,13 @@ function showBriefing(force){
   var tSec=document.createElement('div');tSec.className='briefing-section';
   var tLbl=document.createElement('div');tLbl.className='briefing-section-label';tLbl.textContent='Vandaag op de planning';
   var tHead=document.createElement('div');tHead.className='briefing-headline';
-  if(totalOpen===0)tHead.textContent='🎉 Niets op de planning!';
+  if(totalOpen===0)tHead.textContent='Niets op de planning';
   else tHead.textContent=totalOpen+(totalOpen===1?' taak':' taken')+(gwOpen>0?' · '+gwOpen+' gewoont'+(gwOpen===1?'':'en'):'');
   tSec.appendChild(tLbl);tSec.appendChild(tHead);
   if(totalOpen>0){
     var ul=document.createElement('ul');ul.className='briefing-task-list';
     var allOpen=dayTasks.map(function(t){return t.text;}).concat(recOpen.map(function(r){return '↻ '+r.text;})).slice(0,4);
-    allOpen.forEach(function(txt){var li=document.createElement('li');li.innerHTML='<span style="color:var(--accent);font-size:14px;">●</span> '+escHtml(txt);ul.appendChild(li);});
+    allOpen.forEach(function(txt){var li=document.createElement('li');li.innerHTML='<span class="dot" style="background:var(--accent)"></span>'+escHtml(txt);ul.appendChild(li);});
     if(totalOpen>4){var li=document.createElement('li');li.style.color='var(--muted)';li.textContent='… en '+(totalOpen-4)+' meer';ul.appendChild(li);}
     tSec.appendChild(ul);
   }
@@ -6547,7 +6559,7 @@ function showBriefing(force){
   var mSec=document.createElement('div');mSec.className='briefing-section';
   var mLbl=document.createElement('div');mLbl.className='briefing-section-label';mLbl.textContent='Vanavond op tafel';
   var mHead=document.createElement('div');mHead.className='briefing-headline';
-  mHead.textContent=maaltijdNaam?'🍽 '+maaltijdNaam:'Nog niet gepland — druk op spin!';
+  mHead.textContent=maaltijdNaam?maaltijdNaam:'Nog niet gepland — druk op spin!';
   if(!maaltijdNaam){mHead.style.cursor='pointer';mHead.style.color='var(--accent)';mHead.addEventListener('click',function(){closeBriefing();openWatEtenWe();});}
   mSec.appendChild(mLbl);mSec.appendChild(mHead);body.appendChild(mSec);
 
@@ -6564,16 +6576,16 @@ function showBriefing(force){
   var urgentVervalB=getUrgentExpiries();
   var backlogB=data.backlog||[];
   var attnLines=[];
-  bdToday.forEach(function(b){attnLines.push('🎂 Vandaag jarig: '+b.naam+'!');});
-  if(openBestB.length)attnLines.push('📦 '+openBestB.length+' bestelling'+(openBestB.length===1?'':'en')+' nog niet geleverd');
-  if(ondDueB.length)attnLines.push('🔧 '+ondDueB.length+' onderhoudstaak'+(ondDueB.length===1?'':'en')+' bijna aan de beurt');
-  if(urgentVervalB.length){var v0=urgentVervalB[0];attnLines.push((v0.type==='garantie'?'🧾 ':'📄 ')+v0.naam+' verloopt '+(v0.dagen===0?'vandaag':v0.dagen===1?'morgen':'over '+v0.dagen+' dagen'));}
-  if(backlogB.length)attnLines.push('🗒 '+backlogB.length+' item'+(backlogB.length===1?'':'s')+' op de backlog');
+  bdToday.forEach(function(b){attnLines.push(['cake','Vandaag jarig: '+b.naam]);});
+  if(openBestB.length)attnLines.push(['package',openBestB.length+' bestelling'+(openBestB.length===1?'':'en')+' nog niet geleverd']);
+  if(ondDueB.length)attnLines.push(['wrench',ondDueB.length+' onderhoudstaak'+(ondDueB.length===1?'':'en')+' bijna aan de beurt']);
+  if(urgentVervalB.length){var v0=urgentVervalB[0];attnLines.push([v0.type==='garantie'?'file':'shield',v0.naam+' verloopt '+(v0.dagen===0?'vandaag':v0.dagen===1?'morgen':'over '+v0.dagen+' dagen')]);}
+  if(backlogB.length)attnLines.push(['list-todo',backlogB.length+' item'+(backlogB.length===1?'':'s')+' op de backlog']);
   if(attnLines.length){
     var aSec=document.createElement('div');aSec.className='briefing-section';
     var aLbl=document.createElement('div');aLbl.className='briefing-section-label';aLbl.textContent='Aandachtspunten';
     aSec.appendChild(aLbl);
-    attnLines.slice(0,4).forEach(function(line){var p=document.createElement('div');p.style.cssText='font-size:14px;color:var(--text);padding:3px 0;';p.textContent=line;aSec.appendChild(p);});
+    attnLines.slice(0,4).forEach(function(line){var p=ui.el('div','briefing-attn');p.appendChild(ui.iconEl(line[0],'xs'));p.appendChild(document.createTextNode(line[1]));aSec.appendChild(p);});
     body.appendChild(aSec);
   }
 
@@ -6584,7 +6596,7 @@ function showBriefing(force){
     var vSec=document.createElement('div');vSec.className='briefing-section';
     var vLbl=document.createElement('div');vLbl.className='briefing-section-label';vLbl.textContent='Vakantie';
     var vHead=document.createElement('div');vHead.className='briefing-headline';
-    vHead.textContent=(vdays===1?'Morgen':'Nog '+vdays+' dagen')+': ✈️ '+nextVak.naam;
+    vHead.textContent=(vdays===1?'Morgen':'Nog '+vdays+' dagen')+': '+nextVak.naam;
     vSec.appendChild(vLbl);vSec.appendChild(vHead);body.appendChild(vSec);
   }
 
@@ -7223,7 +7235,7 @@ function syncBriefingWeather(){
   // permanent "Laden..." staan voor de rest van de dag.
   var bIcon=document.getElementById('briefingWeatherIcon');
   if(!bIcon)return;
-  bIcon.textContent=document.getElementById('weatherIcon').textContent;
+  bIcon.innerHTML='<svg class="ic" aria-hidden="true"><use href="'+(document.getElementById('weatherIconUse').getAttribute('href')||'#i-cloud-sun')+'"/></svg>';
   document.getElementById('briefingWeatherTemp').textContent=document.getElementById('weatherTemp').textContent;
   var descEl=document.getElementById('briefingWeatherDesc');
   var feelsTxt=document.getElementById('weatherFeels').textContent;

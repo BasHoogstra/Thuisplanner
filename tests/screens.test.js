@@ -158,4 +158,19 @@ module.exports = {
     assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
     await c.close();
   },
+
+  async 'Briefing: zelfde inhoud, zonder emoji als icoon'(ctx) {
+    const fx = readFixture('huishouden.json');
+    const { page, state, ctx: c } = await openApp(ctx.browser, ctx.base, { data: fx, localStorage: { briefingShown: null } });
+    await page.waitForTimeout(1200);
+    assert(await page.isVisible('#briefingOverlay'), 'Briefing opent niet automatisch zoals voorheen');
+    const t = await page.textContent('#briefingBody');
+    for (const want of ['Vandaag op de planning', 'Vuilnis buiten zetten', 'Vanavond op tafel', 'Pasta pesto', 'Aandachtspunten', 'Vakantie', 'Kerst in Oostenrijk'])
+      assert(t.includes(want), 'Briefing mist: ' + want);
+    const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+    assert(!emoji.test(t), 'Nog emoji in de briefing: ' + (t.match(emoji) || [])[0]);
+    await page.click('#briefingStartBtn');
+    assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
+    await c.close();
+  },
 };
