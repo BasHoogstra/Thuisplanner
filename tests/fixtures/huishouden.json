@@ -1,0 +1,116 @@
+{
+  "tasks": {
+    "2026-09-25": [
+      {"id": "t-done-old", "text": "Belastingpapieren sorteren", "done": true, "category": "financien", "priority": "normaal", "assignedTo": null, "author": "Bas", "orderStatus": null}
+    ],
+    "2026-10-02": [
+      {"id": "t-vuilnis", "text": "Vuilnis buiten zetten", "done": false, "category": "huis", "priority": "normaal", "assignedTo": "Bas", "author": "Sanne", "orderStatus": null, "period": "avond", "reminder": {"date": "2026-10-02", "time": "19:00"}},
+      {"id": "t-tandarts", "text": "Tandarts bellen voor Lynn", "done": false, "category": "regelen", "priority": "hoog", "assignedTo": "Sanne", "author": "Bas", "orderStatus": null, "reactions": {"👍": ["Sanne"]}},
+      {"id": "t-cadeau", "text": "Cadeau oma kopen", "done": false, "category": "samen", "priority": "normaal", "assignedTo": null, "author": "Bas", "orderStatus": null, "period": "middag"},
+      {"id": "t-was", "text": "Was ophangen", "done": true, "category": "huis", "priority": "laag", "assignedTo": null, "author": "Sanne", "orderStatus": null}
+    ],
+    "2026-10-03": [
+      {"id": "t-voetbal", "text": "Voetbal Lynn 10:00", "done": false, "category": "sport", "priority": "normaal", "assignedTo": "Bas", "author": "Bas", "orderStatus": null, "period": "ochtend"}
+    ],
+    "2026-10-05": [
+      {"id": "t-aangifte", "text": "Belastingaangifte checken", "done": false, "category": "financien", "priority": "normaal", "assignedTo": null, "author": "Sanne", "orderStatus": null}
+    ],
+    "2026-10-14": [
+      {"id": "t-apk", "text": "Auto naar de APK", "done": false, "category": "regelen", "priority": "normaal", "assignedTo": "Bas", "author": "Bas", "orderStatus": null}
+    ]
+  },
+  "notes": {"2026-10-02": "Opa en oma komen rond vier uur", "2026-10-05": "Lynn vrij van school"},
+  "recurring": [
+    {"id": "r-stofzuigen", "text": "Stofzuigen", "interval": "week", "days": [4], "category": "huis", "priority": "normaal", "createdAt": "2026-09-01"},
+    {"id": "r-planten", "text": "Planten water geven", "interval": "week", "days": [0, 4], "category": "huis", "priority": "normaal", "createdAt": "2026-09-01"},
+    {"id": "r-bedden", "text": "Bedden verschonen", "interval": "week", "days": [5], "everyWeeks": 2, "anchorDate": "2026-09-28", "category": "huis", "priority": "normaal", "createdAt": "2026-09-01"},
+    {"id": "r-huur", "text": "Huur controleren", "interval": "month", "dayOfMonth": 1, "category": "financien", "priority": "normaal", "createdAt": "2026-09-01"},
+    {"id": "r-koppel", "text": "Koppelgesprek 💑", "interval": "biweek", "anchorDate": "2026-09-25", "koppelgesprek": true, "category": "samen", "priority": "normaal", "createdAt": "2026-09-20"}
+  ],
+  "recurringDone": {"2026-09-28": ["r-planten"], "2026-10-01": ["r-stofzuigen"]},
+  "multiDayTasks": [
+    {"id": "m-logeren", "text": "Opa en oma logeren", "done": false, "startDate": "2026-10-02", "endDate": "2026-10-04", "category": "samen", "priority": "normaal", "assignedTo": null, "author": "Sanne"}
+  ],
+  "bestellingen": [
+    {"id": "be-jas", "text": "Regenjas Freya", "status": "onderweg", "category": "huis", "assignedTo": "Sanne", "addedDate": "2026-09-29", "expectedDate": "2026-10-04", "note": "Bestelnummer 12345", "tracking": "https://example.org/track/12345", "addedBy": "Sanne"},
+    {"id": "be-lamp", "text": "Bureaulamp", "status": "geleverd", "category": "huis", "assignedTo": null, "addedDate": "2026-09-10", "expectedDate": "2026-09-14", "note": null, "addedBy": "Bas"}
+  ],
+  "boodschappen": [
+    {"id": "b-melk", "text": "Melk", "done": false, "cat": "Zuivel & eieren", "winkel": null, "addedBy": "Sanne", "addedDate": "2026-10-01"},
+    {"id": "b-brood", "text": "Brood", "done": false, "cat": "Brood & gebak", "winkel": "AH", "addedBy": "Bas", "addedDate": "2026-10-01", "qty": 2},
+    {"id": "b-appels", "text": "Appels", "done": false, "cat": "Groente & fruit", "winkel": null, "addedBy": "Bas", "addedDate": "2026-10-02"},
+    {"id": "b-wc", "text": "Wc-papier", "done": true, "cat": "Huishouden", "winkel": "Lidl", "addedBy": "Sanne", "addedDate": "2026-09-30"}
+  ],
+  "notitieboek": "",
+  "notitieboekMeta": {},
+  "notities": [
+    {"id": "n-wifi", "titel": "Wifi-wachtwoord", "tekst": "Huis123", "editedBy": "Bas", "editedAt": "10:00"},
+    {"id": "n-maten", "titel": "Kledingmaten", "tekst": "Lynn 140, Freya 116", "editedBy": "Sanne", "editedAt": "21:15"}
+  ],
+  "backlog": [
+    {"id": "bl-schuur", "text": "Schuur opruimen", "category": "huis", "priority": "laag", "addedDate": "2026-08-01"},
+    {"id": "bl-badkamer", "text": "Badkamer opnieuw kitten", "category": "onderhoud", "priority": "hoog", "addedDate": "2026-09-12"}
+  ],
+  "onderhoud": [
+    {"id": "o-ketel", "text": "CV-ketel laten nakijken", "lastDone": "2025-10-10", "intervalDays": 365, "intervalLabel": "Elk jaar", "category": "onderhoud", "note": "Monteur via Eneco", "foto": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "log": [{"date": "2025-10-10", "note": "Gedaan"}]},
+    {"id": "o-rook", "text": "Rookmelders testen", "lastDone": null, "intervalDays": 90, "intervalLabel": "Elk kwartaal", "category": "onderhoud", "note": null, "foto": null, "log": []},
+    {"id": "o-goot", "text": "Dakgoot schoonmaken", "lastDone": "2026-04-02", "intervalDays": 180, "intervalLabel": "Elke 6 maanden", "category": "huis", "note": null, "foto": null, "log": []}
+  ],
+  "garanties": [
+    {"id": "g-wasmachine", "text": "Wasmachine", "gekocht": "2024-11-01", "verloopt": "2026-11-01", "winkel": "Coolblue", "serienummer": "WM-9921", "note": null, "foto": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="},
+    {"id": "g-tv", "text": "Televisie", "gekocht": "2023-03-15", "verloopt": "2028-03-15", "winkel": null, "serienummer": null, "note": "Vijf jaar garantie", "foto": null}
+  ],
+  "vakanties": [
+    {"id": "va-kerst", "naam": "Kerst in Oostenrijk", "startDatum": "2026-12-20", "bestemming": "Mayrhofen", "paklijst": {"Bas": [{"id": "p-ski", "text": "Skibril", "done": false}], "Sanne": [{"id": "p-badtas", "text": "Badtas", "done": true}], "Lynn": [], "Freya": []}, "todos": [{"id": "td-pas", "text": "Skipassen boeken", "done": false}], "notes": "Appartement 3B", "budget": {"bedrag": 2500, "uitgaven": [{"omschrijving": "Appartement", "bedrag": 1400}]}}
+  ],
+  "vasteBoodschappen": [{"id": "vb-melk", "text": "Melk"}, {"id": "vb-eieren", "text": "Eieren"}, {"id": "vb-kaas", "text": "Kaas"}],
+  "boodschappenHistory": [{"text": "Melk", "norm": "melk", "date": "2026-09-24"}, {"text": "Melk", "norm": "melk", "date": "2026-09-17"}],
+  "vervaldata": [
+    {"id": "k-paspoort", "naam": "Paspoort Bas", "categorie": "paspoort", "vervaldatum": "2027-01-15", "herinnering": 180, "notitie": null},
+    {"id": "k-zorg", "naam": "Zorgverzekering", "categorie": "verzekering", "vervaldatum": "2026-12-31", "herinnering": 90, "notitie": "Polis 778899"}
+  ],
+  "briefjes": [],
+  "huisgeheugen": [
+    {"id": "h-gras", "type": "taak", "tekst": "Gras maaien", "datum": "2026-09-20", "auteur": "Bas", "ts": 1789900000000}
+  ],
+  "recepten": [
+    {"id": "re-pesto", "naam": "Pasta pesto", "categorie": "pasta", "link": null, "notitie": "4 personen, 20 min", "ingredienten": ["pasta", "pesto", "pijnboompitten"]},
+    {"id": "re-nasi", "naam": "Nasi", "categorie": "overig", "link": "https://example.org/nasi", "notitie": null, "ingredienten": ["rijst", "ei", "prei"]}
+  ],
+  "maaltijdplan": {
+    "2026-10-02": {"type": "recept", "receptId": "re-pesto", "naam": "Pasta pesto", "ingredienten": ["pasta", "pesto", "pijnboompitten"]},
+    "2026-10-03": {"type": "vrij", "tekst": "Pizza halen"}
+  },
+  "boodCatOverrides": {"pindakaas": "Ontbijt & beleg"},
+  "gewoonten": [
+    {"id": "gw-lezen", "text": "10 min lezen", "icon": "📖", "createdDate": "2026-09-01"},
+    {"id": "gw-water", "text": "Water drinken", "icon": "💧", "createdDate": "2026-09-01"}
+  ],
+  "gewoontenDone": {"2026-10-01": ["gw-lezen"], "2026-09-30": ["gw-lezen", "gw-water"]},
+  "vakantiePersonen": ["Bas", "Sanne", "Lynn", "Freya"],
+  "verjaardagen": [
+    {"id": "v-oma", "naam": "Oma", "datum": "10-06", "jaar": 1950},
+    {"id": "v-lynn", "naam": "Lynn", "datum": "03-14", "jaar": 2016}
+  ],
+  "verlanglijstjes": {
+    "Bas": [{"id": "w-boek", "text": "Kookboek Ottolenghi", "claimedBy": null, "addedAt": "2026-09-01"}],
+    "Sanne": [{"id": "w-sjaal", "text": "Wollen sjaal", "claimedBy": "Bas", "addedAt": "2026-09-05"}]
+  },
+  "cadeaus": [{"id": "c-oud", "text": "Oude cadeaulijst-item", "done": false}],
+  "inbox": [{"id": "i-schoenen", "text": "Schoenen Lynn te klein", "addedBy": "Sanne", "addedAt": "2026-10-01T18:00:00.000Z"}],
+  "budget": [
+    {"id": "bu-hyp", "cat": "Wonen", "naam": "Hypotheek", "instantie": "Bank", "periode": "maand", "bedrag": 1150, "bedragNieuw": 1150, "advies": ""},
+    {"id": "bu-energie", "cat": "Wonen", "naam": "Electriciteit + gas", "instantie": "Eneco", "periode": "maand", "bedrag": 180, "bedragNieuw": 160, "advies": "Overstappen"}
+  ],
+  "budgetCustomCats": ["Huisdieren"],
+  "wieIsWaar": {"2026-10-05": {"Bas": "werk", "Sanne": "reis"}, "2026-10-06": {"Sanne": "reis"}},
+  "lijsten": [
+    {"id": "te-bestellen", "naam": "📦 Te bestellen", "items": [{"id": "l-inkt", "text": "Inktpatronen", "done": false, "addedBy": "Bas", "addedDate": "2026-09-30"}]},
+    {"id": "overige-winkels", "naam": "🏬 Overige winkels", "items": []},
+    {"id": "l-bouwmarkt", "naam": "Bouwmarkt", "items": [{"id": "l-kit", "text": "Siliconenkit", "done": false, "addedBy": "Sanne", "addedDate": "2026-09-28"}]}
+  ],
+  "winkels": ["AH", "Lidl"],
+  "winkelsSet": true,
+  "lijstenSeeded": true,
+  "budgetSeeded": true
+}

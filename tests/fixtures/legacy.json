@@ -1,0 +1,22 @@
+{
+  "tasks": {
+    "2026-10-02": [
+      {"id": "t-me", "text": "Oude taak voor mezelf", "done": false, "category": "huis", "priority": "normaal", "assignedTo": "me", "author": "Sanne", "orderStatus": null},
+      {"id": "t-partner", "text": "Oude taak voor partner", "done": false, "category": "huis", "priority": "normaal", "assignedTo": "partner", "author": "Bas", "orderStatus": null},
+      {"id": "t-niemand", "text": "Taak zonder toewijzing", "done": false, "category": "huis", "priority": "normaal", "assignedTo": null, "author": "Bas", "orderStatus": null}
+    ]
+  },
+  "multiDayTasks": [
+    {"id": "m-me", "text": "Meerdaagse oude taak", "done": false, "startDate": "2026-10-02", "endDate": "2026-10-03", "category": "huis", "priority": "normaal", "assignedTo": "me", "author": "Bas"}
+  ],
+  "bestellingen": [
+    {"id": "be-partner", "text": "Pakket", "status": "onderweg", "category": "huis", "assignedTo": "partner", "addedDate": "2026-09-30", "expectedDate": "2026-10-04", "note": null, "addedBy": "Sanne"}
+  ],
+  "vakantiePersonen": ["Bas", "Sanne"],
+  "winkels": ["AH"],
+  "winkelsSet": true,
+  "lijstenSeeded": true,
+  "lijsten": [{"id": "te-bestellen", "naam": "📦 Te bestellen", "items": []}, {"id": "overige-winkels", "naam": "🏬 Overige winkels", "items": []}],
+  "budgetSeeded": true,
+  "budget": [{"id": "bu-hyp", "cat": "Wonen", "naam": "Hypotheek", "instantie": "", "periode": "maand", "bedrag": 900, "bedragNieuw": 0, "advies": ""}]
+}
