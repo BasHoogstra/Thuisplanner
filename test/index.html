@@ -1063,6 +1063,18 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 @keyframes formSheetIn{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.form-sheet.open{animation:none;}}
 
+/* Wie is waar in het design system (0.9) */
+.wiw-legend{gap:6px 14px;}
+.wiw-legend-chip{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-detail);}
+.wiw-dag{border-radius:var(--r-lg);box-shadow:var(--sh-1);padding:12px 12px 12px 14px;}
+.wiw-dag-naam{display:flex;align-items:center;gap:8px;font-size:var(--fs-body);font-weight:600;}
+.wiw-today{background:var(--accent-light);color:var(--accent-strong);}
+.wiw-dag-badge{font-size:var(--fs-detail);background:transparent;padding:0;}
+.wiw-chip{min-height:52px;text-align:left;font-family:var(--font);border-radius:var(--r-md);}
+.wiw-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.wiw-chip-name{font-size:var(--fs-detail);font-weight:600;color:var(--text);opacity:1;}
+.wiw-chip-status{display:flex;align-items:center;gap:5px;font-size:var(--fs-small);font-weight:600;}
+
 /* Oude taken (0.5) */
 .overdue-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn);gap:8px;}
 .overdue-banner-text{font-size:var(--fs-small);font-weight:600;line-height:20px;}
@@ -1207,6 +1219,8 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
 <symbol id="i-sunrise" viewBox="0 0 24 24"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></symbol>
 <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></symbol>
+<symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
 <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
 <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
 <symbol id="i-cloud-sun" viewBox="0 0 24 24"><path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M20 12h2"/><path d="m19.07 4.93-1.41 1.41"/><path d="M15.947 12.65a4 4 0 0 0-5.925-4.128"/><path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z"/></symbol>
@@ -2120,7 +2134,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.7';
+var APP_VERSION='1.0.8';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -2384,7 +2398,7 @@ function getUrgentExpiries(limit){
 
 // === WIE IS WAAR (weekschema) ===
 var WIW_STATUSES=['thuis','werk','reis','sporten','afwezig'];
-var WIW_ICONS={thuis:'🏠',werk:'💼',reis:'✈️',sporten:'🏃',afwezig:'🌙'};
+var WIW_SVG={thuis:'house',werk:'briefcase',reis:'plane',sporten:'activity',afwezig:'moon'}; // lijn-iconen (0.9)
 var WIW_LABELS={thuis:'Thuis',werk:'Werk',reis:'Op reis',sporten:'Sporten',afwezig:'Afwezig'};
 var WIW_COLORS={thuis:'#27ae60',werk:'#0984e3',reis:'#6c5ce7',sporten:'#e84393',afwezig:'#636e72'};
 // Opgeslagen per naam (zie personKey); oude 'me'/'partner'-sleutels worden nog gelezen
@@ -5703,7 +5717,7 @@ function renderWiwLegend(){
   legend.innerHTML='';
   WIW_STATUSES.forEach(function(s){
     var chip=document.createElement('div');chip.className='wiw-legend-chip';chip.style.color=WIW_COLORS[s];
-    chip.textContent=WIW_ICONS[s]+' '+WIW_LABELS[s];
+    chip.innerHTML=icon(WIW_SVG[s],'xs');chip.appendChild(document.createTextNode(WIW_LABELS[s]));
     legend.appendChild(chip);
   });
 }
@@ -5718,16 +5732,18 @@ function renderWieIsWaar(){
     var isToday=dk===todayKey();
     var card=document.createElement('div');card.className='wiw-dag'+(isToday?' today-dag':'');
     var hdr=document.createElement('div');hdr.className='wiw-dag-header';
-    var naam=document.createElement('div');naam.className='wiw-dag-naam';naam.textContent=(isToday?'⭐ ':'')+DAY_FULL[weekday(dk)];
+    var naam=document.createElement('div');naam.className='wiw-dag-naam';naam.textContent=DAY_FULL[weekday(dk)];
+    if(isToday)naam.appendChild(ui.el('span','tag wiw-today','Vandaag'));
     var badge=document.createElement('div');badge.className='wiw-dag-badge';badge.textContent=d.getDate()+'/'+(d.getMonth()+1);
     hdr.appendChild(naam);hdr.appendChild(badge);card.appendChild(hdr);
     var personsRow=document.createElement('div');personsRow.className='wiw-persons';
     ['me','partner'].forEach(function(person){
       var status=getWiwStatus(dk,person);
-      var chip=document.createElement('div');chip.className='wiw-chip';
+      var chip=document.createElement('button');chip.type='button';chip.className='wiw-chip';
       chip.style.background=WIW_COLORS[status]+'1a';chip.style.color=WIW_COLORS[status];chip.style.borderColor=WIW_COLORS[status]+'55';
       var nm=document.createElement('div');nm.className='wiw-chip-name';nm.textContent=person==='me'?(myName||'Ik'):(partnerName||'Partner');
-      var st=document.createElement('div');st.className='wiw-chip-status';st.textContent=WIW_ICONS[status]+' '+WIW_LABELS[status];
+      var st=document.createElement('div');st.className='wiw-chip-status';st.innerHTML=icon(WIW_SVG[status],'xs');st.appendChild(document.createTextNode(WIW_LABELS[status]));
+      chip.setAttribute('aria-label',nm.textContent+', '+DAY_FULL[weekday(dk)]+': '+WIW_LABELS[status].toLowerCase()+'. Tik om te wijzigen.');
       chip.appendChild(nm);chip.appendChild(st);
       chip.addEventListener('click',(function(dk2,person2){return function(){cycleWiwStatus(dk2,person2);renderWieIsWaar();updateWiwSub();};})(dk,person));
       personsRow.appendChild(chip);

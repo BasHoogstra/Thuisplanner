@@ -81,3 +81,7 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Velden, id's, validatie en het opgeslagen object zijn ongewijzigd (getest per scherm).
 - Bij het openen van deze schermen springt het toetsenbord niet meer omhoog; de focus gaat
   naar het eerste veld zodra het formulier opent.
+
+## 1.0.8 — Fase 0, stap 0.9a (testversie): Wie is waar
+- Lijn-iconen i.p.v. emoji voor de statussen (twee nieuwe iconen: werk, sporten), "Vandaag"-label
+  i.p.v. ster, blokjes zijn echte knoppen met een toegankelijk label, tekst minimaal 13 px.
