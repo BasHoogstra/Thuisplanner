@@ -92,3 +92,7 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   verwijderen; labels en aftelling zonder emoji.
 - "Kopieer van…" gebruikte de browservensters `prompt()` en `confirm()` ("voer het nummer in");
   nu een keuzemenu en de eigen bevestigingsdialoog. Het kopiëren zelf is ongewijzigd.
+
+## 1.0.10 — Fase 0, stap 0.9c (testversie): Gewoonten
+- Lijstrijen en afvinkcirkels zoals op Vandaag, prullenbak-knop, lege staat, invoer onderaan als
+  veld met plusknop. Het gekozen icoon per gewoonte (data) blijft getoond.

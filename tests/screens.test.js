@@ -68,4 +68,26 @@ module.exports = {
     assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
     await c.close();
   },
+
+  async 'Gewoonten: afvinken, toevoegen en verwijderen'(ctx) {
+    const fx = readFixture('huishouden.json');
+    const { page, state, ctx: c } = await openApp(ctx.browser, ctx.base, { data: fx });
+    await openMeer(page, 'openGewoonten');
+    let b = state.puts;
+    await page.locator('#gewoontenList .list-row', { hasText: 'Water drinken' }).locator('.check').click();
+    await waitForPut(state, b);
+    assert(diffPaths(fx, state.db).join() === 'gewoontenDone.2026-10-02', 'Afvinken: ' + diffPaths(fx, state.db).join(', '));
+    b = state.puts;
+    await page.fill('#gewoonteInput', 'Wandelen');
+    await page.click('#addGewoonteBtn');
+    await waitForPut(state, b);
+    const nieuw = state.db.gewoonten.find(g => g.text === 'Wandelen');
+    assert(nieuw && nieuw.icon && nieuw.createdDate === '2026-10-02' && Object.keys(nieuw).sort().join() === 'createdDate,icon,id,text', 'Nieuwe gewoonte klopt niet: ' + JSON.stringify(nieuw));
+    b = state.puts;
+    await page.locator('#gewoontenList .list-row', { hasText: 'Wandelen' }).locator('.icon-btn').click();
+    await waitForPut(state, b);
+    assert(!state.db.gewoonten.some(g => g.text === 'Wandelen'), 'Niet verwijderd');
+    assert(state.errors.length === 0, 'Fouten: ' + state.errors.join(' | '));
+    await c.close();
+  },
 };

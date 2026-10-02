@@ -1084,6 +1084,10 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 .vak-countdown{height:28px;padding:0 10px;font-size:13px;background:var(--accent-light);color:var(--accent-strong);white-space:nowrap;}
 .vak-subtabs{margin-bottom:16px!important;}
 
+/* Gewoonten (0.9) */
+.gw-body{overflow-y:auto;flex:1;padding:16px 0;}
+.gw-add{margin:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--border);background:var(--card);flex-shrink:0;}
+
 /* Oude taken (0.5) */
 .overdue-banner{margin:0 16px 12px;padding:4px 4px 4px 14px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn);gap:8px;}
 .overdue-banner-text{font-size:var(--fs-small);font-weight:600;line-height:20px;}
@@ -1501,10 +1505,10 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
   <!-- GEWOONTETRACKER OVERLAY -->
 <div class="full-overlay" id="gewoontenOverlay">
   <div class="full-header"><button class="icon-btn" id="closeGewoontenBtn" aria-label="Terug"><svg class="ic"><use href="#i-chevron-left"/></svg></button><h2>Gewoonten</h2></div>
-  <div style="overflow-y:auto;flex:1;padding:16px;" id="gewoontenList"></div>
-  <div class="quick-add-row" style="padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0;">
-    <input type="text" id="gewoonteInput" placeholder="Nieuwe gewoonte (bijv. 10 min lezen)…" maxlength="80" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:15px;background:var(--card);color:var(--text);">
-    <button class="primary-btn" id="addGewoonteBtn" style="padding:10px 18px;font-size:16px;flex-shrink:0;">+</button>
+  <div class="gw-body" id="gewoontenList"></div>
+  <div class="input-row gw-add">
+    <input type="text" class="field" id="gewoonteInput" placeholder="Nieuwe gewoonte, bijv. 10 min lezen" maxlength="80" aria-label="Nieuwe gewoonte">
+    <button class="btn btn-primary btn-square" id="addGewoonteBtn" type="button" aria-label="Gewoonte toevoegen"><svg class="ic lg"><use href="#i-plus"/></svg></button>
   </div>
 </div>
 
@@ -2143,7 +2147,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.9';
+var APP_VERSION='1.0.10';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -4745,37 +4749,32 @@ function renderGewoonten(){
   var tk2=todayKey();
   if(!gw.length){
     if(subEl)subEl.textContent='Dagelijkse streaks';
-    var e=document.createElement('div');e.style.cssText='text-align:center;padding:24px;color:var(--muted);font-size:14px;';
-    e.innerHTML='<div style="font-size:36px;margin-bottom:8px">🔁</div><div>Voeg je eerste gewoonte toe!</div>';
-    list.appendChild(e);return;
+    list.appendChild(ui.empty('Nog geen gewoonten','Voeg hieronder je eerste gewoonte toe, bijvoorbeeld 10 minuten lezen.'));
+    return;
   }
   var doneToday=((data.gewoontenDone&&data.gewoontenDone[tk2])||[]).length;
   if(subEl)subEl.textContent=doneToday+'/'+gw.length+' vandaag gedaan';
-  gw.forEach(function(g,gi){
+  var l=ui.el('div','list');
+  gw.forEach(function(g){
     var isDone=((data.gewoontenDone&&data.gewoontenDone[tk2])||[]).indexOf(g.id)>-1;
     var streak=0;var ck=new Date(today.getTime());
     while(streak<365){var k2=dateKey(ck.getFullYear(),ck.getMonth(),ck.getDate());var d2=(data.gewoontenDone&&data.gewoontenDone[k2])||[];if(d2.indexOf(g.id)>-1){streak++;ck=addDays(ck,-1);}else break;}
-    var row=document.createElement('div');row.className='onderhoud-item';row.style.cssText='display:flex;align-items:center;gap:10px;padding:12px;';
-    var ico=document.createElement('div');ico.style.cssText='font-size:22px;width:32px;text-align:center;flex-shrink:0;';ico.textContent=g.icon||'🔁';
-    var info=document.createElement('div');info.style.cssText='flex:1;min-width:0;';
-    var nm=document.createElement('div');nm.style.cssText='font-weight:600;font-size:15px;';nm.textContent=g.text;
-    var sk=document.createElement('div');sk.style.cssText='font-size:12px;color:var(--muted);margin-top:2px;';
-    sk.textContent=streak>0?'🔥 '+streak+' dag'+(streak===1?'':'en')+' op rij':'Nog niet gestart';
-    info.appendChild(nm);info.appendChild(sk);
-    var chk=document.createElement('div');chk.className='vandaag-check'+(isDone?' checked':'');chk.textContent=isDone?'✓':'';chk.style.cssText='flex-shrink:0;';
-    (function(gwObj){chk.addEventListener('click',function(){
+    // Het icoon is bij het aanmaken gekozen en hoort bij de gewoonte (data), net als op Vandaag.
+    var row=ui.row({title:(g.icon?g.icon+' ':'')+g.text,done:isDone,meta:[streak>0?[ui.iconEl('flame','xs'),streak+' dag'+(streak===1?'':'en')+' op rij']:'Nog niet gestart']});
+    row.appendChild(ui.check({done:isDone,label:g.text},function(){
       if(!data.gewoontenDone)data.gewoontenDone={};
       if(!data.gewoontenDone[tk2])data.gewoontenDone[tk2]=[];
-      var idx=data.gewoontenDone[tk2].indexOf(gwObj.id);
-      if(idx>-1)data.gewoontenDone[tk2].splice(idx,1);else data.gewoontenDone[tk2].push(gwObj.id);
+      var idx=data.gewoontenDone[tk2].indexOf(g.id);
+      if(idx>-1)data.gewoontenDone[tk2].splice(idx,1);else data.gewoontenDone[tk2].push(g.id);
       saveToServer();renderGewoonten();renderVandaag();
-    });})(g);
-    var del=document.createElement('button');del.style.cssText='background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:4px;flex-shrink:0;';del.textContent='✕';
-    (function(gwObj,idx2){del.addEventListener('click',function(){
-      removeWithUndo(dataArr('gewoonten'),gwObj,'Gewoonte verwijderd',function(){renderGewoonten();renderVandaag();});
-    });})(g,gi);
-    row.appendChild(ico);row.appendChild(info);row.appendChild(chk);row.appendChild(del);list.appendChild(row);
+    }));
+    row.appendChild(row._body);
+    row.appendChild(ui.iconBtn('trash','Verwijder '+g.text,function(){
+      removeWithUndo(dataArr('gewoonten'),g,'Gewoonte verwijderd',function(){renderGewoonten();renderVandaag();});
+    }));
+    l.appendChild(row);
   });
+  list.appendChild(l);
 }
 document.getElementById('closeGewoontenBtn').addEventListener('click',function(){document.getElementById('gewoontenOverlay').classList.remove('open');});
 document.getElementById('addGewoonteBtn').addEventListener('click',function(){
