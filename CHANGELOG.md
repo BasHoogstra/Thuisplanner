@@ -160,3 +160,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: `tests/schema.test.js` (de testdata en wat de app opslaat voldoen aan het schema, het
   schema keurt foute data af, en de live-versie houdt het veld). De andere tests negeren alleen
   dit ene nieuwe veld.
+
+## 1.0.19 — Fase 0 live
+- De testversie (1.0.0 t/m 1.0.19, stappen 0.1 t/m 0.13) is overgenomen in de live-versie
+  (`index.html`). Geen wijzigingen uit fase 1; nog steeds Firebase.
+- Enige verandering aan bestaande data: `meta.schemaVersion = 1` bij de eerstvolgende gewone opslag.
