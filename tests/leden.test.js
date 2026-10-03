@@ -130,6 +130,29 @@ const tests = {
     assert(Object.keys(union).length === 6, 'Verwacht 6 leden na samenvoegen (5 + Kees): ' + JSON.stringify(union));
   },
 
+  async 'leden: tegenstrijdige antwoorden: "twee personen" wint en het register herstelt zich'() {
+    const R = loadRegister();
+    const d = readFixture('leden-oud.json');
+    const h = R.memberDecisionKey(LOIS);
+    assert(/^p_[0-9a-f]{16}$/.test(h), 'Sleutel niet veilig voor Firebase: ' + h);
+    // Samengevoegde antwoorden van twee toestellen, in beide volgordes: altijd "different".
+    assert(R.memberDecisions({ same: { [h]: LOIS }, different: { [h]: LOIS } })[LOIS] === 'different', 'different wint niet');
+    assert(R.memberDecisions({ different: { [h]: LOIS }, same: { [h]: LOIS } })[LOIS] === 'different', 'volgorde bepaalt de uitkomst');
+    assert(R.memberDecisions({ same: { [h]: LOIS } })[LOIS] === 'same', 'same alleen niet herkend');
+    // Register zoals na het samenvoegen van A ("dezelfde": alias) en B ("twee personen": eigen lid).
+    const same = R.planMemberRegister(d, {}, { [LOIS]: 'same' }).members;
+    const diffM = R.planMemberRegister(d, {}, { [LOIS]: 'different' }).members;
+    const merged = same.concat(diffM.filter(m => !same.some(x => x.id === m.id)));
+    const fixed = R.planMemberRegister(Object.assign(clone(d), { members: merged }), {}, { [LOIS]: 'different' });
+    assert(fixed.changed && !fixed.members.some(m => (m.aliases || []).includes('Lois')), 'Alias Lois niet weggehaald');
+    assert(fixed.members.filter(m => R.findMember([m], 'Lois')).length === 1 && fixed.members.filter(m => R.findMember([m], 'Loïs')).length === 1, 'Lois en Loïs niet elk precies één lid');
+    // Ook als alleen het samengevoegde register van A er is: Lois wordt een eigen lid met vast ID.
+    const onlyA = R.planMemberRegister(Object.assign(clone(d), { members: same }), {}, { [LOIS]: 'different' });
+    assert(onlyA.members.some(m => m.name === 'Lois' && m.id === R.memberIdFor('Lois')), 'Lois geen eigen lid met vast ID');
+    const again = R.planMemberRegister(Object.assign(clone(d), { members: fixed.members }), {}, { [LOIS]: 'different' });
+    assert(!again.changed, 'Herstel is niet idempotent');
+  },
+
   async 'leden: terugdraaien haalt precies het register weg'() {
     const R = loadRegister();
     const d = readFixture('leden-oud.json');
@@ -157,7 +180,7 @@ const tests = {
     assert(/Loïs/.test(q) && /Lois/.test(q), 'Vraag noemt niet beide schrijfwijzen: ' + q);
     await waitForPut(db, b);
     assert(JSON.stringify(db.db.members.map(m => m.name)) === JSON.stringify(['Bas', 'Sanne', 'Lynn', 'Loïs', 'Opa Henk']), 'Register: ' + JSON.stringify(db.db.members));
-    assert(db.db.meta.members.version === 1 && db.db.meta.members.decisions[LOIS] === 'same' && db.db.meta.members.app === '1.4.0', 'meta.members: ' + JSON.stringify(db.db.meta));
+    assert(db.db.meta.members.version === 1 && Object.values(db.db.meta.members.same || {}).includes(LOIS) && !db.db.meta.members.different && db.db.meta.members.app === '1.4.0', 'meta.members: ' + JSON.stringify(db.db.meta));
     // Additief: verder is de data gelijk aan vóór de migratie (alle namen staan er nog).
     const rest = clone(db.db); delete rest.members; delete rest.meta.members;
     const diff = diffPaths(fx, rest);
@@ -262,6 +285,74 @@ const tests = {
     assert(!diff.length && !('members' in db.db), 'Na terugdraaien wijkt de data af: ' + diff.join(', '));
     assert((await ls(o.page, 'plannerMemberId')) === null && (await ls(o.page, 'plannerLedenregister')) === null, 'Toestelinstellingen niet teruggezet');
     await o.ctx.close();
+  },
+
+  async 'leden-app: terugdraaien na gewone wijzigingen haalt alleen het register weg'(ctx) {
+    const db = sharedDb(readFixture('leden-oud.json'));
+    const o = await open(ctx, db, Object.assign({}, BAS, AAN));
+    let b = db.puts;
+    await answerDoubt(o.page, true);
+    await waitForPut(db, b);
+    const vangnetVoor = await ls(o.page, 'plannerLedenBackup');
+    // Gewone wijzigingen na de migratie: een boodschap en een taak.
+    b = db.puts;
+    await o.page.click('[data-view="boodschappenView"]');
+    await o.page.fill('#boodschapInput', 'Na migratie'); await o.page.press('#boodschapInput', 'Enter');
+    await waitForPut(db, b);
+    await o.page.click('[data-view="vandaagView"]');
+    await o.page.click('#openTodayBtn'); await wait(400);
+    b = db.puts;
+    await o.page.fill('#newTaskInput', 'Taak na migratie'); await o.page.click('#addTaskBtn');
+    await waitForPut(db, b);
+    const voorTerug = clone(db.db);
+    b = db.puts;
+    const r = await o.page.evaluate(() => window.huisplanLeden.terugdraaien());
+    await waitForPut(db, b);
+    // Precies members en meta.members weg; al het andere (ook de nieuwe boodschap en taak) gelijk.
+    const verwacht = clone(voorTerug); delete verwacht.members; delete verwacht.meta.members;
+    const diff = diffPaths(verwacht, db.db, '', { strictMeta: true });
+    assert(!diff.length, 'Terugdraaien raakte meer dan het register: ' + diff.join(', '));
+    assert(db.db.boodschappen.some(x => x.text === 'Na migratie') && db.db.tasks['2026-10-02'].some(t => t.text === 'Taak na migratie'), 'Wijziging na de migratie verloren');
+    // Het vangnet is alleen gelezen (controlesom); met latere wijzigingen meldt het eerlijk "niet gelijk".
+    assert(r.gelijkAanVoorDeMigratie === false, 'Controlesom zou moeten afwijken door de latere wijzigingen: ' + JSON.stringify(r));
+    assert((await ls(o.page, 'plannerLedenBackup')) === vangnetVoor, 'Vangnet veranderd door terugdraaien');
+    // Na herladen komt er niets terug (schakelaar is uit) en de wijzigingen blijven staan.
+    b = db.puts;
+    await o.page.reload(); await wait(2000);
+    assert(!('members' in db.db) && db.db.boodschappen.some(x => x.text === 'Na migratie'), 'Na herladen veranderd');
+    assert(!db.errors.length, 'Fouten: ' + db.errors.join(' | '));
+    await o.ctx.close();
+  },
+
+  async 'leden-app: tegenstrijdige antwoorden op twee toestellen geven een vaste, consistente uitkomst'(ctx) {
+    // A antwoordt "dezelfde", B "twee personen", in beide volgordes. Verwacht elke keer hetzelfde:
+    // "twee personen" wint (nooit twee mensen samenvoegen zonder dat iedereen het eens is).
+    const uitkomsten = [];
+    for (const eerst of ['A', 'B']) {
+      const db = sharedDb(readFixture('leden-oud.json'));
+      const [A, B] = await Promise.all([
+        open(ctx, db, Object.assign({}, BAS, AAN)),
+        open(ctx, db, { plannerMyName: 'Sanne', plannerPartnerName: 'Bas', plannerLedenregister: 'aan' })
+      ]);
+      await Promise.all([A, B].map(o => o.page.waitForSelector('#confirmOverlay.open', { timeout: 4000 })));
+      const antwoord = { A: () => A.page.click('#confirmOkBtn'), B: () => B.page.click('#confirmCancelBtn') };
+      await antwoord[eerst](); await antwoord[eerst === 'A' ? 'B' : 'A']();
+      await wait(2500);
+      for (let i = 0; i < 2; i++) { await Promise.all([A, B].map(o => o.page.evaluate(() => document.getElementById('refreshBtn').click()))); await wait(2000); }
+      const ms = db.db.members;
+      const lois = ms.filter(m => ['loïs', 'lois'].includes(m.name.toLowerCase()));
+      const metLoisAlias = ms.filter(m => (m.aliases || []).some(a => a.toLowerCase() === 'lois'));
+      assert(lois.length === 2 && !metLoisAlias.length, '[' + eerst + ' eerst] Inconsistent register: ' + JSON.stringify(ms));
+      assert(new Set(ms.map(m => m.id)).size === ms.length, 'Dubbele ID\'s');
+      const cacheA = await A.page.evaluate(() => { const k = Object.keys(localStorage).find(x => x.startsWith('plannerCache_')); return JSON.stringify(JSON.parse(localStorage.getItem(k)).data.members); });
+      const cacheB = await B.page.evaluate(() => { const k = Object.keys(localStorage).find(x => x.startsWith('plannerCache_')); return JSON.stringify(JSON.parse(localStorage.getItem(k)).data.members); });
+      assert(cacheA === JSON.stringify(ms) && cacheB === JSON.stringify(ms), '[' + eerst + ' eerst] Toestellen lopen uiteen');
+      Object.keys(db.db.meta.members).forEach(k => ['same', 'different'].includes(k) && Object.keys(db.db.meta.members[k]).forEach(h => assert(/^p_[0-9a-f]{16}$/.test(h), 'Sleutel niet veilig voor Firebase: ' + h)));
+      assert(!db.errors.length, 'Fouten: ' + db.errors.join(' | '));
+      uitkomsten.push(JSON.stringify(ms.map(m => [m.id, m.name, m.aliases || null]).sort()));
+      await A.ctx.close(); await B.ctx.close();
+    }
+    assert(uitkomsten[0] === uitkomsten[1], 'Uitkomst hangt af van de volgorde van antwoorden:\n    ' + uitkomsten.join('\n    '));
   },
 };
 

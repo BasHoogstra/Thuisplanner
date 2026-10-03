@@ -115,6 +115,10 @@ LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows 
   `sameName`). Twijfel = zelfde letters na weglaten van accenten en leestekens, bv. `Loïs`/`Lois`,
   `Anne-Marie`/`Anne Marie`. De app vraagt dit één keer per paar; zolang de vraag openstaat wordt er
   niets geschreven. Antwoord "dezelfde" bewaart de andere schrijfwijze in `aliases`.
+  Antwoorden twee toestellen verschillend, dan wint "twee personen" (`meta.members.different`),
+  ongeacht wie het laatst opslaat; een eerder samengevoegde schrijfwijze gaat dan uit `aliases` en
+  wordt een eigen lid met het vaste ID van die naam. Liever later in 1.6 samenvoegen dan nu twee
+  mensen ten onrechte één maken.
 - **kind** = `unknown`: er is geen betrouwbare bron (ook de twee toestelnamen hoeven geen
   volwassenen te zijn). Vóór de import (1.12) moet dit in 1.6 ("Ons huishouden") worden ingesteld,
   want Supabase kent alleen `adult`/`child`.
@@ -128,7 +132,8 @@ LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows 
   keer bewaart het toestel `plannerLedenBackup` met een controlesom van de hele planner.
   `huisplanLeden.terugdraaien()` (ontwikkelhulpmiddelen) haalt precies die twee velden weg, zet de
   schakelaar en `plannerMemberId` op dit toestel uit en meldt of de planner weer gelijk is aan vóór
-  de migratie (getest). Oude app-versies negeren de velden, dus code terugzetten is ook veilig.
+  de migratie (getest). Het werkt op de huidige planner: wijzigingen ná de migratie blijven staan
+  (dan meldt de controlesom "niet gelijk", wat dan klopt). Het vangnet wordt nooit teruggezet. Oude app-versies negeren de velden, dus code terugzetten is ook veilig.
 - **Op de echte planner (nog niet gedaan)**: (1) eerst een volledige back-up via Instellingen →
   Back-up; (2) 1.4 live zetten zonder schakelaar (verandert dan niets); (3) op één toestel in de
   ontwikkelhulpmiddelen `localStorage.setItem('plannerLedenregister','aan')` en de app herladen;

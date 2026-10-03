@@ -50,13 +50,14 @@
         "minAppVersion": { "type": "string", "pattern": "^\\d+(\\.\\d+)*$" },
         "members": {
           "type": "object",
-          "description": "Ledenregister (stap 1.4): versie, moment van de eerste migratie, app-versie en de antwoorden op twijfelgevallen (paar van genormaliseerde namen -> same/different).",
+          "description": "Ledenregister (stap 1.4): versie, moment van de eerste migratie, app-versie en de antwoorden op twijfelgevallen als twee verzamelingen same/different ({p_<hash>: paar van genormaliseerde namen}); staat een paar in different, dan geldt different.",
           "required": ["version"],
           "properties": {
             "version": { "type": "integer", "minimum": 1 },
             "migratedAt": { "type": "string" },
             "app": { "type": "string" },
-            "decisions": { "type": "object", "additionalProperties": { "enum": ["same", "different"] } }
+            "same": { "type": "object", "propertyNames": { "pattern": "^p_[0-9a-f]{16}$" }, "additionalProperties": { "type": "string" } },
+            "different": { "type": "object", "propertyNames": { "pattern": "^p_[0-9a-f]{16}$" }, "additionalProperties": { "type": "string" } }
           }
         }
       }

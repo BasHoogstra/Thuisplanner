@@ -39,7 +39,7 @@ JSON-schema staat in [`dataformaat-v1.schema.json`](dataformaat-v1.schema.json) 
 | `schemaVersion` | `1`. De testversie (vanaf 1.0.19) zet dit **alleen mee bij een opslag die toch al gebeurt**; alleen openen veroorzaakt geen extra schrijfactie. Een bestaande waarde wordt nooit overschreven. De live-versie laat het veld staan (getest). |
 | `migratedTo` | `{ url }` — gezet door de verhuizing in fase 1. Vanaf 1.0.1 stopt de app dan met opslaan en toont een melding. |
 | `minAppVersion` | bv. `"1.1.0"` — is de app ouder, dan stopt die met opslaan en vraagt om te verversen. |
-| `members` | Vanaf 1.4.0: `{version: 1, migratedAt, app, decisions}`. Status van het ledenregister; `decisions` bevat de antwoorden op twijfelgevallen (`"lois\|loïs": "same"` of `"different"`). |
+| `members` | Vanaf 1.4.0: `{version: 1, migratedAt, app, same, different}`. Status van het ledenregister; `same` en `different` bevatten de antwoorden op twijfelgevallen als `{p_<hash>: "lois\|loïs"}`. Staat een paar in beide (twee toestellen antwoordden verschillend), dan geldt `different`. |
 
 ## Velden
 

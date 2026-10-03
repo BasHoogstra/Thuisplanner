@@ -2748,7 +2748,7 @@ function showWriteGuard(reason,meta){
 //   (mergeArrays) maakt er één lid van. Een bestaand lid houdt altijd zijn ID.
 // - Hoofdletters en spaties ('Bas', ' bas ') zijn dezelfde persoon, zoals sameName() al deed.
 //   Echte twijfel (zelfde letters maar andere accenten of tekens, bv. 'Loïs' en 'Lois') vraagt de
-//   app één keer; het antwoord staat in meta.members.decisions.
+//   app één keer; het antwoord staat in meta.members.same / .different (zie memberDecisions).
 // - kind is 'unknown': de data zegt niet wie een kind is; dat stel je in bij 1.6.
 // - Alleen dit blok tot "einde LEDENREGISTER" is puur (geen DOM, geen globale variabelen) en wordt
 //   zo ook los getest (tests/leden.test.js).
@@ -2803,6 +2803,20 @@ function collectMemberNames(d){
   return out;
 }
 function memberPairKey(a,b){return [memberKey(a),memberKey(b)].sort().join('|');}
+// Antwoorden staan als twee verzamelingen in meta.members: same en different, elk {p_<hash>: paar}.
+// Twee toestellen die verschillend antwoorden vullen elk hun eigen verzameling; het samenvoegen
+// bewaart beide. "Twee personen" wint dan altijd, zodat de uitkomst niet van de volgorde afhangt en
+// er nooit twee mensen worden samengevoegd zonder dat iedereen het eens is. (De hash als sleutel,
+// omdat Firebase geen . / # $ [ ] in sleutels toestaat.)
+function memberDecisionKey(pk){return 'p_'+memberHash(pk);}
+function memberDecisions(mm){
+  var d={};
+  ['same','different'].forEach(function(t){
+    var o=mm&&typeof mm==='object'&&mm[t]&&typeof mm[t]==='object'?mm[t]:{};
+    Object.keys(o).forEach(function(h){if(typeof o[h]==='string')d[o[h]]=t;});
+  });
+  return d;
+}
 // Berekent het register zonder iets te wijzigen. device = {myName, partnerName} van dit toestel;
 // decisions = {pairKey: 'same'|'different'}. Geeft {members, added, doubts, changed}.
 // Bij twijfelgevallen hoort de app eerst te vragen en dan opnieuw te plannen met de antwoorden.
@@ -2834,6 +2848,19 @@ function planMemberRegister(d,device,decisions){
     })[0];
   }
   var added=[],doubts=[],changed=false;
+  // "Twee personen" geldt ook als een ander toestel ze al als dezelfde had samengevoegd: die andere
+  // schrijfwijze gaat dan weer uit de aliases, en wordt hieronder een eigen lid (vast ID).
+  Object.keys(decisions).forEach(function(pk){
+    if(decisions[pk]!=='different')return;
+    var ks=pk.split('|');
+    members.forEach(function(m){
+      if(!Array.isArray(m.aliases)||ks.indexOf(memberKey(m.name))<0)return;
+      var keep=m.aliases.filter(function(a){var ak=memberKey(a);return ks.indexOf(ak)<0||ak===memberKey(m.name);});
+      if(keep.length===m.aliases.length)return;
+      if(keep.length)m.aliases=keep;else delete m.aliases;
+      changed=true;
+    });
+  });
   keys.forEach(function(k){
     if(findMember(members,k))return; // al in het register (naam of eerdere schrijfwijze)
     var name=pick(groups[k].spellings),id=memberIdFor(k);
@@ -2875,6 +2902,9 @@ function linkDeviceMember(){
   if(!members||!members.length)return;
   var id=lsGet('plannerMemberId');
   var m=id?members.filter(function(x){return x&&x.id===id;})[0]:null;
+  // Hoort de eigen naam (na een correctie van het register) bij een ander lid, dan dat lid.
+  var own=myName?findMember(members,myName):null;
+  if(m&&own&&own.id!==m.id){lsSet('plannerMemberId',own.id);m=own;}
   if(m){
     if(!myName&&m.name){
       myName=m.name;lsSet('plannerMyName',m.name);
@@ -2901,19 +2931,21 @@ function ensureMemberRegister(){
   linkDeviceMember();
   if(!membersMigrationEnabled()||_memberDoubtsOpen)return;
   var meta=memberMeta();
-  var decisions=Object.assign({},meta&&meta.members&&meta.members.decisions);
+  var decisions=memberDecisions(meta&&meta.members);
   var device={myName:myName,partnerName:partnerName};
   var plan=planMemberRegister(data,device,decisions);
   if(plan.doubts.length){
     askMemberDoubts(plan.doubts,function(answers){
-      var dec=Object.assign({},decisions,answers);
-      applyMemberPlan(planMemberRegister(data,device,dec),dec);
+      var m2=memberMeta(),dec=memberDecisions(m2&&m2.members);
+      Object.keys(answers).forEach(function(pk){if(dec[pk]!=='different')dec[pk]=answers[pk];});
+      applyMemberPlan(planMemberRegister(data,device,dec),answers);
     });
     return;
   }
-  if(plan.changed)applyMemberPlan(plan,decisions);
+  if(plan.changed)applyMemberPlan(plan,{});
 }
-function applyMemberPlan(plan,decisions){
+// answers: alleen de nieuwe antwoorden van dit toestel; bestaande antwoorden blijven staan.
+function applyMemberPlan(plan,answers){
   if(plan.doubts.length||!plan.changed&&Array.isArray(data.members))return;
   stampSchemaVersion(data); // gebeurt bij het opslaan toch; zo klopt de controlesom van het vangnet
   if(!Array.isArray(data.members)){
@@ -2926,7 +2958,13 @@ function applyMemberPlan(plan,decisions){
   var meta=memberMeta();
   if(meta){
     var prev=meta.members&&typeof meta.members==='object'?meta.members:{};
-    meta.members={version:MEMBERS_VERSION,migratedAt:prev.migratedAt||new Date().toISOString(),app:APP_VERSION,decisions:decisions};
+    var mm={version:MEMBERS_VERSION,migratedAt:prev.migratedAt||new Date().toISOString(),app:APP_VERSION};
+    ['same','different'].forEach(function(t){
+      var o=Object.assign({},prev[t]&&typeof prev[t]==='object'?prev[t]:{});
+      Object.keys(answers||{}).forEach(function(pk){if(answers[pk]===t)o[memberDecisionKey(pk)]=pk;});
+      if(Object.keys(o).length)mm[t]=o;
+    });
+    meta.members=mm;
   }
   saveToServer();
   linkDeviceMember();
