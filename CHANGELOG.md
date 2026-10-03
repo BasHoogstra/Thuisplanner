@@ -239,4 +239,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - De nagebootste database kan nu ook de ETag leesbaar maken (`exposeETag`). Daarmee is gebleken dat
   de bestaande tests het `if-match`-pad nooit raakten (de app kon de ETag niet lezen); de nieuwe
   tests dekken beide paden. Zie `docs/fase1-notities.md`, punt 9.
+- **Handmatige controle (3 okt 2026), echte Firebase via de testversie:** de GET-respons bevat
+  `Access-Control-Expose-Headers: ETag`, een opslagactie is een `PUT` met een `If-Match`-header met de
+  ontvangen ETag, en die gaf `200 OK`. De echte omgeving gebruikt dus het ETag/If-Match-pad, niet de
+  terugval. Geen codewijziging.
 

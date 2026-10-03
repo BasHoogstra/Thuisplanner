@@ -89,12 +89,18 @@ LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows 
 - **Het `if-match`-pad werd tot nu toe niet getest.** De nagebootste database stuurde wel een ETag,
   maar zonder `Access-Control-Expose-Headers`; de app kon hem niet lezen en gebruikte steeds de
   terugval: vóór elke opslag eerst ophalen en samenvoegen, dan opslaan zonder voorwaarde. De nieuwe
-  tests draaien beide varianten. **Of de echte Firebase de ETag leesbaar maakt, is niet gecontroleerd**
-  (handmatig: zie hieronder). Zonder leesbare ETag kunnen twee toestellen die binnen een fractie van een
-  seconde opslaan in theorie elkaars wijziging overschrijven (niet nagespeeld); dat is bestaand gedrag
-  en ongewijzigd in 1.3.
-  Handmatige controle: open de testversie, ontwikkelhulpmiddelen → Netwerk, wijzig iets, en kijk of de
-  PUT naar `…/planners/<sleutel>.json` een `if-match`-header heeft.
+  tests draaien beide varianten. Zonder leesbare ETag zouden twee toestellen die binnen een fractie van
+  een seconde opslaan in theorie elkaars wijziging kunnen overschrijven (niet nagespeeld).
+- **Handmatig bevestigd (3 okt 2026): de echte Firebase gebruikt het ETag/If-Match-pad.** Gecontroleerd
+  door Bas in Chrome DevTools met de testversie (1.3.0) op de echte Firebase-planner:
+  - de GET-respons van Firebase bevat `Access-Control-Expose-Headers: ETag`;
+  - een echte opslagactie is een `PUT`;
+  - die PUT bevat een `If-Match`-header met de ontvangen ETag;
+  - de PUT gaf `200 OK`.
+  In de praktijk draait de app dus voorwaardelijk opslaan (412 → ophalen, samenvoegen, opnieuw) en niet
+  standaard de terugval zonder `If-Match`. De variant `exposeETag: true` in de tests is daarmee de
+  variant die overeenkomt met productie; de variant zonder blijft getest als terugval (die de app
+  gebruikt als een voorwaardelijke PUT op netwerkniveau mislukt).
 - **Bestaand gedrag, bewust niet aangepast:** na een nieuwe installatie (installatiescherm) start de
   polling elke 15 s pas na opnieuw openen van de app; bij opstarten en herstellen start hij meteen.
 - **Eerste keer laden schrijft terug** (punt 1) blijft zo; de store doet precies wat de oude code deed.
