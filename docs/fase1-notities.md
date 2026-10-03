@@ -105,3 +105,39 @@ LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows 
   polling elke 15 s pas na opnieuw openen van de app; bij opstarten en herstellen start hij meteen.
 - **Eerste keer laden schrijft terug** (punt 1) blijft zo; de store doet precies wat de oude code deed.
 
+## 10. Stap 1.4: ledenregister — keuzes en hoe het op de echte planner moet
+- **Member-ID = hash van de genormaliseerde naam** (`m_` + 16 hex). Waarom: de hele planner is één
+  document dat per `id` wordt samengevoegd. Een vaste afleiding laat twee toestellen die tegelijk
+  (of offline) migreren hetzelfde ID maken, zonder overleg; samenvoegen op naam achteraf zou een
+  extra opruimstap en een moment met dubbele leden geven. Een hash i.p.v. de naam zelf houdt het ID
+  neutraal als iemand later wordt hernoemd (1.6): het ID blijft, de naam verandert.
+- **Twijfel**: hoofdletters en spaties gelden als dezelfde persoon (de app deed dat al met
+  `sameName`). Twijfel = zelfde letters na weglaten van accenten en leestekens, bv. `Loïs`/`Lois`,
+  `Anne-Marie`/`Anne Marie`. De app vraagt dit één keer per paar; zolang de vraag openstaat wordt er
+  niets geschreven. Antwoord "dezelfde" bewaart de andere schrijfwijze in `aliases`.
+  Antwoorden twee toestellen verschillend, dan wint "twee personen" (`meta.members.different`),
+  ongeacht wie het laatst opslaat; een eerder samengevoegde schrijfwijze gaat dan uit `aliases` en
+  wordt een eigen lid met het vaste ID van die naam. Liever later in 1.6 samenvoegen dan nu twee
+  mensen ten onrechte één maken.
+- **kind** = `unknown`: er is geen betrouwbare bron (ook de twee toestelnamen hoeven geen
+  volwassenen te zijn). Vóór de import (1.12) moet dit in 1.6 ("Ons huishouden") worden ingesteld,
+  want Supabase kent alleen `adult`/`child`.
+- **Register wordt aangevuld**, niet alleen eenmalig gevuld: een naam die later opduikt (bv. via een
+  toestel met 1.3) wordt bij de volgende load toegevoegd, met hetzelfde vaste ID. Zo is het register
+  compleet als 1.5 begint.
+- **Schakelaar**: `/test/` en live gebruiken dezelfde echte planner. Daarom maakt de app het register
+  alleen aan op een toestel met `localStorage.plannerLedenregister = 'aan'`. Zonder schakelaar wordt
+  niets geschreven (getest), ook niet als deze versie al live staat.
+- **Vangnet en terugdraaien**: de migratie voegt alleen `members` en `meta.members` toe. Vóór de eerste
+  keer bewaart het toestel `plannerLedenBackup` met een controlesom van de hele planner.
+  `huisplanLeden.terugdraaien()` (ontwikkelhulpmiddelen) haalt precies die twee velden weg, zet de
+  schakelaar en `plannerMemberId` op dit toestel uit en meldt of de planner weer gelijk is aan vóór
+  de migratie (getest). Het werkt op de huidige planner: wijzigingen ná de migratie blijven staan
+  (dan meldt de controlesom "niet gelijk", wat dan klopt). Het vangnet wordt nooit teruggezet. Oude app-versies negeren de velden, dus code terugzetten is ook veilig.
+- **Op de echte planner (nog niet gedaan)**: (1) eerst een volledige back-up via Instellingen →
+  Back-up; (2) 1.4 live zetten zonder schakelaar (verandert dan niets); (3) op één toestel in de
+  ontwikkelhulpmiddelen `localStorage.setItem('plannerLedenregister','aan')` en de app herladen;
+  (4) eventuele twijfelvragen beantwoorden; (5) `huisplanLeden.status()` en het register in de
+  back-up/Firebase controleren (Bas, Sanne, Lynn, Loïs … elk één keer); (6) het tweede toestel openen
+  en controleren dat het niets dubbel maakt en zich koppelt.
+

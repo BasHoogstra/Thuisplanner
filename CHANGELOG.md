@@ -261,3 +261,37 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   bestaande gedrag vast, ook voor taken (auteur altijd zichtbaar) en zonder ingestelde toestelnaam.
   Geen codewijziging. **Stap 1.3 afgerond.**
 
+## 1.4.0 — Fase 1, stap 1.4 (testversie): ledenregister
+- Nieuw veld `data.members = [{id, name, kind, color, aliases?}]` in de gedeelde data. Alleen
+  toegevoegd: alle namen blijven staan waar ze staan (`assignedTo`, `author`, `addedBy`, sleutels van
+  `wieIsWaar`, verlanglijstjes en paklijsten). Omzetten naar member-ID's is stap 1.5.
+- Het register wordt opgebouwd uit de twee namen op het toestel, `vakantiePersonen` en alle
+  naamvelden uit `docs/dataformaat-v1.md` (taken, meerdaagse taken, reacties, bestellingen,
+  boodschappen, inbox, eigen lijsten, huisgeheugen, notities, verlanglijstjes, Wie is waar,
+  paklijsten). Plaatsvervangers (`me`, `partner`, `ik`) tellen niet als persoon.
+- Vast member-ID: `m_` + hash van de genormaliseerde naam. Twee toestellen die tegelijk migreren
+  komen op dezelfde ID's uit; het bestaande samenvoegen op `id` maakt er één lid van. Een bestaand lid
+  houdt zijn ID. Hoofdletters/spaties zijn dezelfde persoon (zoals `sameName`); bij echte twijfel
+  (andere accenten of tekens, bv. `Loïs`/`Lois`) vraagt de app één keer; het antwoord staat in
+  `meta.members.same`/`.different`. `kind` is `unknown` (de data zegt niet wie een kind is; volgt in 1.6).
+- Per toestel `plannerMemberId` ("wie ben jij op dit toestel"). `myName` blijft de bestaande
+  opgeslagen naam (verlanglijstjes hangen aan die spelling); alleen als die ontbreekt komt de naam
+  uit het register. De naambalk biedt de namen uit het register als keuze aan.
+- Veiligheid: het register wordt alleen aangemaakt op een toestel met `plannerLedenregister = 'aan'`
+  (standaard uit), zodat de echte planner pas na een bewuste keuze wordt gemigreerd. Vóór de eerste
+  migratie een vangnet met controlesom; idempotent; status in `meta.members`; terugdraaien met
+  `huisplanLeden.terugdraaien()`. Oudere versies (1.3) laten `members` en `meta.members` staan (getest).
+- Live-versie (`index.html`) ongewijzigd.
+- Tests: `tests/leden.test.js` en fixture `tests/fixtures/leden-oud.json`; schema en
+  `docs/dataformaat-v1.md` bijgewerkt.
+- Extra veiligheidscontroles vóór de merge:
+  - Terugdraaien na gewone wijzigingen (boodschap en taak na de migratie): alleen `members` en
+    `meta.members` gaan weg, de latere wijzigingen blijven. `plannerLedenBackup` wordt alleen gelezen
+    voor de controlesom, nooit teruggezet. Geen codewijziging nodig; test toegevoegd.
+  - Tegenstrijdige twijfelantwoorden op twee toestellen ("dezelfde" en "twee personen"): gaf een
+    inconsistent register (alias én eigen lid voor dezelfde naam) en een uitkomst die van de volgorde
+    afhing. Opgelost: antwoorden staan als twee verzamelingen `same`/`different` die bij het
+    samenvoegen allebei blijven; "twee personen" wint; het register herstelt zich daarnaar en een
+    toestel volgt zijn eigen naam naar het juiste lid. De sleutels zijn `p_<hash>`, omdat Firebase
+    geen `.` of `/` in sleutels toestaat (een naam als "J.P." had anders elke opslag laten mislukken).
+
