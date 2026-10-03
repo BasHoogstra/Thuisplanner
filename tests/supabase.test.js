@@ -81,6 +81,23 @@ module.exports = {
     assert(/^\*\.sql\s+text\s+eol=lf\s*$/m.test(attr), '.gitattributes mist: *.sql text eol=lf');
   },
 
+  async 'RLS-tests: script draait altijd in een transactie die wordt teruggedraaid'() {
+    const sql = fs.readFileSync(path.join(ROOT, 'supabase', 'tests', 'rls_tests.sql'), 'utf8').replace(/--[^\n]*/g, '');
+    assert(/^\s*begin;/i.test(sql), 'rls_tests.sql moet met begin; starten');
+    assert(/rollback;\s*$/i.test(sql), 'rls_tests.sql moet met rollback; eindigen');
+    assert(!/\bcommit\b/i.test(sql), 'rls_tests.sql mag geen commit bevatten');
+  },
+
+  async 'RLS-tests lokaal: migraties vanaf leeg + 20 RLS-scenario\'s (alleen als PostgreSQL aanwezig is)'() {
+    const bin = process.env.PGBIN || '/usr/lib/postgresql/16/bin';
+    if (!fs.existsSync(path.join(bin, 'initdb'))) { console.log('    (overgeslagen: geen PostgreSQL in ' + bin + ')'); return; }
+    let out;
+    try {
+      out = execSync(path.join(ROOT, 'supabase', 'tests', 'lokaal', 'run.sh') + ' 2>&1', { cwd: ROOT, timeout: 180000 }).toString();
+    } catch (e) { throw new Error('Lokale database/RLS-tests faalden:\n' + String(e.stdout || e.message).split('\n').filter(l => /ERROR|T\d\d|migratie/.test(l)).join('\n')); }
+    assert(/RLS-tests geslaagd: 20 van 20/.test(out), 'Niet alle RLS-tests geslaagd:\n' + out.slice(-800));
+  },
+
   async 'geen service-role- of secret-sleutels in de repository'() {
     const files = execSync('git ls-files -co --exclude-standard', { cwd: ROOT }).toString().split('\n').filter(Boolean)
       .filter(f => !/\.(png|jpg|jpeg|webp|ico|woff2?)$/i.test(f) && fs.existsSync(path.join(ROOT, f)));

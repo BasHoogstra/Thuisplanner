@@ -186,3 +186,18 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - **Afgerond (3 okt 2026):** staging volledig herbouwd met `supabase db reset --linked` vanuit een
   LF-checkout van `supabase/migrations/`. Schema-vingerafdruk staging = productie: 97 onderdelen,
   md5 `3e81d04cd0775634d6bac6604db9aa3d`. Productie ongewijzigd; testset 52/52.
+
+## Fase 1, stap 1.2 — Schema voor leden, sync, import en bestanden (geen app-wijziging)
+- Nieuwe migratie `20261003090000_leden_sync_import_opslag.sql` (bestaande migraties ongewijzigd).
+- Leden: eigen member-ID, account optioneel (kinderen en niet-aangemelde volwassenen zijn gewone
+  leden), naam, soort (volwassene/kind), kleur, volgorde, oude namen. Koppelen aan een account alleen
+  via een uitnodiging; een uitnodiging voor een bestaand lid maakt geen tweede lid.
+- Beheerders (`owner`, meerdere mogelijk) en gezinsleden (`member`); altijd minstens één beheerder met
+  account. Nieuwe functies `transfer_ownership` en `leave_household`.
+- Items: grafstenen (`deleted_at`, geen hard verwijderen via de API), revisieteller `rev`,
+  `created_at`/`created_by`.
+- `legacy_imports` voor de import in 1.12; bucket `household-files` met regels per huishouden.
+- Beveiliging: rechten van `anon` ingetrokken (ook voor toekomstige tabellen), geen truncate meer
+  voor ingelogde gebruikers, security-definer-functies naar schema `private`.
+- Tests: `supabase/tests/rls_tests.sql` (20 scenario's), lokaal draaiend via
+  `supabase/tests/lokaal/run.sh` en in `node tests/run.js`.

@@ -49,6 +49,19 @@ with parts as (
   -- realtime
   select 'realtime', schemaname||'.'||tablename, pubname from pg_publication_tables
   where pubname='supabase_realtime' and schemaname in ('public','private')
+  union all
+  -- (vanaf stap 1.2) RLS-regels op storage.objects, de bucket household-files en standaardrechten
+  select 'storage_policy', policyname,
+         cmd||' roles='||array_to_string(roles,',')||' using='||coalesce(qual,'')||' check='||coalesce(with_check,'')
+  from pg_policies where schemaname='storage' and tablename='objects'
+  union all
+  select 'bucket', id, 'public='||coalesce(public::text,'')||' limit='||coalesce(file_size_limit::text,'')
+         ||' mime='||coalesce(array_to_string(allowed_mime_types,','),'')
+  from storage.buckets where id='household-files'
+  union all
+  select 'default_acl', pg_get_userbyid(defaclrole)||':'||defaclobjtype::text,
+         array_to_string(array(select x::text from unnest(defaclacl) x order by 1),',')
+  from pg_default_acl where defaclnamespace = 'public'::regnamespace
 )
 select kind, name, def from parts
 union all
