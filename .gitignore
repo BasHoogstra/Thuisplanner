@@ -1,1 +1,4 @@
 tests/output/
+.env
+.env.*
+!.env.example

@@ -165,3 +165,24 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - De testversie (1.0.0 t/m 1.0.19, stappen 0.1 t/m 0.13) is overgenomen in de live-versie
   (`index.html`). Geen wijzigingen uit fase 1; nog steeds Firebase.
 - Enige verandering aan bestaande data: `meta.schemaVersion = 1` bij de eerstvolgende gewone opslag.
+
+## Fase 1, stap 1.1 — Supabase-omgevingen en migraties (geen app-wijziging)
+- Twee omgevingen: productie `tmkhpiomdnneeoscsjge` (bestaand, leeg) en staging
+  `rfgmaqqsjvsuibfucdrp` (nieuw, eu-west-1). Zie `supabase/README.md`.
+- De twee bestaande migraties staan letterlijk in `supabase/migrations/` (md5 gelijk aan productie).
+- `supabase/config.toml` voor de Supabase CLI; `supabase/tests/schema_fingerprint.sql` om staging
+  en productie te vergelijken.
+- `tests/supabase.test.js`: migratienamen en -volgorde, toegepaste migraties mogen niet meer
+  veranderen, geen service-role- of secret-sleutels in de repository, app gebruikt nog geen Supabase.
+- `.env` en `.env.*` in `.gitignore`.
+- Migraties op staging toegepast met de Supabase CLI (zie fase-1-notities, punt 6).
+- Correctie: migratie `20261002064401` maakt `pgcrypto` nu expliciet aan en roept
+  `extensions.gen_random_bytes` aan. Zonder dat liep `supabase db reset --linked` vast, omdat de CLI
+  migraties uitvoert zonder `extensions` in het `search_path`. Bewuste uitzondering op "toegepaste
+  migraties veranderen niet": de productiehistorie wijkt daardoor tekstueel af van Git; het schema is
+  gelijk. Nieuwe test: geen extensiefuncties zonder `extensions.` in migraties.
+- `.gitattributes`: `*.sql text eol=lf`. Een Windows-checkout met CRLF gaf op staging functies met
+  CR-tekens en daardoor een andere schema-vingerafdruk dan productie. Nieuwe test: geen CR in migraties.
+- **Afgerond (3 okt 2026):** staging volledig herbouwd met `supabase db reset --linked` vanuit een
+  LF-checkout van `supabase/migrations/`. Schema-vingerafdruk staging = productie: 97 onderdelen,
+  md5 `3e81d04cd0775634d6bac6604db9aa3d`. Productie ongewijzigd; testset 52/52.
