@@ -77,3 +77,31 @@ LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows 
   lid ziet geen uitnodigingen.
 - **Lokale databasetest**: `supabase/tests/lokaal/run.sh` werkt met een gewone PostgreSQL 16+ en een
   nagebootste Supabase-omgeving; staging blijft de echte controle.
+
+## 9. Stap 1.3: opslaglaag, en wat de nieuwe tests lieten zien
+- **Interface.** De app praat alleen via `store` met de server: `store.load()`, `store.save(data)`,
+  `store.subscribe(fn)`. Meldingen: `data` (nieuwe stand, met of zonder opnieuw tekenen), `incoming`
+  (wijzigingen van een ander toestel, vóór het samenvoegen), `status` (code; de app kiest de tekst),
+  `guard` (bewaking 0.2), `loaded` (na elke geslaagde load; daarna draaien de eenmalige migraties) en
+  `connected`. Een Supabase-store (1.10) moet dezelfde meldingen geven; de app hoeft dan niet te
+  veranderen. Extra functies die nu Firebase-specifiek zijn: `restore`/`connect` (koppeling via
+  database-URL + sleutel), `shareLink`, `checkAccess` (beveiligingscheck), `flush`, `startPolling`.
+- **Het `if-match`-pad werd tot nu toe niet getest.** De nagebootste database stuurde wel een ETag,
+  maar zonder `Access-Control-Expose-Headers`; de app kon hem niet lezen en gebruikte steeds de
+  terugval: vóór elke opslag eerst ophalen en samenvoegen, dan opslaan zonder voorwaarde. De nieuwe
+  tests draaien beide varianten. Zonder leesbare ETag zouden twee toestellen die binnen een fractie van
+  een seconde opslaan in theorie elkaars wijziging kunnen overschrijven (niet nagespeeld).
+- **Handmatig bevestigd (3 okt 2026): de echte Firebase gebruikt het ETag/If-Match-pad.** Gecontroleerd
+  door Bas in Chrome DevTools met de testversie (1.3.0) op de echte Firebase-planner:
+  - de GET-respons van Firebase bevat `Access-Control-Expose-Headers: ETag`;
+  - een echte opslagactie is een `PUT`;
+  - die PUT bevat een `If-Match`-header met de ontvangen ETag;
+  - de PUT gaf `200 OK`.
+  In de praktijk draait de app dus voorwaardelijk opslaan (412 → ophalen, samenvoegen, opnieuw) en niet
+  standaard de terugval zonder `If-Match`. De variant `exposeETag: true` in de tests is daarmee de
+  variant die overeenkomt met productie; de variant zonder blijft getest als terugval (die de app
+  gebruikt als een voorwaardelijke PUT op netwerkniveau mislukt).
+- **Bestaand gedrag, bewust niet aangepast:** na een nieuwe installatie (installatiescherm) start de
+  polling elke 15 s pas na opnieuw openen van de app; bij opstarten en herstellen start hij meteen.
+- **Eerste keer laden schrijft terug** (punt 1) blijft zo; de store doet precies wat de oude code deed.
+
