@@ -47,6 +47,10 @@ dan niets uitgevoerd). Migratie 2 bevat `drop policy` en `drop function`, en een
 herbouw van staging vraagt ook `drop`.
 **Gevolg:** schemawijzigingen met `drop` voeren we uit met de Supabase CLI (`supabase db push`)
 vanaf een eigen computer, zoals de roadmap ook voorschrijft. Dat is ook de juiste route voor 1.2.
+Bij die route kwamen nog twee dingen boven, allebei opgelost in stap 1.1: extensiefuncties moeten
+met `extensions.` (de CLI draait zonder `extensions` in het `search_path`), en SQL-bestanden moeten
+LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows CR-tekens. Zie
+`supabase/README.md`.
 
 ## 7. Bevindingen in het huidige schema (niet aangepast; voor 1.2)
 - De rollen `anon` en `authenticated` hebben alle tabelrechten (standaard bij Supabase). RLS laat

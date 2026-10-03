@@ -106,6 +106,12 @@ regel `TOTAAL` moet gelijk zijn. Het script leest alleen.
 Referentie productie op 2 oktober 2026 (na de twee migraties): **97 onderdelen,
 md5 `3e81d04cd0775634d6bac6604db9aa3d`**.
 
+| Controle | Datum | Staging | Productie |
+|---|---|---|---|
+| Na `supabase db reset --linked` vanuit LF-checkout (stap 1.1 afgerond) | 3 okt 2026 | 97, `3e81d04c…aa3d` | 97, `3e81d04c…aa3d` |
+
+Staging is daarmee aantoonbaar volledig reproduceerbaar uit `supabase/migrations/`.
+
 ## Migraties
 
 | Versie | Naam | Wat |
