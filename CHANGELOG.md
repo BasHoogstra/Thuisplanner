@@ -244,3 +244,14 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   ontvangen ETag, en die gaf `200 OK`. De echte omgeving gebruikt dus het ETag/If-Match-pad, niet de
   terugval. Geen codewijziging.
 
+## 1.3.0 — Fase 1, stap 1.3 live
+- De testversie 1.3.0 (opslaglaag met `FirebaseStore`) is overgenomen in de live-versie (`index.html`).
+  `index.html` en `test/index.html` zijn weer gelijk.
+- Vóór het overnemen op de gemergede `main` nogmaals de vergelijking oude live-code ↔ nieuwe code
+  gedraaid (`tests/store.test.js`, 9/9): zelfde verzoeken, eindstand, cache en statusregel, met en
+  zonder leesbare ETag, plus twee browsers tegelijk.
+- Geen wijziging aan bestaande data, opslagsleutels of cacheformaat; Firebase blijft de enige opslag
+  (ETag/If-Match-pad, handmatig bevestigd). Supabase wordt in de app nog niet gebruikt.
+- Afwijking van de roadmap: de week gebruik op de testversie is op verzoek overgeslagen; die controle
+  gebeurt nu op de live-versie.
+
