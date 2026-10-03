@@ -11,7 +11,7 @@ De app gebruikt nog geen Supabase. Tot en met stap 1.15 draait Huisplan op Fireb
 
 | Omgeving | Project-ref | URL | Regio | Data |
 |---|---|---|---|---|
-| **Productie** | `tmkhpiomdnneeoscsjge` | https://tmkhpiomdnneeoscsjge.supabase.co | eu-west-1 | leeg (geen rijen, geen gebruikers) |
+| **Productie** | `tmkhpiomdnneeoscsjge` | https://tmkhpiomdnneeoscsjge.supabase.co | eu-west-1 | schema t/m stap 1.2; leeg (geen rijen, geen gebruikers) |
 | **Staging** | `rfgmaqqsjvsuibfucdrp` | https://rfgmaqqsjvsuibfucdrp.supabase.co | eu-west-1 | alleen testdata, nooit echte data |
 
 Beide in de organisatie *Huisplan* (gratis abonnement). Let op: een gratis project wordt na een week
@@ -24,7 +24,7 @@ zonder activiteit gepauzeerd; staging moet dan in het dashboard weer worden gest
 - De **service-role-sleutel** en de **secret keys** (`sb_secret_…`) komen nooit in de app, nooit in
   deze repository en nooit in een commit. Ze omzeilen alle beveiliging. Bewaar ze alleen in het
   Supabase-dashboard of in een lokale `.env` (staat in `.gitignore`).
-- `tests/secrets.test.js` controleert bij elke testrun dat er geen geheime sleutel in de repository staat.
+- `tests/supabase.test.js` controleert bij elke testrun dat er geen geheime sleutel in de repository staat.
 
 ## Werken met migraties (Supabase CLI)
 
@@ -120,12 +120,20 @@ de versie van het script uit stap 1.1; vergelijk altijd twee databases met dezel
 |---|---|---|---|
 | Na `db reset --linked` met migraties t/m `20261003090000` (staging) | 3 okt 2026 | 169, `2780289b…36b3` | 103, `11e207d4…26e9` (nog zonder 1.2; zoals 1.1: 97, `3e81d04c…aa3d`) |
 
-Na het toepassen van `20261003090000` op productie hoort productie 169, `2780289b…36b3` te geven.
+| Productie-eindcontrole na `db push` van `20261003090000` (alleen lezen) | 3 okt 2026 | 169, `2780289b…36b3` | 169, `2780289b…36b3` |
+
+Productie en staging zijn na stap 1.2 gelijk: **169 onderdelen, md5
+`2780289b7b9822eeb2a50688a89f36b3`** (alle 13 soorten onderdelen ook afzonderlijk gelijk).
+Productie op 3 oktober 2026 na de push: drie migraties (`20261002064401`, `20261002064437`,
+`20261003090000`), beveiligingsadviseur 0 meldingen, prestatie-adviseur alleen "index nog niet
+gebruikt" (INFO), en leeg: 0 gebruikers, 0 rijen in alle tabellen, 0 bestanden; alleen de lege,
+privé bucket `household-files`. Daarna is de lokale CLI teruggekoppeld naar staging
+(`npx supabase link --project-ref rfgmaqqsjvsuibfucdrp`).
 
 RLS-tests op staging (3 okt 2026): **20 van 20** (volledig script in de SQL-editor), daarna geen
 testdata achtergebleven.
 
-### Stap 1.2 naar productie (alleen na akkoord)
+### Stap 1.2 naar productie (uitgevoerd op 3 okt 2026)
 1. PR naar `main` gemerged.
 2. `npx supabase link --project-ref tmkhpiomdnneeoscsjge`
 3. `npx supabase migration list`: alleen `20261003090000` ontbreekt remote.

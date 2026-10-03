@@ -207,3 +207,9 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   Na afloop staging leeg (0 gebruikers, 0 rijen, 0 bestanden). Beveiligingsadviseur: geen meldingen.
   Prestatie-adviseur: alleen "index nog niet gebruikt" (INFO, lege tabellen). Productie ongewijzigd.
 - **Stap 1.2 afgerond op staging.** Productie volgt pas na akkoord (zie `supabase/README.md`).
+- **Productie (3 okt 2026):** `20261003090000` met `supabase db push` toegepast; `migration list`
+  toont drie migraties gelijk lokaal en remote. Eindcontrole alleen lezend: vingerafdruk productie =
+  staging = 169 onderdelen, md5 `2780289b7b9822eeb2a50688a89f36b3`; beveiligingsadviseur 0 meldingen;
+  productie leeg (0 gebruikers, 0 rijen, 0 bestanden, alleen de lege bucket `household-files`). Geen
+  RLS-tests op productie. Daarna de lokale CLI teruggekoppeld naar staging `rfgmaqqsjvsuibfucdrp`.
+  **Stap 1.2 definitief afgerond.**
