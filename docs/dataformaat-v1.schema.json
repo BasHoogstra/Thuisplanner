@@ -47,7 +47,18 @@
       "properties": {
         "schemaVersion": { "type": "integer", "minimum": 1 },
         "migratedTo": { "type": "object", "properties": { "url": { "type": "string" } } },
-        "minAppVersion": { "type": "string", "pattern": "^\\d+(\\.\\d+)*$" }
+        "minAppVersion": { "type": "string", "pattern": "^\\d+(\\.\\d+)*$" },
+        "members": {
+          "type": "object",
+          "description": "Ledenregister (stap 1.4): versie, moment van de eerste migratie, app-versie en de antwoorden op twijfelgevallen (paar van genormaliseerde namen -> same/different).",
+          "required": ["version"],
+          "properties": {
+            "version": { "type": "integer", "minimum": 1 },
+            "migratedAt": { "type": "string" },
+            "app": { "type": "string" },
+            "decisions": { "type": "object", "additionalProperties": { "enum": ["same", "different"] } }
+          }
+        }
       }
     },
     "tasks": {
@@ -243,6 +254,21 @@
       }
     },
     "vakantiePersonen": { "type": "array", "items": { "type": "string" } },
+    "members": {
+      "type": "array",
+      "description": "Ledenregister (stap 1.4). Alleen toegevoegd; de namen in de rest van de data blijven staan tot stap 1.5.",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^m_[0-9a-f]{16}$" },
+          "name": { "type": "string" },
+          "kind": { "enum": ["adult", "child", "unknown"] },
+          "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+          "aliases": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
     "huisgeheugen": {
       "type": "array",
       "items": {

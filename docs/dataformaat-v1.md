@@ -39,6 +39,7 @@ JSON-schema staat in [`dataformaat-v1.schema.json`](dataformaat-v1.schema.json) 
 | `schemaVersion` | `1`. De testversie (vanaf 1.0.19) zet dit **alleen mee bij een opslag die toch al gebeurt**; alleen openen veroorzaakt geen extra schrijfactie. Een bestaande waarde wordt nooit overschreven. De live-versie laat het veld staan (getest). |
 | `migratedTo` | `{ url }` — gezet door de verhuizing in fase 1. Vanaf 1.0.1 stopt de app dan met opslaan en toont een melding. |
 | `minAppVersion` | bv. `"1.1.0"` — is de app ouder, dan stopt die met opslaan en vraagt om te verversen. |
+| `members` | Vanaf 1.4.0: `{version: 1, migratedAt, app, decisions}`. Status van het ledenregister; `decisions` bevat de antwoorden op twijfelgevallen (`"lois\|loïs": "same"` of `"different"`). |
 
 ## Velden
 
@@ -83,6 +84,10 @@ Alle velden zijn optioneel (zie Firebase hierboven). Tussen haakjes de standaard
   `todos`, `notes`, `budget` `{bedrag, uitgaven:[{desc,amount,date}]}`, en `_tab` (schermstand,
   zie fase-1-notities).
 - **`vakantiePersonen`** (standaard: de twee ingestelde namen) — namen voor paklijsten en Wie is waar.
+- **`members`** (vanaf 1.4.0, ontbreekt tot de migratie) — ledenregister: `id` (`m_` + 16 hex, afgeleid van de
+  genormaliseerde naam en daarna vast), `name`, `kind` (`adult`/`child`/`unknown`; bij de migratie
+  `unknown`), `color`, optioneel `aliases` (andere schrijfwijzen die als dezelfde persoon zijn bevestigd).
+  De namen in de rest van de data blijven ongewijzigd (omzetten naar ID's is stap 1.5).
 - **`wieIsWaar`** (`{}`) — per datum `{naam: status}`; status o.a. `thuis`, `werk`, `reis`, `sporten`, `afwezig`.
 - **`verjaardagen`** (`[]`) — `id`, `naam`, `datum` (`MM-DD`), `jaar`.
 - **`verlanglijstjes`** (`{}`) — per naam: `id`, `text`, `claimedBy`, `addedAt`.
@@ -104,3 +109,6 @@ Alle velden zijn optioneel (zie Firebase hierboven). Tussen haakjes de standaard
 `plannerLijstDicht`, `plannerBoodDoneOpen`, `plannerMeerClicks`), `plannerOpt…` (extra lagen op
 Vandaag, 1.0.17), en "al gezien"-markeringen (`briefingShown`, `seasonDismissed_…`,
 `weekScoreDismissed_…`, `iosBannerDismissed`, `plannerSecWarned`).
+Vanaf 1.4.0: `plannerMemberId` (wie ben jij op dit toestel: het `id` uit `members`),
+`plannerLedenregister` (`aan` = dit toestel mag het register aanmaken/aanvullen) en
+`plannerLedenBackup` (vangnet van vóór de eerste migratie op dit toestel).

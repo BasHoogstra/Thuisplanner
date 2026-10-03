@@ -101,3 +101,5 @@ module.exports = {
     await c.close();
   },
 };
+// Ook bruikbaar in andere tests (niet-opsombaar, dus run.js ziet het niet als test).
+Object.defineProperty(module.exports, '__validate', { value: data => validate(SCHEMA, data), enumerable: false });

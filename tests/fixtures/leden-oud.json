@@ -1,0 +1,213 @@
+{
+ "meta": {
+  "schemaVersion": 1
+ },
+ "vakantiePersonen": [
+  "Bas",
+  "Sanne",
+  "Lynn",
+  "Loïs"
+ ],
+ "tasks": {
+  "2026-10-02": [
+   {
+    "id": "t1",
+    "text": "Vuilnis buiten zetten",
+    "done": false,
+    "category": "huis",
+    "priority": "normaal",
+    "assignedTo": "Sanne",
+    "author": "Bas",
+    "orderStatus": null,
+    "reactions": {
+     "👍": [
+      "Sanne",
+      "ik"
+     ]
+    }
+   },
+   {
+    "id": "t2",
+    "text": "Zwemles Lynn",
+    "done": false,
+    "category": "samen",
+    "priority": "normaal",
+    "assignedTo": "bas",
+    "author": "Sanne",
+    "orderStatus": null
+   }
+  ],
+  "2026-09-28": [
+   {
+    "id": "t3",
+    "text": "Oude taak",
+    "done": true,
+    "category": "overig",
+    "priority": "normaal",
+    "assignedTo": "me",
+    "author": " BAS ",
+    "orderStatus": null
+   }
+  ]
+ },
+ "multiDayTasks": [
+  {
+   "id": "md1",
+   "text": "Opa Henk logeert",
+   "done": false,
+   "startDate": "2026-10-09",
+   "endDate": "2026-10-11",
+   "category": "samen",
+   "priority": "normaal",
+   "assignedTo": "partner",
+   "author": "Sanne"
+  }
+ ],
+ "bestellingen": [
+  {
+   "id": "be1",
+   "text": "Schoolschoenen",
+   "status": "besteld",
+   "category": "kinderen",
+   "assignedTo": "Sanne",
+   "addedDate": "2026-09-30",
+   "addedBy": "Bas"
+  }
+ ],
+ "boodschappen": [
+  {
+   "id": "b1",
+   "text": "Melk",
+   "done": false,
+   "cat": "Zuivel & eieren",
+   "addedBy": "Sanne",
+   "addedDate": "2026-10-01"
+  },
+  {
+   "id": "b2",
+   "text": "Brood",
+   "done": false,
+   "cat": "Brood & gebak",
+   "addedBy": "Bas",
+   "addedDate": "2026-10-01"
+  },
+  {
+   "id": "b3",
+   "text": "Appels",
+   "done": false,
+   "cat": "Groente & fruit",
+   "addedBy": null,
+   "addedDate": "2026-10-01"
+  }
+ ],
+ "inbox": [
+  {
+   "id": "i1",
+   "text": "Tandarts bellen",
+   "addedBy": "Sanne",
+   "addedAt": "2026-10-01T08:00:00.000Z"
+  }
+ ],
+ "lijsten": [
+  {
+   "id": "te-bestellen",
+   "naam": "📦 Te bestellen",
+   "items": [
+    {
+     "id": "l1",
+     "text": "Inktpatronen",
+     "done": false,
+     "addedBy": "Bas",
+     "addedDate": "2026-09-30"
+    }
+   ]
+  },
+  {
+   "id": "overige-winkels",
+   "naam": "🏬 Overige winkels",
+   "items": []
+  }
+ ],
+ "lijstenSeeded": true,
+ "huisgeheugen": [
+  {
+   "id": "h1",
+   "type": "taak",
+   "tekst": "Dakgoot schoongemaakt",
+   "datum": "2026-09-20",
+   "auteur": "Sanne",
+   "ts": 1789900000000
+  }
+ ],
+ "notities": [
+  {
+   "id": "n1",
+   "titel": "Wifi",
+   "tekst": "Wachtwoord staat op de router",
+   "editedBy": "Bas",
+   "editedAt": "10:00"
+  }
+ ],
+ "verlanglijstjes": {
+  "Bas": [
+   {
+    "id": "w1",
+    "text": "Boek",
+    "claimedBy": "Sanne",
+    "addedAt": "2026-09-01"
+   }
+  ],
+  "Lynn": [
+   {
+    "id": "w2",
+    "text": "Lego",
+    "claimedBy": "Ik",
+    "addedAt": "2026-09-02"
+   }
+  ]
+ },
+ "wieIsWaar": {
+  "2026-10-05": {
+   "Bas": "werk",
+   "Sanne": "reis",
+   "Lois": "thuis"
+  }
+ },
+ "vakanties": [
+  {
+   "id": "v1",
+   "naam": "Texel",
+   "startDatum": "2027-05-01",
+   "bestemming": "Texel",
+   "paklijst": {
+    "Bas": [
+     {
+      "id": "p1",
+      "text": "Jas",
+      "done": false
+     }
+    ],
+    "Loïs": [
+     {
+      "id": "p2",
+      "text": "Knuffel",
+      "done": false
+     }
+    ],
+    "Opa Henk": [
+     {
+      "id": "p3",
+      "text": "Pillen",
+      "done": false
+     }
+    ]
+   },
+   "todos": []
+  }
+ ],
+ "budgetSeeded": true,
+ "winkelsSet": true,
+ "winkels": [
+  "AH"
+ ]
+}
