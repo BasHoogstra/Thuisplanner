@@ -93,7 +93,8 @@ async function openApp(browser, base, opts = {}) {
   const url = base + (target === 'root' ? '/index.html' : '/test/index.html');
   const ctx = await browser.newContext({ viewport: opts.viewport || { width: 390, height: 844 }, colorScheme: opts.colorScheme || 'light', locale: 'nl-NL', timezoneId: 'Europe/Amsterdam' });
   const page = await ctx.newPage();
-  const state = { db: opts.data === undefined ? null : clone(opts.data), puts: 0, gets: 0, etag: 1, errors: [], putBodies: [] };
+  // opts.state: dezelfde nagebootste database delen met een ander toestel (twee browsers tegelijk).
+  const state = opts.state || { db: opts.data === undefined ? null : clone(opts.data), puts: 0, gets: 0, etag: 1, errors: [], putBodies: [] };
   page.on('pageerror', e => state.errors.push('pageerror: ' + e.message));
   page.on('console', m => {
     if (m.type() !== 'error') return;
@@ -103,19 +104,27 @@ async function openApp(browser, base, opts = {}) {
   });
   await ctx.route(DB_URL + '/**', async route => {
     const req = route.request();
+    // opts.log: verloop van de verzoeken vastleggen (om oude en nieuwe opslaglaag te vergelijken).
+    const log = m => { if (opts.log) opts.log.push(m + (req.headers()['if-match'] ? ' if-match' : '')); };
+    // opts.exposeETag: de ETag is voor de app leesbaar (Access-Control-Expose-Headers), zodat de app
+    // voorwaardelijk opslaat met if-match. Zonder (standaard, zoals tot nu toe) leest de app geen
+    // ETag en voegt hij vóór elke opslag eerst de serverstand samen.
+    const h = o => (opts.exposeETag ? Object.assign({ 'Access-Control-Expose-Headers': 'ETag' }, o) : o);
     if (req.method() === 'PUT') {
       // Zoals Firebase: een voorwaardelijke PUT met een verouderde ETag geeft 412.
       const ifMatch = req.headers()['if-match'];
-      if (ifMatch && ifMatch !== 'e' + state.etag) { state.conflicts = (state.conflicts || 0) + 1; return route.fulfill({ status: 412, headers: { ETag: 'e' + state.etag }, body: '' }); }
+      if (ifMatch && ifMatch !== 'e' + state.etag) { log('PUT 412'); state.conflicts = (state.conflicts || 0) + 1; return route.fulfill({ status: 412, headers: h({ ETag: 'e' + state.etag }), body: '' }); }
+      log('PUT');
       const body = JSON.parse(req.postData());
       if (opts.onPut) opts.onPut(body);
       state.db = body; state.puts++; state.etag++; state.putBodies.push(body);
-      return route.fulfill({ status: 200, headers: { ETag: 'e' + state.etag, 'content-type': 'application/json' }, body: req.postData() });
+      return route.fulfill({ status: 200, headers: h({ ETag: 'e' + state.etag, 'content-type': 'application/json' }), body: req.postData() });
     }
     // De lijst met alle planners is bij goed ingestelde regels afgeschermd (zoals in Firebase).
-    if (/\/planners\.json/.test(req.url())) return route.fulfill({ status: 401, body: '{"error":"Permission denied"}' });
+    if (/\/planners\.json/.test(req.url())) { log('GET planners'); return route.fulfill({ status: 401, body: '{"error":"Permission denied"}' }); }
+    log('GET');
     state.gets++;
-    return route.fulfill({ status: 200, headers: { ETag: 'e' + state.etag, 'content-type': 'application/json' }, body: JSON.stringify(state.db) });
+    return route.fulfill({ status: 200, headers: h({ ETag: 'e' + state.etag, 'content-type': 'application/json' }), body: JSON.stringify(state.db) });
   });
   // Al het andere verkeer naar buiten (weer, kaarten, QR-bibliotheek) wordt geblokkeerd.
   await ctx.route(u => !u.href.startsWith(base) && !u.href.startsWith(DB_URL), r => r.abort());
@@ -136,6 +145,8 @@ async function openApp(browser, base, opts = {}) {
 
 // Simuleert een ander toestel dat de serverdata wijzigt.
 function serverWrite(state, mutate) { mutate(state.db); state.etag++; }
+// Lege nagebootste database om te delen tussen twee toestellen (openApp met { state }).
+function sharedDb(data) { return { db: data === undefined ? null : clone(data), puts: 0, gets: 0, etag: 1, errors: [], putBodies: [] }; }
 
 async function waitForPut(state, before, timeout = 4000) {
   const t0 = Date.now();
@@ -159,4 +170,4 @@ function shotPath(target, name) {
   return path.join(dir, name + '.png');
 }
 
-module.exports = { serverWrite, startServer, launch, openApp, readFixture, clone, firebaseCanon, diffPaths, waitForPut, assert, assertSameSet, shotPath, FIXED_NOW, DB_URL };
+module.exports = { serverWrite, sharedDb, startServer, launch, openApp, readFixture, clone, firebaseCanon, diffPaths, waitForPut, assert, assertSameSet, shotPath, FIXED_NOW, DB_URL };

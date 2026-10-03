@@ -213,3 +213,30 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   productie leeg (0 gebruikers, 0 rijen, 0 bestanden, alleen de lege bucket `household-files`). Geen
   RLS-tests op productie. Daarna de lokale CLI teruggekoppeld naar staging `rfgmaqqsjvsuibfucdrp`.
   **Stap 1.2 definitief afgerond.**
+
+## 1.3.0 — Fase 1, stap 1.3 (testversie): opslaglaag gescheiden
+- Alles wat met Firebase praat staat nu achter één interface in `test/index.html`:
+  `store.load()`, `store.save(data)` en `store.subscribe(fn)`. De bestaande code is de `FirebaseStore`
+  (`createFirebaseStore`): database-URL en deellink (`?db=…&p=…`), ophalen met ETag, voorwaardelijk
+  opslaan met `if-match`, 412 → ophalen, samenvoegen, opnieuw (max. 5 pogingen), de terugval zonder
+  `if-match`, de wachtrij (één opslag tegelijk, 400 ms vertraging), opslaan bij naar de achtergrond
+  gaan (`keepalive`), polling elke 15 s, de lokale cache en de bewaking uit 0.2.
+- De rest van de app werkt met het bestaande `data`-object en reageert alleen op meldingen van de
+  store (nieuwe data, wijzigingen van een ander toestel, status, bewaking, eerste keer geladen).
+  `saveToServer()` blijft als naam bestaan en roept `store.save(data)` aan.
+- Samenvoegen (`merge3`, `mergeData`, `normalizeData`, `canon`) is niet aan Firebase gebonden en staat
+  los van de store, zodat een tweede opslag het later kan hergebruiken.
+- Geen gedragswijziging: zelfde verzoeken, zelfde opslagsleutels (`plannerDbUrl`, `plannerKey`,
+  `plannerCache_<sleutel>`), zelfde cacheformaat, zelfde teksten. Firebase blijft de enige opslag;
+  Supabase wordt in de app nog niet gebruikt. Geen databasewijziging, geen datamigratie.
+- Live-versie (`index.html`) ongewijzigd.
+- Tests: `tests/store.test.js`. Elk scenario draait tegen de oude code (`index.html`) én de testversie
+  en vergelijkt het verloop van de verzoeken, de eindstand, de lokale cache en de statusregel: eerste
+  keer laden, opslaan, 412-conflict, offline en weer online, opstarten uit de cache met een
+  niet-opgeslagen wijziging, naar de achtergrond, 403, open database, deellink, installeren en
+  herstellen. Plus twee browsers tegelijk op dezelfde nagebootste database (gelijktijdig opslaan,
+  412, offline en weer online), en een controle dat buiten de store geen Firebase-code meer staat.
+- De nagebootste database kan nu ook de ETag leesbaar maken (`exposeETag`). Daarmee is gebleken dat
+  de bestaande tests het `if-match`-pad nooit raakten (de app kon de ETag niet lezen); de nieuwe
+  tests dekken beide paden. Zie `docs/fase1-notities.md`, punt 9.
+

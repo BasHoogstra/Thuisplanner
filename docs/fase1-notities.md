@@ -77,3 +77,25 @@ LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows 
   lid ziet geen uitnodigingen.
 - **Lokale databasetest**: `supabase/tests/lokaal/run.sh` werkt met een gewone PostgreSQL 16+ en een
   nagebootste Supabase-omgeving; staging blijft de echte controle.
+
+## 9. Stap 1.3: opslaglaag, en wat de nieuwe tests lieten zien
+- **Interface.** De app praat alleen via `store` met de server: `store.load()`, `store.save(data)`,
+  `store.subscribe(fn)`. Meldingen: `data` (nieuwe stand, met of zonder opnieuw tekenen), `incoming`
+  (wijzigingen van een ander toestel, vóór het samenvoegen), `status` (code; de app kiest de tekst),
+  `guard` (bewaking 0.2), `loaded` (na elke geslaagde load; daarna draaien de eenmalige migraties) en
+  `connected`. Een Supabase-store (1.10) moet dezelfde meldingen geven; de app hoeft dan niet te
+  veranderen. Extra functies die nu Firebase-specifiek zijn: `restore`/`connect` (koppeling via
+  database-URL + sleutel), `shareLink`, `checkAccess` (beveiligingscheck), `flush`, `startPolling`.
+- **Het `if-match`-pad werd tot nu toe niet getest.** De nagebootste database stuurde wel een ETag,
+  maar zonder `Access-Control-Expose-Headers`; de app kon hem niet lezen en gebruikte steeds de
+  terugval: vóór elke opslag eerst ophalen en samenvoegen, dan opslaan zonder voorwaarde. De nieuwe
+  tests draaien beide varianten. **Of de echte Firebase de ETag leesbaar maakt, is niet gecontroleerd**
+  (handmatig: zie hieronder). Zonder leesbare ETag kunnen twee toestellen die binnen een fractie van een
+  seconde opslaan in theorie elkaars wijziging overschrijven (niet nagespeeld); dat is bestaand gedrag
+  en ongewijzigd in 1.3.
+  Handmatige controle: open de testversie, ontwikkelhulpmiddelen → Netwerk, wijzig iets, en kijk of de
+  PUT naar `…/planners/<sleutel>.json` een `if-match`-header heeft.
+- **Bestaand gedrag, bewust niet aangepast:** na een nieuwe installatie (installatiescherm) start de
+  polling elke 15 s pas na opnieuw openen van de app; bij opstarten en herstellen start hij meteen.
+- **Eerste keer laden schrijft terug** (punt 1) blijft zo; de store doet precies wat de oude code deed.
+
