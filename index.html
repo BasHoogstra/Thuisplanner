@@ -1953,18 +1953,16 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.0.19';
+var APP_VERSION='1.3.0';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
 var MONTH_NAMES=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
 var DAY_NAMES=['ma','di','wo','do','vr','za','zo'];
 var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];
-var dbUrl=null,plannerKey=null;
 var myName=localStorage.getItem('plannerMyName')||'';
 var partnerName=localStorage.getItem('plannerPartnerName')||'';
 var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[],verlanglijstjes:{},cadeaus:[],inbox:[],budget:[],budgetCustomCats:[],wieIsWaar:{}};
-var lastKnownJSON='',saveTimer=null;
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
 var openDateKey=null,today=new Date();
@@ -2323,10 +2321,20 @@ function getDefaultBudgetItems(){
   return defs.map(function(d){return {id:uid(),cat:d[0],naam:d[1],instantie:'',periode:d[2],bedrag:0,bedragNieuw:0,advies:''};});
 }
 
-function dataUrl(){return dbUrl.replace(/\/$/,'')+'/planners/'+plannerKey+'.json';}
-
-// ── SYNC ─────────────────────────────────────────────────────
-// Het hele planner-object staat als één document in Firebase. Om te voorkomen dat
+// ── OPSLAGLAAG (roadmap 1.3) ─────────────────────────────────
+// De app praat alleen via `store` met de server. De rest van de app werkt met het data-object
+// en weet niet welke opslag erachter zit:
+//   store.load()          serverstand ophalen en samenvoegen (opstarten, verversen, weer online)
+//   store.save(data)      opslaan: na 400 ms, één tegelijk, met conflictafhandeling
+//   store.subscribe(fn)   meldingen aan de app (zie hieronder)
+// Meldingen: {type:'data',data,render,reminders} nieuwe stand van het data-object;
+// {type:'incoming',local,remote} wijzigingen van een ander toestel (vóór het samenvoegen);
+// {type:'status',code} voor de synchronisatieregel; {type:'guard',reason,meta} bewaking (0.2);
+// {type:'loaded',first} na elke geslaagde load; {type:'connected'} server bereikt of nieuw dagboek.
+// Hulpfuncties voor samenvoegen (canon, merge3, mergeData, normalizeData) zijn niet aan een
+// opslag gebonden en staan hieronder los.
+//
+// FirebaseStore: het hele planner-object staat als één document in Firebase. Om te voorkomen dat
 // twee telefoons elkaars wijzigingen overschrijven:
 //  1. ETag + if-match: een PUT slaagt alleen als niemand anders sinds onze laatste
 //     load heeft opgeslagen (anders 412 -> opnieuw ophalen en samenvoegen).
@@ -2334,7 +2342,7 @@ function dataUrl(){return dbUrl.replace(/\/$/,'')+'/planners/'+plannerKey+'.json
 //     op id-niveau, zodat bv. twee tegelijk toegevoegde boodschappen allebei blijven.
 //  3. Lokale cache: de app opent direct (ook offline) en niet-opgeslagen wijzigingen
 //     overleven offline-periodes en het sluiten van de app.
-var serverETag=null,_loadedOnce=false,_noConditional=false,_pushing=false,_pushQueued=false,_saveGen=0;
+
 function canonVal(v){
   // Spiegelt hoe Firebase opslaat: null en lege lijsten/objecten verdwijnen, sleutels gesorteerd.
   if(v===null||v===undefined)return undefined;
@@ -2418,45 +2426,302 @@ function normalizeData(inc){
   return inc;
 }
 function mergeData(base,local,remote){var m=normalizeData(merge3(base,local,remote));dedupeTasks(m,local);return m;}
-function baseObj(){try{return lastKnownJSON?JSON.parse(lastKnownJSON):{};}catch(e){return {};}}
-function hasLocalChanges(){return canon(data)!==lastKnownJSON;}
 
-function cacheKey(){return 'plannerCache_'+plannerKey;}
-function writeCache(){
-  if(!plannerKey)return;
-  try{localStorage.setItem(cacheKey(),JSON.stringify({data:data,base:lastKnownJSON,t:Date.now()}));}catch(e){}
-}
-function readCache(){
-  try{
-    var c=JSON.parse(localStorage.getItem(cacheKey())||'null');
-    if(c&&c.data){data=normalizeData(c.data);lastKnownJSON=c.base||'';return true;}
-  }catch(e){}
-  return false;
-}
-
-// ── Bewaking (roadmap 0.2) ─────────────────────────────────
-// Staat er in de serverdata meta.migratedTo (planner is verhuisd) of een meta.minAppVersion
-// die nieuwer is dan deze app, dan slaat deze app niets meer op in Firebase. Lokale
-// wijzigingen blijven in de lokale cache staan. Verdwijnt de markering weer, dan gaat alles
-// gewoon verder.
-var _writeBlocked=null; // null | 'moved' | 'outdated'
+// Versies vergelijken (bewaking, roadmap 0.2).
 function compareVersions(a,b){
   var x=String(a||'0').split('.'),y=String(b||'0').split('.');
   for(var i=0;i<Math.max(x.length,y.length);i++){var d=(parseInt(x[i],10)||0)-(parseInt(y[i],10)||0);if(d)return d>0?1:-1;}
   return 0;
 }
-function checkWriteGuard(raw){
-  var meta=raw&&typeof raw==='object'&&raw.meta&&typeof raw.meta==='object'?raw.meta:null;
-  var reason=null;
-  if(meta&&meta.migratedTo)reason='moved';
-  else if(meta&&meta.minAppVersion&&compareVersions(APP_VERSION,meta.minAppVersion)<0)reason='outdated';
-  if(reason){
-    if(_writeBlocked!==reason){_writeBlocked=reason;clearTimeout(saveTimer);_pendingSave=false;showWriteGuard(reason,meta);}
-  } else if(_writeBlocked){
-    _writeBlocked=null;document.getElementById('writeGuardOverlay').hidden=true;
-  }
-  return !!reason;
+
+// Dataformaat: zie docs/dataformaat-v1.md. Alleen meegestuurd bij een opslag die toch al
+// plaatsvindt (openen alleen schrijft niets extra). Een bestaande waarde blijft staan.
+var SCHEMA_VERSION=1;
+function stampSchemaVersion(d){
+  if(d.meta==null)d.meta={};
+  if(typeof d.meta!=='object'||Array.isArray(d.meta))return; // onbekende vorm: niet aanraken
+  if(d.meta.schemaVersion==null)d.meta.schemaVersion=SCHEMA_VERSION;
 }
+
+// opts.getLocal()   geeft het actuele data-object van de app (de app blijft eigenaar ervan)
+// opts.appVersion   voor de bewaking op meta.minAppVersion
+// opts.beforeWrite  wordt vlak vóór elke schrijfactie op het data-object aangeroepen
+function createFirebaseStore(opts){
+  var getLocal=opts.getLocal,beforeWrite=opts.beforeWrite||function(){};
+  var dbUrl=null,plannerKey=null;
+  var serverETag=null,loadedOnce=false,noConditional=false,pushing=false,pushQueued=false,saveGen=0;
+  var base='',saveTimer=null,pendingSave=false,saveSeq=0,pollTimer=null;
+  var writeBlocked=null; // null | 'moved' | 'outdated'
+  var subs=[];
+  function emit(ev){subs.forEach(function(fn){fn(ev);});}
+  function status(code){emit({type:'status',code:code});}
+  function dataUrl(){return dbUrl.replace(/\/$/,'')+'/planners/'+plannerKey+'.json';}
+  function baseObj(){try{return base?JSON.parse(base):{};}catch(e){return {};}}
+  function hasLocalChanges(){return canon(getLocal())!==base;}
+
+  // ── Verbinding en deellink: ?db=<database-URL>&p=<plannersleutel>
+  function setUrlParams(){
+    var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);
+    window.history.replaceState({},'',u.toString());
+  }
+  function persist(){localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);}
+  // Uit de link of uit de opslag van dit toestel; true als er een planner gekoppeld is.
+  function restore(){
+    var p=new URL(window.location.href).searchParams;
+    var urlDb=p.get('db'),urlP=p.get('p');
+    var sDb=localStorage.getItem('plannerDbUrl'),sKey=localStorage.getItem('plannerKey');
+    var rDb=urlDb||sDb,rKey=urlP||sKey;
+    if(!(rDb&&rKey))return false;
+    dbUrl=rDb;plannerKey=rKey;persist();
+    try{setUrlParams();}catch(e){}
+    return true;
+  }
+  // Nieuwe of herstelde planner (installatiescherm).
+  function connect(cfg){dbUrl=cfg.url;plannerKey=cfg.key;persist();setUrlParams();}
+  function shareLink(){
+    if(!dbUrl)return null;
+    var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);return u.toString();
+  }
+  // Is de lijst met alle planners op te vragen? Lost op met de HTTP-status; faalt als offline.
+  function checkAccess(){return fetch(dbUrl.replace(/\/$/,'')+'/planners.json?shallow=true',{cache:'no-store'}).then(function(r){return r.status;});}
+
+  // ── Lokale cache
+  function cacheKey(){return 'plannerCache_'+plannerKey;}
+  function writeCache(d){
+    if(!plannerKey)return;
+    try{localStorage.setItem(cacheKey(),JSON.stringify({data:d||getLocal(),base:base,t:Date.now()}));}catch(e){}
+  }
+  function readCache(){
+    try{
+      var c=JSON.parse(localStorage.getItem(cacheKey())||'null');
+      if(c&&c.data){var d=normalizeData(c.data);base=c.base||'';emit({type:'data',data:d,render:false});return true;}
+    }catch(e){}
+    return false;
+  }
+
+  // ── Bewaking (roadmap 0.2)
+  // Staat er in de serverdata meta.migratedTo (planner is verhuisd) of een meta.minAppVersion
+  // die nieuwer is dan deze app, dan slaat deze app niets meer op in Firebase. Lokale
+  // wijzigingen blijven in de lokale cache staan. Verdwijnt de markering weer, dan gaat alles
+  // gewoon verder.
+  function checkWriteGuard(raw){
+    var meta=raw&&typeof raw==='object'&&raw.meta&&typeof raw.meta==='object'?raw.meta:null;
+    var reason=null;
+    if(meta&&meta.migratedTo)reason='moved';
+    else if(meta&&meta.minAppVersion&&compareVersions(opts.appVersion,meta.minAppVersion)<0)reason='outdated';
+    if(reason){
+      if(writeBlocked!==reason){writeBlocked=reason;clearTimeout(saveTimer);pendingSave=false;emit({type:'guard',reason:reason,meta:meta});}
+    } else if(writeBlocked){
+      writeBlocked=null;emit({type:'guard',reason:null});
+    }
+    return !!reason;
+  }
+
+  function fetchRemote(){
+    return fetch(dataUrl(),{headers:{'X-Firebase-ETag':'true'},cache:'no-store'}).then(function(r){
+      if(!r.ok)throw new Error('status:'+r.status);
+      var et=r.headers.get('ETag');
+      return r.json().then(function(json){checkWriteGuard(json);return {raw:json,etag:et};});
+    });
+  }
+
+  function load(o){
+    var isInitial=!!(o&&o.initial);
+    if(!dbUrl)return;
+    if(!isInitial)status('refreshing');
+    var loadSeq=saveSeq;
+    fetchRemote().then(function(rem){
+      if(writeBlocked){status(writeBlocked==='moved'?'blocked-moved':'blocked-outdated');return;}
+      if(saveSeq!==loadSeq||pendingSave||pushing)return;
+      serverETag=rem.etag;
+      var s=canon(rem.raw);
+      var inc=normalizeData(rem.raw);
+      var wasLoaded=loadedOnce;loadedOnce=true;
+      var local=getLocal();
+      if(hasLocalChanges()){
+        // Lokale wijzigingen die nog niet op de server staan (offline gemaakt, of de app
+        // werd gesloten tijdens het opslaan): samenvoegen met de serverversie en opslaan.
+        if(s!==base)emit({type:'incoming',local:local,remote:inc});
+        var merged=mergeData(baseObj(),local,inc);base=s;
+        emit({type:'data',data:merged,render:true,reminders:true});
+        save();
+      } else if(s!==base||!wasLoaded){
+        if(s!==base)emit({type:'incoming',local:local,remote:inc});
+        base=s;writeCache(inc);
+        emit({type:'data',data:inc,render:true,reminders:true});
+      }
+      emit({type:'loaded',first:!wasLoaded});
+      if(!pendingSave)status('updated');
+      emit({type:'connected'});
+    }).catch(function(err){
+      var m=String(err);
+      if(m.indexOf('403')>-1||m.indexOf('401')>-1)status('denied');
+      else if(!navigator.onLine)status('offline');
+      else if(isInitial){status('new');emit({type:'connected'});}
+      else status('load-failed');
+    });
+  }
+
+  function save(){
+    writeCache();
+    if(!dbUrl||writeBlocked)return;
+    clearTimeout(saveTimer);
+    pendingSave=true;saveGen++;
+    // Vóór de eerste geslaagde load weten we niet wat er op de server staat; die load
+    // voegt de lokale wijzigingen samen en slaat daarna op.
+    if(!loadedOnce){pendingSave=false;return;}
+    saveTimer=setTimeout(function(){push(0);},400);
+  }
+  function writeHeaders(){
+    var headers={'Content-Type':'application/json','X-Firebase-ETag':'true'};
+    if(serverETag&&!noConditional)headers['if-match']=serverETag;
+    return headers;
+  }
+  function push(attempt){
+    if(writeBlocked){pendingSave=false;return;}
+    if(pushing){pushQueued=true;return;}
+    pushing=true;
+    var gen=saveGen;
+    status('saving');
+    saveSeq++;
+    function finish(){
+      pushing=false;
+      if(gen===saveGen)pendingSave=false;
+      if(pushQueued){pushQueued=false;if(pendingSave)push(0);}
+    }
+    function mergeWith(rem){
+      var inc=normalizeData(rem.raw);
+      var s=canon(rem.raw);
+      if(s!==base){
+        var local=getLocal();
+        emit({type:'incoming',local:local,remote:inc});
+        emit({type:'data',data:mergeData(baseObj(),local,inc),render:true,reminders:false});
+      }
+      serverETag=rem.etag;base=s;
+    }
+    var conditional=!!serverETag&&!noConditional;
+    // Zonder ETag eerst de nieuwste serverversie samenvoegen, zodat we niets overschrijven.
+    var pre=conditional?Promise.resolve():fetchRemote().then(mergeWith);
+    pre.then(function(){
+      if(writeBlocked){pushing=false;pendingSave=false;pushQueued=false;return;}
+      beforeWrite(getLocal());
+      var body=JSON.stringify(getLocal());
+      var headers=writeHeaders();
+      return fetch(dataUrl(),{method:'PUT',headers:headers,body:body}).then(function(r){
+        if(r.status===412){
+          // Iemand anders heeft net opgeslagen: ophalen, samenvoegen, opnieuw proberen.
+          return fetchRemote().then(function(rem){
+            mergeWith(rem);
+            if(attempt>=4)throw new Error('conflict');
+            pushing=false;push(attempt+1);
+            return 'retry';
+          });
+        }
+        if(!r.ok)throw new Error('status:'+r.status);
+        base=canon(JSON.parse(body));
+        serverETag=r.headers.get('ETag')||null;
+        writeCache();
+        status('saved');
+        finish();
+        if(!serverETag&&!noConditional)load();
+      },function(netErr){
+        // Faalt een conditionele PUT op netwerkniveau terwijl een gewone GET wél lukt, dan
+        // blokkeert de server de if-match header: val terug op ophalen+samenvoegen+PUT.
+        // Lukt de GET ook niet, dan zijn we gewoon offline.
+        if(!headers['if-match'])throw netErr;
+        return fetchRemote().then(function(rem){
+          mergeWith(rem);noConditional=true;pushing=false;push(attempt);return 'retry';
+        },function(){throw netErr;});
+      });
+    }).catch(function(err){
+      pushing=false;pendingSave=false;pushQueued=false;
+      var m=String(err);
+      if(m.indexOf('401')>-1||m.indexOf('403')>-1)status('denied');
+      else if(!navigator.onLine)status('offline');
+      else status('save-failed');
+    });
+  }
+  // App gaat naar de achtergrond: openstaande wijziging direct versturen.
+  function flush(){
+    if(!(dbUrl&&pendingSave&&loadedOnce&&!pushing&&!writeBlocked))return;
+    // sendBeacon stuurt altijd POST; Firebase RTDB behandelt POST als "nieuw kind
+    // toevoegen" i.p.v. overschrijven. Daarom fetch met keepalive (blijft een PUT).
+    // Lukt dit niet (bv. conflict of >64 KB), dan staat de wijziging nog in de lokale
+    // cache en wordt hij bij de volgende keer openen samengevoegd en opgeslagen.
+    clearTimeout(saveTimer);
+    beforeWrite(getLocal());
+    var body=JSON.stringify(getLocal());
+    var headers=writeHeaders();
+    saveSeq++;
+    try{
+      fetch(dataUrl(),{method:'PUT',headers:headers,body:body,keepalive:true}).then(function(r){
+        if(r.ok){base=canon(JSON.parse(body));serverETag=r.headers.get('ETag')||null;writeCache();}
+      }).catch(function(){});
+    }catch(e){}
+    pendingSave=false;
+  }
+  // Elke 15 s de serverstand ophalen zolang de app zichtbaar is.
+  function startPolling(){
+    clearInterval(pollTimer);
+    pollTimer=setInterval(function(){
+      if(dbUrl&&document.visibilityState==='visible')load();
+    },15000);
+  }
+
+  return {
+    load:load,
+    save:function(){save();},
+    subscribe:function(fn){subs.push(fn);return function(){subs=subs.filter(function(f){return f!==fn;});};},
+    flush:flush,
+    startPolling:startPolling,
+    readCache:readCache,
+    restore:restore,
+    connect:connect,
+    isConfigured:function(){return !!dbUrl;},
+    shareLink:shareLink,
+    checkAccess:checkAccess,
+    // Is er een bekende serverstand (en niet de lege)? Voor meldingen over wijzigingen van anderen.
+    hasBase:function(){return !!base&&base!=='{}';},
+    // Lokale wijzigingen die nog niet op de server staan (alleen te bepalen met een bekende serverstand).
+    hasUnsavedChanges:function(){return !!base&&hasLocalChanges();}
+  };
+}
+
+var store=createFirebaseStore({getLocal:function(){return data;},appVersion:APP_VERSION,beforeWrite:stampSchemaVersion});
+// Alle opslag gaat via de store; deze naam blijft omdat de hele app hem gebruikt.
+function saveToServer(){store.save(data);}
+var SYNC_STATUS={
+  refreshing:['busy','Bijwerken…'],
+  saving:['busy','Opslaan…'],
+  'blocked-moved':['err','Planner is verhuisd · er wordt niets meer opgeslagen'],
+  'blocked-outdated':['err','Nieuwere versie nodig · er wordt niets opgeslagen'],
+  denied:['err','Toegang geweigerd — controleer de Firebase-regels (Instellingen → Beveiliging).'],
+  offline:['err','Offline — wijzigingen worden bewaard en later gesynchroniseerd.'],
+  'load-failed':['err','Vernieuwen mislukt.'],
+  'save-failed':['err','Opslaan mislukt — wordt opnieuw geprobeerd.']
+};
+store.subscribe(function(ev){
+  if(ev.type==='data'){
+    data=ev.data;
+    if(ev.render){renderAll();if(ev.reminders)scheduleReminders();}
+  } else if(ev.type==='incoming'){
+    detectChanges(ev.local,ev.remote);
+  } else if(ev.type==='status'){
+    if(ev.code==='updated')setSync('','Bijgewerkt · '+nowTime());
+    else if(ev.code==='saved')setSync('','Opgeslagen · '+nowTime());
+    else if(ev.code==='new')setSync('','Nieuw dagboek · '+nowTime());
+    else if(SYNC_STATUS[ev.code])setSync(SYNC_STATUS[ev.code][0],SYNC_STATUS[ev.code][1]);
+  } else if(ev.type==='guard'){
+    if(ev.reason)showWriteGuard(ev.reason,ev.meta);
+    else document.getElementById('writeGuardOverlay').hidden=true;
+  } else if(ev.type==='loaded'){
+    runMigrations();
+    if(ev.first)setTimeout(warnIfDatabaseOpen,3000);
+  } else if(ev.type==='connected'){
+    document.getElementById('refreshBtn').style.display='';
+  }
+});
+
 function showWriteGuard(reason,meta){
   var ov=document.getElementById('writeGuardOverlay');
   var btn=document.getElementById('writeGuardBtn');
@@ -2466,18 +2731,11 @@ function showWriteGuard(reason,meta){
     ?'Jullie planner is overgezet naar een Huisplan-account. Deze versie slaat niets meer op, zodat er niets dubbel of verloren gaat.'
     :'Deze versie is te oud om veilig op te slaan. Ververs de app om verder te gaan.';
   // Alleen als er een bekende serverstand is; zonder die stand is 'lokaal gewijzigd' niet te bepalen.
-  document.getElementById('writeGuardLocal').hidden=!(lastKnownJSON&&hasLocalChanges());
+  document.getElementById('writeGuardLocal').hidden=!store.hasUnsavedChanges();
   btn.hidden=reason==='moved'&&!url;
   btn.textContent=reason==='moved'?'Naar de nieuwe Huisplan':'Nu verversen';
   btn.onclick=function(){if(reason==='moved'){if(url)window.location.href=url;}else window.location.reload();};
   ov.hidden=false;
-}
-function fetchRemote(){
-  return fetch(dataUrl(),{headers:{'X-Firebase-ETag':'true'},cache:'no-store'}).then(function(r){
-    if(!r.ok)throw new Error('status:'+r.status);
-    var et=r.headers.get('ETag');
-    return r.json().then(function(json){checkWriteGuard(json);return {raw:json,etag:et};});
-  });
 }
 
 function runMigrations(){
@@ -2535,149 +2793,8 @@ function runMigrations(){
   }
 }
 
-function loadFromServer(isInitial){
-  if(!dbUrl)return;
-  if(!isInitial)setSync('busy','Bijwerken…');
-  var loadSeq=saveSeq;
-  fetchRemote().then(function(rem){
-    if(_writeBlocked){setSync('err',_writeBlocked==='moved'?'Planner is verhuisd · er wordt niets meer opgeslagen':'Nieuwere versie nodig · er wordt niets opgeslagen');return;}
-    if(saveSeq!==loadSeq||_pendingSave||_pushing)return;
-    serverETag=rem.etag;
-    var s=canon(rem.raw);
-    var inc=normalizeData(rem.raw);
-    var wasLoaded=_loadedOnce;_loadedOnce=true;
-    if(hasLocalChanges()){
-      // Lokale wijzigingen die nog niet op de server staan (offline gemaakt, of de app
-      // werd gesloten tijdens het opslaan): samenvoegen met de serverversie en opslaan.
-      if(s!==lastKnownJSON)detectChanges(data,inc);
-      data=mergeData(baseObj(),data,inc);lastKnownJSON=s;
-      renderAll();scheduleReminders();saveToServer();
-    } else if(s!==lastKnownJSON||!wasLoaded){
-      if(s!==lastKnownJSON)detectChanges(data,inc);
-      data=inc;lastKnownJSON=s;writeCache();renderAll();scheduleReminders();
-    }
-    runMigrations();
-    if(!wasLoaded)setTimeout(warnIfDatabaseOpen,3000);
-    if(!_pendingSave)setSync('','Bijgewerkt · '+nowTime());
-    document.getElementById('refreshBtn').style.display='';
-  }).catch(function(err){
-    var m=String(err);
-    if(m.indexOf('403')>-1||m.indexOf('401')>-1)setSync('err','Toegang geweigerd — controleer de Firebase-regels (Instellingen → Beveiliging).');
-    else if(!navigator.onLine)setSync('err','Offline — wijzigingen worden bewaard en later gesynchroniseerd.');
-    else if(isInitial){setSync('','Nieuw dagboek · '+nowTime());document.getElementById('refreshBtn').style.display='';}
-    else setSync('err','Vernieuwen mislukt.');
-  });
-}
-
-var _pendingSave=false;
-var saveSeq=0;
-function saveToServer(){
-  writeCache();
-  if(!dbUrl||_writeBlocked)return;
-  clearTimeout(saveTimer);
-  _pendingSave=true;_saveGen++;
-  // Vóór de eerste geslaagde load weten we niet wat er op de server staat; die load
-  // voegt de lokale wijzigingen samen en slaat daarna op.
-  if(!_loadedOnce){_pendingSave=false;return;}
-  saveTimer=setTimeout(function(){pushToServer(0);},400);
-}
-// Dataformaat: zie docs/dataformaat-v1.md. Alleen meegestuurd bij een opslag die toch al
-// plaatsvindt (openen alleen schrijft niets extra). Een bestaande waarde blijft staan.
-var SCHEMA_VERSION=1;
-function stampSchemaVersion(){
-  if(data.meta==null)data.meta={};
-  if(typeof data.meta!=='object'||Array.isArray(data.meta))return; // onbekende vorm: niet aanraken
-  if(data.meta.schemaVersion==null)data.meta.schemaVersion=SCHEMA_VERSION;
-}
-function pushToServer(attempt){
-  if(_writeBlocked){_pendingSave=false;return;}
-  if(_pushing){_pushQueued=true;return;}
-  _pushing=true;
-  var gen=_saveGen;
-  setSync('busy','Opslaan…');
-  saveSeq++;
-  function finish(){
-    _pushing=false;
-    if(gen===_saveGen)_pendingSave=false;
-    if(_pushQueued){_pushQueued=false;if(_pendingSave)pushToServer(0);}
-  }
-  function mergeWith(rem){
-    var inc=normalizeData(rem.raw);
-    var s=canon(rem.raw);
-    if(s!==lastKnownJSON){detectChanges(data,inc);data=mergeData(baseObj(),data,inc);renderAll();}
-    serverETag=rem.etag;lastKnownJSON=s;
-  }
-  var conditional=!!serverETag&&!_noConditional;
-  // Zonder ETag eerst de nieuwste serverversie samenvoegen, zodat we niets overschrijven.
-  var pre=conditional?Promise.resolve():fetchRemote().then(mergeWith);
-  pre.then(function(){
-    if(_writeBlocked){_pushing=false;_pendingSave=false;_pushQueued=false;return;}
-    stampSchemaVersion();
-    var body=JSON.stringify(data);
-    var headers={'Content-Type':'application/json','X-Firebase-ETag':'true'};
-    if(serverETag&&!_noConditional)headers['if-match']=serverETag;
-    return fetch(dataUrl(),{method:'PUT',headers:headers,body:body}).then(function(r){
-      if(r.status===412){
-        // Iemand anders heeft net opgeslagen: ophalen, samenvoegen, opnieuw proberen.
-        return fetchRemote().then(function(rem){
-          mergeWith(rem);
-          if(attempt>=4)throw new Error('conflict');
-          _pushing=false;pushToServer(attempt+1);
-          return 'retry';
-        });
-      }
-      if(!r.ok)throw new Error('status:'+r.status);
-      lastKnownJSON=canon(JSON.parse(body));
-      serverETag=r.headers.get('ETag')||null;
-      writeCache();
-      setSync('','Opgeslagen · '+nowTime());
-      finish();
-      if(!serverETag&&!_noConditional)loadFromServer(false);
-    },function(netErr){
-      // Faalt een conditionele PUT op netwerkniveau terwijl een gewone GET wél lukt, dan
-      // blokkeert de server de if-match header: val terug op ophalen+samenvoegen+PUT.
-      // Lukt de GET ook niet, dan zijn we gewoon offline.
-      if(!headers['if-match'])throw netErr;
-      return fetchRemote().then(function(rem){
-        mergeWith(rem);_noConditional=true;_pushing=false;pushToServer(attempt);return 'retry';
-      },function(){throw netErr;});
-    });
-  }).catch(function(err){
-    _pushing=false;_pendingSave=false;_pushQueued=false;
-    var m=String(err);
-    if(m.indexOf('401')>-1||m.indexOf('403')>-1)setSync('err','Toegang geweigerd — controleer de Firebase-regels (Instellingen → Beveiliging).');
-    else if(!navigator.onLine)setSync('err','Offline — wijzigingen worden bewaard en later gesynchroniseerd.');
-    else setSync('err','Opslaan mislukt — wordt opnieuw geprobeerd.');
-  });
-}
-
-document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState==='visible'){
-    var dayChanged=refreshToday();
-    if(dayChanged)renderAll();
-    if(dbUrl)loadFromServer(false);
-  } else if(document.visibilityState==='hidden'&&dbUrl&&_pendingSave&&_loadedOnce&&!_pushing&&!_writeBlocked){
-    // sendBeacon stuurt altijd POST; Firebase RTDB behandelt POST als "nieuw kind
-    // toevoegen" i.p.v. overschrijven. Daarom fetch met keepalive (blijft een PUT).
-    // Lukt dit niet (bv. conflict of >64 KB), dan staat de wijziging nog in de lokale
-    // cache en wordt hij bij de volgende keer openen samengevoegd en opgeslagen.
-    clearTimeout(saveTimer);
-    stampSchemaVersion();
-    var body=JSON.stringify(data);
-    var headers={'Content-Type':'application/json','X-Firebase-ETag':'true'};
-    if(serverETag&&!_noConditional)headers['if-match']=serverETag;
-    saveSeq++;
-    try{
-      fetch(dataUrl(),{method:'PUT',headers:headers,body:body,keepalive:true}).then(function(r){
-        if(r.ok){lastKnownJSON=canon(JSON.parse(body));serverETag=r.headers.get('ETag')||null;writeCache();}
-      }).catch(function(){});
-    }catch(e){}
-    _pendingSave=false;
-  }
-});
-
 function detectChanges(oldData,newData){
-  if(!oldData||!lastKnownJSON||lastKnownJSON==='{}')return;
+  if(!oldData||!store.hasBase())return;
   var msgs=[];
   // New tasks
   var taskCount=0,taskAuthor=null;
@@ -2701,14 +2818,16 @@ function detectChanges(oldData,newData){
   if(msgs.length>0)showToast(msgs.join(' · '));
 }
 
-var autoSyncTimer=null;
-function startAutoSync(){
-  clearInterval(autoSyncTimer);
-  autoSyncTimer=setInterval(function(){
-    if(dbUrl&&document.visibilityState==='visible')loadFromServer(false);
-  },15000);
-}
-document.getElementById('refreshBtn').addEventListener('click',function(){if(dbUrl)loadFromServer(false);});
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'){
+    var dayChanged=refreshToday();
+    if(dayChanged)renderAll();
+    store.load();
+  } else if(document.visibilityState==='hidden'){
+    store.flush();
+  }
+});
+document.getElementById('refreshBtn').addEventListener('click',function(){store.load();});
 
 // ── Pull-to-refresh ──────────────────────────────────────────
 (function(){
@@ -2753,20 +2872,18 @@ document.getElementById('refreshBtn').addEventListener('click',function(){if(dbU
     if(!_pulling)return;
     var dy=(e.changedTouches[0]?e.changedTouches[0].clientY:_startY)-_startY;
     ind.classList.remove('pulling');
-    if(dy>PTR_THRESH&&dbUrl&&!_triggered){
+    if(dy>PTR_THRESH&&store.isConfigured()&&!_triggered){
       _triggered=true;
       ind.classList.add('loading');
       spn.style.display='';
       lbl.style.display='none';
-      loadFromServer(false);
+      store.load();
       setTimeout(function(){ind.classList.remove('loading');spn.style.display='none';lbl.textContent='↓ Trek om te vernieuwen';lbl.style.display='';_triggered=false;},900);
     }
     _pulling=false;
   },{passive:true});
 })();
 
-function getParam(n){return new URL(window.location.href).searchParams.get(n);}
-function buildShareLink(){var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);return u.toString();}
 
 function updateAssigneeLabels(){
   document.getElementById('assigneeMe').textContent='👤 '+(myName||'Ik');
@@ -2802,18 +2919,13 @@ function takeSharedIntoBakje(){
   }catch(e){}
 }
 function init(){
-  var urlDb=getParam('db'),urlP=getParam('p');
-  var sDb=localStorage.getItem('plannerDbUrl'),sKey=localStorage.getItem('plannerKey');
-  var rDb=urlDb||sDb,rKey=urlP||sKey;
-  if(rDb&&rKey){
-    dbUrl=rDb;plannerKey=rKey;
-    localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);
+  // Planner uit de link (?db=…&p=…) of uit de opslag van dit toestel.
+  if(store.restore()){
     document.getElementById('setupOverlay').style.display='none';
-    try{var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);window.history.replaceState({},'',u.toString());}catch(e){}
     if(!myName)document.getElementById('nameBanner').style.display='flex';
-    if(readCache())setSync('busy','Laatst bekende versie · bijwerken…');
+    if(store.readCache())setSync('busy','Laatst bekende versie · bijwerken…');
     takeSharedIntoBakje();
-    loadFromServer(true);startAutoSync();
+    store.load({initial:true});store.startPolling();
   } else {
     document.getElementById('setupOverlay').style.display='flex';
     setSync('','Wacht op installatie…');
@@ -2828,14 +2940,11 @@ document.getElementById('setupSubmitBtn').addEventListener('click',function(){
   var err=document.getElementById('setupError');err.textContent='';
   if(!raw){err.textContent='Vul de database-URL in.';return;}
   if(!raw.startsWith('https://')){err.textContent='URL moet beginnen met https://';return;}
-  dbUrl=raw.replace(/\/$/,'');plannerKey=newPlannerKey();
   if(mn){myName=mn;localStorage.setItem('plannerMyName',mn);}
   if(pn){partnerName=pn;localStorage.setItem('plannerPartnerName',pn);}
-  localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);
-  var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);
-  window.history.replaceState({},'',u.toString());
+  store.connect({url:raw.replace(/\/$/,''),key:newPlannerKey()});
   document.getElementById('setupOverlay').style.display='none';
-  updateAssigneeLabels();updateGreeting();loadFromServer(true);
+  updateAssigneeLabels();updateGreeting();store.load({initial:true});
 });
 document.getElementById('dbUrlInput').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('setupSubmitBtn').click();});
 
@@ -2847,13 +2956,10 @@ document.getElementById('herstelSubmitBtn').addEventListener('click',function(){
   // If no DB URL typed, try to use the main input or last known
   if(!raw)raw=(document.getElementById('dbUrlInput').value||'').trim();
   if(!raw||!raw.startsWith('https://')){err.textContent='Vul ook de database-URL in (bijv. https://naam-rtdb.europe-west1.firebasedatabase.app).';return;}
-  dbUrl=raw.replace(/\/$/,'');plannerKey=key;
-  localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);
-  var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);
-  window.history.replaceState({},'',u.toString());
+  store.connect({url:raw.replace(/\/$/,''),key:key});
   document.getElementById('setupOverlay').style.display='none';
-  if(readCache())renderAll();
-  updateAssigneeLabels();updateGreeting();loadFromServer(true);startAutoSync();
+  if(store.readCache())renderAll();
+  updateAssigneeLabels();updateGreeting();store.load({initial:true});store.startPolling();
 });
 document.getElementById('herstelKeyInput').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('herstelSubmitBtn').click();});
 document.getElementById('nameBannerSave').addEventListener('click',function(){
@@ -2867,8 +2973,8 @@ document.getElementById('nameBannerSave').addEventListener('click',function(){
 });
 
 function doShare(){
-  if(!dbUrl){showToast('Rond eerst de installatie af.');return;}
-  var link=buildShareLink();
+  if(!store.isConfigured()){showToast('Rond eerst de installatie af.');return;}
+  var link=store.shareLink();
   if(navigator.share)navigator.share({title:'Ons Huisplan',url:link}).catch(function(){});
   else if(navigator.clipboard)navigator.clipboard.writeText(link).then(function(){showToast('Link gekopieerd!');}).catch(function(){prompt('Kopieer:',link);});
   else prompt("Kopieer en stuur naar je partner of huisgenoot:",link);
@@ -6240,7 +6346,7 @@ function showBriefing(force){
   if(!force && localStorage.getItem('briefingShown')===todayStr) return;
   if(!force && !optOn('plannerOptBriefing')) return;
   // Wacht tot data geladen is
-  if(!dbUrl){setTimeout(function(){showBriefing(force);},500);return;}
+  if(!store.isConfigured()){setTimeout(function(){showBriefing(force);},500);return;}
   localStorage.setItem('briefingShown',todayStr);
 
   var overlay=document.getElementById('briefingOverlay');
@@ -7068,7 +7174,7 @@ if('serviceWorker' in navigator&&location.protocol!=='file:'){
 }
 
 // Offline indicator
-window.addEventListener('online',function(){showToast('Verbinding hersteld ✓');if(dbUrl)loadFromServer(false);});
+window.addEventListener('online',function(){showToast('Verbinding hersteld ✓');store.load();});
 window.addEventListener('offline',function(){showToast('Je bent offline — wijzigingen worden bewaard en later gesynchroniseerd');});
 
 // === DYNAMISCHE ACHTERGROND ===
@@ -7200,8 +7306,8 @@ function loadQrLib(){
 function showQrCode(){
   var card=document.getElementById('qrCard');
   var box=document.getElementById('qrCodeBox');
-  if(!dbUrl||!plannerKey){card.style.display='none';return;}
-  var link=buildShareLink();
+  if(!store.isConfigured()){card.style.display='none';return;}
+  var link=store.shareLink();
   card.style.display='block';
   if(box.dataset.link===link&&box.firstChild)return;
   box.innerHTML='<span style="font-size:12px;color:#888;line-height:1.4;">QR-code laden…</span>';
@@ -7224,20 +7330,20 @@ document.getElementById('copyRulesBtn').addEventListener('click',function(){
 });
 function checkSecurity(){
   var el=document.getElementById('securityStatus');
-  if(!dbUrl){el.className='sec-status';el.textContent='Nog geen database gekoppeld';return;}
+  if(!store.isConfigured()){el.className='sec-status';el.textContent='Nog geen database gekoppeld';return;}
   el.className='sec-status';el.textContent='Controleren…';
-  fetch(dbUrl.replace(/\/$/,'')+'/planners.json?shallow=true',{cache:'no-store'}).then(function(r){
-    if(r.status===401||r.status===403){el.className='sec-status ok';el.textContent='✓ Goed beveiligd: andere planners zijn niet op te vragen';}
-    else if(r.ok){el.className='sec-status warn';el.textContent='⚠️ Open: iedereen met de database-URL kan alle data lezen en wijzigen. Stel de regels hieronder in.';}
-    else{el.className='sec-status';el.textContent='Kon niet controleren (status '+r.status+')';}
+  store.checkAccess().then(function(st){
+    if(st===401||st===403){el.className='sec-status ok';el.textContent='✓ Goed beveiligd: andere planners zijn niet op te vragen';}
+    else if(st>=200&&st<300){el.className='sec-status warn';el.textContent='⚠️ Open: iedereen met de database-URL kan alle data lezen en wijzigen. Stel de regels hieronder in.';}
+    else{el.className='sec-status';el.textContent='Kon niet controleren (status '+st+')';}
   }).catch(function(){el.className='sec-status';el.textContent='Kon niet controleren (offline?)';});
 }
 document.getElementById('checkSecurityBtn').addEventListener('click',checkSecurity);
 function warnIfDatabaseOpen(){
   var k='plannerSecWarned';
   try{if(localStorage.getItem(k)===todayKey())return;}catch(e){}
-  fetch(dbUrl.replace(/\/$/,'')+'/planners.json?shallow=true',{cache:'no-store'}).then(function(r){
-    if(!r.ok)return;
+  store.checkAccess().then(function(st){
+    if(!(st>=200&&st<300))return;
     try{localStorage.setItem(k,todayKey());}catch(e){}
     showUndoToast('⚠️ Jullie database staat open voor iedereen.',openSettingsSheet,'Beveiligen');
   }).catch(function(){});
