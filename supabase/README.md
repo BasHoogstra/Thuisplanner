@@ -122,6 +122,17 @@ de versie van het script uit stap 1.1; vergelijk altijd twee databases met dezel
 
 Na het toepassen van `20261003090000` op productie hoort productie 169, `2780289b…36b3` te geven.
 
+RLS-tests op staging (3 okt 2026): **20 van 20** (volledig script in de SQL-editor), daarna geen
+testdata achtergebleven.
+
+### Stap 1.2 naar productie (alleen na akkoord)
+1. PR naar `main` gemerged.
+2. `npx supabase link --project-ref tmkhpiomdnneeoscsjge`
+3. `npx supabase migration list`: alleen `20261003090000` ontbreekt remote.
+4. `npx supabase db push` (voert alleen die migratie uit; productie heeft geen data).
+5. Alleen lezend controleren: vingerafdruk = 169, `2780289b…36b3`; adviseurs; migratiegeschiedenis.
+   De RLS-tests draaien we niet op productie.
+
 ## Stap 1.2: leden, sync, import en bestanden
 
 Migratie `20261003090000_leden_sync_import_opslag.sql`. Alleen databasefundering; de app gebruikt
