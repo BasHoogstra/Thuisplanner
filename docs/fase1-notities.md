@@ -63,3 +63,17 @@ LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows 
 - Het productieproject heet nog "bashoogstrajax@hotmail.com's Project"; hernoemen naar
   bijvoorbeeld "huisplan-productie" (dashboard → Settings) voorkomt verwarring met staging.
 - Staging staat op het gratis abonnement en wordt na een week zonder activiteit gepauzeerd.
+
+## 8. Stap 1.2: afspraken die de volgende stappen raken
+- **Verwijderen = grafsteen.** De app (1.10) zet `deleted_at` en verwijdert nooit echt; `delete` via
+  de API doet niets meer (0 rijen, geen fout). Lezen moet grafstenen dus zelf wegfilteren.
+- **`rev` is per item**, begint op 1 en telt op bij elke wijziging. Voor optimistisch opslaan:
+  `update ... where rev = <bekende rev>`; 0 rijen betekent dat iemand anders het item al wijzigde.
+- **Import (1.12)** koppelt namen uit Firebase aan leden via `display_name` en `legacy_names`, en
+  bewaart eerst de ruwe planner in `legacy_imports` (status `received`); de importfunctie (server)
+  zet daarna `imported`/`verified`.
+- **Bestanden (1.11)** gaan naar `household-files/{household_id}/…`.
+- **Uitnodigen (1.9)**: een uitnodiging per lid (`member_id`), standaard als beheerder. Een gewoon
+  lid ziet geen uitnodigingen.
+- **Lokale databasetest**: `supabase/tests/lokaal/run.sh` werkt met een gewone PostgreSQL 16+ en een
+  nagebootste Supabase-omgeving; staging blijft de echte controle.
