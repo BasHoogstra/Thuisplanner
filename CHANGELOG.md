@@ -254,4 +254,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   (ETag/If-Match-pad, handmatig bevestigd). Supabase wordt in de app nog niet gebruikt.
 - Afwijking van de roadmap: de week gebruik op de testversie is op verzoek overgeslagen; die controle
   gebeurt nu op de live-versie.
+- Na de livegang gemeld: bij een eigen nieuwe boodschap stond geen "door <naam>". Onderzocht: geen
+  regressie. Boodschappen en eigen lijsten tonen "door <naam>" alleen als iemand ánders het item
+  toevoegde (zo sinds "Restyle stap 2b"); `addedBy` wordt vóór en na 1.3 identiek opgeslagen en
+  getoond (nagespeeld op beide versies). Nieuwe regressietest `tests/toevoeger.test.js` legt dit
+  bestaande gedrag vast, ook voor taken (auteur altijd zichtbaar) en zonder ingestelde toestelnaam.
+  Geen codewijziging. **Stap 1.3 afgerond.**
 
