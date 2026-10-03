@@ -116,6 +116,12 @@ Vanaf stap 1.2 telt de vingerafdruk ook de RLS-regels op `storage.objects`, de b
 `household-files` en de standaardrechten in `public` mee. De referentiewaarde hierboven (97) hoort bij
 de versie van het script uit stap 1.1; vergelijk altijd twee databases met dezelfde versie van het script.
 
+| Controle (script 1.2) | Datum | Staging | Productie |
+|---|---|---|---|
+| Na `db reset --linked` met migraties t/m `20261003090000` (staging) | 3 okt 2026 | 169, `2780289b…36b3` | 103, `11e207d4…26e9` (nog zonder 1.2; zoals 1.1: 97, `3e81d04c…aa3d`) |
+
+Na het toepassen van `20261003090000` op productie hoort productie 169, `2780289b…36b3` te geven.
+
 ## Stap 1.2: leden, sync, import en bestanden
 
 Migratie `20261003090000_leden_sync_import_opslag.sql`. Alleen databasefundering; de app gebruikt

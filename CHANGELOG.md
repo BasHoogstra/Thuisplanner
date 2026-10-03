@@ -201,3 +201,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   voor ingelogde gebruikers, security-definer-functies naar schema `private`.
 - Tests: `supabase/tests/rls_tests.sql` (20 scenario's), lokaal draaiend via
   `supabase/tests/lokaal/run.sh` en in `node tests/run.js`.
+- Staging (3 okt 2026): volledig herbouwd met `db reset --linked` (drie migraties). RLS-tests 17/17
+  via de Claude-koppeling; T12, T18, T20 en het verwijderdeel van T15 bevatten `delete`/`truncate`
+  en moeten via de SQL-editor (de koppeling vraagt daar een bevestiging die niet aankomt). Lokaal 20/20.
+  Beveiligingsadviseur: geen meldingen. Prestatie-adviseur: alleen "index nog niet gebruikt" (INFO,
+  lege tabellen). Productie ongewijzigd.
