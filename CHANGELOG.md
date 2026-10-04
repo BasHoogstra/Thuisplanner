@@ -295,3 +295,12 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
     toestel volgt zijn eigen naam naar het juiste lid. De sleutels zijn `p_<hash>`, omdat Firebase
     geen `.` of `/` in sleutels toestaat (een naam als "J.P." had anders elke opslag laten mislukken).
 
+## 1.4.0 — Fase 1, stap 1.4 live
+- De testversie 1.4.0 (ledenregister) is overgenomen in de live-versie (`index.html`).
+  `index.html` en `test/index.html` zijn weer gelijk.
+- De migratieschakelaar `plannerLedenregister` staat standaard uit en wordt door de app nergens op
+  `'aan'` gezet. Zonder schakelaar schrijft de app geen `members`/`meta.members`; de echte planner
+  verandert door deze livegang dus niet. Activeren gebeurt later handmatig, stap voor stap (zie
+  `docs/fase1-notities.md`, punt 10).
+- Volledige testset tegen test én live; de app-tests van het ledenregister draaien nu ook tegen live.
+
