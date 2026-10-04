@@ -50,14 +50,16 @@
         "minAppVersion": { "type": "string", "pattern": "^\\d+(\\.\\d+)*$" },
         "members": {
           "type": "object",
-          "description": "Ledenregister (stap 1.4): versie, moment van de eerste migratie, app-versie en de antwoorden op twijfelgevallen als twee verzamelingen same/different ({p_<hash>: paar van genormaliseerde namen}); staat een paar in different, dan geldt different.",
+          "description": "Ledenregister (stap 1.4; versie 2 = 1.4.1: alleen echte huishoudleden, met de antwoorden op 'Hoort … bij jullie huishouden?' in member/notMember, waarbij notMember wint): versie, moment van de eerste migratie, app-versie en de antwoorden op twijfelgevallen als twee verzamelingen same/different ({p_<hash>: paar van genormaliseerde namen}); staat een paar in different, dan geldt different.",
           "required": ["version"],
           "properties": {
             "version": { "type": "integer", "minimum": 1 },
             "migratedAt": { "type": "string" },
             "app": { "type": "string" },
             "same": { "type": "object", "propertyNames": { "pattern": "^p_[0-9a-f]{16}$" }, "additionalProperties": { "type": "string" } },
-            "different": { "type": "object", "propertyNames": { "pattern": "^p_[0-9a-f]{16}$" }, "additionalProperties": { "type": "string" } }
+            "different": { "type": "object", "propertyNames": { "pattern": "^p_[0-9a-f]{16}$" }, "additionalProperties": { "type": "string" } },
+            "member": { "type": "object", "propertyNames": { "pattern": "^p_[0-9a-f]{16}$" }, "additionalProperties": { "type": "string" } },
+            "notMember": { "type": "object", "propertyNames": { "pattern": "^p_[0-9a-f]{16}$" }, "additionalProperties": { "type": "string" } }
           }
         }
       }
@@ -257,7 +259,7 @@
     "vakantiePersonen": { "type": "array", "items": { "type": "string" } },
     "members": {
       "type": "array",
-      "description": "Ledenregister (stap 1.4). Alleen toegevoegd; de namen in de rest van de data blijven staan tot stap 1.5.",
+      "description": "Ledenregister (stap 1.4): alleen echte huishoudleden (vanaf 1.4.1; een label in vakantiePersonen of een paklijstkolom is pas lid na bevestiging). Alleen toegevoegd; de namen in de rest van de data blijven staan tot stap 1.5.",
       "items": {
         "type": "object",
         "required": ["id", "name"],

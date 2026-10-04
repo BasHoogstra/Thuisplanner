@@ -39,7 +39,7 @@ JSON-schema staat in [`dataformaat-v1.schema.json`](dataformaat-v1.schema.json) 
 | `schemaVersion` | `1`. De testversie (vanaf 1.0.19) zet dit **alleen mee bij een opslag die toch al gebeurt**; alleen openen veroorzaakt geen extra schrijfactie. Een bestaande waarde wordt nooit overschreven. De live-versie laat het veld staan (getest). |
 | `migratedTo` | `{ url }` — gezet door de verhuizing in fase 1. Vanaf 1.0.1 stopt de app dan met opslaan en toont een melding. |
 | `minAppVersion` | bv. `"1.1.0"` — is de app ouder, dan stopt die met opslaan en vraagt om te verversen. |
-| `members` | Vanaf 1.4.0: `{version: 1, migratedAt, app, same, different}`. Status van het ledenregister; `same` en `different` bevatten de antwoorden op twijfelgevallen als `{p_<hash>: "lois\|loïs"}`. Staat een paar in beide (twee toestellen antwoordden verschillend), dan geldt `different`. |
+| `members` | Vanaf 1.4.0: `{version, migratedAt, app, same, different, member, notMember}`; `version` 1 = 1.4.0, 2 = 1.4.1. `member`/`notMember` bevatten de antwoorden op "Hoort … bij jullie huishouden?" als `{p_<hash>: "naam"}`; staat een naam in beide, dan geldt `notMember`. Status van het ledenregister; `same` en `different` bevatten de antwoorden op twijfelgevallen als `{p_<hash>: "lois\|loïs"}`. Staat een paar in beide (twee toestellen antwoordden verschillend), dan geldt `different`. |
 
 ## Velden
 
@@ -83,12 +83,16 @@ Alle velden zijn optioneel (zie Firebase hierboven). Tussen haakjes de standaard
 - **`vakanties`** (`[]`) — `id`, `naam`, `startDatum`, `bestemming`, `paklijst` (`{persoon: [items]}`),
   `todos`, `notes`, `budget` `{bedrag, uitgaven:[{desc,amount,date}]}`, en `_tab` (schermstand,
   zie fase-1-notities).
-- **`vakantiePersonen`** (standaard: de twee ingestelde namen) — namen voor paklijsten en Wie is waar.
-- **`members`** (vanaf 1.4.0, ontbreekt tot de migratie) — ledenregister: `id` (`m_` + 16 hex, afgeleid van de
+- **`vakantiePersonen`** (standaard: de twee ingestelde namen) — de kolommen van de paklijsten. Vrije
+  tekst: naast personen kan hier ook een huisdier, een gast of een categorie staan (bv. "Boodschappen").
+  (Correctie: Wie is waar gebruikt deze lijst niet, maar alleen de twee namen "ik" en "partner".)
+- **`members`** (vanaf 1.4.0, ontbreekt tot de migratie) — ledenregister van **echte huishoudleden**
+  (vanaf 1.4.1: een naam die alleen in `vakantiePersonen` of als paklijstkolom staat, is pas lid na
+  bevestiging; zie `docs/fase1-notities.md`, punt 11): `id` (`m_` + 16 hex, afgeleid van de
   genormaliseerde naam en daarna vast), `name`, `kind` (`adult`/`child`/`unknown`; bij de migratie
   `unknown`), `color`, optioneel `aliases` (andere schrijfwijzen die als dezelfde persoon zijn bevestigd).
   De namen in de rest van de data blijven ongewijzigd (omzetten naar ID's is stap 1.5).
-- **`wieIsWaar`** (`{}`) — per datum `{naam: status}`; status o.a. `thuis`, `werk`, `reis`, `sporten`, `afwezig`.
+- **`wieIsWaar`** (`{}`) — per datum `{naam: status}` (alleen de namen van "ik" en "partner"); status o.a. `thuis`, `werk`, `reis`, `sporten`, `afwezig`.
 - **`verjaardagen`** (`[]`) — `id`, `naam`, `datum` (`MM-DD`), `jaar`.
 - **`verlanglijstjes`** (`{}`) — per naam: `id`, `text`, `claimedBy`, `addedAt`.
 - **`gewoonten`** (`[]`) — `id`, `text`, `icon`, `createdDate`. **`gewoontenDone`** (`{}`) — per datum id's.
@@ -111,4 +115,6 @@ Vandaag, 1.0.17), en "al gezien"-markeringen (`briefingShown`, `seasonDismissed_
 `weekScoreDismissed_…`, `iosBannerDismissed`, `plannerSecWarned`).
 Vanaf 1.4.0: `plannerMemberId` (wie ben jij op dit toestel: het `id` uit `members`),
 `plannerLedenregister` (`aan` = dit toestel mag het register aanmaken/aanvullen) en
-`plannerLedenBackup` (vangnet van vóór de eerste migratie op dit toestel).
+`plannerLedenBackup` (vangnet van vóór de eerste migratie op dit toestel). Vanaf 1.4.1:
+`plannerLedenregister` = `aan-1.4.1` (de app zet `aan` daarin om, zodat een oudere 1.4.0-versie op
+hetzelfde toestel niet meer aanvult) en `plannerLedenBackupV1` (het 1.4.0-register vóór de correctie).
