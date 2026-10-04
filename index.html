@@ -1137,8 +1137,9 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
   </div>
   <div class="name-banner" id="nameBanner" style="display:none;">
     <span>👤 Naam:</span>
-    <input type="text" id="nameBannerInput" placeholder="Jouw naam" maxlength="20">
-    <input type="text" id="partnerBannerInput" placeholder="Partner" maxlength="20">
+    <input type="text" id="nameBannerInput" placeholder="Jouw naam" maxlength="20" list="memberNameList">
+    <input type="text" id="partnerBannerInput" placeholder="Partner" maxlength="20" list="memberNameList">
+    <datalist id="memberNameList"></datalist>
     <button id="nameBannerSave">OK</button>
   </div>
 
@@ -1953,7 +1954,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.3.0';
+var APP_VERSION='1.4.0';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -2122,10 +2123,11 @@ function customConfirm(message,onYes,opts){
   var cancelBtn=document.getElementById('confirmCancelBtn');
   titleEl.textContent=message;
   okBtn.textContent=opts.okText||'Verwijderen';
+  cancelBtn.textContent=opts.cancelText||'Annuleren';
   ov.classList.add('open');
   function close(){ov.classList.remove('open');okBtn.removeEventListener('click',onOk);cancelBtn.removeEventListener('click',onCancel);}
   function onOk(){close();onYes();}
-  function onCancel(){close();}
+  function onCancel(){close();if(opts.onCancel)opts.onCancel();}
   okBtn.addEventListener('click',onOk);
   cancelBtn.addEventListener('click',onCancel);
 }
@@ -2715,7 +2717,7 @@ store.subscribe(function(ev){
     if(ev.reason)showWriteGuard(ev.reason,ev.meta);
     else document.getElementById('writeGuardOverlay').hidden=true;
   } else if(ev.type==='loaded'){
-    runMigrations();
+    runMigrations();ensureMemberRegister();
     if(ev.first)setTimeout(warnIfDatabaseOpen,3000);
   } else if(ev.type==='connected'){
     document.getElementById('refreshBtn').style.display='';
@@ -2737,6 +2739,253 @@ function showWriteGuard(reason,meta){
   btn.onclick=function(){if(reason==='moved'){if(url)window.location.href=url;}else window.location.reload();};
   ov.hidden=false;
 }
+
+// ── LEDENREGISTER (roadmap 1.4) ──────────────────────────────
+// data.members = [{id, name, kind, color, aliases?}]: iedereen in het huishouden krijgt een vast
+// member-ID. Alleen een nieuw veld; namen blijven staan waar ze staan (omzetten naar ID's is 1.5).
+// - ID = 'm_' + hash van de genormaliseerde naam (kleine letters, spaties samengevoegd). Twee
+//   toestellen die tegelijk migreren komen zo op dezelfde ID's uit, en het samenvoegen op id
+//   (mergeArrays) maakt er één lid van. Een bestaand lid houdt altijd zijn ID.
+// - Hoofdletters en spaties ('Bas', ' bas ') zijn dezelfde persoon, zoals sameName() al deed.
+//   Echte twijfel (zelfde letters maar andere accenten of tekens, bv. 'Loïs' en 'Lois') vraagt de
+//   app één keer; het antwoord staat in meta.members.same / .different (zie memberDecisions).
+// - kind is 'unknown': de data zegt niet wie een kind is; dat stel je in bij 1.6.
+// - Alleen dit blok tot "einde LEDENREGISTER" is puur (geen DOM, geen globale variabelen) en wordt
+//   zo ook los getest (tests/leden.test.js).
+var MEMBERS_VERSION=1;
+var MEMBER_COLORS=['#5b4fe0','#f0932b','#27ae60','#e74c3c','#4a90d9','#00b894','#f39c12','#8a8a96'];
+// Geen personen: lege waarden en de plaatsvervangers die de app zelf gebruikt zonder ingestelde naam.
+var MEMBER_PLACEHOLDERS=['me','partner','ik'];
+function memberKey(n){return String(n==null?'':n).normalize('NFC').replace(/\s+/g,' ').trim().toLowerCase();}
+function memberLooseKey(n){return memberKey(n).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');}
+function memberHash(s){
+  var h1=0xdeadbeef,h2=0x41c6ce57;
+  for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677);}
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return ('0000000'+(h2>>>0).toString(16)).slice(-8)+('0000000'+(h1>>>0).toString(16)).slice(-8);
+}
+function memberIdFor(name){return 'm_'+memberHash(memberKey(name));}
+function memberColor(id){return MEMBER_COLORS[parseInt(memberHash(id).slice(-4),16)%MEMBER_COLORS.length];}
+function memberKeys(m){return [m.name].concat(Array.isArray(m.aliases)?m.aliases:[]).map(memberKey);}
+function findMember(members,name){
+  var k=memberKey(name);if(!k||!Array.isArray(members))return null;
+  return members.filter(function(m){return m&&memberKeys(m).indexOf(k)>-1;})[0]||null;
+}
+// Alle namen in de gedeelde data, met de plek waar ze staan (zie docs/dataformaat-v1.md).
+function collectMemberNames(d){
+  var out=[];
+  var arr=function(x){return Array.isArray(x)?x:[];};
+  var obj=function(x){return x&&typeof x==='object'&&!Array.isArray(x)?x:{};};
+  function add(v,src){
+    if(typeof v!=='string')return;
+    var k=memberKey(v);if(!k||MEMBER_PLACEHOLDERS.indexOf(k)>-1)return;
+    out.push({name:v.replace(/\s+/g,' ').trim(),key:k,src:src});
+  }
+  function task(t,src){
+    if(!t)return;add(t.author,src+'.author');add(t.assignedTo,src+'.assignedTo');
+    var r=obj(t.reactions);Object.keys(r).forEach(function(e){arr(r[e]).forEach(function(n){add(n,src+'.reactions');});});
+  }
+  arr(d.vakantiePersonen).forEach(function(n){add(n,'vakantiePersonen');});
+  var tasks=obj(d.tasks);Object.keys(tasks).forEach(function(k){arr(tasks[k]).forEach(function(t){task(t,'tasks');});});
+  arr(d.multiDayTasks).forEach(function(t){task(t,'multiDayTasks');});
+  arr(d.bestellingen).forEach(function(b){if(b){add(b.addedBy,'bestellingen.addedBy');add(b.assignedTo,'bestellingen.assignedTo');}});
+  arr(d.boodschappen).forEach(function(b){if(b)add(b.addedBy,'boodschappen.addedBy');});
+  arr(d.inbox).forEach(function(b){if(b)add(b.addedBy,'inbox.addedBy');});
+  arr(d.lijsten).forEach(function(l){if(l)arr(l.items).forEach(function(i){if(i)add(i.addedBy,'lijsten.items.addedBy');});});
+  arr(d.huisgeheugen).forEach(function(h){if(h)add(h.auteur,'huisgeheugen.auteur');});
+  arr(d.notities).forEach(function(n){if(n)add(n.editedBy,'notities.editedBy');});
+  var wl=obj(d.verlanglijstjes);Object.keys(wl).forEach(function(p){
+    add(p,'verlanglijstjes');arr(wl[p]).forEach(function(i){if(i)add(i.claimedBy,'verlanglijstjes.claimedBy');});
+  });
+  var wiw=obj(d.wieIsWaar);Object.keys(wiw).forEach(function(dk){Object.keys(obj(wiw[dk])).forEach(function(p){add(p,'wieIsWaar');});});
+  arr(d.vakanties).forEach(function(v){if(v)Object.keys(obj(v.paklijst)).forEach(function(p){add(p,'vakanties.paklijst');});});
+  return out;
+}
+function memberPairKey(a,b){return [memberKey(a),memberKey(b)].sort().join('|');}
+// Antwoorden staan als twee verzamelingen in meta.members: same en different, elk {p_<hash>: paar}.
+// Twee toestellen die verschillend antwoorden vullen elk hun eigen verzameling; het samenvoegen
+// bewaart beide. "Twee personen" wint dan altijd, zodat de uitkomst niet van de volgorde afhangt en
+// er nooit twee mensen worden samengevoegd zonder dat iedereen het eens is. (De hash als sleutel,
+// omdat Firebase geen . / # $ [ ] in sleutels toestaat.)
+function memberDecisionKey(pk){return 'p_'+memberHash(pk);}
+function memberDecisions(mm){
+  var d={};
+  ['same','different'].forEach(function(t){
+    var o=mm&&typeof mm==='object'&&mm[t]&&typeof mm[t]==='object'?mm[t]:{};
+    Object.keys(o).forEach(function(h){if(typeof o[h]==='string')d[o[h]]=t;});
+  });
+  return d;
+}
+// Berekent het register zonder iets te wijzigen. device = {myName, partnerName} van dit toestel;
+// decisions = {pairKey: 'same'|'different'}. Geeft {members, added, doubts, changed}.
+// Bij twijfelgevallen hoort de app eerst te vragen en dan opnieuw te plannen met de antwoorden.
+function planMemberRegister(d,device,decisions){
+  decisions=decisions||{};device=device||{};
+  var members=(Array.isArray(d.members)?d.members:[]).filter(function(m){return m&&m.id&&typeof m.name==='string';})
+    .map(function(m){var c={};Object.keys(m).forEach(function(k){c[k]=Array.isArray(m[k])?m[k].slice():m[k];});return c;});
+  var groups={},order=[];
+  collectMemberNames(d).forEach(function(f){
+    var g=groups[f.key];if(!g){g=groups[f.key]={spellings:{},n:order.length};order.push(f.key);}
+    g.spellings[f.name]=(g.spellings[f.name]||0)+1;
+  });
+  // Namen die alleen op dit toestel zijn ingesteld (nog nergens in de data).
+  [device.myName,device.partnerName].forEach(function(n){
+    var k=memberKey(n);if(!k||MEMBER_PLACEHOLDERS.indexOf(k)>-1||groups[k])return;
+    groups[k]={spellings:{},n:order.length};groups[k].spellings[String(n).replace(/\s+/g,' ').trim()]=1;order.push(k);
+  });
+  // Vaste volgorde, onafhankelijk van het toestel: eerst vakantiePersonen-volgorde, dan alfabetisch.
+  var vp=(Array.isArray(d.vakantiePersonen)?d.vakantiePersonen:[]).map(memberKey);
+  var keys=order.slice().sort(function(a,b){
+    var ia=vp.indexOf(a),ib=vp.indexOf(b);ia=ia<0?1e6:ia;ib=ib<0?1e6:ib;
+    return ia!==ib?ia-ib:(a<b?-1:a>b?1:0);
+  });
+  // Weergavenaam: liefst met hoofdletter, dan de vaakst gebruikte schrijfwijze, dan alfabetisch.
+  function pick(sp){
+    return Object.keys(sp).sort(function(a,b){
+      var ua=a.charAt(0)!==a.charAt(0).toLowerCase(),ub=b.charAt(0)!==b.charAt(0).toLowerCase();
+      if(ua!==ub)return ua?-1:1;if(sp[a]!==sp[b])return sp[b]-sp[a];return a<b?-1:a>b?1:0;
+    })[0];
+  }
+  var added=[],doubts=[],changed=false;
+  // "Twee personen" geldt ook als een ander toestel ze al als dezelfde had samengevoegd: die andere
+  // schrijfwijze gaat dan weer uit de aliases, en wordt hieronder een eigen lid (vast ID).
+  Object.keys(decisions).forEach(function(pk){
+    if(decisions[pk]!=='different')return;
+    var ks=pk.split('|');
+    members.forEach(function(m){
+      if(!Array.isArray(m.aliases)||ks.indexOf(memberKey(m.name))<0)return;
+      var keep=m.aliases.filter(function(a){var ak=memberKey(a);return ks.indexOf(ak)<0||ak===memberKey(m.name);});
+      if(keep.length===m.aliases.length)return;
+      if(keep.length)m.aliases=keep;else delete m.aliases;
+      changed=true;
+    });
+  });
+  keys.forEach(function(k){
+    if(findMember(members,k))return; // al in het register (naam of eerdere schrijfwijze)
+    var name=pick(groups[k].spellings),id=memberIdFor(k);
+    var sameId=members.filter(function(m){return m.id===id;})[0];
+    if(sameId){(sameId.aliases=sameId.aliases||[]).push(name);changed=true;return;}
+    var loose=memberLooseKey(k);
+    var similar=loose?members.filter(function(m){return memberKeys(m).some(function(x){return memberLooseKey(x)===loose;});})[0]:null;
+    if(similar){
+      var pk=memberPairKey(similar.name,name),dec=decisions[pk];
+      if(dec==='same'){(similar.aliases=similar.aliases||[]).push(name);changed=true;return;}
+      if(dec!=='different'){doubts.push({key:pk,a:similar.name,b:name});return;}
+    }
+    var m={id:id,name:name,kind:'unknown',color:memberColor(id)};
+    members.push(m);added.push(m);changed=true;
+  });
+  return {members:members,added:added,doubts:doubts,changed:changed};
+}
+// Terugdraaien: precies de velden weghalen die deze migratie toevoegde.
+function withoutMemberRegister(d){
+  var c=JSON.parse(JSON.stringify(d));delete c.members;
+  if(c.meta&&typeof c.meta==='object'&&!Array.isArray(c.meta)){delete c.meta.members;if(!Object.keys(c.meta).length)delete c.meta;}
+  return c;
+}
+// ── einde LEDENREGISTER ──
+
+// Het register opbouwen gebeurt alleen op een toestel waar dat expliciet aan staat
+// (localStorage plannerLedenregister = 'aan'), zodat de echte planner pas wordt gemigreerd na een
+// bewuste keuze. Lezen en het koppelen van dit toestel werken altijd zodra er een register is.
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){}}
+function membersMigrationEnabled(){return lsGet('plannerLedenregister')==='aan';}
+function memberMeta(){return data.meta&&typeof data.meta==='object'&&!Array.isArray(data.meta)?data.meta:null;}
+// Wie ben ik op dit toestel: plannerMemberId. myName blijft de bestaande, opgeslagen naam (daarop
+// hangen o.a. de verlanglijstjes); alleen als die ontbreekt, komt hij uit het register.
+function linkDeviceMember(){
+  var members=Array.isArray(data.members)?data.members:null;
+  var dl=document.getElementById('memberNameList');
+  if(dl&&members)dl.innerHTML=members.map(function(m){return '<option value="'+escHtml(m.name)+'">';}).join('');
+  if(!members||!members.length)return;
+  var id=lsGet('plannerMemberId');
+  var m=id?members.filter(function(x){return x&&x.id===id;})[0]:null;
+  // Hoort de eigen naam (na een correctie van het register) bij een ander lid, dan dat lid.
+  var own=myName?findMember(members,myName):null;
+  if(m&&own&&own.id!==m.id){lsSet('plannerMemberId',own.id);m=own;}
+  if(m){
+    if(!myName&&m.name){
+      myName=m.name;lsSet('plannerMyName',m.name);
+      document.getElementById('nameBanner').style.display='none';
+      updateAssigneeLabels();updateGreeting();
+    }
+    return;
+  }
+  if(!id&&myName){var f=findMember(members,myName);if(f)lsSet('plannerMemberId',f.id);}
+}
+// Na het (opnieuw) instellen van de eigen naam: koppeling opnieuw bepalen.
+function relinkDeviceMember(){lsSet('plannerMemberId',null);linkDeviceMember();ensureMemberRegister();}
+var _memberDoubtsOpen=false;
+function askMemberDoubts(doubts,done){
+  var answers={},i=0;_memberDoubtsOpen=true;
+  (function next(){
+    if(i>=doubts.length){_memberDoubtsOpen=false;done(answers);return;}
+    var q=doubts[i++];answers[q.key]='different';
+    customConfirm('Zijn “'+q.a+'” en “'+q.b+'” dezelfde persoon?',function(){answers[q.key]='same';next();},
+      {okText:'Ja, dezelfde',cancelText:'Nee, twee personen',onCancel:next});
+  })();
+}
+function ensureMemberRegister(){
+  linkDeviceMember();
+  if(!membersMigrationEnabled()||_memberDoubtsOpen)return;
+  var meta=memberMeta();
+  var decisions=memberDecisions(meta&&meta.members);
+  var device={myName:myName,partnerName:partnerName};
+  var plan=planMemberRegister(data,device,decisions);
+  if(plan.doubts.length){
+    askMemberDoubts(plan.doubts,function(answers){
+      var m2=memberMeta(),dec=memberDecisions(m2&&m2.members);
+      Object.keys(answers).forEach(function(pk){if(dec[pk]!=='different')dec[pk]=answers[pk];});
+      applyMemberPlan(planMemberRegister(data,device,dec),answers);
+    });
+    return;
+  }
+  if(plan.changed)applyMemberPlan(plan,{});
+}
+// answers: alleen de nieuwe antwoorden van dit toestel; bestaande antwoorden blijven staan.
+function applyMemberPlan(plan,answers){
+  if(plan.doubts.length||!plan.changed&&Array.isArray(data.members))return;
+  stampSchemaVersion(data); // gebeurt bij het opslaan toch; zo klopt de controlesom van het vangnet
+  if(!Array.isArray(data.members)){
+    // Vangnet vóór de eerste migratie op dit toestel: wat de migratie raakt plus een controlesom
+    // van de hele planner, zodat terugdraaien aantoonbaar de oude stand oplevert.
+    lsSet('plannerLedenBackup',JSON.stringify({at:new Date().toISOString(),app:APP_VERSION,check:memberHash(canon(data)),hadMembers:'members' in data,members:data.members}));
+  }
+  data.members=plan.members;
+  if(data.meta==null)data.meta={};
+  var meta=memberMeta();
+  if(meta){
+    var prev=meta.members&&typeof meta.members==='object'?meta.members:{};
+    var mm={version:MEMBERS_VERSION,migratedAt:prev.migratedAt||new Date().toISOString(),app:APP_VERSION};
+    ['same','different'].forEach(function(t){
+      var o=Object.assign({},prev[t]&&typeof prev[t]==='object'?prev[t]:{});
+      Object.keys(answers||{}).forEach(function(pk){if(answers[pk]===t)o[memberDecisionKey(pk)]=pk;});
+      if(Object.keys(o).length)mm[t]=o;
+    });
+    meta.members=mm;
+  }
+  saveToServer();
+  linkDeviceMember();
+}
+// Status en terugdraaien (vanuit de ontwikkelhulpmiddelen; zie docs/fase1-notities.md, punt 10).
+function rollbackMemberRegister(){
+  var b=null;try{b=JSON.parse(lsGet('plannerLedenBackup')||'null');}catch(e){}
+  data=withoutMemberRegister(data);
+  lsSet('plannerMemberId',null);lsSet('plannerLedenregister',null);
+  saveToServer();renderAll();
+  return {terugdraaien:'klaar',gelijkAanVoorDeMigratie:b?memberHash(canon(data))===b.check:null};
+}
+window.huisplanLeden={
+  status:function(){
+    var meta=memberMeta();
+    return {aan:membersMigrationEnabled(),versie:meta&&meta.members?meta.members.version:null,
+      leden:Array.isArray(data.members)?data.members.length:0,plannerMemberId:lsGet('plannerMemberId'),
+      vangnet:!!lsGet('plannerLedenBackup')};
+  },
+  terugdraaien:rollbackMemberRegister
+};
 
 function runMigrations(){
   var koppelTask=(data.recurring||[]).filter(function(r){return r.koppelgesprek;})[0];
@@ -2924,6 +3173,7 @@ function init(){
     document.getElementById('setupOverlay').style.display='none';
     if(!myName)document.getElementById('nameBanner').style.display='flex';
     if(store.readCache())setSync('busy','Laatst bekende versie · bijwerken…');
+    linkDeviceMember();
     takeSharedIntoBakje();
     store.load({initial:true});store.startPolling();
   } else {
@@ -2969,6 +3219,7 @@ document.getElementById('nameBannerSave').addEventListener('click',function(){
   myName=mn;localStorage.setItem('plannerMyName',mn);
   if(pn){partnerName=pn;localStorage.setItem('plannerPartnerName',pn);}
   document.getElementById('nameBanner').style.display='none';
+  relinkDeviceMember();
   updateAssigneeLabels();updateGreeting();showToast('Namen opgeslagen!');
 });
 
@@ -3039,6 +3290,7 @@ document.getElementById('settingsSaveBtn').addEventListener('click',function(){
   if(mn){myName=mn;localStorage.setItem('plannerMyName',mn);}
   if(pn){partnerName=pn;localStorage.setItem('plannerPartnerName',pn);}
   if(ct){localStorage.setItem('plannerCity',ct);_weatherCache=null;loadWeather();}
+  if(mn||pn)relinkDeviceMember();
   updateAssigneeLabels();updateGreeting();
   document.getElementById('instellingenOverlay').classList.remove('open');
   showToast('Instellingen opgeslagen!');
