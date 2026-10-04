@@ -321,6 +321,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - De schakelaar `aan` wordt `aan-1.4.1`, zodat een nog openstaande 1.4.0-versie op hetzelfde toestel
   de labels niet terugzet (aangetoond: 1.4.0 met `aan` zet Freya en Boodschappen direct terug).
 - Geen omzetting naar member-ID's (1.5), geen Supabase, live-versie ongewijzigd.
+- Vastgelegd voor later (`docs/fase1-notities.md`, punt 11): een externe gebruiker/gast/oppas die via
+  de gedeelde link iets toevoegt mag niet automatisch huishoudlid worden (open punt voor het
+  ledenbeheer in 1.6 en vóór/tijdens persoonsmigraties); en voor 1.5: `resolveMember()` moet "geen
+  huishoudlid" kunnen teruggeven en persoonsachtige labels worden niet automatisch een member-ID.
 - Tests: `tests/leden-praktijk.test.js` (9) met fixtures `leden-praktijk.json` en
   `leden-praktijk-v14.json` (het register zoals 1.4.0 het maakte); `tests/leden.test.js` aangepast aan
   het nieuwe model. `docs/dataformaat-v1.md`: Wie is waar gebruikt alleen "ik" en "partner".

@@ -153,7 +153,7 @@ LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows 
   | `author`, `addedBy`, `editedBy`, `auteur`, `claimedBy`, reacties (de app schrijft hier de toestelnaam) | sleutels van `vakanties[].paklijst` |
   | `assignedTo` (alleen "ik"/"partner" te kiezen), sleutels van `wieIsWaar` (alleen ik/partner), verlanglijstjes | |
   Kanttekening: iemand die de deellink krijgt en een naam invult (bv. een oppas) wordt via
-  "auteur" ook direct lid. Dat is zeldzaam en in 1.6 te corrigeren.
+  "auteur" ook direct lid. Zie het open punt hieronder.
 - **Datamodel**: `data.members` = alleen echte huishoudleden. Een label dat geen lid is, blijft
   gewoon op zijn eigen plek staan (vakantiePersonen, paklijst) als lokale "extra"; er komt geen apart
   register voor extra's. `meta.members.member` / `.notMember` bewaren de antwoorden.
@@ -161,10 +161,22 @@ LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows 
   register nodig dat compleet én juist is. Zonder bevestiging zou Lynn óf ontbreken (alleen labels) óf
   Freya erin staan. De vraag gebruikt de bestaande bevestigingsdialoog; beheer (hernoemen, toevoegen,
   kind/volwassene) blijft voor 1.6.
-- **Gevolgen voor 1.5**: alleen namen die bij een lid horen worden een ID; vakantiekolommen die geen
-  lid zijn (Freya, Boodschappen, Oma) blijven tekst. `resolveMember()` moet dus "geen lid" kunnen
-  teruggeven, en de paklijst/vakantiePersonen-migratie moet per kolom kiezen tussen member-ID en
-  lokale naam. Controleer vóór 1.5 het register (`huisplanLeden.status().namen`).
+- **Open punt (niet opgelost in 1.4.1): externe gebruiker, gast of oppas.** Wie via de gedeelde link
+  de planner opent en iets toevoegt, staat daarna als auteur/toevoeger in de data. In 1.4.1 telt dat
+  als betrouwbare bron, dus zo iemand wordt direct lid. Dat mag niet: een externe gebruiker is niet
+  automatisch huishoudlid. Dit moet worden opgelost in het centrale ledenbeheer (1.6: lid kunnen
+  verwijderen en als "geen lid" markeren) en meegenomen vóór en tijdens elke persoonsmigratie (1.5,
+  en de import in 1.12): controleer het register handmatig en behandel zo'n naam als lokale naam, niet
+  als lid.
+- **Gevolgen voor 1.5 (verplicht):**
+  - `resolveMember(waarde)` moet expliciet "geen huishoudlid" kunnen teruggeven (bv. `null` met de
+    oorspronkelijke tekst), en mag nooit zelf een lid aanmaken.
+  - Persoonsachtige labels (vakantiekolommen zoals Freya, Boodschappen, Oma, en alles wat geen lid is
+    in `data.members`) worden **niet** automatisch naar een member-ID omgezet; ze blijven tekst.
+  - De migratie van `vakantiePersonen` en paklijsten kiest per kolom: member-ID als het een lid is,
+    anders de lokale naam ongewijzigd laten.
+  - Vóór 1.5: het register controleren (`huisplanLeden.status().namen`) en het open punt over externe
+    gebruikers hierboven nalopen.
 - **Gevolgen voor 1.6**: "Ons huishouden" moet leden kunnen toevoegen, verwijderen en een "nee" kunnen
   herzien (anders blijft een per ongeluk afgewezen kind buiten het register); `kind` invullen.
   Vakanties: personen kiezen uit leden plus lokale extra's.
