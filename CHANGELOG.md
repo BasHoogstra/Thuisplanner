@@ -340,3 +340,16 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Volledige testset tegen test én live; de app-tests van het ledenregister 1.4.1 draaien nu ook
   tegen live.
 
+## App-icoon (testversie): definitief Huisplan-logo
+- De app-iconen van de testversie (`test/`) tonen nu het definitieve logo uit de huisstijl
+  (`logo.svg`: paars huis met deur en blaadje) op de huisstijl-ondergrond `#F8F7F4`, in plaats van
+  de witte variant op paars. De iconen zijn rechtstreeks uit `logo.svg` gegenereerd.
+- `apple-touch-icon.png` (180×180) voor het iOS-beginscherm: vierkant en dekkend (iOS rondt zelf
+  af en maakt transparantie zwart); het logo beslaat 62% van de hoogte, zodat het blaadje ruim
+  binnen de afgeronde hoek blijft.
+- `manifest.webmanifest`: `icon-192.png` en `icon-512.png` ("any", afgeronde tegel) en
+  `icon-maskable-192.png` (nieuw) en `icon-maskable-512.png` ("maskable", dekkend, het hele logo
+  binnen de veilige cirkel van 80%).
+- Geen wijziging aan HTML, UI of functionaliteit. Een al op het beginscherm gezette app houdt het
+  oude icoon tot hij opnieuw wordt toegevoegd (iOS bewaart het icoon bij het toevoegen).
+
