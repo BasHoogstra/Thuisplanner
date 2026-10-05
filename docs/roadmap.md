@@ -8,9 +8,23 @@ De permanente roadmap van Huisplan. Leidend zijn:
 Waar deze roadmap daarvan afwijkt, gaan het Productkompas en de beslissingen voor. Meld zo'n
 afwijking dan eerst.
 
+**Leesvolgorde:**
+1. `PRODUCT_PRINCIPLES.md`
+2. `docs/productkompas-beslissingen.md`
+3. `docs/roadmap.md` (dit document)
+4. de relevante fase- of technische documentatie, zoals `docs/fase1-notities.md`,
+   `docs/dataformaat-v1.md` en `supabase/README.md`
+5. pas dan de implementatie
+
+**Wat hier wel en niet staat:**
+- Deze roadmap bevat wat, waarom, volgorde, afhankelijkheden, status en gates.
+- Concrete implementatie, uitgebreide tests en migratie-instructies staan in de fase- of technische
+  documentatie, niet hier.
+
 - **Bron:** de uitvoeringsroadmap zoals vastgesteld op 2 oktober 2026, met dezelfde fases, stappen
-  en volgorde. Per stap staan hier het doel, de afhankelijkheden en of er een datamigratie is.
-- **Bijgewerkt:** 5 oktober 2026, met de beslissingen 1–10 uit `docs/productkompas-beslissingen.md`.
+  en volgorde.
+- **Bijgewerkt:** 5 oktober 2026, met de beslissingen 1–10 en de aanvullingen daarop uit
+  `docs/productkompas-beslissingen.md`.
 - **Status:** volgens `CHANGELOG.md`.
 
 **Legenda**
@@ -71,22 +85,25 @@ De toets hoeft niet met terugwerkende kracht te worden ingevuld voor bestaande o
   Firebase-data als de live-app. Stappen met een datamigratie worden eerst getest op een kopie van
   de data, nooit via `/test/` op de echte planner.
 - **Automatisering** ✏️ (beslissing 1):
-  - Bij twijfel vraagt Huisplan.
-  - Na voldoende zekerheid en toestemming mag Huisplan zelfstandig handelen.
+  - Bij twijfel vraagt Huisplan één keer. Na voldoende zekerheid en toestemming kan het de
+    handeling voortaan zelfstandig uitvoeren.
   - Hoe groter het gevolg van een fout, hoe meer bevestiging nodig is.
   - Automatisering moet zichtbaar, voorspelbaar en eenvoudig terug te draaien zijn.
+  - De risicogrenzen uit principe 5 blijven leidend.
 - **Verdienmodel** ✏️ (beslissing 3):
   - De gratis versie blijft bruikbaar voor organiseren.
   - Premium verkoopt extra gemak, automatisering, AI en koppelingen.
   - Bestaande huishouddata worden niet gegijzeld.
+  - Een Premium-proefperiode blijft mogelijk. Wat vervalt, is dat de hele planner na afloop
+    alleen-lezen of onbruikbaar wordt.
 
 ## Overzicht van de gates
 
 | Gate | Geldt vóór | Beslissing |
 | --- | --- | --- |
-| Activiteit of auteurschap maakt iemand niet automatisch huishoudlid. Fase 1.5 mag het bekende probleem met externe gebruikers niet verder verspreiden. | 1.5 en het centrale ledenbeheer (1.6) | 6 |
+| Activiteit of auteurschap maakt iemand niet automatisch huishoudlid. 1.5 respecteert deze regel en verspreidt het bekende probleem met externe gebruikers niet verder; 1.6 lost het structureel op. | 1.5 (persoonsmigratie) en 1.6 (centraal ledenbeheer) | 6 |
 | Het ledenregister op de echte planner is gecontroleerd. | Start van 1.5 | 8 |
-| Privacy wordt niet uitsluitend door de UI afgedwongen (security/privacy-gate). | Supabase bedient daadwerkelijk huishouddata (zie fase 1) | 9 |
+| Vóór `SupabaseStore` huishouddata gaat lezen/schrijven, moet de Supabase-autorisatie/RLS het onderscheid tussen gedeelde en afgeschermde huishouddata veilig kunnen ondersteunen voor de gegevens waarvoor dat op dat moment nodig is (security/privacy-gate). | 1.10 | 9 |
 | De navigatie is getoetst aan werkelijk gebruik. | 3.1 | 2 |
 
 ## Fase 0: Huidige app afronden en opruimen
@@ -143,10 +160,10 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 | 1.9 | Uitnodigen en toegang beheren | Toegang die je kunt geven én intrekken, in plaats van een link die voor altijd werkt. | 1.8 | Nee | Gepland |
 | 1.10 | Synchronisatie met Supabase | Dezelfde app, met Supabase als opslag, live tussen toestellen en bruikbaar offline. | 1.3, 1.8 | Nee | Gepland ⛔ |
 | 1.11 | Foto's naar bestandsopslag | Foto's van garanties en onderhoud niet meer als tekst in de data, zodat synchroniseren snel blijft. | 1.10 | Ja (via de import) | Gepland |
-| 1.12 | Importfunctie voor bestaande planners | Een volledige, controleerbare kopie van een Firebase-planner in een Supabase-huishouden. | 1.2, 1.5, 1.10, 1.11 | Ja | Gepland ⛔ |
-| 1.13 | Overstap-wizard in de app | Een bestaand huishouden verhuist zelf, stap voor stap, zonder hulp van een ontwikkelaar. | 1.12, 1.9 | Ja (via 1.12) | Gepland ⛔ |
+| 1.12 | Importfunctie voor bestaande planners | Een volledige, controleerbare kopie van een Firebase-planner in een Supabase-huishouden. | 1.2, 1.5, 1.10, 1.11 | Ja | Gepland |
+| 1.13 | Overstap-wizard in de app | Een bestaand huishouden verhuist zelf, stap voor stap, zonder hulp van een ontwikkelaar. | 1.12, 1.9 | Ja (via 1.12) | Gepland |
 | 1.14 | Firebase-planner bevriezen en late wijzigingen meenemen | Na de overstap schrijft niemand meer in Firebase, en gaat niets verloren van toestellen die nog offline waren. | 1.13, 0.2 | Ja (markering in Firebase) | Gepland |
-| 1.15 | Uitrol en uitfaseren | Gecontroleerd overgaan, eerst met jullie eigen huishouden. | 1.14 | Ja (per huishouden) | Gepland ⛔ |
+| 1.15 | Uitrol en uitfaseren | Gecontroleerd overgaan, eerst met jullie eigen huishouden. | 1.14 | Ja (per huishouden) | Gepland |
 
 ### Fase 1: gates en beslissingen per stap
 
@@ -154,29 +171,35 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 - **Bekend probleem, bewust niet opgelost in 1.4.1** (beslissing 6). Een externe gebruiker, gast of
   oppas die iets toevoegt, kan huishoudlid worden. PR #8 blijft hiervoor ongewijzigd en het
   probleem blijft expliciet gedocumenteerd.
+  - Het open punt staat tot de merge van PR #8 alleen in `docs/fase1-notities.md` op die branch.
+    Dat is tijdelijk geaccepteerd; het wordt niet gedupliceerd.
 - **Tijdelijke migratie-UX geaccepteerd** (beslissing 7). De vragen komen één voor één in losse
   dialogen, met een rode bevestigingsknop. Er komt geen extra UI-scope bij PR #8.
 - **Een foutief "nee" is nog niet te herstellen. Tijdelijk geaccepteerd** (beslissing 8).
   Structureel herstel hoort in het centrale ledenbeheer (1.6).
-  - 🔁 **Later herbeoordelen** als het centrale ledenbeheer sterk wordt uitgesteld.
+  - 🔁 **Later herbeoordelen** als het centrale ledenbeheer (1.6) sterk wordt uitgesteld.
 
 **1.5**
 - ⛔ **Gate** (beslissing 8): het ledenregister op de echte planner is gecontroleerd vóór de start
   van 1.5.
 - ⛔ **Gate** (beslissing 6): activiteit of auteurschap maakt iemand niet automatisch huishoudlid.
-  1.5 mag het bekende probleem met externe gebruikers niet verder verspreiden.
+  1.5 moet deze regel al respecteren en mag het bekende probleem met externe gebruikers niet
+  verder verspreiden. De structurele oplossing volgt in 1.6.
 
 **1.6 (centraal ledenbeheer)**
-- ⛔ **Gate** (beslissing 6): dezelfde randvoorwaarde als bij 1.5 geldt voor het centrale
-  ledenbeheer.
+- ⛔ **Gate** (beslissing 6): hier wordt de gast/oppas-regel structureel opgelost. Activiteit of
+  auteurschap maakt iemand niet automatisch huishoudlid.
 - Hier hoort ook het structurele herstel van een foutief "nee" (beslissing 8).
 
-**1.10 tot en met 1.15 (Supabase gaat huishouddata bedienen)**
-- ⛔ **Security/privacy-gate** (beslissing 9). Privacy mag niet uitsluitend door de UI worden
-  afgedwongen.
-  - De huidige Row Level Security geeft elk huishoudlid zicht op alle items.
-  - Claims op verlanglijstjes worden alleen client-side verborgen.
-- Deze gate moet zijn gehaald vóórdat Supabase daadwerkelijk huishouddata bedient.
+**1.10 Synchronisatie met Supabase**
+- ⛔ **Security/privacy-gate vóór 1.10** (beslissing 9):
+  > Vóór `SupabaseStore` huishouddata gaat lezen/schrijven, moet de Supabase-autorisatie/RLS het
+  > onderscheid tussen gedeelde en afgeschermde huishouddata veilig kunnen ondersteunen voor de
+  > gegevens waarvoor dat op dat moment nodig is.
+- Aanleiding:
+  - de huidige Row Level Security geeft elk huishoudlid zicht op alle items;
+  - claims op verlanglijstjes worden alleen client-side verborgen.
+- Dit betekent niet dat alle toekomstige privacyfuncties vóór 1.10 gebouwd moeten worden.
 - De oplossing is nog niet ontworpen. Ontwerp en implementatie volgen pas wanneer daartoe wordt
   besloten.
 
@@ -224,10 +247,11 @@ migratiestap:
 
 ## Fase 3: Centrale invoer
 
-**Doel** ✏️ (beslissing 1): één plek om iets vast te leggen. Huisplan stelt voor waar het hoort en
-vraagt bij twijfel om bevestiging. Na voldoende zekerheid en toestemming mag Huisplan zelfstandig
-handelen. Hoe groter het gevolg van een fout, hoe meer bevestiging nodig is. Automatisering is
-zichtbaar, voorspelbaar en eenvoudig terug te draaien.
+**Doel** ✏️ (beslissing 1): één plek om iets vast te leggen. Huisplan stelt voor waar het hoort.
+Bij twijfel vraagt Huisplan één keer. Na voldoende zekerheid en toestemming kan het de handeling
+voortaan zelfstandig uitvoeren. Hoe groter het gevolg van een fout, hoe meer bevestiging nodig is.
+Automatisering is zichtbaar, voorspelbaar en eenvoudig terug te draaien. De risicogrenzen uit
+principe 5 blijven leidend.
 
 > Was: "Huisplan stelt voor waar het hoort en vraagt altijd om bevestiging."
 
@@ -238,7 +262,7 @@ eerst in de testversie en wordt met een paar huishoudens geprobeerd.
 | --- | --- | --- | --- | --- | --- |
 | 3.1 | Navigatie onderzoeken | Vaststellen of Vandaag \| Boodschappen \| + \| Ons huis beter werkt dan de huidige balk. | 2.12 | Nee | Gepland ⛔ 🔁 |
 | 3.2 | Taalherkenning uitbreiden | Zinnen als 'stofzuigen elke vrijdag voor Lynn' goed begrijpen. | 2.9 | Nee | Gepland |
-| 3.3 | Voorstelvenster: Goed of Anders… | Bij twijfel een voorstel ter bevestiging tonen, volgens het automatiseringsuitgangspunt van beslissing 1. | 3.2 | Nee | Gepland ✏️ |
+| 3.3 | Voorstelvenster: Goed of Anders… | Bij twijfel één keer een voorstel ter bevestiging tonen, volgens het automatiseringsuitgangspunt van beslissing 1. | 3.2 | Nee | Gepland ✏️ |
 | 3.4 | Nog uitzoeken | Bij twijfel bewaren in plaats van gokken. | 3.3 | Nee | Gepland |
 | 3.5 | Centrale + in de navigatie | De + is de primaire manier om iets vast te leggen. | 3.1, 3.4 | Nee | Gepland |
 | 3.6 | Leren van correcties | Huisplan onthoudt keuzes van het huishouden ('pindakaas' is een boodschap, 'Lyn' is Lynn). | 3.3 | Nee | Gepland |
@@ -261,9 +285,12 @@ eerst in de testversie en wordt met een paar huishoudens geprobeerd.
 
 **3.3 Voorstelvenster** ✏️ (beslissing 1)
 - Was: "Nooit iets stil ergens neerzetten."
-- Voortaan geldt het automatiseringsuitgangspunt: bij twijfel vragen, na voldoende zekerheid en
-  toestemming zelfstandig handelen, meer bevestiging naarmate de gevolgen groter zijn, en altijd
-  zichtbaar, voorspelbaar en eenvoudig terug te draaien.
+- Voortaan geldt het automatiseringsuitgangspunt (zie Uitgangspunten):
+  - Bij twijfel vraagt Huisplan één keer. Na voldoende zekerheid en toestemming kan het de
+    handeling voortaan zelfstandig uitvoeren.
+  - Hoe groter het gevolg van een fout, hoe meer bevestiging nodig is.
+  - Automatisering moet zichtbaar, voorspelbaar en eenvoudig terug te draaien zijn.
+  - De risicogrenzen uit principe 5 blijven leidend.
 - Hoe dat in 3.3–3.6 wordt uitgewerkt, is nog niet ontworpen. Dat volgt bij de Productkompas-toets
   van deze stappen.
 
@@ -304,7 +331,10 @@ Een deel kan parallel aan fase 2 en 3. Zodra fase 1 in productie draait (na 1.15
   daadwerkelijk waarde heeft.
 
 **4.5 Abonnement en betalen** ✏️ (beslissing 3)
-- Vervallen: een proefperiode waarna de app alleen-lezen wordt.
+- Vervallen: het model waarbij de hele planner na afloop van een proefperiode alleen-lezen of
+  onbruikbaar wordt.
+- Een Premium-proefperiode blijft een open mogelijkheid. Een mogelijke richting:
+  Premium-proefperiode, daarna terug naar een bruikbare Gratis-versie.
 - Richting:
   - De gratis versie moet bruikbaar blijven voor organiseren.
   - Premium verkoopt extra gemak, automatisering, AI en koppelingen.
@@ -321,7 +351,7 @@ die erachter staat. De kolom "Oorspronkelijk advies" komt uit de roadmap van 2 o
 | Inlogmethoden | 1.7 | Start met een e-mailcode (geen wachtwoord); Apple en Google in fase 4. | Ongewijzigd open. |
 | Bewaartermijn van de oude Firebase-data | 1.15 | 90 dagen na de overstap, daarna kan het huishouden het eigen project opruimen. | Ongewijzigd open. |
 | Navigatie | 3.1, 3.5 | Beslissen na het onderzoek in 3.1, niet vooraf. | 🔁 Vóór 3.1 toetsen aan werkelijk gebruik (beslissing 2). |
-| Prijsmodel en welke functies betaald zijn | 4.5 | Eén abonnement per huishouden, onbeperkt leden, met proefperiode; eventueel AI-foto's als extra. | ✏️ Een proefperiode die eindigt in alleen-lezen vervalt (beslissing 3). Het prijsmodel zelf staat nog open. |
+| Prijsmodel en welke functies betaald zijn | 4.5 | Eén abonnement per huishouden, onbeperkt leden, met proefperiode; eventueel AI-foto's als extra. | ✏️ Vervallen: de hele planner alleen-lezen of onbruikbaar na een proefperiode (beslissing 3). Een Premium-proefperiode blijft mogelijk, bijvoorbeeld met daarna een terugval naar een bruikbare Gratis-versie. Het prijsmodel zelf staat nog open. |
 | AI-dienst voor foto's en de kosten daarvan | 3.8 | Pas kiezen als 3.1–3.7 bewezen zijn; verwerking in de EU en geen opslag bij de dienst. | 🔁 De prioriteit van 3.8 wordt herbeoordeeld bij de eerstvolgende roadmapreview (beslissing 5). |
 | Alleen web-app of ook in de app-winkels | 4.10 | Eerst als web-app; app-winkels pas als pushmeldingen op iPhone een probleem blijken. | Ongewijzigd open. |
 | Welke secundaire functies definitief blijven na 2.14 | Na 2.14 | Na minimaal drie maanden gebruikscijfers per functie beslissen. | 🔁 Op basis van werkelijk gebruik (beslissing 10). |

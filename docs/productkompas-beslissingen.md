@@ -5,6 +5,7 @@ Huisplan Productkompas v1.0 (`PRODUCT_PRINCIPLES.md`). Het Productkompas zelf bl
 wordt hier niet gewijzigd of aangevuld.
 
 - Vastgesteld: 5 oktober 2026, door de producteigenaar, na een conflictanalyse van roadmap en documentatie.
+  Aangevuld op dezelfde dag met verduidelijkingen bij de beslissingen 1, 3, 6, 8 en 9.
 - De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
@@ -13,27 +14,29 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 
 | Gate | Geldt vóór | Bron |
 | --- | --- | --- |
-| Activiteit of auteurschap maakt iemand niet automatisch huishoudlid. Fase 1.5 mag het bekende probleem met externe gebruikers niet verder verspreiden. | Persoonsmigratie (1.5) en centraal ledenbeheer | Beslissing 6 |
+| Activiteit of auteurschap maakt iemand niet automatisch huishoudlid. 1.5 respecteert deze regel en verspreidt het bekende probleem met externe gebruikers niet verder; 1.6 lost het structureel op. | 1.5 (persoonsmigratie) en 1.6 (centraal ledenbeheer) | Beslissing 6 |
 | Het ledenregister op de echte planner is gecontroleerd. | Start van fase 1.5 | Beslissing 8 |
-| Privacy wordt niet uitsluitend door de UI afgedwongen (security/privacy-gate). | Supabase bedient daadwerkelijk huishouddata | Beslissing 9 |
+| Vóór `SupabaseStore` huishouddata gaat lezen/schrijven, moet de Supabase-autorisatie/RLS het onderscheid tussen gedeelde en afgeschermde huishouddata veilig kunnen ondersteunen voor de gegevens waarvoor dat op dat moment nodig is (security/privacy-gate). | 1.10 | Beslissing 9 |
 | De navigatie is getoetst aan werkelijk gebruik. | Fase 3.1 | Beslissing 2 |
 
 ## Beslissingen
 
 ### 1. Altijd bevestiging vragen: aanpassen
 
-- **Huidige roadmap:** fase 3 en stap 3.3 gaan uit van "altijd om bevestiging vragen" en "nooit iets
+- **Oorspronkelijke roadmap:** fase 3 en stap 3.3 gaan uit van "altijd om bevestiging vragen" en "nooit iets
   stil ergens neerzetten".
 - **Productkompas:** principes 5 en 6.
 - **Beslissing:** de toekomstige roadmap gaat uit van het volgende.
-  - Bij twijfel vragen.
-  - Na voldoende zekerheid en toestemming mag Huisplan zelfstandig handelen.
+  - Bij twijfel vraagt Huisplan één keer. Na voldoende zekerheid en toestemming kan het de
+    handeling voortaan zelfstandig uitvoeren.
   - Hoe groter het gevolg van een fout, hoe meer bevestiging nodig is.
   - Automatisering moet zichtbaar, voorspelbaar en eenvoudig terug te draaien zijn.
+  - De risicogrenzen uit principe 5 blijven leidend.
+  - (Aanvulling: de formulering is gelijkgetrokken met principe 5.)
 
 ### 2. Navigatie: later herbeoordelen
 
-- **Huidige roadmap:** stap 3.1 gaat uit van Vandaag | Boodschappen | + | Ons huis.
+- **Oorspronkelijke roadmap:** stap 3.1 gaat uit van Vandaag | Boodschappen | + | Ons huis.
 - **Huidige app:** Vandaag, Bakje, Boodschappen, Meer.
 - **Productkompas:** principe 8.
 - **Beslissing:** de navigatie in het Productkompas is een hypothese, geen definitief ontwerp.
@@ -41,23 +44,27 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 
 ### 3. Proefperiode die daarna alleen-lezen wordt: aanpassen
 
-- **Huidige roadmap:** stap 4.5 gaat uit van een proefperiode, waarna de app alleen-lezen wordt.
+- **Oorspronkelijke roadmap:** stap 4.5 gaat uit van een proefperiode, waarna de app alleen-lezen wordt.
 - **Productkompas:** principe 10.
 - **Beslissing:** deze productrichting vervalt.
+  - Wat vervalt, is het model waarbij de hele planner na afloop van een proefperiode alleen-lezen
+    of onbruikbaar wordt.
+  - Een Premium-proefperiode blijft een open mogelijkheid. Een mogelijke richting:
+    Premium-proefperiode, daarna terug naar een bruikbare Gratis-versie.
   - De gratis versie moet bruikbaar blijven voor organiseren.
   - Premium verkoopt extra gemak, automatisering, AI en koppelingen.
   - Bestaande huishouddata worden niet gegijzeld.
 
 ### 4. Pushmeldingen: later herbeoordelen
 
-- **Huidige roadmap:** stap 4.1 voegt pushmeldingen toe.
+- **Oorspronkelijke roadmap:** stap 4.1 voegt pushmeldingen toe.
 - **Productkompas:** principe 6.
 - **Beslissing:** push blijft mogelijk. Bij het ontwerp wordt het getoetst aan principe 6: alleen
   aandacht vragen wanneer de melding daadwerkelijk waarde heeft.
 
 ### 5. AI en foto's: herprioriteren bij de eerstvolgende roadmapreview
 
-- **Huidige roadmap:** stap 3.8 (AI en foto's) staat als laatste.
+- **Oorspronkelijke roadmap:** stap 3.8 (AI en foto's) staat als laatste.
 - **Productkompas:** principe 1, met de schoolbrief-foto als voorbeeld.
 - **Beslissing:** het omzetten van een foto of document in relevante huishoudinformatie is een
   belangrijk voorbeeld van de kernbelofte van Huisplan. Het houdt niet automatisch de laagste
@@ -68,13 +75,15 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 
 - **Huidige situatie (1.4.1):** wie iets toevoegt (als auteur of toevoeger) geldt als betrouwbaar
   lid. Een externe gebruiker kan zo huishoudlid worden. Dit staat als open punt in
-  `docs/fase1-notities.md`.
+  `docs/fase1-notities.md` op de branch van PR #8. Dat het punt tot de merge van PR #8 alleen
+  daar staat, is tijdelijk geaccepteerd; het wordt niet gedupliceerd.
 - **Productkompas:** principe 7 ("Een persoon, naam of label dat ergens in Huisplan voorkomt, is
   niet automatisch een huishoudlid.").
 - **Beslissing:** PR #8 blijft hiervoor ongewijzigd en het bekende probleem blijft expliciet
-  gedocumenteerd. Dit is een harde randvoorwaarde voor persoonsmigratie en centraal ledenbeheer:
-  activiteit of auteurschap maakt iemand niet automatisch huishoudlid. Fase 1.5 mag dit probleem
-  niet verder verspreiden.
+  gedocumenteerd. Dit is een harde randvoorwaarde voor persoonsmigratie (1.5) en centraal
+  ledenbeheer (1.6): activiteit of auteurschap maakt iemand niet automatisch huishoudlid.
+  1.5 moet deze regel al respecteren en mag het probleem niet verder verspreiden. 1.6 lost het
+  structureel op.
 
 ### 7. Losse dialogen en rode bevestigingsknop: niet aanpassen in 1.4.1
 
@@ -86,23 +95,27 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 
 ### 8. Een foutief "nee" herstellen: tijdelijk accepteren
 
-- **Huidige situatie (1.4.1):** een gegeven "nee" kan pas met het centrale ledenbeheer worden
+- **Huidige situatie (1.4.1):** een gegeven "nee" kan pas met het centrale ledenbeheer (1.6) worden
   hersteld.
 - **Productkompas:** de regel "Fouten moeten goedkoop zijn".
 - **Beslissing:**
   - Tijdelijk geaccepteerd.
   - Het register wordt gecontroleerd vóór 1.5.
-  - Structureel herstel hoort in het centrale ledenbeheer.
+  - Structureel herstel hoort in het centrale ledenbeheer (1.6).
   - Wordt dat sterk uitgesteld, dan beoordelen we dit opnieuw.
 
-### 9. Supabase en privacy: verplicht vóór productiegebruik
+### 9. Supabase en privacy: gate vóór 1.10
 
 - **Huidige situatie:** de Row Level Security geeft elk huishoudlid zicht op alle items. Claims op
   verlanglijstjes worden alleen client-side verborgen.
 - **Productkompas:** de regel "Privacy volgt de situatie".
 - **Beslissing:** privacy mag niet uitsluitend door de UI worden afgedwongen. Dit is een expliciete
-  security/privacy-gate vóórdat Supabase daadwerkelijk huishouddata gaat bedienen. De oplossing
-  wordt nu nog niet ontworpen of geïmplementeerd.
+  security/privacy-gate vóór stap 1.10:
+  > Vóór `SupabaseStore` huishouddata gaat lezen/schrijven, moet de Supabase-autorisatie/RLS het
+  > onderscheid tussen gedeelde en afgeschermde huishouddata veilig kunnen ondersteunen voor de
+  > gegevens waarvoor dat op dat moment nodig is.
+- Dit betekent niet dat alle toekomstige privacyfuncties vóór 1.10 gebouwd moeten worden.
+- De oplossing wordt nu nog niet ontworpen of geïmplementeerd.
 
 ### 10. Bestaande functies: later herbeoordelen
 
