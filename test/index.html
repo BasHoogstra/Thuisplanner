@@ -1954,7 +1954,7 @@ header h1 img{width:28px!important;height:28px!important;border-radius:0!importa
 (function(){
 'use strict';
 // Versie van de app; zie CHANGELOG.md. Wordt per stap opgehoogd.
-var APP_VERSION='1.4.0';
+var APP_VERSION='1.4.1';
 var CATS={huis:{label:'Huis',color:'#f0932b',emoji:'🏠'},samen:{label:'Samen',color:'#5b4fe0',emoji:'💜'},boodschappen:{label:'Boodschappen',color:'#27ae60',emoji:'🛒'},onderhoud:{label:'Onderhoud',color:'#e74c3c',emoji:'🔧'},regelen:{label:'Regelen',color:'#4a90d9',emoji:'📋'},financien:{label:'Financiën',color:'#f39c12',emoji:'💰'},sport:{label:'Sport',color:'#00b894',emoji:'🏃'},thuis:{label:'Huis',color:'#f0932b',emoji:'🏠'},werk:{label:'Werk',color:'#4a90d9',emoji:'💼'},overig:{label:'Overig',color:'#8a8a96',emoji:'📌'}};
 var BOOD_CATS=['Groente & fruit','Vlees, vis & vega','Zuivel & eieren','Kaas & vleeswaren','Brood & gebak','Ontbijt & beleg','Pasta, rijst & sauzen','Snacks & snoep','Frisdrank & sap','Bier & wijn','Diepvries','Drogisterij','Schoonmaak','Overig'];
 var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel & eieren':'🥛','Kaas & vleeswaren':'🧀','Brood & gebak':'🍞','Ontbijt & beleg':'🥐','Pasta, rijst & sauzen':'🍝','Snacks & snoep':'🍿','Frisdrank & sap':'🥤','Bier & wijn':'🍷','Diepvries':'🧊','Drogisterij':'🧴','Schoonmaak':'🧹','Overig':'🛒'};
@@ -2750,12 +2750,22 @@ function showWriteGuard(reason,meta){
 //   Echte twijfel (zelfde letters maar andere accenten of tekens, bv. 'Loïs' en 'Lois') vraagt de
 //   app één keer; het antwoord staat in meta.members.same / .different (zie memberDecisions).
 // - kind is 'unknown': de data zegt niet wie een kind is; dat stel je in bij 1.6.
+// - 1.4.1: een naam die ergens in de planner staat is nog geen huishoudlid. Alleen namen die de app
+//   zelf schrijft met de naam van een toestel (auteur, toegevoegd door, toegewezen aan, reacties,
+//   Wie is waar, verlanglijstjes) en de namen op dit toestel gelden direct als lid. Vrije labels
+//   (vakantiePersonen en de kolommen van de paklijsten: ook een paard, een categorie of oma die
+//   meegaat) zijn alleen kandidaat: de app vraagt één keer "Hoort … bij jullie huishouden?".
+//   Het antwoord staat in meta.members.member / .notMember; "nee" wint bij tegenstrijdige
+//   antwoorden. Een lid uit 1.4 dat alleen als label voorkomt wordt ook gevraagd en bij "nee" uit
+//   het register gehaald; de vakantiegegevens zelf blijven ongewijzigd.
 // - Alleen dit blok tot "einde LEDENREGISTER" is puur (geen DOM, geen globale variabelen) en wordt
 //   zo ook los getest (tests/leden.test.js).
-var MEMBERS_VERSION=1;
+var MEMBERS_VERSION=2; // 1 = 1.4.0, 2 = 1.4.1 (alleen echte huishoudleden)
 var MEMBER_COLORS=['#5b4fe0','#f0932b','#27ae60','#e74c3c','#4a90d9','#00b894','#f39c12','#8a8a96'];
 // Geen personen: lege waarden en de plaatsvervangers die de app zelf gebruikt zonder ingestelde naam.
 var MEMBER_PLACEHOLDERS=['me','partner','ik'];
+// Vrije labels: hier kan elke tekst staan, dus alleen kandidaat-lid (zie hierboven).
+var MEMBER_LABEL_SOURCES=['vakantiePersonen','vakanties.paklijst'];
 function memberKey(n){return String(n==null?'':n).normalize('NFC').replace(/\s+/g,' ').trim().toLowerCase();}
 function memberLooseKey(n){return memberKey(n).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');}
 function memberHash(s){
@@ -2780,7 +2790,7 @@ function collectMemberNames(d){
   function add(v,src){
     if(typeof v!=='string')return;
     var k=memberKey(v);if(!k||MEMBER_PLACEHOLDERS.indexOf(k)>-1)return;
-    out.push({name:v.replace(/\s+/g,' ').trim(),key:k,src:src});
+    out.push({name:v.replace(/\s+/g,' ').trim(),key:k,src:src,label:MEMBER_LABEL_SOURCES.indexOf(src)>-1});
   }
   function task(t,src){
     if(!t)return;add(t.author,src+'.author');add(t.assignedTo,src+'.assignedTo');
@@ -2817,22 +2827,35 @@ function memberDecisions(mm){
   });
   return d;
 }
+// Antwoorden op "Hoort … bij jullie huishouden?": meta.members.member / .notMember, elk
+// {p_<hash>: genormaliseerde naam}. Staat een naam in beide, dan geldt "nee".
+function memberMembership(mm){
+  var d={};
+  ['member','notMember'].forEach(function(t){
+    var o=mm&&typeof mm==='object'&&mm[t]&&typeof mm[t]==='object'?mm[t]:{};
+    Object.keys(o).forEach(function(h){if(typeof o[h]==='string')d[o[h]]=t==='member'?'yes':'no';});
+  });
+  return d;
+}
 // Berekent het register zonder iets te wijzigen. device = {myName, partnerName} van dit toestel;
-// decisions = {pairKey: 'same'|'different'}. Geeft {members, added, doubts, changed}.
-// Bij twijfelgevallen hoort de app eerst te vragen en dan opnieuw te plannen met de antwoorden.
-function planMemberRegister(d,device,decisions){
-  decisions=decisions||{};device=device||{};
+// decisions = {pairKey: 'same'|'different'}; membership = {naam: 'yes'|'no'}.
+// Geeft {members, added, removed, questions, doubts, changed}. Bij vragen of twijfel hoort de app
+// eerst te vragen en dan opnieuw te plannen met de antwoorden.
+function planMemberRegister(d,device,decisions,membership){
+  decisions=decisions||{};device=device||{};membership=membership||{};
   var members=(Array.isArray(d.members)?d.members:[]).filter(function(m){return m&&m.id&&typeof m.name==='string';})
     .map(function(m){var c={};Object.keys(m).forEach(function(k){c[k]=Array.isArray(m[k])?m[k].slice():m[k];});return c;});
   var groups={},order=[];
   collectMemberNames(d).forEach(function(f){
-    var g=groups[f.key];if(!g){g=groups[f.key]={spellings:{},n:order.length};order.push(f.key);}
-    g.spellings[f.name]=(g.spellings[f.name]||0)+1;
+    var g=groups[f.key];if(!g){g=groups[f.key]={spellings:{},n:order.length,reliable:false,srcs:{}};order.push(f.key);}
+    g.spellings[f.name]=(g.spellings[f.name]||0)+1;g.srcs[f.src]=1;
+    if(!f.label)g.reliable=true;
   });
-  // Namen die alleen op dit toestel zijn ingesteld (nog nergens in de data).
+  // De namen op dit toestel ("jij" en "partner") zijn altijd betrouwbaar, ook als ze nog nergens staan.
   [device.myName,device.partnerName].forEach(function(n){
-    var k=memberKey(n);if(!k||MEMBER_PLACEHOLDERS.indexOf(k)>-1||groups[k])return;
-    groups[k]={spellings:{},n:order.length};groups[k].spellings[String(n).replace(/\s+/g,' ').trim()]=1;order.push(k);
+    var k=memberKey(n);if(!k||MEMBER_PLACEHOLDERS.indexOf(k)>-1)return;
+    if(!groups[k]){groups[k]={spellings:{},n:order.length,srcs:{}};groups[k].spellings[String(n).replace(/\s+/g,' ').trim()]=1;order.push(k);}
+    groups[k].reliable=true;groups[k].srcs.toestel=1;
   });
   // Vaste volgorde, onafhankelijk van het toestel: eerst vakantiePersonen-volgorde, dan alfabetisch.
   var vp=(Array.isArray(d.vakantiePersonen)?d.vakantiePersonen:[]).map(memberKey);
@@ -2847,7 +2870,20 @@ function planMemberRegister(d,device,decisions){
       if(ua!==ub)return ua?-1:1;if(sp[a]!==sp[b])return sp[b]-sp[a];return a<b?-1:a>b?1:0;
     })[0];
   }
-  var added=[],doubts=[],changed=false;
+  var added=[],doubts=[],questions=[],removed=[],changed=false;
+  function ask(k,name,srcs){if(!questions.some(function(q){return q.key===k;}))questions.push({key:k,name:name,sources:srcs});}
+  // Bestaande leden (bv. uit 1.4.0): alleen houden als ze betrouwbaar zijn of als lid zijn bevestigd.
+  // Een expliciet antwoord gaat altijd voor. Een lid dat nergens meer voorkomt blijft staan.
+  members=members.filter(function(m){
+    var nk=memberKey(m.name),ans=membership[nk];
+    if(ans==='no'){removed.push(m);changed=true;return false;}
+    if(ans==='yes')return true;
+    var ev=memberKeys(m).filter(function(k){return groups[k];});
+    if(!ev.length||ev.some(function(k){return groups[k].reliable||membership[k]==='yes';}))return true;
+    var srcs={};ev.forEach(function(k){Object.keys(groups[k].srcs).forEach(function(x){srcs[x]=1;});});
+    ask(nk,m.name,Object.keys(srcs));
+    return true;
+  });
   // "Twee personen" geldt ook als een ander toestel ze al als dezelfde had samengevoegd: die andere
   // schrijfwijze gaat dan weer uit de aliases, en wordt hieronder een eigen lid (vast ID).
   Object.keys(decisions).forEach(function(pk){
@@ -2864,6 +2900,10 @@ function planMemberRegister(d,device,decisions){
   keys.forEach(function(k){
     if(findMember(members,k))return; // al in het register (naam of eerdere schrijfwijze)
     var name=pick(groups[k].spellings),id=memberIdFor(k);
+    // Alleen echte huishoudleden: een vrij label wordt pas lid na een "ja".
+    var ans=membership[k];
+    if(ans==='no')return;
+    if(ans!=='yes'&&!groups[k].reliable){ask(k,name,Object.keys(groups[k].srcs));return;}
     var sameId=members.filter(function(m){return m.id===id;})[0];
     if(sameId){(sameId.aliases=sameId.aliases||[]).push(name);changed=true;return;}
     var loose=memberLooseKey(k);
@@ -2876,7 +2916,7 @@ function planMemberRegister(d,device,decisions){
     var m={id:id,name:name,kind:'unknown',color:memberColor(id)};
     members.push(m);added.push(m);changed=true;
   });
-  return {members:members,added:added,doubts:doubts,changed:changed};
+  return {members:members,added:added,removed:removed,questions:questions,doubts:doubts,changed:changed};
 }
 // Terugdraaien: precies de velden weghalen die deze migratie toevoegde.
 function withoutMemberRegister(d){
@@ -2891,7 +2931,14 @@ function withoutMemberRegister(d){
 // bewuste keuze. Lezen en het koppelen van dit toestel werken altijd zodra er een register is.
 function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function lsSet(k,v){try{if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){}}
-function membersMigrationEnabled(){return lsGet('plannerLedenregister')==='aan';}
+// 1.4.1 zet 'aan' om naar 'aan-1.4.1'. Een nog openstaande 1.4.0-versie op dit toestel (die alleen
+// 'aan' kent) stopt daardoor met aanvullen, zodat die geen labels als lid terugzet.
+var MEMBERS_SWITCH_ON='aan-1.4.1';
+function membersMigrationEnabled(){
+  var v=lsGet('plannerLedenregister');
+  if(v==='aan'){lsSet('plannerLedenregister',MEMBERS_SWITCH_ON);v=MEMBERS_SWITCH_ON;}
+  return v===MEMBERS_SWITCH_ON;
+}
 function memberMeta(){return data.meta&&typeof data.meta==='object'&&!Array.isArray(data.meta)?data.meta:null;}
 // Wie ben ik op dit toestel: plannerMemberId. myName blijft de bestaande, opgeslagen naam (daarop
 // hangen o.a. de verlanglijstjes); alleen als die ontbreekt, komt hij uit het register.
@@ -2913,45 +2960,67 @@ function linkDeviceMember(){
     }
     return;
   }
-  if(!id&&myName){var f=findMember(members,myName);if(f)lsSet('plannerMemberId',f.id);}
+  // Nog niet gekoppeld, of het gekoppelde lid bestaat niet meer: via de eigen naam.
+  if(myName){var f=findMember(members,myName);if(f)lsSet('plannerMemberId',f.id);}
 }
 // Na het (opnieuw) instellen van de eigen naam: koppeling opnieuw bepalen.
 function relinkDeviceMember(){lsSet('plannerMemberId',null);linkDeviceMember();ensureMemberRegister();}
 var _memberDoubtsOpen=false;
-function askMemberDoubts(doubts,done){
+// Vragen één voor één met de bestaande bevestigingsdialoog; zonder "ja" geldt het andere antwoord.
+function askMember(list,text,yes,no,okText,cancelText,done){
   var answers={},i=0;_memberDoubtsOpen=true;
   (function next(){
-    if(i>=doubts.length){_memberDoubtsOpen=false;done(answers);return;}
-    var q=doubts[i++];answers[q.key]='different';
-    customConfirm('Zijn “'+q.a+'” en “'+q.b+'” dezelfde persoon?',function(){answers[q.key]='same';next();},
-      {okText:'Ja, dezelfde',cancelText:'Nee, twee personen',onCancel:next});
+    if(i>=list.length){_memberDoubtsOpen=false;done(answers);return;}
+    var q=list[i++];answers[q.key]=no;
+    customConfirm(text(q),function(){answers[q.key]=yes;next();},{okText:okText,cancelText:cancelText,onCancel:next});
   })();
 }
-function ensureMemberRegister(){
+var MEMBER_SOURCE_LABEL={vakantiePersonen:'vakantiepersonen','vakanties.paklijst':'paklijsten'};
+function memberQuestionText(q){
+  var where=q.sources.map(function(x){return MEMBER_SOURCE_LABEL[x]||x;}).filter(function(x,i,a){return a.indexOf(x)===i;});
+  return 'Hoort “'+q.name+'” bij jullie huishouden?'+(where.length?' (staat nu alleen bij '+where.join(' en ')+')':'');
+}
+// pending: antwoorden die op dit toestel in deze ronde zijn gegeven ({decisions, membership}).
+function ensureMemberRegister(pending){
   linkDeviceMember();
   if(!membersMigrationEnabled()||_memberDoubtsOpen)return;
-  var meta=memberMeta();
-  var decisions=memberDecisions(meta&&meta.members);
+  pending=pending&&pending.membership?pending:{decisions:{},membership:{}};
+  var meta=memberMeta(),mm=meta&&meta.members;
+  var decisions=memberDecisions(mm),membership=memberMembership(mm);
+  Object.keys(pending.decisions).forEach(function(k){if(decisions[k]!=='different')decisions[k]=pending.decisions[k];});
+  Object.keys(pending.membership).forEach(function(k){if(membership[k]!=='no')membership[k]=pending.membership[k];});
   var device={myName:myName,partnerName:partnerName};
-  var plan=planMemberRegister(data,device,decisions);
-  if(plan.doubts.length){
-    askMemberDoubts(plan.doubts,function(answers){
-      var m2=memberMeta(),dec=memberDecisions(m2&&m2.members);
-      Object.keys(answers).forEach(function(pk){if(dec[pk]!=='different')dec[pk]=answers[pk];});
-      applyMemberPlan(planMemberRegister(data,device,dec),answers);
+  var plan=planMemberRegister(data,device,decisions,membership);
+  if(plan.questions.length){
+    askMember(plan.questions,memberQuestionText,'yes','no','Ja, hoort erbij','Nee',function(a){
+      Object.assign(pending.membership,a);ensureMemberRegister(pending);
     });
     return;
   }
-  if(plan.changed)applyMemberPlan(plan,{});
+  if(plan.doubts.length){
+    askMember(plan.doubts,function(q){return 'Zijn “'+q.a+'” en “'+q.b+'” dezelfde persoon?';},'same','different','Ja, dezelfde','Nee, twee personen',function(a){
+      Object.assign(pending.decisions,a);ensureMemberRegister(pending);
+    });
+    return;
+  }
+  var outdated=!!(mm&&typeof mm==='object'&&!(mm.version>=MEMBERS_VERSION));
+  var answered=Object.keys(pending.decisions).length||Object.keys(pending.membership).length;
+  if(plan.changed||outdated||answered)applyMemberPlan(plan,pending);
 }
-// answers: alleen de nieuwe antwoorden van dit toestel; bestaande antwoorden blijven staan.
-function applyMemberPlan(plan,answers){
-  if(plan.doubts.length||!plan.changed&&Array.isArray(data.members))return;
+// pending: alleen de nieuwe antwoorden van dit toestel; bestaande antwoorden blijven staan.
+function applyMemberPlan(plan,pending){
+  if(plan.doubts.length||plan.questions.length)return;
+  pending=pending&&pending.membership?pending:{decisions:{},membership:{}};
   stampSchemaVersion(data); // gebeurt bij het opslaan toch; zo klopt de controlesom van het vangnet
   if(!Array.isArray(data.members)){
     // Vangnet vóór de eerste migratie op dit toestel: wat de migratie raakt plus een controlesom
     // van de hele planner, zodat terugdraaien aantoonbaar de oude stand oplevert.
     lsSet('plannerLedenBackup',JSON.stringify({at:new Date().toISOString(),app:APP_VERSION,check:memberHash(canon(data)),hadMembers:'members' in data,members:data.members}));
+  } else {
+    // Vangnet vóór de 1.4.1-correctie van een register uit 1.4.0: het register zoals het was.
+    var pm=memberMeta()&&memberMeta().members;
+    if(!lsGet('plannerLedenBackupV1')&&!(pm&&pm.version>=MEMBERS_VERSION))
+      lsSet('plannerLedenBackupV1',JSON.stringify({at:new Date().toISOString(),app:APP_VERSION,members:data.members,meta:pm||null}));
   }
   data.members=plan.members;
   if(data.meta==null)data.meta={};
@@ -2959,10 +3028,10 @@ function applyMemberPlan(plan,answers){
   if(meta){
     var prev=meta.members&&typeof meta.members==='object'?meta.members:{};
     var mm={version:MEMBERS_VERSION,migratedAt:prev.migratedAt||new Date().toISOString(),app:APP_VERSION};
-    ['same','different'].forEach(function(t){
-      var o=Object.assign({},prev[t]&&typeof prev[t]==='object'?prev[t]:{});
-      Object.keys(answers||{}).forEach(function(pk){if(answers[pk]===t)o[memberDecisionKey(pk)]=pk;});
-      if(Object.keys(o).length)mm[t]=o;
+    [['same','decisions','same'],['different','decisions','different'],['member','membership','yes'],['notMember','membership','no']].forEach(function(t){
+      var o=Object.assign({},prev[t[0]]&&typeof prev[t[0]]==='object'?prev[t[0]]:{}),ans=pending[t[1]];
+      Object.keys(ans).forEach(function(k){if(ans[k]===t[2])o[memberDecisionKey(k)]=k;});
+      if(Object.keys(o).length)mm[t[0]]=o;
     });
     meta.members=mm;
   }
@@ -2982,7 +3051,7 @@ window.huisplanLeden={
     var meta=memberMeta();
     return {aan:membersMigrationEnabled(),versie:meta&&meta.members?meta.members.version:null,
       leden:Array.isArray(data.members)?data.members.length:0,plannerMemberId:lsGet('plannerMemberId'),
-      vangnet:!!lsGet('plannerLedenBackup')};
+      vangnet:!!lsGet('plannerLedenBackup'),namen:Array.isArray(data.members)?data.members.map(function(m){return m.name;}):[]};
   },
   terugdraaien:rollbackMemberRegister
 };

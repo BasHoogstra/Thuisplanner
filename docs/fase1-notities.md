@@ -141,3 +141,47 @@ LF-regeleinden hebben (`.gitattributes`), anders krijgen functies vanaf Windows 
   back-up/Firebase controleren (Bas, Sanne, Lynn, Loïs … elk één keer); (6) het tweede toestel openen
   en controleren dat het niets dubbel maakt en zich koppelt.
 
+## 11. Stap 1.4.1: huishoudlid ≠ elke naam in de planner
+- **Praktijk**: `vakantiePersonen` is een vrije lijst kolomkoppen voor de paklijsten ("+ Naam"); elke
+  nieuwe kop krijgt een lege paklijst in alle vakanties. Daar staan ook een paard (Freya), een
+  categorie (Boodschappen) en straks misschien oma die meegaat. Uit de data alleen is een kind (Lynn)
+  niet van een paard te onderscheiden: beide staan alleen als kolom. Daarom vraagt de app het.
+- **Bronnen**:
+  | Betrouwbaar (direct lid) | Alleen kandidaat |
+  |---|---|
+  | namen op het toestel (`plannerMyName`, `plannerPartnerName`) | `vakantiePersonen` |
+  | `author`, `addedBy`, `editedBy`, `auteur`, `claimedBy`, reacties (de app schrijft hier de toestelnaam) | sleutels van `vakanties[].paklijst` |
+  | `assignedTo` (alleen "ik"/"partner" te kiezen), sleutels van `wieIsWaar` (alleen ik/partner), verlanglijstjes | |
+  Kanttekening: iemand die de deellink krijgt en een naam invult (bv. een oppas) wordt via
+  "auteur" ook direct lid. Zie het open punt hieronder.
+- **Datamodel**: `data.members` = alleen echte huishoudleden. Een label dat geen lid is, blijft
+  gewoon op zijn eigen plek staan (vakantiePersonen, paklijst) als lokale "extra"; er komt geen apart
+  register voor extra's. `meta.members.member` / `.notMember` bewaren de antwoorden.
+- **Vragen nu (1.4.1) in plaats van in 1.6**: 1.5 zet verwijzingen om naar ID's en heeft dan een
+  register nodig dat compleet én juist is. Zonder bevestiging zou Lynn óf ontbreken (alleen labels) óf
+  Freya erin staan. De vraag gebruikt de bestaande bevestigingsdialoog; beheer (hernoemen, toevoegen,
+  kind/volwassene) blijft voor 1.6.
+- **Open punt (niet opgelost in 1.4.1): externe gebruiker, gast of oppas.** Wie via de gedeelde link
+  de planner opent en iets toevoegt, staat daarna als auteur/toevoeger in de data. In 1.4.1 telt dat
+  als betrouwbare bron, dus zo iemand wordt direct lid. Dat mag niet: een externe gebruiker is niet
+  automatisch huishoudlid. Dit moet worden opgelost in het centrale ledenbeheer (1.6: lid kunnen
+  verwijderen en als "geen lid" markeren) en meegenomen vóór en tijdens elke persoonsmigratie (1.5,
+  en de import in 1.12): controleer het register handmatig en behandel zo'n naam als lokale naam, niet
+  als lid.
+- **Gevolgen voor 1.5 (verplicht):**
+  - `resolveMember(waarde)` moet expliciet "geen huishoudlid" kunnen teruggeven (bv. `null` met de
+    oorspronkelijke tekst), en mag nooit zelf een lid aanmaken.
+  - Persoonsachtige labels (vakantiekolommen zoals Freya, Boodschappen, Oma, en alles wat geen lid is
+    in `data.members`) worden **niet** automatisch naar een member-ID omgezet; ze blijven tekst.
+  - De migratie van `vakantiePersonen` en paklijsten kiest per kolom: member-ID als het een lid is,
+    anders de lokale naam ongewijzigd laten.
+  - Vóór 1.5: het register controleren (`huisplanLeden.status().namen`) en het open punt over externe
+    gebruikers hierboven nalopen.
+- **Gevolgen voor 1.6**: "Ons huishouden" moet leden kunnen toevoegen, verwijderen en een "nee" kunnen
+  herzien (anders blijft een per ongeluk afgewezen kind buiten het register); `kind` invullen.
+  Vakanties: personen kiezen uit leden plus lokale extra's.
+- **Op de echte planner (nog niet gedaan)**: 1.4.1 live zetten; op het toestel met de schakelaar
+  herladen (de schakelaar wordt dan `aan-1.4.1`); de vier vragen beantwoorden (Lynn ja, Loïs ja,
+  Freya nee, Boodschappen nee); daarna `huisplanLeden.status()`: `versie: 2`, `leden: 4`,
+  `namen: Bas, Sanne, Lynn, Loïs`. Openstaande tabbladen met 1.4.0 eerst sluiten of herladen.
+

@@ -1,0 +1,153 @@
+{
+ "meta": {
+  "schemaVersion": 1
+ },
+ "vakantiePersonen": [
+  "Bas",
+  "Sanne",
+  "Lynn",
+  "Loïs",
+  "Freya",
+  "Boodschappen"
+ ],
+ "tasks": {
+  "2026-10-02": [
+   {
+    "id": "t1",
+    "text": "Hoefsmid bellen",
+    "done": false,
+    "category": "regelen",
+    "priority": "normaal",
+    "assignedTo": "Sanne",
+    "author": "Bas",
+    "orderStatus": null
+   },
+   {
+    "id": "t2",
+    "text": "Zwemtas Lynn inpakken",
+    "done": false,
+    "category": "samen",
+    "priority": "normaal",
+    "assignedTo": "Bas",
+    "author": "Sanne",
+    "orderStatus": null,
+    "reactions": {
+     "👍": [
+      "Bas"
+     ]
+    }
+   }
+  ]
+ },
+ "boodschappen": [
+  {
+   "id": "b1",
+   "text": "Melk",
+   "done": false,
+   "cat": "Zuivel & eieren",
+   "addedBy": "Sanne",
+   "addedDate": "2026-10-01"
+  },
+  {
+   "id": "b2",
+   "text": "Paardenbrokken",
+   "done": false,
+   "cat": "Overig",
+   "addedBy": "Bas",
+   "addedDate": "2026-10-01"
+  }
+ ],
+ "huisgeheugen": [
+  {
+   "id": "h1",
+   "type": "taak",
+   "tekst": "Stal uitgemest",
+   "datum": "2026-09-20",
+   "auteur": "Sanne",
+   "ts": 1789900000000
+  }
+ ],
+ "wieIsWaar": {
+  "2026-10-05": {
+   "Bas": "werk",
+   "Sanne": "thuis"
+  }
+ },
+ "verlanglijstjes": {
+  "Bas": [
+   {
+    "id": "w1",
+    "text": "Boek",
+    "claimedBy": "Sanne",
+    "addedAt": "2026-09-01"
+   }
+  ],
+  "Sanne": [
+   {
+    "id": "w2",
+    "text": "Sjaal",
+    "claimedBy": "Bas",
+    "addedAt": "2026-09-02"
+   }
+  ]
+ },
+ "vakanties": [
+  {
+   "id": "v1",
+   "naam": "Ardennen",
+   "startDatum": "2027-07-10",
+   "bestemming": "Ardennen",
+   "paklijst": {
+    "Bas": [
+     {
+      "id": "p1",
+      "text": "Wandelschoenen",
+      "done": false
+     }
+    ],
+    "Sanne": [
+     {
+      "id": "p2",
+      "text": "Regenjas",
+      "done": false
+     }
+    ],
+    "Lynn": [
+     {
+      "id": "p3",
+      "text": "Knuffel",
+      "done": false
+     }
+    ],
+    "Loïs": [
+     {
+      "id": "p4",
+      "text": "Speen",
+      "done": false
+     }
+    ],
+    "Freya": [
+     {
+      "id": "p5",
+      "text": "Hooinet",
+      "done": false
+     }
+    ],
+    "Boodschappen": [
+     {
+      "id": "p6",
+      "text": "Koffie",
+      "done": false
+     }
+    ]
+   },
+   "todos": []
+  }
+ ],
+ "lijstenSeeded": true,
+ "budgetSeeded": true,
+ "winkelsSet": true,
+ "winkels": [
+  "AH"
+ ]
+}

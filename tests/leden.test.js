@@ -22,6 +22,9 @@ const ids = ms => ms.map(m => m.id);
 const names = ms => ms.map(m => m.name);
 const shuffle = (d) => { const c = clone(d); Object.keys(c).forEach(k => { if (Array.isArray(c[k])) c[k].reverse(); }); return c; };
 const LOIS = 'lois|loïs';
+// 1.4.1: in deze fixture zijn Loïs en Opa Henk alleen vakantielabels; deze tests gaan over andere
+// dingen en geven daarom "ja, hoort erbij" mee (zoals de gebruiker zou antwoorden).
+const YES = { 'loïs': 'yes', 'opa henk': 'yes' };
 
 // ── Deel 2: hulpjes voor de app ──
 const BAS = { plannerMyName: 'Bas', plannerPartnerName: 'Sanne' };
@@ -29,11 +32,19 @@ const AAN = { plannerLedenregister: 'aan' };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const open = (ctx, db, ls, extra) => openApp(ctx.browser, ctx.base, Object.assign({ state: db, exposeETag: true, localStorage: ls }, extra || {}));
 const ls = (page, k) => page.evaluate(k => localStorage.getItem(k), k);
-async function answerDoubt(page, same) {
-  await page.waitForSelector('#confirmOverlay.open', { timeout: 4000 });
-  const q = await page.textContent('#confirmTitle');
-  await page.click(same ? '#confirmOkBtn' : '#confirmCancelBtn');
-  return q;
+const isDoubt = t => /dezelfde persoon/.test(t);
+// Beantwoordt alle vragen die de app stelt: "Hoort … bij jullie huishouden?" via member(titel),
+// "Zijn … dezelfde persoon?" via same. Geeft de gestelde vragen terug.
+async function answerAll(page, opts = {}) {
+  const member = opts.member || (() => true), same = opts.same !== false, asked = [];
+  for (;;) {
+    try { await page.waitForSelector('#confirmOverlay.open', { timeout: opts.timeout || 2500 }); } catch (e) { break; }
+    const t = await page.textContent('#confirmTitle'); asked.push(t);
+    if (opts.stopAtDoubt && isDoubt(t)) break;
+    await page.click((isDoubt(t) ? same : member(t)) ? '#confirmOkBtn' : '#confirmCancelBtn');
+    await wait(150);
+  }
+  return asked;
 }
 // Zo ziet de planner eruit na openen zónder 1.4-migratie (de bestaande omzetting van 'me'/'partner'
 // naar namen draait gewoon); daarmee vergelijken we wat de migratie verder nog verandert.
@@ -48,7 +59,7 @@ async function migrated(ctx) {
   const db = sharedDb(readFixture('leden-oud.json'));
   const o = await open(ctx, db, Object.assign({}, BAS, AAN));
   const b = db.puts;
-  await answerDoubt(o.page, true);
+  await answerAll(o.page);
   await waitForPut(db, b);
   await o.ctx.close();
   return db;
@@ -72,8 +83,8 @@ const tests = {
   async 'leden: register uit bestaande data, geen naam verloren, hoofdletters en spaties samengevoegd'() {
     const R = loadRegister();
     const d = readFixture('leden-oud.json');
-    const p = R.planMemberRegister(d, { myName: 'Bas', partnerName: 'Sanne' }, { [LOIS]: 'same' });
-    assert(!p.doubts.length && p.changed, 'Onverwachte twijfel of geen wijziging');
+    const p = R.planMemberRegister(d, { myName: 'Bas', partnerName: 'Sanne' }, { [LOIS]: 'same' }, YES);
+    assert(!p.doubts.length && !p.questions.length && p.changed, 'Onverwachte twijfel of vraag, of geen wijziging');
     assert(JSON.stringify(names(p.members)) === JSON.stringify(['Bas', 'Sanne', 'Lynn', 'Loïs', 'Opa Henk']), 'Leden: ' + names(p.members));
     assert(new Set(ids(p.members)).size === p.members.length, 'Dubbele ID');
     p.members.forEach(m => {
@@ -89,31 +100,31 @@ const tests = {
   async 'leden: twijfelgeval wordt gevraagd, het antwoord wordt gebruikt en niet opnieuw gevraagd'() {
     const R = loadRegister();
     const d = readFixture('leden-oud.json');
-    const open = R.planMemberRegister(d, { myName: 'Bas' }, {});
+    const open = R.planMemberRegister(d, { myName: 'Bas' }, {}, YES);
     assert(open.doubts.length === 1 && open.doubts[0].key === LOIS, 'Verwacht één twijfel Loïs/Lois: ' + JSON.stringify(open.doubts));
     assert(!open.added.some(m => m.name === 'Lois'), 'Twijfelgeval toch al als lid toegevoegd');
-    const diff = R.planMemberRegister(d, {}, { [LOIS]: 'different' });
+    const diff = R.planMemberRegister(d, {}, { [LOIS]: 'different' }, YES);
     assert(!diff.doubts.length && names(diff.members).includes('Loïs') && names(diff.members).includes('Lois'), 'Twee personen niet gemaakt');
     // Na het antwoord staat het in het register: opnieuw plannen vraagt niets meer.
-    const after = R.planMemberRegister(Object.assign(clone(d), { members: diff.members }), {}, {});
-    assert(!after.doubts.length && !after.changed, 'Na het antwoord toch weer twijfel of wijziging');
+    const after = R.planMemberRegister(Object.assign(clone(d), { members: diff.members }), {}, {}, YES);
+    assert(!after.doubts.length && !after.questions.length && !after.changed, 'Na het antwoord toch weer twijfel, vraag of wijziging');
   },
 
   async 'leden: ID\'s zijn stabiel bij opnieuw uitvoeren, andere volgorde en andere toestellen'() {
     const R = loadRegister();
     const d = readFixture('leden-oud.json');
     const dec = { [LOIS]: 'same' };
-    const a = R.planMemberRegister(d, { myName: 'Bas', partnerName: 'Sanne' }, dec);
-    const again = R.planMemberRegister(Object.assign(clone(d), { members: a.members }), { myName: 'Bas', partnerName: 'Sanne' }, dec);
+    const a = R.planMemberRegister(d, { myName: 'Bas', partnerName: 'Sanne' }, dec, YES);
+    const again = R.planMemberRegister(Object.assign(clone(d), { members: a.members }), { myName: 'Bas', partnerName: 'Sanne' }, dec, YES);
     assert(!again.changed && JSON.stringify(again.members) === JSON.stringify(a.members), 'Opnieuw uitvoeren verandert het register');
-    const b = R.planMemberRegister(d, { myName: 'sanne', partnerName: ' bas' }, dec);
+    const b = R.planMemberRegister(d, { myName: 'sanne', partnerName: ' bas' }, dec, YES);
     assert(JSON.stringify(a.members) === JSON.stringify(b.members), 'Ander toestel geeft een ander register');
     const byId = ms => JSON.stringify(ms.slice().sort((x, y) => x.id < y.id ? -1 : 1));
-    const c0 = R.planMemberRegister(shuffle(d), { myName: 'Bas' }, dec);
+    const c0 = R.planMemberRegister(shuffle(d), { myName: 'Bas' }, dec, YES);
     assert(byId(a.members) === byId(c0.members), 'Andere volgorde in de data geeft andere leden of ID\'s');
     // Een bestaand lid houdt zijn ID, ook als de naam later anders wordt geschreven.
     const renamed = clone(a.members); renamed[0].name = 'Bastiaan'; renamed[0].aliases = ['Bas'];
-    const c = R.planMemberRegister(Object.assign(clone(d), { members: renamed }), {}, dec);
+    const c = R.planMemberRegister(Object.assign(clone(d), { members: renamed }), {}, dec, YES);
     assert(c.members[0].id === a.members[0].id && !c.added.length, 'Bestaand lid kreeg een nieuw ID of dubbel lid');
   },
 
@@ -122,8 +133,8 @@ const tests = {
     const d = readFixture('leden-oud.json');
     const dec = { [LOIS]: 'same' };
     // Toestel A kent een naam die nog nergens in de data staat (Kees); B niet.
-    const A = R.planMemberRegister(d, { myName: 'Kees', partnerName: 'Bas' }, dec);
-    const B = R.planMemberRegister(d, { myName: 'Sanne', partnerName: 'BAS' }, dec);
+    const A = R.planMemberRegister(d, { myName: 'Kees', partnerName: 'Bas' }, dec, YES);
+    const B = R.planMemberRegister(d, { myName: 'Sanne', partnerName: 'BAS' }, dec, YES);
     const union = {}; A.members.concat(B.members).forEach(m => { union[m.id] = union[m.id] || []; union[m.id].push(m.name); });
     const perKey = {}; Object.values(union).forEach(n => { const k = R.memberKey(n[0]); perKey[k] = (perKey[k] || 0) + 1; });
     assert(Object.values(perKey).every(n => n === 1), 'Zelfde persoon onder twee ID\'s: ' + JSON.stringify(union));
@@ -140,23 +151,23 @@ const tests = {
     assert(R.memberDecisions({ different: { [h]: LOIS }, same: { [h]: LOIS } })[LOIS] === 'different', 'volgorde bepaalt de uitkomst');
     assert(R.memberDecisions({ same: { [h]: LOIS } })[LOIS] === 'same', 'same alleen niet herkend');
     // Register zoals na het samenvoegen van A ("dezelfde": alias) en B ("twee personen": eigen lid).
-    const same = R.planMemberRegister(d, {}, { [LOIS]: 'same' }).members;
-    const diffM = R.planMemberRegister(d, {}, { [LOIS]: 'different' }).members;
+    const same = R.planMemberRegister(d, {}, { [LOIS]: 'same' }, YES).members;
+    const diffM = R.planMemberRegister(d, {}, { [LOIS]: 'different' }, YES).members;
     const merged = same.concat(diffM.filter(m => !same.some(x => x.id === m.id)));
-    const fixed = R.planMemberRegister(Object.assign(clone(d), { members: merged }), {}, { [LOIS]: 'different' });
+    const fixed = R.planMemberRegister(Object.assign(clone(d), { members: merged }), {}, { [LOIS]: 'different' }, YES);
     assert(fixed.changed && !fixed.members.some(m => (m.aliases || []).includes('Lois')), 'Alias Lois niet weggehaald');
     assert(fixed.members.filter(m => R.findMember([m], 'Lois')).length === 1 && fixed.members.filter(m => R.findMember([m], 'Loïs')).length === 1, 'Lois en Loïs niet elk precies één lid');
     // Ook als alleen het samengevoegde register van A er is: Lois wordt een eigen lid met vast ID.
-    const onlyA = R.planMemberRegister(Object.assign(clone(d), { members: same }), {}, { [LOIS]: 'different' });
+    const onlyA = R.planMemberRegister(Object.assign(clone(d), { members: same }), {}, { [LOIS]: 'different' }, YES);
     assert(onlyA.members.some(m => m.name === 'Lois' && m.id === R.memberIdFor('Lois')), 'Lois geen eigen lid met vast ID');
-    const again = R.planMemberRegister(Object.assign(clone(d), { members: fixed.members }), {}, { [LOIS]: 'different' });
+    const again = R.planMemberRegister(Object.assign(clone(d), { members: fixed.members }), {}, { [LOIS]: 'different' }, YES);
     assert(!again.changed, 'Herstel is niet idempotent');
   },
 
   async 'leden: terugdraaien haalt precies het register weg'() {
     const R = loadRegister();
     const d = readFixture('leden-oud.json');
-    const m = clone(d); m.members = R.planMemberRegister(d, {}, { [LOIS]: 'same' }).members; m.meta.members = { version: 1 };
+    const m = clone(d); m.members = R.planMemberRegister(d, {}, { [LOIS]: 'same' }, YES).members; m.meta.members = { version: 2 };
     assert(JSON.stringify(R.withoutMemberRegister(m)) === JSON.stringify(d), 'Terugdraaien geeft niet de oude stand');
   },
 
@@ -176,11 +187,15 @@ const tests = {
     const db = sharedDb(readFixture('leden-oud.json'));
     const o = await open(ctx, db, Object.assign({}, BAS, AAN));
     const b = db.puts;
-    const q = await answerDoubt(o.page, true);
-    assert(/Loïs/.test(q) && /Lois/.test(q), 'Vraag noemt niet beide schrijfwijzen: ' + q);
+    const asked = await answerAll(o.page);
+    const q = asked.find(isDoubt) || '';
+    assert(/Loïs/.test(q) && /Lois/.test(q), 'Vraag noemt niet beide schrijfwijzen: ' + asked.join(' | '));
+    assert(asked.filter(t => /bij jullie huishouden/.test(t)).length === 2, 'Verwacht 2 lidvragen (Loïs, Opa Henk): ' + asked.join(' | '));
     await waitForPut(db, b);
     assert(JSON.stringify(db.db.members.map(m => m.name)) === JSON.stringify(['Bas', 'Sanne', 'Lynn', 'Loïs', 'Opa Henk']), 'Register: ' + JSON.stringify(db.db.members));
-    assert(db.db.meta.members.version === 1 && Object.values(db.db.meta.members.same || {}).includes(LOIS) && !db.db.meta.members.different && db.db.meta.members.app === '1.4.0', 'meta.members: ' + JSON.stringify(db.db.meta));
+    const mm = db.db.meta.members;
+    assert(mm.version === 2 && Object.values(mm.same || {}).includes(LOIS) && !mm.different && mm.app === '1.4.1', 'meta.members: ' + JSON.stringify(db.db.meta));
+    assert(JSON.stringify(Object.values(mm.member || {}).sort()) === JSON.stringify(['loïs', 'opa henk']) && !mm.notMember, 'Lid-antwoorden: ' + JSON.stringify(mm));
     // Additief: verder is de data gelijk aan vóór de migratie (alle namen staan er nog).
     const rest = clone(db.db); delete rest.members; delete rest.meta.members;
     const diff = diffPaths(fx, rest);
@@ -196,7 +211,7 @@ const tests = {
     assert(!(await o.page.isVisible('#confirmOverlay.open')), 'Vraag opnieuw gesteld');
     assert(db.puts === puts0 && JSON.stringify(db.db.members.map(m => m.id)) === ids0, 'Opnieuw openen veranderde het register (puts ' + puts0 + '→' + db.puts + ')');
     const st = await o.page.evaluate(() => window.huisplanLeden.status());
-    assert(st.aan && st.versie === 1 && st.leden === 5 && st.plannerMemberId === basId && st.vangnet, 'Status: ' + JSON.stringify(st));
+    assert(st.aan && st.versie === 2 && st.leden === 5 && st.plannerMemberId === basId && st.vangnet, 'Status: ' + JSON.stringify(st));
     assert(!db.errors.length, 'Fouten: ' + db.errors.join(' | '));
     await o.ctx.close();
   },
@@ -207,12 +222,15 @@ const tests = {
       open(ctx, db, Object.assign({}, BAS, AAN)),
       open(ctx, db, { plannerMyName: 'Sanne', plannerPartnerName: 'Bas', plannerLedenregister: 'aan' })
     ]);
-    await wait(2500);
+    // In deze fixture staan Lynn en Freya alleen bij de vakantiepersonen: Lynn hoort erbij, Freya niet.
+    const pol = { member: t => !/Freya/.test(t) };
+    await Promise.all([answerAll(A.page, pol), answerAll(B.page, pol)]);
+    await wait(2000);
     await Promise.all([A, B].map(o => o.page.evaluate(() => document.getElementById('refreshBtn').click())));
     await wait(2000);
     const ms = db.db.members || [];
     assert(new Set(ms.map(m => m.id)).size === ms.length, 'Dubbele ID\'s: ' + JSON.stringify(ms));
-    assert(JSON.stringify(ms.map(m => m.name).sort()) === JSON.stringify(['Bas', 'Freya', 'Lynn', 'Sanne']), 'Leden: ' + JSON.stringify(ms));
+    assert(JSON.stringify(ms.map(m => m.name).sort()) === JSON.stringify(['Bas', 'Lynn', 'Sanne']), 'Leden: ' + JSON.stringify(ms));
     const idA = await ls(A.page, 'plannerMemberId'), idB = await ls(B.page, 'plannerMemberId');
     assert(idA === ms.find(m => m.name === 'Bas').id && idB === ms.find(m => m.name === 'Sanne').id, 'Toestellen verkeerd gekoppeld');
     assert(!db.errors.length, 'Fouten: ' + db.errors.join(' | '));
@@ -256,7 +274,7 @@ const tests = {
     await o.ctx.close();
   },
 
-  async 'leden-app: oude versie (1.3) bewaart het register bij opslaan'(ctx) {
+  async 'leden-app: live-versie zonder schakelaar bewaart het register bij opslaan'(ctx) {
     const db = await migrated(ctx);
     const before = JSON.stringify(db.db.members);
     const o = await open(ctx, db, BAS, { target: 'root' });
@@ -265,7 +283,7 @@ const tests = {
     await o.page.fill('#boodschapInput', 'Thee'); await o.page.press('#boodschapInput', 'Enter');
     await waitForPut(db, b);
     assert(db.db.boodschappen.some(x => x.text === 'Thee') && JSON.stringify(db.db.members) === before, 'Oude versie raakte het register kwijt');
-    assert(db.db.meta.members.version === 1, 'Oude versie raakte meta.members kwijt');
+    assert(db.db.meta.members.version === 2, 'Oude versie raakte meta.members kwijt');
     await o.ctx.close();
   },
 
@@ -274,7 +292,7 @@ const tests = {
     const db = sharedDb(readFixture('leden-oud.json'));
     const o = await open(ctx, db, Object.assign({}, BAS, AAN));
     let b = db.puts;
-    await answerDoubt(o.page, false);
+    await answerAll(o.page, { same: false });
     await waitForPut(db, b);
     assert(db.db.members.length === 6, 'Verwacht 6 leden bij "twee personen"');
     b = db.puts;
@@ -291,7 +309,7 @@ const tests = {
     const db = sharedDb(readFixture('leden-oud.json'));
     const o = await open(ctx, db, Object.assign({}, BAS, AAN));
     let b = db.puts;
-    await answerDoubt(o.page, true);
+    await answerAll(o.page);
     await waitForPut(db, b);
     const vangnetVoor = await ls(o.page, 'plannerLedenBackup');
     // Gewone wijzigingen na de migratie: een boodschap en een taak.
@@ -334,7 +352,9 @@ const tests = {
         open(ctx, db, Object.assign({}, BAS, AAN)),
         open(ctx, db, { plannerMyName: 'Sanne', plannerPartnerName: 'Bas', plannerLedenregister: 'aan' })
       ]);
-      await Promise.all([A, B].map(o => o.page.waitForSelector('#confirmOverlay.open', { timeout: 4000 })));
+      // Eerst de lidvragen (ja), dan staat bij beide de twijfelvraag Loïs/Lois open.
+      const open2 = await Promise.all([A, B].map(o => answerAll(o.page, { stopAtDoubt: true })));
+      assert(open2.every(a => isDoubt(a[a.length - 1] || '')), 'Twijfelvraag niet bereikt: ' + JSON.stringify(open2));
       const antwoord = { A: () => A.page.click('#confirmOkBtn'), B: () => B.page.click('#confirmCancelBtn') };
       await antwoord[eerst](); await antwoord[eerst === 'A' ? 'B' : 'A']();
       await wait(2500);
@@ -356,14 +376,14 @@ const tests = {
   },
 };
 
-// De app-tests (deel 2) horen bij de versie die het register heeft. Draait de testset tegen de
-// live-versie (--target=root) terwijl die nog 1.3 is, dan worden ze overgeslagen met een melding.
-const liveHasRegister = () => fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8').includes('// ── LEDENREGISTER (roadmap 1.4)');
+// De app-tests (deel 2) horen bij de versie met het ledenregister van 1.4.1. Draait de testset tegen
+// de live-versie (--target=root) terwijl die dat nog niet heeft, dan worden ze overgeslagen.
+const liveHasRegister = () => fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8').includes("MEMBERS_SWITCH_ON='aan-1.4.1'");
 Object.keys(tests).forEach(name => {
   if (!name.startsWith('leden-app:')) return;
   const fn = tests[name];
   tests[name] = async ctx => {
-    if (process.env.TARGET === 'root' && !liveHasRegister()) { console.log('    (overgeslagen: live-versie heeft het ledenregister nog niet)'); return; }
+    if (process.env.TARGET === 'root' && !liveHasRegister()) { console.log('    (overgeslagen: live-versie heeft het ledenregister van 1.4.1 nog niet)'); return; }
     return fn(ctx);
   };
 });

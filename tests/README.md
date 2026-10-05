@@ -17,6 +17,8 @@ geïnstalleerde versie in de cloudomgeving).
 - `fixtures/huishouden.json` is een volledig gevuld gezin (alle onderdelen, foto's).
   `fixtures/legacy.json` bevat oude toewijzingen ('me'/'partner'). `fixtures/leden-oud.json` heeft
   namen in elk bekend naamveld, schrijfvarianten en een twijfelgeval (verzonnen gezin).
+  `fixtures/leden-praktijk.json` en `-v14.json` volgen de praktijk van 1.4.0 (paard en categorie als
+  paklijstkolom); de inhoud is verzonnen.
 - Schermafbeeldingen komen in `tests/output/` (niet in git).
 
 | Bestand | Wat het bewaakt |
@@ -32,6 +34,7 @@ geïnstalleerde versie in de cloudomgeving).
 | `store.test.js` | Opslaglaag (1.3): alleen `FirebaseStore` praat met Firebase; laden, opslaan, 412-conflict, offline, cache, achtergrond, 403, deellink en installeren gedragen zich exact als de oude code; twee browsers tegelijk verliezen niets. |
 | `toevoeger.test.js` | Bestaand gedrag rond de toevoeger: boodschappen en eigen lijsten bewaren `addedBy` en tonen "door <naam>" alleen bij iemand anders; taken tonen de auteur altijd; zonder toestelnaam wordt niemand opgeslagen. |
 | `leden.test.js` | Ledenregister (1.4): alle naambronnen, geen namen verloren, varianten en twijfel, stabiele ID's, twee toestellen tegelijk, `plannerMemberId`, toestel zonder identiteit, schakelaar, oude versie bewaart het register, terugdraaien. Het rekenblok wordt los in Node getest. |
+| `leden-praktijk.test.js` | Ledenregister 1.4.1: vakantielabels (paard, categorie, oma) zijn geen huishoudlid zonder bevestiging; een 1.4.0-register met zes leden wordt vier leden met dezelfde ID's; vakantiegegevens en `plannerMemberId` blijven; twee toestellen; oudere versie zet labels niet terug. |
 | `supabase.test.js` | Migraties, lokale RLS-tests, geen geheime sleutels, app gebruikt nog geen Supabase. |
 | `schema.test.js` | Testdata en opgeslagen data voldoen aan `docs/dataformaat-v1.schema.json`; `meta.schemaVersion` wordt alleen toegevoegd, nooit overschreven, en de live-versie laat het staan. |
 

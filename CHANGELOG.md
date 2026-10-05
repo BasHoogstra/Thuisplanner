@@ -304,3 +304,28 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   `docs/fase1-notities.md`, punt 10).
 - Volledige testset tegen test én live; de app-tests van het ledenregister draaien nu ook tegen live.
 
+## 1.4.1 — Fase 1, stap 1.4.1 (testversie): alleen echte huishoudleden in het register
+- Praktijk: na activatie op de echte planner maakte 1.4.0 zes leden: Bas, Sanne, Lynn, Loïs, Freya (het
+  paard) en Boodschappen (een paklijstkolom). Oorzaak: `vakantiePersonen` en de kolommen van de
+  paklijsten zijn vrije labels; 1.4.0 behandelde elke naam daarin als persoon.
+- Nieuw uitgangspunt: huishoudlid ≠ elke naam die ergens staat. Direct lid worden alleen namen die de
+  app zelf schrijft met de naam van een toestel (auteur, toegevoegd door, toegewezen aan, reacties,
+  Wie is waar, verlanglijstjes) en de twee namen op het toestel. Een naam die alleen als label
+  voorkomt is kandidaat: de app vraagt één keer "Hoort … bij jullie huishouden?" (met waar de naam
+  staat). Antwoorden in `meta.members.member` / `.notMember`; bij tegenstrijdige antwoorden wint "nee".
+  Geen namen hardgecodeerd.
+- Bestaand 1.4.0-register (`meta.members.version` 1): leden die alleen als label voorkomen worden ook
+  gevraagd; bij "nee" gaan ze uit `members`. Blijvende leden houden exact hun ID; `plannerMemberId`
+  blijft geldig. De vakantiegegevens (`vakantiePersonen`, paklijsten) worden niet aangeraakt. Daarna
+  `version: 2`. Vangnet `plannerLedenBackupV1` met het oude register.
+- De schakelaar `aan` wordt `aan-1.4.1`, zodat een nog openstaande 1.4.0-versie op hetzelfde toestel
+  de labels niet terugzet (aangetoond: 1.4.0 met `aan` zet Freya en Boodschappen direct terug).
+- Geen omzetting naar member-ID's (1.5), geen Supabase, live-versie ongewijzigd.
+- Vastgelegd voor later (`docs/fase1-notities.md`, punt 11): een externe gebruiker/gast/oppas die via
+  de gedeelde link iets toevoegt mag niet automatisch huishoudlid worden (open punt voor het
+  ledenbeheer in 1.6 en vóór/tijdens persoonsmigraties); en voor 1.5: `resolveMember()` moet "geen
+  huishoudlid" kunnen teruggeven en persoonsachtige labels worden niet automatisch een member-ID.
+- Tests: `tests/leden-praktijk.test.js` (9) met fixtures `leden-praktijk.json` en
+  `leden-praktijk-v14.json` (het register zoals 1.4.0 het maakte); `tests/leden.test.js` aangepast aan
+  het nieuwe model. `docs/dataformaat-v1.md`: Wie is waar gebruikt alleen "ik" en "partner".
+
