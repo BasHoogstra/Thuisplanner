@@ -353,3 +353,11 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Geen wijziging aan HTML, UI of functionaliteit. Een al op het beginscherm gezette app houdt het
   oude icoon tot hij opnieuw wordt toegevoegd (iOS bewaart het icoon bij het toevoegen).
 
+## App-icoon live: definitief Huisplan-logo
+- De goedgekeurde app-iconen van de testversie zijn overgenomen in de live-versie (root):
+  `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `icon-maskable-192.png` (nieuw) en
+  `icon-maskable-512.png`, plus de nieuwe maskable-192-regel in `manifest.webmanifest`. Iconen en
+  manifest van live en test zijn byte voor byte gelijk.
+- Geen wijziging aan HTML, UI of functionaliteit. Een al op het beginscherm gezette app houdt het
+  oude icoon tot hij opnieuw wordt toegevoegd.
+
