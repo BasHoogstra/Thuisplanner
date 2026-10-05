@@ -6,6 +6,9 @@ wordt hier niet gewijzigd of aangevuld.
 
 - Vastgesteld: 5 oktober 2026, door de producteigenaar, na een conflictanalyse van roadmap en documentatie.
   Aangevuld op dezelfde dag met verduidelijkingen bij de beslissingen 1, 3, 6, 8 en 9.
+- Op 6 oktober 2026 zijn alleen feitelijke verwijzingen bijgewerkt (PR #8 is gemerged), en is een
+  verwijzing toegevoegd naar het voorstel `docs/identiteit-en-items.md`. Daarin staan zes nog
+  open beslispunten; die veranderen niets aan de beslissingen hieronder.
 - De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
@@ -75,8 +78,7 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 
 - **Huidige situatie (1.4.1):** wie iets toevoegt (als auteur of toevoeger) geldt als betrouwbaar
   lid. Een externe gebruiker kan zo huishoudlid worden. Dit staat als open punt in
-  `docs/fase1-notities.md` op de branch van PR #8. Dat het punt tot de merge van PR #8 alleen
-  daar staat, is tijdelijk geaccepteerd; het wordt niet gedupliceerd.
+  `docs/fase1-notities.md`, punt 11 (op `main` sinds de merge van PR #8).
 - **Productkompas:** principe 7 ("Een persoon, naam of label dat ergens in Huisplan voorkomt, is
   niet automatisch een huishoudlid.").
 - **Beslissing:** PR #8 blijft hiervoor ongewijzigd en het bekende probleem blijft expliciet
@@ -84,6 +86,8 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   ledenbeheer (1.6): activiteit of auteurschap maakt iemand niet automatisch huishoudlid.
   1.5 moet deze regel al respecteren en mag het probleem niet verder verspreiden. 1.6 lost het
   structureel op.
+- **Uitwerking (voorstel):** `docs/identiteit-en-items.md`, sectie 1 en 2. Daar staat hoe
+  `resolveMember()`, `byMember`/`byLabel` en labels voor niet-leden deze regel technisch borgen.
 
 ### 7. Losse dialogen en rode bevestigingsknop: niet aanpassen in 1.4.1
 
@@ -103,6 +107,10 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   - Het register wordt gecontroleerd vóór 1.5.
   - Structureel herstel hoort in het centrale ledenbeheer (1.6).
   - Wordt dat sterk uitgesteld, dan beoordelen we dit opnieuw.
+- **Voorstel** (`docs/identiteit-en-items.md`, sectie 2.4, beslispunt 2): vóór 1.5 alleen het
+  datacontract voor correcties vastleggen, met beslissingsrecords met revisie in plaats van "nee
+  wint". Zo kan het herstel in 1.6 later veilig werken. De schermen blijven in 1.6, dus deze
+  beslissing verandert niet.
 
 ### 9. Supabase en privacy: gate vóór 1.10
 

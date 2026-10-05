@@ -12,8 +12,8 @@ afwijking dan eerst.
 1. `PRODUCT_PRINCIPLES.md`
 2. `docs/productkompas-beslissingen.md`
 3. `docs/roadmap.md` (dit document)
-4. de relevante fase- of technische documentatie, zoals `docs/fase1-notities.md`,
-   `docs/dataformaat-v1.md` en `supabase/README.md`
+4. de relevante fase- of technische documentatie, zoals `docs/identiteit-en-items.md`,
+   `docs/fase1-notities.md`, `docs/dataformaat-v1.md` en `supabase/README.md`
 5. pas dan de implementatie
 
 **Wat hier wel en niet staat:**
@@ -24,7 +24,9 @@ afwijking dan eerst.
 - **Bron:** de uitvoeringsroadmap zoals vastgesteld op 2 oktober 2026, met dezelfde fases, stappen
   en volgorde.
 - **Bijgewerkt:** 5 oktober 2026, met de beslissingen 1–10 en de aanvullingen daarop uit
-  `docs/productkompas-beslissingen.md`.
+  `docs/productkompas-beslissingen.md`. Op 6 oktober 2026 aangevuld met de voorgestelde stap 1.4.2
+  en de voorwaarden uit het voorstel `docs/identiteit-en-items.md` (gemarkeerd als 📝).
+  De status van 1.4.1 is bijgewerkt naar live.
 - **Status:** volgens `CHANGELOG.md`.
 
 **Legenda**
@@ -35,12 +37,14 @@ afwijking dan eerst.
 | **Afgerond** | Afgerond zonder app-wijziging (backend of documentatie). |
 | **Open PR** | Gebouwd, maar nog niet gemerged. |
 | **Gepland** | Nog niet begonnen. |
+| **Voorgesteld** | Voorgestelde stap; nog niet besloten. |
 
 | Markering | Betekenis |
 | --- | --- |
 | ⛔ **Gate** | Harde randvoorwaarde: moet aantoonbaar zijn geregeld vóór het genoemde moment. |
 | 🔁 **Later herbeoordelen** | Bewust nog niet opgelost. Bij het genoemde moment opnieuw beoordelen. |
 | ✏️ **Aangepast** | Gewijzigd door een expliciete beslissing over het Productkompas. |
+| 📝 **Voorstel** | Uit `docs/identiteit-en-items.md`; geldt pas na een besluit van de producteigenaar. |
 
 ## Productkompas-toets (werkwijze vanaf nu)
 
@@ -106,6 +110,14 @@ De toets hoeft niet met terugwerkende kracht te worden ingevuld voor bestaande o
 | Vóór `SupabaseStore` huishouddata gaat lezen/schrijven, moet de Supabase-autorisatie/RLS het onderscheid tussen gedeelde en afgeschermde huishouddata veilig kunnen ondersteunen voor de gegevens waarvoor dat op dat moment nodig is (security/privacy-gate). | 1.10 | 9 |
 | De navigatie is getoetst aan werkelijk gebruik. | 3.1 | 2 |
 
+📝 **Voorgestelde voorwaarden** (uit `docs/identiteit-en-items.md`; nog niet besloten):
+
+| Voorwaarde | Geldt vóór | Contract |
+| --- | --- | --- |
+| E1 t/m E5: back-up buiten `localStorage`, alleen gecontroleerd schrijven, cachefouten gemeld, beslissingsrecords met revisie, telling van items zonder `id` | 1.5 (via stap 1.4.2) | 5.1 |
+| Het identiteitscontract ligt vast (beslispunten 1–3) | 1.5 | 2, 4 |
+| Supabase-schema aangepast aan het contract (beslispunt 4), via een nieuwe migratie | 1.10 | 5.2 |
+
 ## Fase 0: Huidige app afronden en opruimen
 
 **Doel:** een stabiele, consistente Huisplan op de huidige Firebase-opslag, met een vangnet voor
@@ -152,8 +164,9 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 | 1.2 | Schema aanvullen voor leden, kinderen en betrouwbare sync | Het schema geschikt maken voor leden zonder account, stabiele member-ID's en veilige synchronisatie. | 1.1 | Ja (lege tabellen) | Afgerond (staging en productie, beide leeg) |
 | 1.3 | Opslaglaag in de app scheiden | De app los maken van Firebase, zodat een tweede opslag ernaast kan. | 0.1, 0.2 | Nee | Live (1.3.0) |
 | 1.4 | Ledenregister in de huidige data | Iedereen in het huishouden krijgt een vast member-ID, nog vóór de overstap. | 1.3 | Ja (nieuw veld) | Live (1.4.0) |
-| 1.4.1 | Alleen echte huishoudleden in het ledenregister | Correctie op 1.4: niet elke naam in de planner wordt een huishoudlid. | 1.4 | Ja (registerversie 2) | Open PR (PR #8, niet gemerged) |
-| 1.5 | Verwijzingen omzetten van naam naar member-ID | Toewijzen, auteurs en per-persoon-data hangen aan een vast ID in plaats van aan een naam of 'ik'/'partner'. | 1.4, 0.2 | Ja (versie-gebonden, met back-up) | Gepland ⛔ |
+| 1.4.1 | Alleen echte huishoudleden in het ledenregister | Correctie op 1.4: niet elke naam in de planner wordt een huishoudlid. | 1.4 | Ja (registerversie 2) | Live (1.4.1) |
+| 1.4.2 | Voorbereiding 1.5 | De migratie van 1.5 veilig en corrigeerbaar maken (E1 t/m E5). | 1.4.1 | Nee | Voorgesteld 📝 |
+| 1.5 | Verwijzingen omzetten van naam naar member-ID | Toewijzen, auteurs en per-persoon-data hangen aan een vast ID in plaats van aan een naam of 'ik'/'partner'. | 1.4, 0.2, 1.4.2 📝 | Ja (versie-gebonden, met back-up) | Gepland ⛔ |
 | 1.6 | Kinderen en meer volwassenen in de app | Elk huishouden past: alleen, stel, gezin met kinderen, of meer volwassenen. | 1.5 | Nee | Gepland ⛔ |
 | 1.7 | Inloggen met een account | Mensen kunnen een account maken en inloggen, eerst alleen op staging. | 1.1, 1.2 | Nee | Gepland |
 | 1.8 | Huishouden aanmaken en leden beheren | Een nieuw huishouden start volledig in Supabase, zonder Firebase. | 1.7, 1.6 | Nee | Gepland |
@@ -167,12 +180,11 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 
 ### Fase 1: gates en beslissingen per stap
 
-**1.4.1 (PR #8)**
+**1.4.1 (PR #8, live)**
 - **Bekend probleem, bewust niet opgelost in 1.4.1** (beslissing 6). Een externe gebruiker, gast of
   oppas die iets toevoegt, kan huishoudlid worden. PR #8 blijft hiervoor ongewijzigd en het
   probleem blijft expliciet gedocumenteerd.
-  - Het open punt staat tot de merge van PR #8 alleen in `docs/fase1-notities.md` op die branch.
-    Dat is tijdelijk geaccepteerd; het wordt niet gedupliceerd.
+  - Het open punt staat in `docs/fase1-notities.md`, punt 11 (op `main` sinds de merge van PR #8).
 - **Tijdelijke migratie-UX geaccepteerd** (beslissing 7). De vragen komen één voor één in losse
   dialogen, met een rode bevestigingsknop. Er komt geen extra UI-scope bij PR #8.
 - **Een foutief "nee" is nog niet te herstellen. Tijdelijk geaccepteerd** (beslissing 8).
@@ -185,6 +197,17 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 - ⛔ **Gate** (beslissing 6): activiteit of auteurschap maakt iemand niet automatisch huishoudlid.
   1.5 moet deze regel al respecteren en mag het bekende probleem met externe gebruikers niet
   verder verspreiden. De structurele oplossing volgt in 1.6.
+- 📝 **Voorstel** (`docs/identiteit-en-items.md`, beslispunten 1–3 en 5):
+  - de member-UUID wordt het doel-ID; `m_…` blijft als alias, zodat de verwijzingen maar één keer
+    worden omgezet;
+  - `resolveMember()` maakt nooit een lid aan en geeft bij twijfel `null`;
+  - beslissingsrecords met revisie vervangen "nee wint", en 1.5 zet `meta.minAppVersion`;
+  - personen in velden: `memberIds[]`, `byMember`/`byLabel` en `forLabel`;
+  - stap 1.4.2 (E1 t/m E5) gaat vooraf.
+
+**1.4.2 Voorbereiding 1.5** 📝 Voorgesteld
+- Voorwaarden E1 t/m E5 uit `docs/identiteit-en-items.md`, sectie 5.1. Alleen het datacontract
+  voor correcties hoort hier; de schermen voor ledenbeheer blijven in 1.6.
 
 **1.6 (centraal ledenbeheer)**
 - ⛔ **Gate** (beslissing 6): hier wordt de gast/oppas-regel structureel opgelost. Activiteit of
@@ -202,6 +225,14 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 - Dit betekent niet dat alle toekomstige privacyfuncties vóór 1.10 gebouwd moeten worden.
 - De oplossing is nog niet ontworpen. Ontwerp en implementatie volgen pas wanneer daartoe wordt
   besloten.
+- 📝 **Voorgestelde schemavoorwaarden vóór 1.10** (`docs/identiteit-en-items.md`, sectie 5.2):
+  - `items` krijgt de sleutel `(household_id, id)` met een UUID en een wijzigbare `kind`;
+  - `household_members` krijgt `legacy_ids`, en `user_id` wordt `on delete set null`;
+  - `households.created_by` mag accountverwijdering niet blokkeren;
+  - een vertaling voor `kind = 'unknown'`;
+  - contracten voor grafstenen en revisies, en voor de laatste beheerder.
+
+  Nu wordt geen Supabase-migratie uitgevoerd.
 
 ## Fase 2: Eén samenhangend model
 
@@ -232,6 +263,19 @@ migratiestap:
 | 2.14 | Gebruik meten, als basis voor latere keuzes | Pas beslissen over Vaste lasten, Gewoonten, Wie is waar en andere secundaire functies als bekend is hoe vaak ze gebruikt worden. | Fase 1 | Nee | Gepland |
 
 ### Fase 2: beslissingen per stap
+
+**2.1 en 2.2: items en relaties** 📝 Voorstel
+- Het taakmodel van 2.2 volgt het item- en relatiecontract uit `docs/identiteit-en-items.md`
+  (sectie 3):
+  - één identiteit per item;
+  - een wijzigbare soort;
+  - vier vaste relaties (`context`, `about`, `supports`, `source`);
+  - geen generiek graafmodel.
+- Ontwerpregel: "Als het ene klaar is, is het andere dan per definitie ook klaar?"
+  - Ja: één item met meerdere weergaven.
+  - Nee: twee gekoppelde items.
+- Vandaag (2.1) wordt een weergave die door alleen te tonen geen data wijzigt. Wanneer het
+  huidige doorschuiven van taken een weergave wordt, is beslispunt 6.
 
 **2.14 en de bestaande functies**
 - 🔁 **Later herbeoordelen** (beslissing 10). Er wordt niets verwijderd op basis van alleen het
@@ -270,6 +314,12 @@ eerst in de testversie en wordt met een paar huishoudens geprobeerd.
 | 3.8 | Foto en AI (laatste uitbreiding) | Een foto van een bon, paspoort of recept wordt een voorstel. | 3.5, 4.6 | Nee | Gepland 🔁 |
 
 ### Fase 3: gates en beslissingen per stap
+
+**3.2 tot en met 3.5: centrale `+`** 📝 Voorstel
+- De parser levert een lijst acties met relaties op, zodat één invoer meerdere gekoppelde acties
+  kan opleveren.
+- Hij maakt alleen nieuwe items of stelt een wijziging voor. Een bestaand plan wordt nooit
+  stilzwijgend gewijzigd (`docs/identiteit-en-items.md`, sectie 3.4).
 
 **3.1 Navigatie**
 - ⛔ **Gate** (beslissing 2): vóór 3.1 wordt de navigatie getoetst aan werkelijk gebruik.
