@@ -1,0 +1,354 @@
+# Huisplan roadmap
+
+De permanente roadmap van Huisplan. Leidend zijn:
+
+- het Productkompas in `PRODUCT_PRINCIPLES.md`;
+- de beslissingen en harde randvoorwaarden in `docs/productkompas-beslissingen.md`.
+
+Waar deze roadmap daarvan afwijkt, gaan het Productkompas en de beslissingen voor. Meld zo'n
+afwijking dan eerst.
+
+- **Bron:** de uitvoeringsroadmap zoals vastgesteld op 2 oktober 2026, met dezelfde fases, stappen
+  en volgorde. Per stap staan hier het doel, de afhankelijkheden en of er een datamigratie is.
+- **Bijgewerkt:** 5 oktober 2026, met de beslissingen 1–10 uit `docs/productkompas-beslissingen.md`.
+- **Status:** volgens `CHANGELOG.md`.
+
+**Legenda**
+
+| Status | Betekenis |
+| --- | --- |
+| **Live** | Afgerond en in de live-app (`index.html`). |
+| **Afgerond** | Afgerond zonder app-wijziging (backend of documentatie). |
+| **Open PR** | Gebouwd, maar nog niet gemerged. |
+| **Gepland** | Nog niet begonnen. |
+
+| Markering | Betekenis |
+| --- | --- |
+| ⛔ **Gate** | Harde randvoorwaarde: moet aantoonbaar zijn geregeld vóór het genoemde moment. |
+| 🔁 **Later herbeoordelen** | Bewust nog niet opgelost. Bij het genoemde moment opnieuw beoordelen. |
+| ✏️ **Aangepast** | Gewijzigd door een expliciete beslissing over het Productkompas. |
+
+## Productkompas-toets (werkwijze vanaf nu)
+
+Elke nieuwe stap of wijziging van een stap wordt vóór de start kort getoetst. Leg de antwoorden
+vast in de notities van de fase (bijvoorbeeld `docs/fase1-notities.md`).
+
+1. Welke principes uit `PRODUCT_PRINCIPLES.md` raakt deze stap?
+2. Neemt dit daadwerkelijk werk of denkwerk weg?
+3. Hoort dit bij organiseren, onthouden of uitvoeren van het huishouden?
+4. Kan het eenvoudiger?
+5. Is aandacht, controle en privacy goed beschermd?
+6. Is er werkelijk gebruik of bewijs, of testen we nog een hypothese?
+7. **Ultieme toets:** hoeft het huishouden hierdoor minder te onthouden, regelen of organiseren?
+
+Controleer daarnaast of er een ⛔ gate voor de stap geldt en of die is gehaald. Is een gate niet
+gehaald, of botst de stap met het Productkompas, dan stoppen we en melden we dat vóór de
+implementatie.
+
+De toets hoeft niet met terugwerkende kracht te worden ingevuld voor bestaande of afgeronde stappen.
+
+## Uitgangspunten
+
+- **Niets verdwijnt in deze roadmap.**
+  - Functies die de audit wilde heroverwegen, krijgen een andere plek, worden instelbaar of worden
+    een gefilterde weergave. Ze blijven werken.
+  - Of iets definitief weggaat, beslissen we later op basis van werkelijk gebruik (stap 2.14,
+    beslissing 10).
+- **Bestaande data gaat nooit verloren.** Elke stap met een datamigratie:
+  - maakt eerst een back-up;
+  - is versie-gebonden;
+  - kan worden teruggedraaid;
+  - laat de oude data een bewaartermijn lang staan.
+- **Eén stap is één afgeronde wijziging:**
+  - een eigen branch en commit, of een kleine reeks;
+  - groene tests en een regel in de changelog;
+  - eerst in de testversie (`test/index.html`).
+- **Supabase is de nieuwe backend.** De roadmap bouwt voort op het bestaande schema in `supabase/`.
+- **Eerst leden, dan backend.** De lastigste datawijziging (van 'ik' en 'partner' naar member-ID's)
+  gebeurt in de huidige data, los van de wissel naar Supabase. Zo veranderen er nooit twee dingen
+  tegelijk.
+- **Migraties niet testen op de echte planner.** De testversie in `/test/` gebruikt dezelfde
+  Firebase-data als de live-app. Stappen met een datamigratie worden eerst getest op een kopie van
+  de data, nooit via `/test/` op de echte planner.
+- **Automatisering** ✏️ (beslissing 1):
+  - Bij twijfel vraagt Huisplan.
+  - Na voldoende zekerheid en toestemming mag Huisplan zelfstandig handelen.
+  - Hoe groter het gevolg van een fout, hoe meer bevestiging nodig is.
+  - Automatisering moet zichtbaar, voorspelbaar en eenvoudig terug te draaien zijn.
+- **Verdienmodel** ✏️ (beslissing 3):
+  - De gratis versie blijft bruikbaar voor organiseren.
+  - Premium verkoopt extra gemak, automatisering, AI en koppelingen.
+  - Bestaande huishouddata worden niet gegijzeld.
+
+## Overzicht van de gates
+
+| Gate | Geldt vóór | Beslissing |
+| --- | --- | --- |
+| Activiteit of auteurschap maakt iemand niet automatisch huishoudlid. Fase 1.5 mag het bekende probleem met externe gebruikers niet verder verspreiden. | 1.5 en het centrale ledenbeheer (1.6) | 6 |
+| Het ledenregister op de echte planner is gecontroleerd. | Start van 1.5 | 8 |
+| Privacy wordt niet uitsluitend door de UI afgedwongen (security/privacy-gate). | Supabase bedient daadwerkelijk huishouddata (zie fase 1) | 9 |
+| De navigatie is getoetst aan werkelijk gebruik. | 3.1 | 2 |
+
+## Fase 0: Huidige app afronden en opruimen
+
+**Doel:** een stabiele, consistente Huisplan op de huidige Firebase-opslag, met een vangnet voor
+alles wat daarna komt.
+
+**Status: Live** (versie 1.0.19).
+
+Alles in deze fase gebeurt in de bestaande app en het bestaande dataformaat. De stappen 0.3–0.12
+zijn onderling onafhankelijk.
+
+| Stap | Titel | Doel | Status |
+| --- | --- | --- | --- |
+| 0.1 | Vangnet: automatische tests en versienummer | Elke volgende stap kunnen bouwen en controleren zonder dat er ongemerkt data verdwijnt. | Live |
+| 0.2 | Bewaking van versie en verhuizing | Zorgen dat elk toestel straks netjes meeverhuist naar Supabase, en dat een verouderde versie nooit over nieuwere data heen schrijft. | Live |
+| 0.3 | Losse bugs uit de audit | Bekende fouten weg, zonder gedrag te veranderen dat mensen gewend zijn. | Live |
+| 0.4 | Verwijderen en vegen overal gelijk | Eén voorspelbare manier van verwijderen, met ongedaan maken, en geen acties die alleen met vegen kunnen. | Live |
+| 0.5 | Oude taken zichtbaar in plaats van stil verplaatst | Geen taak meer die onopgemerkt verdwijnt of van datum verandert. | Live |
+| 0.6 | Dagvenster in het design system | Het venster dat opent bij 'Dag openen', de plusknop in Week en tikken in Maand ziet eruit en werkt als Vandaag. | Live |
+| 0.7 | Maandweergave leesbaar op een telefoon | In één oogopslag zien welke dagen druk zijn, en wat er op een dag staat. | Live |
+| 0.8 | Invoerformulieren achter een knop | Schermen openen op de inhoud, niet op een leeg formulier. | Live |
+| 0.9 | Design system op de oudere schermen | Elk scherm voelt als dezelfde app. | Live |
+| 0.10 | Teksten, toon en eerlijke herinneringen | De app belooft niets wat hij niet doet, en spreekt overal dezelfde taal. | Live |
+| 0.11 | Extra lagen instelbaar maken | Wie de ochtendbriefing, seizoenstip of weekscore niet wil, kan ze uitzetten, zonder dat ze voor anderen verdwijnen. | Live |
+| 0.12 | Aantoonbaar ongebruikte code verwijderen | Een kleiner, overzichtelijker bestand, zonder dat er een functie verdwijnt. | Live |
+| 0.13 | Het huidige dataformaat vastleggen | Een exacte beschrijving van de Firebase-data als basis voor de migratie in fase 1. | Live |
+
+## Fase 1: Commerciële fundering
+
+**Doel:** accounts, één huishouden met meerdere leden (volwassenen en kinderen) en centrale opslag in
+Supabase, met een veilige overstap voor bestaande planners.
+
+De volgorde is bewust:
+
+1. eerst leden en member-ID's in de huidige data (1.4–1.6), zodat de grootste datawijziging los
+   staat van de wissel van backend;
+2. daarna de backend (1.7–1.11);
+3. pas dan de overstap van echte data (1.12–1.15).
+
+Tot en met 1.15 blijft de Firebase-versie werken.
+
+| Stap | Titel | Doel | Afhankelijk van | Migratie | Status |
+| --- | --- | --- | --- | --- | --- |
+| 1.1 | Supabase-omgevingen en migraties in de repo | Een herhaalbare, controleerbare backend met een aparte testomgeving. | – | Nee | Afgerond |
+| 1.2 | Schema aanvullen voor leden, kinderen en betrouwbare sync | Het schema geschikt maken voor leden zonder account, stabiele member-ID's en veilige synchronisatie. | 1.1 | Ja (lege tabellen) | Afgerond (staging en productie, beide leeg) |
+| 1.3 | Opslaglaag in de app scheiden | De app los maken van Firebase, zodat een tweede opslag ernaast kan. | 0.1, 0.2 | Nee | Live (1.3.0) |
+| 1.4 | Ledenregister in de huidige data | Iedereen in het huishouden krijgt een vast member-ID, nog vóór de overstap. | 1.3 | Ja (nieuw veld) | Live (1.4.0) |
+| 1.4.1 | Alleen echte huishoudleden in het ledenregister | Correctie op 1.4: niet elke naam in de planner wordt een huishoudlid. | 1.4 | Ja (registerversie 2) | Open PR (PR #8, niet gemerged) |
+| 1.5 | Verwijzingen omzetten van naam naar member-ID | Toewijzen, auteurs en per-persoon-data hangen aan een vast ID in plaats van aan een naam of 'ik'/'partner'. | 1.4, 0.2 | Ja (versie-gebonden, met back-up) | Gepland ⛔ |
+| 1.6 | Kinderen en meer volwassenen in de app | Elk huishouden past: alleen, stel, gezin met kinderen, of meer volwassenen. | 1.5 | Nee | Gepland ⛔ |
+| 1.7 | Inloggen met een account | Mensen kunnen een account maken en inloggen, eerst alleen op staging. | 1.1, 1.2 | Nee | Gepland |
+| 1.8 | Huishouden aanmaken en leden beheren | Een nieuw huishouden start volledig in Supabase, zonder Firebase. | 1.7, 1.6 | Nee | Gepland |
+| 1.9 | Uitnodigen en toegang beheren | Toegang die je kunt geven én intrekken, in plaats van een link die voor altijd werkt. | 1.8 | Nee | Gepland |
+| 1.10 | Synchronisatie met Supabase | Dezelfde app, met Supabase als opslag, live tussen toestellen en bruikbaar offline. | 1.3, 1.8 | Nee | Gepland ⛔ |
+| 1.11 | Foto's naar bestandsopslag | Foto's van garanties en onderhoud niet meer als tekst in de data, zodat synchroniseren snel blijft. | 1.10 | Ja (via de import) | Gepland |
+| 1.12 | Importfunctie voor bestaande planners | Een volledige, controleerbare kopie van een Firebase-planner in een Supabase-huishouden. | 1.2, 1.5, 1.10, 1.11 | Ja | Gepland ⛔ |
+| 1.13 | Overstap-wizard in de app | Een bestaand huishouden verhuist zelf, stap voor stap, zonder hulp van een ontwikkelaar. | 1.12, 1.9 | Ja (via 1.12) | Gepland ⛔ |
+| 1.14 | Firebase-planner bevriezen en late wijzigingen meenemen | Na de overstap schrijft niemand meer in Firebase, en gaat niets verloren van toestellen die nog offline waren. | 1.13, 0.2 | Ja (markering in Firebase) | Gepland |
+| 1.15 | Uitrol en uitfaseren | Gecontroleerd overgaan, eerst met jullie eigen huishouden. | 1.14 | Ja (per huishouden) | Gepland ⛔ |
+
+### Fase 1: gates en beslissingen per stap
+
+**1.4.1 (PR #8)**
+- **Bekend probleem, bewust niet opgelost in 1.4.1** (beslissing 6). Een externe gebruiker, gast of
+  oppas die iets toevoegt, kan huishoudlid worden. PR #8 blijft hiervoor ongewijzigd en het
+  probleem blijft expliciet gedocumenteerd.
+- **Tijdelijke migratie-UX geaccepteerd** (beslissing 7). De vragen komen één voor één in losse
+  dialogen, met een rode bevestigingsknop. Er komt geen extra UI-scope bij PR #8.
+- **Een foutief "nee" is nog niet te herstellen. Tijdelijk geaccepteerd** (beslissing 8).
+  Structureel herstel hoort in het centrale ledenbeheer (1.6).
+  - 🔁 **Later herbeoordelen** als het centrale ledenbeheer sterk wordt uitgesteld.
+
+**1.5**
+- ⛔ **Gate** (beslissing 8): het ledenregister op de echte planner is gecontroleerd vóór de start
+  van 1.5.
+- ⛔ **Gate** (beslissing 6): activiteit of auteurschap maakt iemand niet automatisch huishoudlid.
+  1.5 mag het bekende probleem met externe gebruikers niet verder verspreiden.
+
+**1.6 (centraal ledenbeheer)**
+- ⛔ **Gate** (beslissing 6): dezelfde randvoorwaarde als bij 1.5 geldt voor het centrale
+  ledenbeheer.
+- Hier hoort ook het structurele herstel van een foutief "nee" (beslissing 8).
+
+**1.10 tot en met 1.15 (Supabase gaat huishouddata bedienen)**
+- ⛔ **Security/privacy-gate** (beslissing 9). Privacy mag niet uitsluitend door de UI worden
+  afgedwongen.
+  - De huidige Row Level Security geeft elk huishoudlid zicht op alle items.
+  - Claims op verlanglijstjes worden alleen client-side verborgen.
+- Deze gate moet zijn gehaald vóórdat Supabase daadwerkelijk huishouddata bedient.
+- De oplossing is nog niet ontworpen. Ontwerp en implementatie volgen pas wanneer daartoe wordt
+  besloten.
+
+## Fase 2: Eén samenhangend model
+
+**Doel:** één soort taak, alles met een datum op één tijdlijn, en een rustiger Meer, zonder functies
+weg te halen.
+
+Bestaande schermen blijven bestaan, maar worden gefilterde weergaven van hetzelfde model. Elke
+migratiestap:
+- is versie-gebonden;
+- maakt eerst een back-up;
+- bewaart de oude rijen 60 dagen voordat 2.13 ze opruimt.
+
+| Stap | Titel | Doel | Afhankelijk van | Migratie | Status |
+| --- | --- | --- | --- | --- | --- |
+| 2.1 | Eén tijdlijn voor alles met een datum | Vandaag, Week en Maand tonen alles wat op een dag speelt. | Fase 1 | Nee | Gepland |
+| 2.2 | Taakmodel ontwerpen en testen | Een vastgelegd model voor alle soorten taken, met bewezen conversie, voordat er iets wordt omgezet. | 2.1 | Nee | Gepland |
+| 2.3 | De app leest taken via één taken-laag | Alle schermen halen taken op dezelfde manier op, zodat de opslag daarna stap voor stap kan veranderen. | 2.2 | Nee | Gepland |
+| 2.4 | Losse en meerdaagse taken omzetten | Het eerste en grootste deel van de taken in het nieuwe model. | 2.3 | Ja | Gepland |
+| 2.5 | Vaste taken omzetten | Vaste taken zijn gewone taken met een herhaling, bewerkbaar en toewijsbaar. | 2.4 | Ja | Gepland |
+| 2.6 | Onderhoud omzetten | Onderhoud verschijnt als taak op het moment dat het aan de beurt is. | 2.5 | Ja | Gepland |
+| 2.7 | Backlog wordt 'Ooit' | Ideeën zonder datum horen bij de taken, en zijn met één tik in te plannen. | 2.4 | Ja | Gepland |
+| 2.8 | Vakantie-to-do's worden taken | Een to-do voor de vakantie verschijnt ook op Vandaag als hij een datum krijgt. | 2.4 | Ja | Gepland |
+| 2.9 | Eén taakeditor | Elke taak heeft dezelfde bewerkmogelijkheden, waar je hem ook opent. | 2.5–2.8 | Nee | Gepland |
+| 2.10 | Documenten en vervaldata samenbrengen | Garanties en de vervaldata-kluis op één plek. | 2.1 | Nee (eventueel later) | Gepland |
+| 2.11 | Eten: maaltijdplanner en recepten samen | Plannen wat je eet en je recepten op één plek, verbonden met Week en Boodschappen. | 2.1 | Nee | Gepland |
+| 2.12 | Meer wordt Ons huis | Een rustig archief met alles erin, logisch gegroepeerd en met één zoekveld. | 2.10, 2.11 | Nee | Gepland |
+| 2.13 | Oude structuren opruimen | De data bevat alleen nog het nieuwe model. | 2.4–2.8 plus 60 dagen | Ja (opruimen) | Gepland |
+| 2.14 | Gebruik meten, als basis voor latere keuzes | Pas beslissen over Vaste lasten, Gewoonten, Wie is waar en andere secundaire functies als bekend is hoe vaak ze gebruikt worden. | Fase 1 | Nee | Gepland |
+
+### Fase 2: beslissingen per stap
+
+**2.14 en de bestaande functies**
+- 🔁 **Later herbeoordelen** (beslissing 10). Er wordt niets verwijderd op basis van alleen het
+  Productkompas. Werkelijk gebruik bepaalt mede wat blijft, verandert of minder prominent wordt.
+  Dit geldt onder meer voor:
+  - Gezins-DNA met verdeling per persoon;
+  - weekscore en Koppelgesprek;
+  - toasts over wijzigingen door anderen;
+  - de vanzelf openende briefing;
+  - seizoenstips.
+- 2.14 levert hiervoor de gebruiksgegevens. Ook de navigatietoets vóór 3.1 (beslissing 2) kan
+  daarop steunen.
+
+## Fase 3: Centrale invoer
+
+**Doel** ✏️ (beslissing 1): één plek om iets vast te leggen. Huisplan stelt voor waar het hoort en
+vraagt bij twijfel om bevestiging. Na voldoende zekerheid en toestemming mag Huisplan zelfstandig
+handelen. Hoe groter het gevolg van een fout, hoe meer bevestiging nodig is. Automatisering is
+zichtbaar, voorspelbaar en eenvoudig terug te draaien.
+
+> Was: "Huisplan stelt voor waar het hoort en vraagt altijd om bevestiging."
+
+Deze fase werkt pas goed op het model van fase 2 (één taaksoort, leden met ID's). Elke stap komt
+eerst in de testversie en wordt met een paar huishoudens geprobeerd.
+
+| Stap | Titel | Doel | Afhankelijk van | Migratie | Status |
+| --- | --- | --- | --- | --- | --- |
+| 3.1 | Navigatie onderzoeken | Vaststellen of Vandaag \| Boodschappen \| + \| Ons huis beter werkt dan de huidige balk. | 2.12 | Nee | Gepland ⛔ 🔁 |
+| 3.2 | Taalherkenning uitbreiden | Zinnen als 'stofzuigen elke vrijdag voor Lynn' goed begrijpen. | 2.9 | Nee | Gepland |
+| 3.3 | Voorstelvenster: Goed of Anders… | Bij twijfel een voorstel ter bevestiging tonen, volgens het automatiseringsuitgangspunt van beslissing 1. | 3.2 | Nee | Gepland ✏️ |
+| 3.4 | Nog uitzoeken | Bij twijfel bewaren in plaats van gokken. | 3.3 | Nee | Gepland |
+| 3.5 | Centrale + in de navigatie | De + is de primaire manier om iets vast te leggen. | 3.1, 3.4 | Nee | Gepland |
+| 3.6 | Leren van correcties | Huisplan onthoudt keuzes van het huishouden ('pindakaas' is een boodschap, 'Lyn' is Lynn). | 3.3 | Nee | Gepland |
+| 3.7 | Spraak | Inspreken zonder te typen. | 3.5 | Nee | Gepland |
+| 3.8 | Foto en AI (laatste uitbreiding) | Een foto van een bon, paspoort of recept wordt een voorstel. | 3.5, 4.6 | Nee | Gepland 🔁 |
+
+### Fase 3: gates en beslissingen per stap
+
+**3.1 Navigatie**
+- ⛔ **Gate** (beslissing 2): vóór 3.1 wordt de navigatie getoetst aan werkelijk gebruik.
+- 🔁 **Later herbeoordelen.** Er zijn drie indelingen en geen ervan is een definitief ontwerp:
+
+  | Bron | Indeling | Status |
+  | --- | --- | --- |
+  | Oorspronkelijke roadmap | Vandaag \| Boodschappen \| + \| Ons huis | Te onderzoeken |
+  | Productkompas, principe 8 | Vandaag, Agenda, Boodschappen, +, Taken, Vakantie | Hypothese |
+  | Huidige app | Vandaag, Bakje, Boodschappen, Meer | Huidige situatie |
+
+- De uitkomst bepaalt 3.5.
+
+**3.3 Voorstelvenster** ✏️ (beslissing 1)
+- Was: "Nooit iets stil ergens neerzetten."
+- Voortaan geldt het automatiseringsuitgangspunt: bij twijfel vragen, na voldoende zekerheid en
+  toestemming zelfstandig handelen, meer bevestiging naarmate de gevolgen groter zijn, en altijd
+  zichtbaar, voorspelbaar en eenvoudig terug te draaien.
+- Hoe dat in 3.3–3.6 wordt uitgewerkt, is nog niet ontworpen. Dat volgt bij de Productkompas-toets
+  van deze stappen.
+
+**3.8 Foto en AI**
+- 🔁 **Herprioriteren bij de eerstvolgende roadmapreview** (beslissing 5).
+  - Een foto of document omzetten in relevante huishoudinformatie is een belangrijk voorbeeld van
+    de kernbelofte van Huisplan.
+  - Het houdt niet automatisch de laagste prioriteit omdat het historisch achteraan stond.
+  - De plaats in de volgorde en de titel "(laatste uitbreiding)" zijn bewust nog niet veranderd.
+    Dat gebeurt bij de roadmapreview.
+  - Nu niet implementeren.
+
+## Fase 4: Commercieel product
+
+**Doel:** alles wat nodig is om Huisplan te verkopen en betrouwbaar te laten draaien.
+
+Een deel kan parallel aan fase 2 en 3. Zodra fase 1 in productie draait (na 1.15), kunnen 4.1 → 4.2,
+4.5, 4.6 en 4.7–4.9 parallel.
+
+| Stap | Titel | Doel | Afhankelijk van | Migratie | Status |
+| --- | --- | --- | --- | --- | --- |
+| 4.1 | Echte pushmeldingen | Meldingen komen aan, ook als de app dicht is. | Fase 1 | Nee | Gepland 🔁 |
+| 4.2 | Herinneringen via de server | Een herinnering gaat op tijd af, op het juiste toestel. | 4.1, 2.9 | Nee | Gepland |
+| 4.3 | Onboarding | Een nieuw huishouden is binnen twee minuten op weg. | 1.8, 3.5 | Nee | Gepland |
+| 4.4 | Uitnodigingen afronden | Uitnodigen werkt zoals mensen het van andere apps kennen. | 1.9, 4.3 | Nee | Gepland |
+| 4.5 | Abonnement en betalen | Huishoudens kunnen een abonnement afsluiten en beheren. | Fase 1 | Nee | Gepland ✏️ |
+| 4.6 | Privacy, account verwijderen en data-export | Voldoen aan de AVG en vertrouwen geven. | Fase 1 | Nee | Gepland |
+| 4.7 | Monitoring en foutmeldingen | Problemen zien voordat gebruikers ze melden. | Fase 1 | Nee | Gepland |
+| 4.8 | Back-ups en herstel | Geen data kwijt, ook niet bij een fout van ons. | Fase 1 | Nee | Gepland |
+| 4.9 | Productieomgeving en releaseproces | Voorspelbaar en veilig uitbrengen. | 0.1, 1.1 | Nee | Gepland |
+| 4.10 | Lanceervereisten | Klaar om te verkopen. | 4.1–4.9 | Nee | Gepland |
+
+### Fase 4: beslissingen per stap
+
+**4.1 Pushmeldingen**
+- 🔁 **Later herbeoordelen** (beslissing 4). Push blijft mogelijk.
+- Bij het ontwerp wordt push getoetst aan principe 6: alleen aandacht vragen wanneer de melding
+  daadwerkelijk waarde heeft.
+
+**4.5 Abonnement en betalen** ✏️ (beslissing 3)
+- Vervallen: een proefperiode waarna de app alleen-lezen wordt.
+- Richting:
+  - De gratis versie moet bruikbaar blijven voor organiseren.
+  - Premium verkoopt extra gemak, automatisering, AI en koppelingen.
+  - Bestaande huishouddata worden niet gegijzeld.
+- Welke functies precies premium zijn, staat nog open (zie Beslispunten).
+
+## Beslispunten
+
+Deze keuzes liggen bij de producteigenaar. Ze blokkeren de roadmap niet direct, maar wel de stap
+die erachter staat. De kolom "Oorspronkelijk advies" komt uit de roadmap van 2 oktober.
+
+| Keuze | Nodig voor | Oorspronkelijk advies | Stand na beslissingen 1–10 |
+| --- | --- | --- | --- |
+| Inlogmethoden | 1.7 | Start met een e-mailcode (geen wachtwoord); Apple en Google in fase 4. | Ongewijzigd open. |
+| Bewaartermijn van de oude Firebase-data | 1.15 | 90 dagen na de overstap, daarna kan het huishouden het eigen project opruimen. | Ongewijzigd open. |
+| Navigatie | 3.1, 3.5 | Beslissen na het onderzoek in 3.1, niet vooraf. | 🔁 Vóór 3.1 toetsen aan werkelijk gebruik (beslissing 2). |
+| Prijsmodel en welke functies betaald zijn | 4.5 | Eén abonnement per huishouden, onbeperkt leden, met proefperiode; eventueel AI-foto's als extra. | ✏️ Een proefperiode die eindigt in alleen-lezen vervalt (beslissing 3). Het prijsmodel zelf staat nog open. |
+| AI-dienst voor foto's en de kosten daarvan | 3.8 | Pas kiezen als 3.1–3.7 bewezen zijn; verwerking in de EU en geen opslag bij de dienst. | 🔁 De prioriteit van 3.8 wordt herbeoordeeld bij de eerstvolgende roadmapreview (beslissing 5). |
+| Alleen web-app of ook in de app-winkels | 4.10 | Eerst als web-app; app-winkels pas als pushmeldingen op iPhone een probleem blijken. | Ongewijzigd open. |
+| Welke secundaire functies definitief blijven na 2.14 | Na 2.14 | Na minimaal drie maanden gebruikscijfers per functie beslissen. | 🔁 Op basis van werkelijk gebruik (beslissing 10). |
+
+## Functies die voorlopig blijven
+
+De audit adviseerde bij deze onderdelen om ze te heroverwegen of minder prominent te maken. In deze
+roadmap blijven ze allemaal bestaan. Of ze blijven, veranderen of minder prominent worden, bepaalt
+werkelijk gebruik mede (🔁 beslissing 10).
+
+| Functie | Plek en verandering in de roadmap |
+| --- | --- |
+| Vaste lasten | Blijft volledig, onder Ons huis → Huis. |
+| Gewoonten | Blijft, ook op Vandaag. Optioneel per lid (1.6). |
+| Koppelgesprek | Blijft een optionele vaste taak met gespreksvragen; na 2.5 een gewone herhalende taak. |
+| Vakanties | Alle tabbladen blijven. Personen worden leden (1.6), to-do's worden gekoppelde taken (2.8), datums komen in de kalender (2.1). |
+| Wie is waar | Blijft als scherm. Werkt met alle leden (1.6) en voedt de kalender (2.1). |
+| Ochtendbriefing | Blijft, standaard aan, uit te zetten (0.11). |
+| Seizoenstip en weekscore | Blijven, standaard aan, uit te zetten (0.11). Mildere toon (0.10). |
+| Gezins-DNA, Statistieken, Weekoverzicht | Blijven, samen onder Terugkijken (2.12). |
+| Huisgeheugen | Blijft; het zoekveld van Ons huis zoekt er ook in (2.12). |
+| "Wat eten we?"-spinner | Blijft en wordt beter bereikbaar, als knop in Eten (2.11). |
+| Emoji-reacties en confetti | Blijven zoals nu. |
+| Backlog | Blijft als scherm; de items worden taken met 'ooit' (2.7). |
+| Onderhoud | Blijft als scherm met voortgangsbalken; items worden herhalende taken (2.6). |
+| Garanties en Vervaldata-kluis | Beide blijven; één gezamenlijk scherm met filters (2.10). |
+| Maaltijdplanner en Recepten | Beide blijven; samen in Eten (2.11). |
+| Bestellingen, Verlanglijstje, Notitieboek, Verjaardagen | Blijven; verlanglijstjes per lid (1.6), datums in de kalender (2.1). |
+| Toevoegen (inbox) | Blijft; wordt 'Nog uitzoeken' achter de centrale + (3.4, 3.5). |
+| Dagnotitie, themakleur, back-up | Blijven ongewijzigd. |

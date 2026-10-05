@@ -5,8 +5,7 @@ Huisplan Productkompas v1.0 (`PRODUCT_PRINCIPLES.md`). Het Productkompas zelf bl
 wordt hier niet gewijzigd of aangevuld.
 
 - Vastgesteld: 5 oktober 2026, door de producteigenaar, na een conflictanalyse van roadmap en documentatie.
-- De roadmap zelf staat (nog) niet in deze repository. De beslissingen hieronder gelden voor
-  iedere toekomstige versie ervan.
+- De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
 
