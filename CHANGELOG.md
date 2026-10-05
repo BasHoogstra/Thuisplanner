@@ -329,3 +329,14 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   `leden-praktijk-v14.json` (het register zoals 1.4.0 het maakte); `tests/leden.test.js` aangepast aan
   het nieuwe model. `docs/dataformaat-v1.md`: Wie is waar gebruikt alleen "ik" en "partner".
 
+## 1.4.1 — Fase 1, stap 1.4.1 live
+- De testversie 1.4.1 (alleen echte huishoudleden in het ledenregister) is overgenomen in de
+  live-versie (`index.html`). `index.html` en `test/index.html` zijn weer gelijk.
+- Toestellen zonder de schakelaar `plannerLedenregister` schrijven geen `members`/`meta.members`;
+  daar verandert niets. Op een toestel waar de schakelaar al op `aan` staat, zet 1.4.1 die om naar
+  `aan-1.4.1` en vraagt bij het openen of de vakantielabels bij het huishouden horen. Dat is de
+  geplande, handmatige activeringsstap (zie `docs/fase1-notities.md`, punt 11); deze livegang zelf
+  wijzigt geen data.
+- Volledige testset tegen test én live; de app-tests van het ledenregister 1.4.1 draaien nu ook
+  tegen live.
+
