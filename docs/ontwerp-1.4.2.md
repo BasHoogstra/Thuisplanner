@@ -386,7 +386,7 @@ een verzoek naar een ander adres dan de lokale mock of emulator.
 | --- | --- | --- |
 | P1-1 | Hoe zien de werkelijke Firebase-regels eruit? Alleen-lezende controle per project (besluit 9.5). | producteigenaar |
 | P1-2 | Welke Firebase-projecten en welke historische clientversies doen mee (besluit 9.6)? In het bijzonder: zijn er nog apps van vóór 0.2 in gebruik? | producteigenaar |
-| P1-3 | Gedraagt de emulator zich bij ETag, `if-match`, lege plekken, PATCH en regelevaluatie zoals productie? Zo niet: welke afwijking is aanvaardbaar, of is een afzonderlijk akkoord voor een echt testproject nodig? | onderzoek, daarna besluit |
+| P1-3 | Gedraagt de emulator zich bij ETag, `if-match`, lege plekken, PATCH en regelevaluatie zoals productie? Zo niet: welke afwijking is aanvaardbaar, of is een afzonderlijk akkoord voor een echt testproject nodig? | onderzoek, daarna besluit. Onderzoek uitgevoerd (NW-01, 6 okt 2026): `docs/p1-3-emulatorproef.md`; besluit open. |
 | P1-4 | Welke variant voor herstel ná wijzigingen in het doel (R3a, R3b of R3c)? Moet vóór het activeren van een slot vaststaan. | producteigenaar |
 | P1-5 | Kloppen de effectregels voor `same` bij tegenstrijdig lidmaatschap (contract 2.4)? | producteigenaar |
 | P1-6 | Goedkeuring van de UUIDv5-namespace en de exacte invoercodering, inclusief de keuzes in 5.4 (besluit 9.9). | producteigenaar |

@@ -37,6 +37,7 @@ geïnstalleerde versie in de cloudomgeving).
 | `leden-praktijk.test.js` | Ledenregister 1.4.1: vakantielabels (paard, categorie, oma) zijn geen huishoudlid zonder bevestiging; een 1.4.0-register met zes leden wordt vier leden met dezelfde ID's; vakantiegegevens en `plannerMemberId` blijven; twee toestellen; oudere versie zet labels niet terug. |
 | `supabase.test.js` | Migraties, lokale RLS-tests, geen geheime sleutels, app gebruikt nog geen Supabase. |
 | `schema.test.js` | Testdata en opgeslagen data voldoen aan `docs/dataformaat-v1.schema.json`; `meta.schemaVersion` wordt alleen toegevoegd, nooit overschreven, en de live-versie laat het staan. |
+| `emulatorproef.test.js` | P1-3 (NW-01): de emulatorproef uit `tools/emulator/` draait in een eigen proces (zonder jar alleen de statische controles): alleen lokaal, geen productieadressen of regelbestanden in de repo, alle harde controles geslaagd, geen afwijking van bekend productiegedrag, en een mutatietest die bewijst dat een open bronregel wordt betrapt. Zie `docs/p1-3-emulatorproef.md`. |
 
 Opties van `openApp` voor synchronisatietests: `state` (één nagebootste database delen tussen twee
 toestellen, zie `sharedDb`), `log` (verloop van de verzoeken) en `exposeETag` (de app kan de ETag

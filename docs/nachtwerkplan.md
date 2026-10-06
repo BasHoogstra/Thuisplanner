@@ -10,6 +10,7 @@ Uitvoerbare queue voor zelfstandig Claude-nachtwerk. Zie docs/claude-nachtwerk-p
 Controleer eerst de onafgemaakte P1-3 proefbestanden. Hervat uitsluitend de Firebase Emulator-proef. Eerdere harness-correcties: leeg object is geen geldige persisted-control; A5.2 toetst aantoonbare weigering, niet specifiek HTTP 401. Test ETag/If-Match, lege locaties, regelevaluatie en PUT/PATCH/DELETE/subpad/parent/multipath/**POST** (historische sendBeacon-writer).
 **Klaar:** reproduceerbaar rapport, emulator/productieverschillen benoemd, lokale tests groen.
 **Verboden:** echte Firebase/plannerdata, rules publiceren, Supabase, migratie.
+**Status (6 okt 2026):** onderzoek afgerond, zie `docs/p1-3-emulatorproef.md`. Eerdere proefbestanden niet teruggevonden; proef opnieuw en reproduceerbaar opgezet (`tools/emulator/`). Besluit P1-3 door de producteigenaar open.
 
 ### NW-02 — E6 verhuisslot-proof 🟠
 Na NW-01. Bewijs met fictieve data: bron immutable na lock; alle historische schrijfvormen geblokkeerd; parent/multipath kan niet omzeilen; control niet via gewone datawrites wijzigbaar; target veilig init; twee migrators divergeren niet; hervatten deterministisch; oude/onderweg writers veilig. Output = bewijs + voorstel regels/paden. Niets publiceren.

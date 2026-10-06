@@ -361,3 +361,15 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Geen wijziging aan HTML, UI of functionaliteit. Een al op het beginscherm gezette app houdt het
   oude icoon tot hij opnieuw wordt toegevoegd.
 
+## 1.4.2-voorbereiding: P1-3 emulatorproef (NW-01, alleen tooling en documentatie)
+- Reproduceerbare proef `tools/emulator/p1-3-proef.js` tegen een lokaal gestarte Firebase Realtime
+  Database Emulator: ETag/if-match, lege locaties, regelevaluatie en de schrijfvormen
+  PUT/PATCH/DELETE/subpad/ouder/meerdere paden/POST (historische sendBeacon-vorm) tegen een
+  proefslot. Harde lokale netwerkallowlist, optioneel een eigen netwerknamespace (`--netns`), alleen
+  fictieve data, mutatietest.
+- Uitkomst: 74 controles, geen afwijking van bekend productiegedrag; 7 punten waarvan het
+  productiegedrag onbekend is, en de verschillen tussen emulator en productie zijn benoemd in
+  `docs/p1-3-emulatorproef.md`. Besluit P1-3 ligt bij de producteigenaar.
+- Bevinding (niet hersteld, buiten deze stap): een lijst die Firebase als object teruggeeft (lijst
+  met gaten) wordt door `normalizeData` leeg teruggeschreven. Zie `docs/p1-3-emulatorproef.md`, 4.5.
+- Test: `tests/emulatorproef.test.js`. Geen wijziging aan de app, Firebase-regels, Supabase of data.
