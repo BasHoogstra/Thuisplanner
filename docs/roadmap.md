@@ -13,7 +13,8 @@ afwijking dan eerst.
 2. `docs/productkompas-beslissingen.md`
 3. `docs/roadmap.md` (dit document)
 4. de relevante fase- of technische documentatie, zoals `docs/identiteit-en-items.md`,
-   `docs/fase1-notities.md`, `docs/dataformaat-v1.md` en `supabase/README.md`
+   `docs/ontwerp-1.4.2.md`, `docs/fase1-notities.md`, `docs/dataformaat-v1.md` en
+   `supabase/README.md`
 5. pas dan de implementatie
 
 **Wat hier wel en niet staat:**
@@ -28,7 +29,8 @@ afwijking dan eerst.
   architectuurbesluiten uit `docs/identiteit-en-items.md` (sectie 7, vastgesteld op 6 oktober
   2026). Wat daarbuiten nog een voorstel is, is gemarkeerd als 📝.
   De status van 1.4.1 is bijgewerkt naar live. Daarna aangevuld met besluit 8 (herbruikbaar
-  verhuisslot; 1.5 en 1.12 blijven afzonderlijke migraties) bij 1.4.2, 1.5 en 1.12.
+  verhuisslot; 1.5 en 1.12 blijven afzonderlijke migraties) bij 1.4.2, 1.5 en 1.12, en met besluit 9
+  (na de review van het 1.4.2-plan) bij 1.4.2. Stap 1.14 is gemarkeerd als follow-up.
 - **Status:** volgens `CHANGELOG.md`.
 
 **Legenda**
@@ -182,7 +184,7 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 | 1.11 | Foto's naar bestandsopslag | Foto's van garanties en onderhoud niet meer als tekst in de data, zodat synchroniseren snel blijft. | 1.10 | Ja (via de import) | Gepland |
 | 1.12 | Importfunctie voor bestaande planners | Een volledige, controleerbare kopie van een Firebase-planner in een Supabase-huishouden. | 1.2, 1.5, 1.10, 1.11 | Ja | Gepland |
 | 1.13 | Overstap-wizard in de app | Een bestaand huishouden verhuist zelf, stap voor stap, zonder hulp van een ontwikkelaar. | 1.12, 1.9 | Ja (via 1.12) | Gepland |
-| 1.14 | Firebase-planner bevriezen en late wijzigingen meenemen | Na de overstap schrijft niemand meer in Firebase, en gaat niets verloren van toestellen die nog offline waren. | 1.13, 0.2 | Ja (markering in Firebase) | Gepland |
+| 1.14 | Firebase-planner bevriezen en late wijzigingen meenemen | Na de overstap schrijft niemand meer in Firebase, en gaat niets verloren van toestellen die nog offline waren. | 1.13, 0.2 | Ja (markering in Firebase) | Gepland 📝 (follow-up: aansluiten op het verhuisslot, zie 1.12) |
 | 1.15 | Uitrol en uitfaseren | Gecontroleerd overgaan, eerst met jullie eigen huishouden. | 1.14 | Ja (per huishouden) | Gepland |
 
 ### Fase 1: gates en beslissingen per stap
@@ -243,6 +245,21 @@ Tot en met 1.15 blijft de Firebase-versie werken.
     bij het ontwerp. Ze worden alleen vastgelegd voor zover ze nodig zijn als contract
     (`docs/identiteit-en-items.md`, 3.1, eis 4).
   - Een wijziging aan de Firebase-configuratie gebeurt niet zonder apart, expliciet akkoord.
+- **Besluit 9** (na de review van het 1.4.2-plan; `docs/identiteit-en-items.md`, 7.1):
+  - zonder bruikbare ETag wordt niet geschreven;
+  - `same`/`different` krijgt een afzonderlijk semantisch contract naast `member`/`notMember`;
+  - optie A is de onderzoeksrichting voor E6; dat is geen toestemming om Firebase-regels te
+    wijzigen of een slot te activeren;
+  - het bewijs gebeurt in de Firebase Emulator met een harde lokale netwerkallowlist; een echt
+    Firebase-testproject vraagt een afzonderlijk akkoord;
+  - vóór het E6-bewijs worden de werkelijke Firebase-regels alleen-lezend gecontroleerd, en de
+    Firebase-projecten en historische clientversies geïnventariseerd;
+  - E5 gebeurt lokaal en geanonimiseerd, ook op ruwe data, caches en bases;
+  - ⛔ geen praktijktest van E2/E3 op echte huishouddata; het herstelprotocol wordt eerst volledig
+    ontworpen;
+  - de UUIDv5-namespace en de exacte invoercodering worden vóór gebruik vastgelegd en getest.
+- **Ontwerp:** `docs/ontwerp-1.4.2.md` (ontwerp, geen contract; met de open vragen P1-1 t/m
+  P1-10).
 
 **1.6 (centraal ledenbeheer)**
 - ⛔ **Gate** (beslissing 6): hier wordt de gast/oppas-regel structureel opgelost. Activiteit of
