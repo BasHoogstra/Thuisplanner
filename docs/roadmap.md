@@ -24,9 +24,9 @@ afwijking dan eerst.
 - **Bron:** de uitvoeringsroadmap zoals vastgesteld op 2 oktober 2026, met dezelfde fases, stappen
   en volgorde.
 - **Bijgewerkt:** 5 oktober 2026, met de beslissingen 1–10 en de aanvullingen daarop uit
-  `docs/productkompas-beslissingen.md`. Op 6 oktober 2026 aangevuld met de voorgestelde stap 1.4.2
-  en de voorwaarden uit het voorstel `docs/identiteit-en-items.md` (gemarkeerd als 📝), en
-  diezelfde dag herzien na de review van Codex.
+  `docs/productkompas-beslissingen.md`. Op 6 oktober 2026 aangevuld met stap 1.4.2 en de zeven
+  architectuurbesluiten uit `docs/identiteit-en-items.md` (sectie 7, vastgesteld op 6 oktober
+  2026). Wat daarbuiten nog een voorstel is, is gemarkeerd als 📝.
   De status van 1.4.1 is bijgewerkt naar live.
 - **Status:** volgens `CHANGELOG.md`.
 
@@ -38,14 +38,13 @@ afwijking dan eerst.
 | **Afgerond** | Afgerond zonder app-wijziging (backend of documentatie). |
 | **Open PR** | Gebouwd, maar nog niet gemerged. |
 | **Gepland** | Nog niet begonnen. |
-| **Voorgesteld** | Voorgestelde stap; nog niet besloten. |
 
 | Markering | Betekenis |
 | --- | --- |
 | ⛔ **Gate** | Harde randvoorwaarde: moet aantoonbaar zijn geregeld vóór het genoemde moment. |
 | 🔁 **Later herbeoordelen** | Bewust nog niet opgelost. Bij het genoemde moment opnieuw beoordelen. |
 | ✏️ **Aangepast** | Gewijzigd door een expliciete beslissing over het Productkompas. |
-| 📝 **Voorstel** | Uit `docs/identiteit-en-items.md`; geldt pas na een besluit van de producteigenaar. |
+| 📝 **Voorstel** | Nog niet besloten; geldt pas na een besluit van de producteigenaar. |
 
 ## Productkompas-toets (werkwijze vanaf nu)
 
@@ -111,14 +110,18 @@ De toets hoeft niet met terugwerkende kracht te worden ingevuld voor bestaande o
 | Vóór `SupabaseStore` huishouddata gaat lezen/schrijven, moet de Supabase-autorisatie/RLS het onderscheid tussen gedeelde en afgeschermde huishouddata veilig kunnen ondersteunen voor de gegevens waarvoor dat op dat moment nodig is (security/privacy-gate). | 1.10 | 9 |
 | De navigatie is getoetst aan werkelijk gebruik. | 3.1 | 2 |
 
-📝 **Voorgestelde voorwaarden** (uit `docs/identiteit-en-items.md`; nog niet besloten):
+**Gates uit de architectuurbesluiten** (`docs/identiteit-en-items.md`, sectie 7, vastgesteld op
+6 oktober 2026):
 
-| Voorwaarde | Geldt vóór | Contract |
+| Gate | Geldt vóór | Besluit |
 | --- | --- | --- |
-| E1 t/m E6 (stap 1.4.2): herstelkopie buiten het toestel met hersteloefening, veilig schrijven, gedrag bij opslagfouten, beslislogboek, classificatie van de data, en een ontwerp voor het server-side uitsluiten van oude schrijvers | 1.5 | 5.1 |
-| Het identiteitscontract ligt vast (beslispunten 1–3) | 1.5 | 2, 7 |
-| Oude schrijvers worden aan de serverkant uitgesloten (beslispunt 7) | de migratie-schrijfactie van 1.5 | 3.1 |
-| Supabase-schema aangepast aan het contract (beslispunt 4), via een nieuwe migratie | de eerste echte Supabase-schrijver (uiterlijk vóór 1.8 in productie) | 5.2 |
+| Stap 1.4.2 is afgerond: E1 t/m E6 (herstelkopie buiten het toestel met hersteloefening, veilig schrijven, gedrag bij opslagfouten, beslislogboek, classificatie van de data, en het bewezen mechanisme om oude schrijvers uit te sluiten) | de start van 1.5 | 5 |
+| Oude Firebase-clients kunnen aantoonbaar niet meer schrijven, ook niet met oude of gekopieerde markeringen en niet met schrijfacties die al onderweg zijn. Een wijziging aan de Firebase-configuratie gebeurt alleen na apart, expliciet akkoord. | de migratie-schrijfactie van 1.5 | 7 |
+| De bestaande data is geclassificeerd | de itemmigratie (fase 2) | 4 |
+
+📝 **Nog uit te werken:** het Supabase-schema aangepast aan het contract, via een nieuwe migratie
+(sectie 5.2). Besluit 4 legt de richting vast; de concrete wijzigingen worden apart goedgekeurd,
+vóór de eerste echte Supabase-schrijver (uiterlijk vóór 1.8 in productie).
 
 ## Fase 0: Huidige app afronden en opruimen
 
@@ -154,7 +157,8 @@ Supabase, met een veilige overstap voor bestaande planners.
 De volgorde is bewust:
 
 1. eerst leden en member-ID's in de huidige data (1.4–1.6), zodat de grootste datawijziging los
-   staat van de wissel van backend;
+   staat van de wissel van backend. Daarbinnen geldt: **eerst 1.4.2, daarna pas 1.5.** 1.5 start
+   niet voordat 1.4.2 is afgerond (besluit 5);
 2. daarna de backend (1.7–1.11);
 3. pas dan de overstap van echte data (1.12–1.15).
 
@@ -167,8 +171,8 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 | 1.3 | Opslaglaag in de app scheiden | De app los maken van Firebase, zodat een tweede opslag ernaast kan. | 0.1, 0.2 | Nee | Live (1.3.0) |
 | 1.4 | Ledenregister in de huidige data | Iedereen in het huishouden krijgt een vast member-ID, nog vóór de overstap. | 1.3 | Ja (nieuw veld) | Live (1.4.0) |
 | 1.4.1 | Alleen echte huishoudleden in het ledenregister | Correctie op 1.4: niet elke naam in de planner wordt een huishoudlid. | 1.4 | Ja (registerversie 2) | Live (1.4.1) |
-| 1.4.2 | Voorbereiding 1.5 | De migratie van 1.5 veilig en corrigeerbaar maken (E1 t/m E6). Gedragswijzigingen in de code, geen datamigratie. | 1.4.1 | Nee | Voorgesteld 📝 |
-| 1.5 | Verwijzingen omzetten van naam naar member-ID | Toewijzen, auteurs en per-persoon-data hangen aan een vast ID in plaats van aan een naam of 'ik'/'partner'. | 1.4, 0.2, 1.4.2 📝 | Ja (versie-gebonden, met back-up) | Gepland ⛔ |
+| 1.4.2 | Voorbereiding 1.5 | De migratie van 1.5 veilig en corrigeerbaar maken (E1 t/m E6). Gedragswijzigingen in de code, geen datamigratie. | 1.4.1 | Nee | Gepland (eerstvolgende stap) |
+| 1.5 | Verwijzingen omzetten van naam naar member-ID | Toewijzen, auteurs en per-persoon-data hangen aan een vast ID in plaats van aan een naam of 'ik'/'partner'. | 1.4.2 (afgerond), 1.4, 0.2 | Ja (versie-gebonden, met back-up) | Gepland ⛔ |
 | 1.6 | Kinderen en meer volwassenen in de app | Elk huishouden past: alleen, stel, gezin met kinderen, of meer volwassenen. | 1.5 | Nee | Gepland ⛔ |
 | 1.7 | Inloggen met een account | Mensen kunnen een account maken en inloggen, eerst alleen op staging. | 1.1, 1.2 | Nee | Gepland |
 | 1.8 | Huishouden aanmaken en leden beheren | Een nieuw huishouden start volledig in Supabase, zonder Firebase. | 1.7, 1.6 | Nee | Gepland |
@@ -199,21 +203,24 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 - ⛔ **Gate** (beslissing 6): activiteit of auteurschap maakt iemand niet automatisch huishoudlid.
   1.5 moet deze regel al respecteren en mag het bekende probleem met externe gebruikers niet
   verder verspreiden. De structurele oplossing volgt in 1.6.
-- 📝 **Voorstel** (`docs/identiteit-en-items.md`, beslispunten 1–3, 5 en 7):
-  - de member-UUID wordt het doel-ID. Voor bestaande leden is die deterministisch afgeleid, zodat
-    gelijktijdige of hervatte migraties dezelfde UUID's opleveren. `m_…` blijft als alias, zodat de
-    verwijzingen maar één keer worden omgezet;
+- ⛔ **Gate** (besluit 5): 1.5 start pas als 1.4.2 is afgerond.
+- ⛔ **Gate** (besluit 7): geen migratie-schrijfactie voordat aantoonbaar server-side is geborgd dat
+  oude clients niet meer kunnen schrijven.
+- **Vastgesteld** (`docs/identiteit-en-items.md`, architectuurbesluiten 1–3, 5 en 7):
+  - de member-UUID wordt de blijvende identiteit. Voor bestaande leden is die deterministisch
+    afgeleid (UUIDv5), zodat gelijktijdige of hervatte migraties dezelfde UUID's opleveren. Nieuwe
+    leden krijgen UUIDv4. `m_…` blijft als alias, zodat de verwijzingen maar één keer worden
+    omgezet;
   - labels worden via een labelkaart vertaald. `resolveMember()` maakt nooit een lid aan en geeft
     bij twijfel `null`;
   - een beslislogboek met een lijst voorgangers (`basedOn`) vervangt "nee wint". Er wordt niet op
     de klok beslist, en het oplossen van een conflict bouwt voort op alle conflicterende koppen;
-  - oude schrijvers worden aan de serverkant uitgesloten. Dat is een harde gate vóór de
-    migratie-schrijfactie; het mechanisme moet onder E6 nog worden ontworpen en bewezen. Hun
-    offline wijzigingen worden na de update met dezelfde mapping omgezet;
-  - personen in velden: `memberIds[]`, `byMember`/`byLabel` en `forLabel`;
-  - stap 1.4.2 (E1 t/m E6) gaat vooraf.
+  - oude schrijvers worden aan de serverkant uitgesloten. Het mechanisme wordt in 1.4.2 (E6)
+    onderzocht en bewezen. Hun offline wijzigingen worden na de update met dezelfde mapping
+    omgezet;
+  - personen in velden: `memberIds[]`, `byMember`/`byLabel` en `forLabel`.
 
-**1.4.2 Voorbereiding 1.5** 📝 Voorgesteld
+**1.4.2 Voorbereiding 1.5** (besluit 5; de eerstvolgende stap)
 - Voorwaarden E1 t/m E6 uit `docs/identiteit-en-items.md`, sectie 5.1: werkende
   gedragswijzigingen in de code, maar geen datamigratie. De omzetting gebeurt pas in 1.5, onder de
   schrijfblokkade.
@@ -221,6 +228,9 @@ Tot en met 1.15 blijft de Firebase-versie werken.
   schermen voor ledenbeheer.
 - Tot 1.6 loopt een correctie via de bestaande dialoog of het ontwikkelhulpmiddel. De schermen voor
   beheer, herstel en samenvoegen komen in 1.6.
+- E6: het mechanisme om oude Firebase-clients server-side uit te sluiten wordt hier onderzocht en
+  in een geïsoleerde omgeving bewezen (besluit 7). Er is nog geen mechanisme gekozen. Een wijziging
+  aan de Firebase-configuratie gebeurt niet zonder apart, expliciet akkoord.
 
 **1.6 (centraal ledenbeheer)**
 - ⛔ **Gate** (beslissing 6): hier wordt de gast/oppas-regel structureel opgelost. Activiteit of
@@ -238,9 +248,10 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 - Dit betekent niet dat alle toekomstige privacyfuncties vóór 1.10 gebouwd moeten worden.
 - De oplossing is nog niet ontworpen. Ontwerp en implementatie volgen pas wanneer daartoe wordt
   besloten.
-- 📝 **Voorgestelde schemavoorwaarden** (`docs/identiteit-en-items.md`, sectie 5.2). Die moeten
-  zijn doorgevoerd **vóór de eerste echte Supabase-schrijver**: op staging vóór de tests met data
-  in 1.7–1.8, en in productie uiterlijk vóór 1.8 (het eerste echte huishouden).
+- 📝 **Uit te werken schemavoorwaarden** (`docs/identiteit-en-items.md`, sectie 5.2). Besluit 4
+  legt de richting vast; de concrete wijzigingen worden apart goedgekeurd. Ze moeten zijn
+  doorgevoerd **vóór de eerste echte Supabase-schrijver**: op staging vóór de tests met data in
+  1.7–1.8, en in productie uiterlijk vóór 1.8 (het eerste echte huishouden).
   - `items`: de sleutel wordt `(household_id, id)` met een UUID, en een typewissel gaat alleen
     via een conversie;
   - `household_members`: `status` (`active`/`archived`) en `legacy_ids`; `is_member()` en
@@ -284,24 +295,23 @@ migratiestap:
 
 ### Fase 2: beslissingen per stap
 
-**2.1 en 2.2: items en relaties** 📝 Voorstel
-- Het minimale itemcontract (`docs/identiteit-en-items.md`, sectie 4) wordt vastgelegd **vóór**
-  2.1. Zo bouwt 2.1 Vandaag direct als projectie, zonder tijdelijke conversielogica. Een volledige
-  dataconversie hoeft daar niet op te wachten.
-- Het contract:
-  - gemeenschappelijk zijn alleen de identiteit (een UUID die niet van de collectie afhangt) en de
-    wijzigingsadministratie;
-  - status en tijd zijn per type;
-  - een typewissel gaat alleen via een conversie;
+**2.1 en 2.2: items en relaties**
+- **Vastgesteld** (architectuurbesluiten 4 en 6):
+  - items krijgen uiteindelijk een UUID die niet van de collectie afhangt;
+  - er komt geen universele alles-entiteit: elk type houdt zijn eigen betekenisvolle velden;
+  - een typewissel gaat alleen via een bewuste conversie;
+  - ⛔ vóór de itemmigratie wordt de bestaande data eerst geclassificeerd (sectie 3.4);
+  - Vandaag is definitief een niet-schrijvende weergave: alleen renderen mag geen huishouddata
+    wijzigen. Het huidige doorschuiven van taken wordt op het passende moment omgebouwd; dat
+    blokkeert 1.5 niet.
+- 📝 **Voorstel** (`docs/identiteit-en-items.md`, sectie 4 en 5.3):
+  - het minimale itemcontract vóór 2.1 vastleggen, zodat 2.1 Vandaag direct als projectie bouwt
+    zonder tijdelijke conversielogica;
   - drie vaste relaties (`context`, `about`, `supports`); herkomst volgt in fase 3;
   - een klein contract voor herhaling en afgeleide datums;
-  - geen generiek graafmodel.
-- Vóór de itemmigratie moet de classificatie van de bestaande data (sectie 3.4) zijn bevestigd.
-- Hulpregel bij handelingen: "Als het ene klaar is, is het andere dan per definitie ook klaar?"
-  - Ja: één item met meerdere weergaven.
-  - Nee: twee gekoppelde items.
-- Vandaag is een weergave die door alleen te tonen geen data wijzigt. Die ontwerpregel geldt nu al.
-  Wanneer het huidige doorschuiven van taken wordt omgebouwd, is beslispunt 6.
+  - hulpregel bij handelingen: "Als het ene klaar is, is het andere dan per definitie ook klaar?"
+    - Ja: één item met meerdere weergaven.
+    - Nee: twee gekoppelde items.
 
 **2.14 en de bestaande functies**
 - 🔁 **Later herbeoordelen** (beslissing 10). Er wordt niets verwijderd op basis van alleen het

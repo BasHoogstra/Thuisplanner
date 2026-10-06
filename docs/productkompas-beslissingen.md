@@ -7,8 +7,9 @@ wordt hier niet gewijzigd of aangevuld.
 - Vastgesteld: 5 oktober 2026, door de producteigenaar, na een conflictanalyse van roadmap en documentatie.
   Aangevuld op dezelfde dag met verduidelijkingen bij de beslissingen 1, 3, 6, 8 en 9.
 - Op 6 oktober 2026 zijn alleen feitelijke verwijzingen bijgewerkt (PR #8 is gemerged), en is een
-  verwijzing toegevoegd naar het voorstel `docs/identiteit-en-items.md`. Daarin staan beslispunten
-  (sectie 7) die nog moeten worden genomen; die veranderen niets aan de beslissingen hieronder.
+  verwijzing toegevoegd naar `docs/identiteit-en-items.md`. De architectuurbesluiten daarin (sectie
+  7) zijn op 6 oktober 2026 door de producteigenaar genomen. Ze werken de beslissingen hieronder
+  technisch uit, maar veranderen ze niet.
 - De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
@@ -86,7 +87,7 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   ledenbeheer (1.6): activiteit of auteurschap maakt iemand niet automatisch huishoudlid.
   1.5 moet deze regel al respecteren en mag het probleem niet verder verspreiden. 1.6 lost het
   structureel op.
-- **Uitwerking (voorstel):** `docs/identiteit-en-items.md`, sectie 1 en 2. Daar staat hoe
+- **Uitwerking (vastgesteld, architectuurbesluit 3):** `docs/identiteit-en-items.md`, sectie 1 en 2. Daar staat hoe
   `resolveMember()`, `byMember`/`byLabel` en labels voor niet-leden deze regel technisch borgen.
 
 ### 7. Losse dialogen en rode bevestigingsknop: niet aanpassen in 1.4.1
@@ -107,7 +108,7 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   - Het register wordt gecontroleerd vóór 1.5.
   - Structureel herstel hoort in het centrale ledenbeheer (1.6).
   - Wordt dat sterk uitgesteld, dan beoordelen we dit opnieuw.
-- **Voorstel** (`docs/identiteit-en-items.md`, sectie 2.4, beslispunt 2 en stap 1.4.2):
+- **Vastgesteld** (`docs/identiteit-en-items.md`, sectie 2.4; architectuurbesluiten 2 en 5):
   - vóór 1.5 een beslislogboek met een lijst voorgangers (`basedOn`) in plaats van "nee wint",
     zodat een correctie veilig voortbouwt op de keuze of keuzes die zij herstelt;
   - een foutief "nee" wordt dan hersteld door de keuze te corrigeren, zonder verwijzingen met de

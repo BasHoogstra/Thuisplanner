@@ -1,8 +1,16 @@
-# Identiteit en items: contract (voorstel)
+# Identiteit en items: contract
 
-**Status: voorstel, nog niet vastgesteld.** Dit document legt vast hoe Huisplan personen en items
-identificeert, hoe de persoonsmigratie van fase 1.5 veilig verloopt, en hoe items aan elkaar
-gekoppeld zijn. Het moet vastliggen voordat 1.4.2 en 1.5 code krijgen.
+**Status: vastgesteld op 6 oktober 2026.** De producteigenaar heeft de zeven architectuurbesluiten
+in sectie 7 genomen. Dit document legt vast hoe Huisplan personen en items identificeert, hoe de
+persoonsmigratie van fase 1.5 veilig verloopt, en hoe items aan elkaar gekoppeld zijn.
+
+Het is de basis voor 1.4.2 en 1.5. **Eerst 1.4.2, daarna pas 1.5.**
+
+Nog niet besloten, en daarom nog een voorstel:
+- de relaties en het contract voor herhaling en afgeleide datums (4.2–4.4);
+- de concrete Supabase-schemawijzigingen (5.2). Besluit 4 legt de richting vast; de wijzigingen
+  worden apart goedgekeurd vóór de eerste echte Supabase-schrijver;
+- de overige roadmapvoorstellen (5.3).
 
 - **Opgesteld:** 6 oktober 2026, op basis van een eigen controle van de code op `main` (`b6ea4c5`).
 - **Herzien:** 6 oktober 2026, na de review van Codex op PR #12. Zie sectie 8 voor wat er is
@@ -17,10 +25,10 @@ gekoppeld zijn. Het moet vastliggen voordat 1.4.2 en 1.5 code krijgen.
   4. items en relaties (voor fase 2, niet voor 1.4.2);
   5. roadmap en voorwaarden;
   6. teststrategie;
-  7. beslispunten;
+  7. architectuurbesluiten;
   8. verwerking van de review.
-- Er wordt nog niets geïmplementeerd. Geen code, geen migratie, en geen wijziging aan Firebase of
-  Supabase.
+- Dit document zelf implementeert niets. De implementatie volgt in 1.4.2 en 1.5. Een wijziging aan
+  de Firebase-configuratie gebeurt niet zonder apart, expliciet akkoord (besluit 7).
 
 **Bindende termen.** "Moet" is een eis van het contract. "Voorkeur" en "advies" zijn een aanbeveling.
 
@@ -225,8 +233,8 @@ terug.
      verouderde client weigert.
    - Het mechanisme is **nog niet ontworpen en niet bewezen.** Het ontwerp en het bewijs vallen onder
      E6 (5.1).
-   - Een aanpassing van de Firebase-configuratie vraagt een apart, expliciet akkoord
-     (beslispunt 7).
+   - De eis is besloten (besluit 7). Een aanpassing van de Firebase-configuratie vraagt daarnaast
+     een apart, expliciet akkoord.
    - **Een onderzochte variant volstaat niet zoals beschreven:** een Firebase-regel die alleen eist
      dat het meegestuurde schrijftoken (`meta.writeToken`) verschilt van het token op de server.
      1. Een oude client haalt token A op.
@@ -320,7 +328,7 @@ Deze indeling is ook nodig vóór de itemmigratie van fase 2 en vóór een geslo
   naar taak). Het `id` blijft dan gelijk en de typespecifieke velden worden omgezet. Een vrij
   wisselbare `kind` zonder regels is er niet.
 
-### 4.2 Relaties
+### 4.2 Relaties (voorstel)
 
 | Relatie | Betekenis | Toegestane doelen | Gedrag |
 | --- | --- | --- | --- |
@@ -341,7 +349,7 @@ Deze indeling is ook nodig vóór de itemmigratie van fase 2 en vóór een geslo
 - het terugvinden ("welke taken horen bij deze vakantie?") gaat via een index of zoekopdracht op
   `links`, niet via een gekopieerde lijst op het doel.
 
-### 4.3 Drie uitgewerkte voorbeelden
+### 4.3 Drie uitgewerkte voorbeelden (voorstel)
 
 1. **"Luiers halen vanmiddag".** Eén `shopping`-item met `when` (vandaag, middag), zichtbaar in
    Boodschappen en op Vandaag. Eén keer afvinken werkt overal door.
@@ -354,7 +362,7 @@ Deze indeling is ook nodig vóór de itemmigratie van fase 2 en vóór een geslo
    voorkomen en niet de jaarlijkse reeks. Er is een afgeleide deadline (zie 4.4). Is de taak klaar,
    dan blijft de verjaardag zoals hij is; volgend jaar ontstaat geen automatisch nieuw cadeau.
 
-### 4.4 Herhaling en afgeleide datums (klein contract, vóór die functionaliteit)
+### 4.4 Herhaling en afgeleide datums (voorstel; klein contract, vóór die functionaliteit)
 
 - **Reeks tegenover voorkomen.** Een jaarlijkse verjaardag is een reeks. Een relatie wijst naar één
   voorkomen (`{seriesId, date}`).
@@ -372,7 +380,8 @@ Deze indeling is ook nodig vóór de itemmigratie van fase 2 en vóór een geslo
 - **Vandaag** is een projectie: een selectie uit de items, zonder ze te wijzigen.
   - Het huidige doorschuiven van open taken (in `renderVandaag()`) wordt een weergave ("nog open
     sinds di").
-  - Wanneer dat gebeurt, is een aparte keuze (beslispunt 6). Het hangt niet aan de migratie van 1.5.
+  - Het principe is besloten (besluit 6). De implementatie gebeurt op het passende moment in de
+    roadmap en blokkeert 1.5 niet.
 - **De centrale `+`:**
   - de parser (stap 3.2) levert een lijst acties met relaties op;
   - binnen expliciet verleende toestemming mag een actie, ook een wijziging, zelfstandig worden
@@ -388,7 +397,7 @@ Deze indeling is ook nodig vóór de itemmigratie van fase 2 en vóór een geslo
 
 ## 5. Roadmap en voorwaarden
 
-### 5.1 Stap 1.4.2: voorbereiding 1.5 (klein)
+### 5.1 Stap 1.4.2: voorbereiding 1.5 (klein; besluit 5)
 
 1.4.2 bevat **werkende gedragswijzigingen in de code, maar geen datamigratie.** De omzetting van
 bestaande data gebeurt pas in 1.5, onder de schrijfblokkade.
@@ -409,7 +418,7 @@ voor ledenbeheer.
 bestaande bevestigingsdialoog of het ontwikkelhulpmiddel (`huisplanLeden`). De schermen voor
 ledenbeheer, herstel en samenvoegen komen in 1.6.
 
-### 5.2 Supabase: vóór de eerste echte schrijver
+### 5.2 Supabase: vóór de eerste echte schrijver (richting besloten, uitwerking apart goed te keuren)
 
 Schemawijzigingen die lege tabellen aannemen, moeten zijn doorgevoerd **vóór de eerste echte
 schrijver.**
@@ -439,7 +448,9 @@ Nu wordt geen migratie uitgevoerd. Het gaat om deze ontwerpbeslissingen:
 - **Relaties:** blijven binnen hetzelfde huishouden (database-check of controle in de functie).
 - **Privacy-gate van 1.10:** blijft daarnaast gelden.
 
-### 5.3 Overige roadmapvoorstellen
+### 5.3 Overige roadmapvoorstellen (nog niet besloten)
+
+De punten hieronder vallen buiten de zeven besluiten en blijven voorstellen.
 
 - **Itemcontract vóór 2.1.** Het minimale itemcontract (4.1–4.4) wordt vastgelegd vóór de bredere
   weergaven van 2.1. Zo bouwt 2.1 Vandaag direct als projectie, zonder tijdelijke conversielogica.
@@ -478,17 +489,19 @@ Op een geïsoleerde omgeving met fictieve data, niet op de echte planner:
 9. **(Supabase, vóór 1.8)** Relaties over huishoudgrenzen worden geweigerd. Archiveren trekt
    toegang in. Ontkoppelen en overdragen volgen 2.5.
 
-## 7. Beslispunten
+## 7. Architectuurbesluiten (6 oktober 2026)
 
-| # | Beslispunt | Advies |
+Genomen door de producteigenaar.
+
+| # | Besluit | Uitkomst |
 | --- | --- | --- |
-| 1 | De member-UUID als doel-ID in 1.5: deterministisch (UUIDv5) voor bestaande leden, willekeurig voor nieuwe, `m_…` als alias | Ja |
-| 2 | Het beslislogboek met `opId` en een lijst voorgangers (`basedOn: []`, één of meerdere) vervangt "nee wint". Conflicten geven `null` en één vraag; het antwoord bouwt voort op alle conflicterende koppen. | Ja |
-| 3 | Persoonsvelden `memberIds[]`, `byMember`/`byLabel` en `forLabel`; identiteit is geen autorisatie | Ja |
-| 4 | Supabase: een item-ID dat niet van de collectie afhangt, typewissel alleen via conversie, de schemafixes uit 5.2, en dat alles **vóór de eerste echte schrijver** (uiterlijk vóór 1.8 in productie) | Ja |
-| 5 | 1.4.2 als in 5.1: E1 t/m E6, code zonder datamigratie, verder niets | Ja |
-| 6 | Vandaag als weergave: de ontwerpregel geldt nu. Wanneer wordt het doorschuiven omgebouwd? | **Open:** een eigen kleine stap vóór 2.1, of samen met 2.1 |
-| 7 | Uitsluiten van oude schrijvers aan de serverkant | **De eis is besluitrijp:** een harde gate vóór de migratie van 1.5. **Open onder E6:** het mechanisme (nog te ontwerpen en te bewijzen tegen het acceptatiescenario van 3.1) en het akkoord om de Firebase-configuratie te wijzigen. |
+| 1 | **UUID-identiteit.** De member-UUID wordt de blijvende identiteit. Bestaande `m_…`-leden krijgen de afgesproken deterministische UUID (UUIDv5, sectie 2.3); nieuwe leden krijgen UUIDv4. `m_…` blijft legacy-alias. | **Ja** |
+| 2 | **Beslislogboek.** Het causale beslislogboek uit 2.4 vervangt "nee wint". `basedOn` is een lijst met nul, één of meerdere voorgangers. Een conflict wordt expliciet opgelost door voort te bouwen op alle conflicterende koppen. | **Ja** |
+| 3 | **Persoonsbegrippen gescheiden.** Account, huishoudlid, actor, toegewezen persoon en historisch of niet-lid-label zijn aparte begrippen (2.1). Activiteit of auteurschap maakt nooit iemand lid, en `resolveMember()` maakt nooit zelfstandig een lid aan. | **Ja** |
+| 4 | **Itemidentiteit los van collectie.** Items krijgen uiteindelijk een UUID die niet van de collectie afhangt. Er komt geen universele alles-entiteit: elk type houdt zijn eigen betekenisvolle velden, en een typewissel gaat alleen via een bewuste conversie (4.1). Vóór de itemmigratie wordt de bestaande data eerst geclassificeerd (3.4). | **Ja.** De concrete schemawijzigingen in 5.2 worden uitgewerkt en apart goedgekeurd vóór de eerste echte Supabase-schrijver. |
+| 5 | **1.4.2 vóór 1.5.** De veiligheidsvoorbereiding van 1.4.2 (E1 t/m E6, sectie 5.1) is een harde voorwaarde voordat 1.5 de bestaande persoonsverwijzingen migreert. | **Ja** |
+| 6 | **Vandaag als weergave.** Vandaag is definitief een niet-schrijvende weergave: alleen renderen mag geen huishouddata wijzigen. De implementatie blokkeert 1.5 niet en gebeurt op het passende moment in de roadmap. | **Ja** |
+| 7 | **Oude Firebase-clients aan de serverkant blokkeren.** Vóór de migratie van 1.5 moet aantoonbaar server-side zijn geborgd dat oude clients niet meer kunnen schrijven, ook niet met oude of gekopieerde markeringen en niet met schrijfacties die al onderweg zijn (3.1). | **Ja voor de eis; nog geen keuze voor het mechanisme.** Het mechanisme wordt in 1.4.2 onderzocht en bewezen (E6). Een wijziging aan de Firebase-configuratie gebeurt niet zonder apart, expliciet akkoord. |
 
 ## 8. Verwerking van de review (Codex, PR #12)
 
@@ -521,7 +534,7 @@ Op een geïsoleerde omgeving met fictieve data, niet op de echte planner:
   leidend en is een extra controle.
 - **Conflictmodel:** een logboek met alleen toevoegingen, waarin elke beslissing een eigen sleutel
   heeft. Daardoor werkt het met de bestaande samenvoeglogica, zonder nieuwe synchronisatielaag.
-- **Oude schrijvers:** de review noemt het probleem; dit voorstel voegt het concrete gat in `flush()`
+- **Oude schrijvers:** de review noemt het probleem; dit contract voegt het concrete gat in `flush()`
   toe, plus de valkuil dat een markering in `meta` door oude apps gewoon wordt overgenomen.
 - **Herkomstrelatie (`source`):** niet nauwkeuriger gemaakt maar uitgesteld naar fase 3, omdat die
   pas met een handelingslogboek zinvol is.
