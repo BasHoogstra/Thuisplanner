@@ -2563,7 +2563,8 @@ function createFirebaseStore(opts){
       var inc=normalizeData(rem.raw);
       var wasLoaded=loadedOnce;loadedOnce=true;
       var local=getLocal();
-      if(hasLocalChanges()){
+      var hadChanges=hasLocalChanges();
+      if(hadChanges){
         // Lokale wijzigingen die nog niet op de server staan (offline gemaakt, of de app
         // werd gesloten tijdens het opslaan): samenvoegen met de serverversie en opslaan.
         if(s!==base)emit({type:'incoming',local:local,remote:inc});
@@ -2575,8 +2576,9 @@ function createFirebaseStore(opts){
         base=s;writeCache(inc);
         emit({type:'data',data:inc,render:true,reminders:true});
       }
-      // Lokaal is gelijk aan de server: niets meer dat nog bevestigd moet worden.
-      if(!hasLocalChanges())confirmedGen=localGen;
+      // Lokaal was al gelijk aan de server: niets meer dat nog bevestigd moet worden. (Na samenvoegen
+      // blijft de geplande opslag staan, zoals voorheen: de eerste keer laden schrijft één keer terug.)
+      if(!hadChanges)confirmedGen=localGen;
       emit({type:'loaded',first:!wasLoaded});
       if(!pending())status('updated');
       else if(!serverETag)status('unsafe');

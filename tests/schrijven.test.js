@@ -47,6 +47,11 @@ function bewaker(extra) {
   return b;
 }
 const open = (ctx, o) => openApp(ctx.browser, ctx.base, Object.assign({ target: 'test' }, o));
+// Wacht tot de eerste keer laden (die één keer terugschrijft, bestaand gedrag) is afgerond.
+async function rustig(o) {
+  await until(async () => /^(Opgeslagen|Bijgewerkt)/.test(await syncText(o.page)), 5000, 'app in rust na laden');
+  await wait(300);
+}
 
 module.exports = {
   async 'E2 statisch: één voorwaardelijke PUT in de opslaglaag, geen terugval zonder if-match'() {
@@ -79,9 +84,10 @@ module.exports = {
   },
 
   async 'T2a: verbinding weg vóór de server — alleen voorwaardelijke herpoging, één keer opgeslagen'(ctx) {
-    let eerste = true;
+    let eerste = false;
     const bw = bewaker(info => { if (info.method === 'PUT' && eerste) { eerste = false; return 'abort'; } });
     const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest });
+    await rustig(o); eerste = true;
     const p0 = o.state.puts;
     await addBood(o.page, 'Volkoren T2a');
     await wait(900);
@@ -95,9 +101,10 @@ module.exports = {
   },
 
   async 'T2b: verwerkt maar antwoord verloren — geen dubbele wijziging, wel bevestigd'(ctx) {
-    let eerste = true;
+    let eerste = false;
     const bw = bewaker(info => { if (info.method === 'PUT' && eerste) { eerste = false; return 'lost'; } });
     const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest });
+    await rustig(o); eerste = true;
     const p0 = o.state.puts;
     await addBood(o.page, 'Kaas');
     await until(async () => /^Opgeslagen/.test(await syncText(o.page)), 6000, 'bevestiging na verloren antwoord');
@@ -129,12 +136,13 @@ module.exports = {
   },
 
   async 'T3: herhaald 412 — samengevoegd, daarna blijvende status, later herstel zonder verlies'(ctx) {
-    let storen = true, n = 0;
+    let storen = false, n = 0;
     const bw = bewaker((info, b) => {
       // Elk ander toestel schrijft net vóór onze PUT: die krijgt dus steeds een 412.
       if (info.method === 'PUT' && storen) { n++; serverWrite(info.state, db => db.boodschappen.push({ id: 'ander-' + n, text: 'Ander ' + n, addedBy: 'Sanne', done: false })); }
     });
     const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest });
+    await rustig(o); storen = true;
     await addBood(o.page, 'Pruimen T3');
     await until(async () => /mislukt/.test(await syncText(o.page)), 8000, 'blijvende status na herhaald 412');
     const conflicten = o.state.conflicts || 0;
