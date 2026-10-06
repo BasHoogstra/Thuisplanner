@@ -28,6 +28,7 @@ Automatiseer R1/R2/R4; bereid R3-framework voor. 🔴 Voor R3-activering moet pr
 
 ### NW-07 — Causal decision log 🟢
 Pure motor voor membership(member/notMember) en identityPair(same/different). Unieke opId; basedOn lijst; expliciet subject/type; canonieke inhoud. Zelfde opId andere inhoud = harde fout. Geen klok als arbiter. Resolutie bouwt op alle heads. Geen impliciete membership-effecten. Tests T9–T11.
+**Status (6 okt 2026):** pure bouwstenen gebouwd in de testversie (blok BESLISLOGBOEK), los van NW-03/NW-04 vanaf `main`; tests `tests/beslislogboek.test.js`. Onbekende `meta.members`-sleutels blijven nu staan. Niet aangesloten en niet live. Open: P1-6 (definitief opId van omgezette beslissingen), P1-5 (effectregels `same`). Zie `docs/e4-beslislogboek.md`.
 
 ### NW-08 — UUIDv5 voorbereiding 🟠
 Bouw integratiepunt/testharnas + standaardtestvectoren. Geen permanente Huisplan-namespace/inputencoding zelf kiezen of echte data gebruiken. 🔴 Voor gebruik: namespace, exacte inputencoding en version labels vaststellen. Test T12.
