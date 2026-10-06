@@ -205,9 +205,11 @@ Tot en met 1.15 blijft de Firebase-versie werken.
     verwijzingen maar één keer worden omgezet;
   - labels worden via een labelkaart vertaald. `resolveMember()` maakt nooit een lid aan en geeft
     bij twijfel `null`;
-  - een beslislogboek met `basedOn` vervangt "nee wint". Er wordt niet op de klok beslist;
-  - oude schrijvers worden aan de serverkant uitgesloten. Hun offline wijzigingen worden na de
-    update met dezelfde mapping omgezet;
+  - een beslislogboek met een lijst voorgangers (`basedOn`) vervangt "nee wint". Er wordt niet op
+    de klok beslist, en het oplossen van een conflict bouwt voort op alle conflicterende koppen;
+  - oude schrijvers worden aan de serverkant uitgesloten. Dat is een harde gate vóór de
+    migratie-schrijfactie; het mechanisme moet onder E6 nog worden ontworpen en bewezen. Hun
+    offline wijzigingen worden na de update met dezelfde mapping omgezet;
   - personen in velden: `memberIds[]`, `byMember`/`byLabel` en `forLabel`;
   - stap 1.4.2 (E1 t/m E6) gaat vooraf.
 

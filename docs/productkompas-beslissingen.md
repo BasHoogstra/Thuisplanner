@@ -108,8 +108,8 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   - Structureel herstel hoort in het centrale ledenbeheer (1.6).
   - Wordt dat sterk uitgesteld, dan beoordelen we dit opnieuw.
 - **Voorstel** (`docs/identiteit-en-items.md`, sectie 2.4, beslispunt 2 en stap 1.4.2):
-  - vóór 1.5 een beslislogboek met `basedOn` in plaats van "nee wint", zodat een correctie veilig
-    voortbouwt op de keuze die zij herstelt;
+  - vóór 1.5 een beslislogboek met een lijst voorgangers (`basedOn`) in plaats van "nee wint",
+    zodat een correctie veilig voortbouwt op de keuze of keuzes die zij herstelt;
   - een foutief "nee" wordt dan hersteld door de keuze te corrigeren, zonder verwijzingen met de
     hand opnieuw te koppelen;
   - de schermen voor herstel blijven in 1.6, dus deze beslissing verandert niet.

@@ -138,27 +138,47 @@ Er zijn drie niveaus, en ze worden niet door elkaar gebruikt.
 ### 2.4 Correcties: een beslislogboek zonder klokken
 
 - **Opslag.** Beslissingen worden een logboek met alleen toevoegingen:
-  `meta.members.decisions[opId] = {label, state, basedOn, byMember, at}`.
+  `meta.members.decisions[opId] = {label, state, basedOn: [opId, …], byMember, at}`.
   - `opId` is uniek per handeling. Hetzelfde verzoek opnieuw verzenden is daardoor herkenbaar en
     heeft geen extra effect.
-  - `basedOn` is het `opId` van de beslissing die deze keuze vervangt, of `null` bij de eerste
-    keuze over het label.
+  - `basedOn` is altijd een **lijst** van voorgangers: de `opId`'s van alle beslissingen die deze
+    keuze vervangt. De lijst kan leeg zijn, één voorganger bevatten of meerdere:
+    - **leeg** (`[]`): de eerste keuze over het label;
+    - **één voorganger**: een gewone correctie op de enige geldende keuze;
+    - **meerdere voorgangers**: het oplossen van een conflict. De lijst bevat dan **alle**
+      conflicterende koppen.
+  - Een nieuwe beslissing neemt in `basedOn` altijd alle koppen van dat label op die het toestel op
+    dat moment kent.
   - `at` is alleen informatief, voor weergave. Het beslist nooit.
 - **Samenvoegen.** Omdat elke beslissing een eigen sleutel is, behoudt de bestaande samenvoeglogica
   (`merge3` op objecten) gelijktijdige beslissingen allebei. Er gaat niets verloren en er ontstaat
   geen mengvorm van twee beslissingen.
 - **Uitkomst per label.**
-  - De **koppen** zijn de beslissingen waar geen andere beslissing op voortbouwt.
+  - De **koppen** zijn de beslissingen die in geen enkele `basedOn`-lijst van een andere beslissing
+    voorkomen.
+  - Een beslissing is vervangen zodra één beslissing haar in `basedOn` noemt. Dat geldt ook als die
+    nieuwere beslissing eerder binnenkomt dan haar voorganger.
   - Eén kop, of meerdere koppen met dezelfde uitkomst: die uitkomst geldt.
   - Meerdere koppen met verschillende uitkomst: een **conflict**. `resolveMember()` geeft dan
-    `null`, en de app stelt één vraag om het op te lossen. Het antwoord bouwt voort op alle koppen.
-- **De bestaande 1.4.1-antwoorden** (`member` / `notMember`) worden in 1.5 omgezet naar
-  beslissingen zonder `basedOn`. Daarbij wordt het huidige "nee wint" nog één keer toegepast, zodat
-  de uitkomst gelijk blijft.
+    `null`, en de app stelt één vraag om het op te lossen.
+  - Het antwoord op die vraag is een nieuwe beslissing met **alle** conflicterende koppen in
+    `basedOn`. Daarna is er weer één kop en is het conflict aantoonbaar opgelost. Een antwoord dat
+    maar één kop noemt, laat het conflict bestaan.
+- **Voorbeeld.**
+  1. Toestel A en toestel B zijn allebei offline. A legt `d1` vast ("Lynn" = lid,
+     `basedOn: []`), B legt `d2` vast ("Lynn" = geen lid, `basedOn: []`).
+  2. Na het samenvoegen zijn `d1` en `d2` allebei kop, met verschillende uitkomst. Er is een
+     conflict.
+  3. Het antwoord `d3` ("Lynn" = lid, `basedOn: [d1, d2]`) vervangt beide. `d3` is de enige kop en
+     "Lynn" is lid.
+  4. Een latere correctie `d4` ("Lynn" = geen lid, `basedOn: [d3]`) heeft één voorganger.
+- **De bestaande 1.4.1-antwoorden** (`member` / `notMember`) worden in 1.5 omgezet naar één
+  beslissing per label met `basedOn: []`. Daarbij wordt het huidige "nee wint" nog één keer
+  toegepast, zodat de uitkomst gelijk blijft.
 - **Dezelfde persoon herstellen of een andere persoon toevoegen:**
-  - **Een label werd ten onrechte "geen lid".** De correctie is een nieuwe beslissing `member` die
-    voortbouwt op de oude. Bestond er nog geen lid, dan ontstaat het lid nu, en alle verwijzingen
-    met dat label volgen automatisch. Er hoeft niets met de hand te worden gekoppeld.
+  - **Een label werd ten onrechte "geen lid".** De correctie is een nieuwe beslissing `member` met
+    de huidige kop of koppen in `basedOn`. Bestond er nog geen lid, dan ontstaat het lid nu, en alle
+    verwijzingen met dat label volgen automatisch. Er hoeft niets met de hand te worden gekoppeld.
   - **Een lid werd ten onrechte gearchiveerd.** Het lid wordt teruggezet, met **dezelfde UUID**.
   - **Een werkelijk andere persoon met dezelfde naam.** Een nieuw lid met een nieuwe UUID. Het label
     wordt dan `ambiguous` (zie 2.2).
@@ -200,12 +220,27 @@ terug.
    - De terugval naar ongecontroleerd opslaan staat niet langer sessiebreed aan.
    - `flush()` schrijft nooit zonder ETag.
    - De migratie van 1.5 schrijft alleen gecontroleerd.
-2. **De server dwingt de uitsluiting af.** Dat moet met een server-side regel. Mogelijke uitvoering:
-   een Firebase-databaseregel die na de migratie elke schrijfactie weigert die geen *nieuw*
-   schrijftoken (`meta.writeToken`) meebrengt. Een nieuwe app maakt dat token bij elke schrijfactie
-   opnieuw aan. Een oude app kan alleen het token kopiëren dat al op de server staat, en wordt dus
-   geweigerd. Dit wijzigt de Firebase-configuratie en vraagt daarom een apart, expliciet akkoord
-   (beslispunt 7).
+2. **De server dwingt de uitsluiting af: harde gate vóór de migratie van 1.5.**
+   - Geen migratie-schrijfactie van 1.5 voordat de server aantoonbaar elke schrijfactie van een
+     verouderde client weigert.
+   - Het mechanisme is **nog niet ontworpen en niet bewezen.** Het ontwerp en het bewijs vallen onder
+     E6 (5.1).
+   - Een aanpassing van de Firebase-configuratie vraagt een apart, expliciet akkoord
+     (beslispunt 7).
+   - **Een onderzochte variant volstaat niet zoals beschreven:** een Firebase-regel die alleen eist
+     dat het meegestuurde schrijftoken (`meta.writeToken`) verschilt van het token op de server.
+     1. Een oude client haalt token A op.
+     2. Een nieuwe client slaat daarna token B op.
+     3. De oude client stuurt bij een ongecontroleerde schrijfactie A terug.
+     4. A verschilt van B en wordt dus geaccepteerd, terwijl de schrijver oud is.
+
+     Een tokenvariant mag alleen worden gekozen als ze aantoonbaar aan het acceptatiescenario
+     hieronder voldoet.
+   - **Acceptatiescenario (verplicht, in de geïsoleerde tests, zie 6):** na de migratie kan een oude
+     client de server niet meer wijzigen. Dat geldt ook
+     - als die client eerder een token (of andere servermarkering) heeft opgehaald en dat terugstuurt;
+     - voor schrijfacties van die client die al onderweg waren of in een wachtrij stonden
+       (bijvoorbeeld een `flush()` bij het wegzetten, of een herpoging na een netwerkfout).
 3. **Offline wijzigingen van een oude app gaan niet verloren.**
    - Ze blijven in de lokale cache van dat toestel.
    - Na de update past de nieuwe app dezelfde deterministische mapping (2.3) toe op die cache,
@@ -365,7 +400,7 @@ bestaande data gebeurt pas in 1.5, onder de schrijfblokkade.
 | **E3** | Gedrag bij cache- en opslagfouten (3.2) | code |
 | **E4** | Het beslislogboek (2.4) kan worden gelezen en geschreven; `resolveMember()` volgens 2.2–2.4. Zonder schermen. | code |
 | **E5** | Classificatie van de bestaande data op een export (3.4) | onderzoek |
-| **E6** | Een ontwerp voor het server-side uitsluiten van oude schrijvers (3.1, eis 2), met een besluit over de uitvoering. Het doorvoeren in Firebase gebeurt aan het begin van 1.5, na akkoord. | ontwerp + besluit |
+| **E6** | Het mechanisme voor het server-side uitsluiten van oude schrijvers (3.1, eis 2) ontwerpen en in een geïsoleerde omgeving bewijzen tegen het acceptatiescenario van 3.1, plus een besluit over de uitvoering. Het doorvoeren in Firebase gebeurt aan het begin van 1.5, na akkoord. Geen migratie-schrijfactie zonder dit bewijs. | ontwerp + bewijs + besluit |
 
 **Niet in 1.4.2:** items, relaties, herhaling, het wijzigen van Vandaag, de parser, en de schermen
 voor ledenbeheer.
@@ -428,10 +463,14 @@ Op een geïsoleerde omgeving met fictieve data, niet op de echte planner:
 1. **Twee migratoren tegelijk:** zelfde UUID's, geen dubbele leden.
 2. **Onderbroken migratie hervat:** idempotent, geen nieuwe identiteiten.
 3. **Afwijkende klokken:** de uitkomst van het beslislogboek hangt niet van `at` af.
-4. **Gelijktijdige tegenstrijdige correcties:** de uitkomst is een conflict met `null`, niet een
-   willekeurige winnaar.
-5. **Oude schrijver na de migratie:** wordt door de server geweigerd. Zijn offline wijzigingen
-   komen na de update terug, met omgezette identiteiten.
+4. **Gelijktijdige tegenstrijdige correcties:**
+   - de uitkomst is een conflict met `null`, niet een willekeurige winnaar;
+   - een oplossing met alle conflicterende koppen in `basedOn` levert één kop op;
+   - een antwoord dat maar één kop noemt, laat het conflict bestaan.
+5. **Oude schrijver na de migratie (acceptatiescenario van 3.1):**
+   - wordt door de server geweigerd, ook met een eerder opgehaald token of andere servermarkering;
+   - ook schrijfacties die al onderweg waren of in een wachtrij stonden, wijzigen de server niet;
+   - zijn offline wijzigingen komen na de update terug, met omgezette identiteiten.
 6. **Mislukte opslag** (`localStorage` vol, herstelkopie niet bevestigd): de migratie start niet, en
    de app meldt dat er niet-bewaarde wijzigingen zijn.
 7. **Gelijke namen:** het label wordt `ambiguous` en de verwijzing blijft tekst.
@@ -444,12 +483,12 @@ Op een geïsoleerde omgeving met fictieve data, niet op de echte planner:
 | # | Beslispunt | Advies |
 | --- | --- | --- |
 | 1 | De member-UUID als doel-ID in 1.5: deterministisch (UUIDv5) voor bestaande leden, willekeurig voor nieuwe, `m_…` als alias | Ja |
-| 2 | Het beslislogboek met `basedOn` en `opId` vervangt "nee wint"; conflicten geven `null` en één vraag | Ja |
+| 2 | Het beslislogboek met `opId` en een lijst voorgangers (`basedOn: []`, één of meerdere) vervangt "nee wint". Conflicten geven `null` en één vraag; het antwoord bouwt voort op alle conflicterende koppen. | Ja |
 | 3 | Persoonsvelden `memberIds[]`, `byMember`/`byLabel` en `forLabel`; identiteit is geen autorisatie | Ja |
 | 4 | Supabase: een item-ID dat niet van de collectie afhangt, typewissel alleen via conversie, de schemafixes uit 5.2, en dat alles **vóór de eerste echte schrijver** (uiterlijk vóór 1.8 in productie) | Ja |
 | 5 | 1.4.2 als in 5.1: E1 t/m E6, code zonder datamigratie, verder niets | Ja |
 | 6 | Vandaag als weergave: de ontwerpregel geldt nu. Wanneer wordt het doorschuiven omgebouwd? | **Open:** een eigen kleine stap vóór 2.1, of samen met 2.1 |
-| 7 | Uitsluiten van oude schrijvers aan de serverkant: een Firebase-databaseregel met schrijftoken (3.1), of een alternatief | **Open:** keuze van mechanisme, en akkoord om de Firebase-regels te wijzigen |
+| 7 | Uitsluiten van oude schrijvers aan de serverkant | **De eis is besluitrijp:** een harde gate vóór de migratie van 1.5. **Open onder E6:** het mechanisme (nog te ontwerpen en te bewijzen tegen het acceptatiescenario van 3.1) en het akkoord om de Firebase-configuratie te wijzigen. |
 
 ## 8. Verwerking van de review (Codex, PR #12)
 
