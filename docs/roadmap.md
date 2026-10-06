@@ -27,7 +27,8 @@ afwijking dan eerst.
   `docs/productkompas-beslissingen.md`. Op 6 oktober 2026 aangevuld met stap 1.4.2 en de zeven
   architectuurbesluiten uit `docs/identiteit-en-items.md` (sectie 7, vastgesteld op 6 oktober
   2026). Wat daarbuiten nog een voorstel is, is gemarkeerd als 📝.
-  De status van 1.4.1 is bijgewerkt naar live.
+  De status van 1.4.1 is bijgewerkt naar live. Daarna aangevuld met besluit 8 (herbruikbaar
+  verhuisslot; 1.5 en 1.12 blijven afzonderlijke migraties) bij 1.4.2, 1.5 en 1.12.
 - **Status:** volgens `CHANGELOG.md`.
 
 **Legenda**
@@ -218,6 +219,9 @@ Tot en met 1.15 blijft de Firebase-versie werken.
   - oude schrijvers worden aan de serverkant uitgesloten. Het mechanisme wordt in 1.4.2 (E6)
     onderzocht en bewezen. Hun offline wijzigingen worden na de update met dezelfde mapping
     omgezet;
+  - 1.5 blijft een afzonderlijke migratie binnen Firebase en wordt niet samengevoegd met 1.12
+    (besluit 8). Ze gebruikt het verhuisslot uit 1.4.2. Het wijzigen van de Firebase-regels en het
+    activeren van het slot voor 1.5 vereisen een afzonderlijk, expliciet akkoord;
   - personen in velden: `memberIds[]`, `byMember`/`byLabel` en `forLabel`.
 
 **1.4.2 Voorbereiding 1.5** (besluit 5; de eerstvolgende stap)
@@ -229,8 +233,16 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 - Tot 1.6 loopt een correctie via de bestaande dialoog of het ontwikkelhulpmiddel. De schermen voor
   beheer, herstel en samenvoegen komen in 1.6.
 - E6: het mechanisme om oude Firebase-clients server-side uit te sluiten wordt hier onderzocht en
-  in een geïsoleerde omgeving bewezen (besluit 7). Er is nog geen mechanisme gekozen. Een wijziging
-  aan de Firebase-configuratie gebeurt niet zonder apart, expliciet akkoord.
+  in een geïsoleerde omgeving bewezen (besluit 7). Het principe ligt vast (besluit 8): een
+  herbruikbaar server-side verhuisslot per bronpad, zodat hetzelfde principe in 1.12 opnieuw kan
+  worden toegepast. Het concrete mechanisme is nog niet gekozen.
+  - 1.4.2 ontwerpt en bewijst het mechanisme alleen, in een geïsoleerde omgeving. Er worden geen
+    Firebase-regels gewijzigd, er wordt geen slot geactiveerd, en productiegegevens en de
+    live/testplanner worden niet aangeraakt.
+  - Hoe de app bepaalt waar een planner staat (`resolveLocation()`) en het exacte slotformaat horen
+    bij het ontwerp. Ze worden alleen vastgelegd voor zover ze nodig zijn als contract
+    (`docs/identiteit-en-items.md`, 3.1, eis 4).
+  - Een wijziging aan de Firebase-configuratie gebeurt niet zonder apart, expliciet akkoord.
 
 **1.6 (centraal ledenbeheer)**
 - ⛔ **Gate** (beslissing 6): hier wordt de gast/oppas-regel structureel opgelost. Activiteit of
@@ -264,6 +276,16 @@ Tot en met 1.15 blijft de Firebase-versie werken.
   - relaties blijven binnen hetzelfde huishouden.
 
   Nu wordt geen Supabase-migratie uitgevoerd.
+
+**1.12 Importfunctie voor bestaande planners**
+- 1.12 blijft een afzonderlijke migratie naar Supabase. Ze wordt niet samengevoegd met 1.5
+  (besluit 8).
+- Bij de overgang naar Supabase wordt hetzelfde principe als in 1.5 opnieuw toegepast: het
+  server-side verhuisslot per bronpad uit 1.4.2 (`docs/identiteit-en-items.md`, 3.1, eis 4). Het
+  acceptatiescenario wordt daarbij opnieuw bewezen, nu met Supabase als doel.
+- ⛔ **Gate** (besluiten 7 en 8): dat het slot herbruikbaar is, geeft geen toestemming vooraf. Het
+  wijzigen van de Firebase-regels en het activeren van een slot vereisen ook hier een afzonderlijk,
+  expliciet akkoord.
 
 ## Fase 2: Eén samenhangend model
 

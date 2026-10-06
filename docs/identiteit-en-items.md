@@ -1,8 +1,9 @@
 # Identiteit en items: contract
 
 **Status: vastgesteld op 6 oktober 2026.** De producteigenaar heeft de zeven architectuurbesluiten
-in sectie 7 genomen. Dit document legt vast hoe Huisplan personen en items identificeert, hoe de
-persoonsmigratie van fase 1.5 veilig verloopt, en hoe items aan elkaar gekoppeld zijn.
+in sectie 7 genomen, en daarna besluit 8 als aanvulling op besluit 7. Dit document legt vast hoe
+Huisplan personen en items identificeert, hoe de persoonsmigratie van fase 1.5 veilig verloopt, en
+hoe items aan elkaar gekoppeld zijn.
 
 Het is de basis voor 1.4.2 en 1.5. **Eerst 1.4.2, daarna pas 1.5.**
 
@@ -15,6 +16,8 @@ Nog niet besloten, en daarom nog een voorstel:
 - **Opgesteld:** 6 oktober 2026, op basis van een eigen controle van de code op `main` (`b6ea4c5`).
 - **Herzien:** 6 oktober 2026, na de review van Codex op PR #12. Zie sectie 8 voor wat er is
   overgenomen en wat bewust anders is opgelost.
+- **Aangevuld:** 6 oktober 2026, met besluit 8 (herbruikbaar verhuisslot; 1.5 en 1.12 blijven
+  afzonderlijke migraties) in 3.1, 5.1 en 7.
 - **Plaats in de leesvolgorde:** stap 4 uit `CLAUDE.md` (fase- en technische documentatie), dus na
   `PRODUCT_PRINCIPLES.md`, `docs/productkompas-beslissingen.md` en `docs/roadmap.md`. Bij
   tegenstrijdigheid gaan die drie voor.
@@ -231,8 +234,9 @@ terug.
 2. **De server dwingt de uitsluiting af: harde gate vóór de migratie van 1.5.**
    - Geen migratie-schrijfactie van 1.5 voordat de server aantoonbaar elke schrijfactie van een
      verouderde client weigert.
-   - Het mechanisme is **nog niet ontworpen en niet bewezen.** Het ontwerp en het bewijs vallen onder
-     E6 (5.1).
+   - Het **principe** ligt vast: een server-side verhuisslot per bronpad (besluit 8, zie eis 4
+     hieronder). Het **concrete mechanisme is nog niet ontworpen en niet bewezen.** Het ontwerp en
+     het bewijs vallen onder E6 (5.1).
    - De eis is besloten (besluit 7). Een aanpassing van de Firebase-configuratie vraagt daarnaast
      een apart, expliciet akkoord.
    - **Een onderzochte variant volstaat niet zoals beschreven:** een Firebase-regel die alleen eist
@@ -255,6 +259,35 @@ terug.
      voordat hij samenvoegt.
    - Daardoor komen er geen oude identiteiten terug en verdwijnt er niets stil.
    - Kan de cache niet worden omgezet, dan blijft hij onaangeroerd bewaard en meldt de app dat.
+4. **Het verhuisslot is een herbruikbaar migratiemechanisme per bronpad (besluit 8).**
+   - **Afzonderlijke migraties.** 1.5 blijft een afzonderlijke migratie binnen Firebase. 1.12 blijft
+     een afzonderlijke migratie naar Supabase. Ze worden niet samengevoegd.
+   - **Eén principe, opnieuw toepasbaar.** Het slot dat in 1.4.2 wordt ontworpen en bewezen, wordt
+     zo ontworpen dat hetzelfde principe later opnieuw kan worden toegepast, in elk geval bij de
+     overgang naar Supabase (1.12).
+   - **Wat het contract vastlegt** (de eigenschappen; niet de vorm):
+     - een slot hoort bij één bronpad, bijvoorbeeld de plek waar een planner in Firebase staat;
+     - zodra het slot actief is, weigert de **server** elke schrijfactie op dat bronpad, ongeacht
+       wat er wordt meegestuurd. Het slot hangt dus niet af van een markering of token in de data;
+     - een client kan een actief slot niet zelf opheffen. Opheffen is een bewuste handeling van de
+       beheerder, buiten de app;
+     - de migratie schrijft pas naar het doel nadat het slot actief is en aantoonbaar werkt, en
+       leest de bron pas daarna. Schrijfacties die vóór het slot binnenkwamen, zitten daardoor in
+       de gelezen bron; latere worden geweigerd;
+     - het doel wordt gecontroleerd en herhaalbaar beschreven, en na het schrijven teruggelezen en
+       vergeleken met de bron. Bij elke afwijking of fout stopt de migratie;
+     - een client die op een actief slot stuit, stopt met schrijven, meldt dat de planner is
+       verhuisd en laat zijn lokale cache onaangeroerd (zie eis 3);
+     - het acceptatiescenario van eis 2 wordt bij **elke** toepassing opnieuw bewezen, voor het
+       betreffende doel (in 1.5 binnen Firebase, in 1.12 naar Supabase).
+   - **Bewust niet vastgelegd.** Hoe een nieuwe app bepaalt waar een planner nu staat (in het ontwerp
+     `resolveLocation()`), het exacte formaat en de plaats van het slot, de namen van paden en de
+     precieze Firebase-regels zijn onderdeel van het ontwerp in E6. Ze worden alleen vastgelegd
+     voor zover ze nodig zijn als contract, en worden niet permanent vastgezet als
+     implementatiedetail.
+   - **Geen vooraf gegeven toestemming.** Dat het slot herbruikbaar is, geeft geen toestemming voor
+     een toekomstige migratie. Het daadwerkelijk wijzigen van Firebase-regels en het activeren van
+     een slot vereist **iedere keer** afzonderlijk expliciet akkoord van de producteigenaar.
 
 ### 3.2 Gedrag bij fouten in cache en opslag
 
@@ -409,7 +442,7 @@ bestaande data gebeurt pas in 1.5, onder de schrijfblokkade.
 | **E3** | Gedrag bij cache- en opslagfouten (3.2) | code |
 | **E4** | Het beslislogboek (2.4) kan worden gelezen en geschreven; `resolveMember()` volgens 2.2–2.4. Zonder schermen. | code |
 | **E5** | Classificatie van de bestaande data op een export (3.4) | onderzoek |
-| **E6** | Het mechanisme voor het server-side uitsluiten van oude schrijvers (3.1, eis 2) ontwerpen en in een geïsoleerde omgeving bewijzen tegen het acceptatiescenario van 3.1, plus een besluit over de uitvoering. Het doorvoeren in Firebase gebeurt aan het begin van 1.5, na akkoord. Geen migratie-schrijfactie zonder dit bewijs. | ontwerp + bewijs + besluit |
+| **E6** | Het mechanisme voor het server-side uitsluiten van oude schrijvers (3.1, eis 2) ontwerpen als herbruikbaar verhuisslot per bronpad (3.1, eis 4; besluit 8) en in een geïsoleerde omgeving bewijzen tegen het acceptatiescenario van 3.1, plus een besluit over de uitvoering. 1.4.2 ontwerpt en bewijst alleen: er worden geen Firebase-regels gewijzigd, er wordt geen slot geactiveerd en er worden geen productiegegevens of planners aangeraakt. Het doorvoeren in Firebase gebeurt aan het begin van 1.5, na afzonderlijk akkoord. Geen migratie-schrijfactie zonder dit bewijs. | ontwerp + bewijs + besluit |
 
 **Niet in 1.4.2:** items, relaties, herhaling, het wijzigen van Vandaag, de parser, en de schermen
 voor ledenbeheer.
@@ -501,7 +534,8 @@ Genomen door de producteigenaar.
 | 4 | **Itemidentiteit los van collectie.** Items krijgen uiteindelijk een UUID die niet van de collectie afhangt. Er komt geen universele alles-entiteit: elk type houdt zijn eigen betekenisvolle velden, en een typewissel gaat alleen via een bewuste conversie (4.1). Vóór de itemmigratie wordt de bestaande data eerst geclassificeerd (3.4). | **Ja.** De concrete schemawijzigingen in 5.2 worden uitgewerkt en apart goedgekeurd vóór de eerste echte Supabase-schrijver. |
 | 5 | **1.4.2 vóór 1.5.** De veiligheidsvoorbereiding van 1.4.2 (E1 t/m E6, sectie 5.1) is een harde voorwaarde voordat 1.5 de bestaande persoonsverwijzingen migreert. | **Ja** |
 | 6 | **Vandaag als weergave.** Vandaag is definitief een niet-schrijvende weergave: alleen renderen mag geen huishouddata wijzigen. De implementatie blokkeert 1.5 niet en gebeurt op het passende moment in de roadmap. | **Ja** |
-| 7 | **Oude Firebase-clients aan de serverkant blokkeren.** Vóór de migratie van 1.5 moet aantoonbaar server-side zijn geborgd dat oude clients niet meer kunnen schrijven, ook niet met oude of gekopieerde markeringen en niet met schrijfacties die al onderweg zijn (3.1). | **Ja voor de eis; nog geen keuze voor het mechanisme.** Het mechanisme wordt in 1.4.2 onderzocht en bewezen (E6). Een wijziging aan de Firebase-configuratie gebeurt niet zonder apart, expliciet akkoord. |
+| 7 | **Oude Firebase-clients aan de serverkant blokkeren.** Vóór de migratie van 1.5 moet aantoonbaar server-side zijn geborgd dat oude clients niet meer kunnen schrijven, ook niet met oude of gekopieerde markeringen en niet met schrijfacties die al onderweg zijn (3.1). | **Ja voor de eis; nog geen keuze voor het mechanisme.** Het mechanisme wordt in 1.4.2 onderzocht en bewezen (E6). Een wijziging aan de Firebase-configuratie gebeurt niet zonder apart, expliciet akkoord. (Het principe is uitgewerkt in besluit 8.) |
+| 8 | **Herbruikbaar verhuisslot; 1.5 en 1.12 apart** (aanvulling op besluit 7, 6 oktober 2026). 1.5 blijft een afzonderlijke migratie binnen Firebase; 1.12 blijft een afzonderlijke migratie naar Supabase. Het server-side verhuisslot uit 1.4.2 wordt een herbruikbaar migratiemechanisme per bronpad, zodat hetzelfde principe in 1.12 opnieuw kan worden toegepast (3.1, eis 4). | **Ja.** 1.4.2 ontwerpt en bewijst het mechanisme alleen in een geïsoleerde omgeving. `resolveLocation()` en het exacte slotformaat horen bij het ontwerp en worden alleen vastgelegd voor zover ze nodig zijn als contract. Herbruikbaarheid geeft geen toestemming vooraf: het wijzigen van Firebase-regels en het activeren van een slot vereist iedere keer afzonderlijk expliciet akkoord. |
 
 ## 8. Verwerking van de review (Codex, PR #12)
 
