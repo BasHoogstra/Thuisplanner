@@ -34,6 +34,7 @@ Bouw integratiepunt/testharnas + standaardtestvectoren. Geen permanente Huisplan
 
 ### NW-09 — Lokale data-classifier 🟢
 E5: alleen anonieme vormen/aantallen, ID-aanwezigheid/uniciteit, mixed lists, mergegedrag, person refs, categorie/actie, blokkades, raw-vs-normalized. Eerst fixtures; eigen data later uitsluitend lokaal door producteigenaar.
+**Status (6 okt 2026):** gereedschap `tools/classificeer.js` gebouwd en getest op fixtures (`tests/classificeer.test.js`), los van PR #15/#16/#17 vanaf `main`. Nog niet op echte data gedraaid. Open: actie per categorie (behalve archief), indeling van `meta`/`members`, P1-7. Zie `docs/e5-classificatie.md`.
 
 ### NW-10 — 1.4.2 integratie-RC 🟠
 Integreer E1–E6; regressies groen. Geen datamigratie, Firebase lock/rules-activering of echte planner als migratietest.

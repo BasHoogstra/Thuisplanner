@@ -361,3 +361,18 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Geen wijziging aan HTML, UI of functionaliteit. Een al op het beginscherm gezette app houdt het
   oude icoon tot hij opnieuw wordt toegevoegd.
 
+## 1.4.2-voorbereiding: lokale classificatie van de data (NW-09, E5; alleen gereedschap)
+- `tools/classificeer.js`: een lokaal script dat ruwe serverdata, exports en caches leest en per veld
+  alleen vormen, aantallen en anonieme kenmerken rapporteert:
+  - de `id`-dekking, uniekheid en gemengde lijsten;
+  - het samenvoeggedrag zoals `mergeArrays`;
+  - persoonsverwijzingen en labels;
+  - de categorie uit contract 3.4;
+  - het verschil tussen ruw en genormaliseerd (met de echte `normalizeData`);
+  - blokkades.
+- Onbekende of dubbelzinnige invoer is een blokkade of een fout, nooit een gok. Het invoertype is
+  altijd expliciet. Het rapport is herhaalbaar en bevat geen huishoudgegevens; onbekende veldnamen
+  staan er standaard als hash in.
+- Tests: `tests/classificeer.test.js`. Geen wijziging aan de app, Firebase-regels, Supabase of data.
+  Nog niet op echte data gedraaid. Zie `docs/e5-classificatie.md`.
+
