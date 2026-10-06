@@ -373,3 +373,21 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Bevinding (niet hersteld, buiten deze stap): een lijst die Firebase als object teruggeeft (lijst
   met gaten) wordt door `normalizeData` leeg teruggeschreven. Zie `docs/p1-3-emulatorproef.md`, 4.5.
 - Test: `tests/emulatorproef.test.js`. Geen wijziging aan de app, Firebase-regels, Supabase of data.
+
+## 1.4.2-voorbereiding: één schrijfcoördinatiemodel (NW-03, E2; testversie)
+- `test/index.html`: opslaan, wegzetten bij het sluiten (flush), laden, herpogingen en periodiek
+  ophalen volgen één model (`docs/ontwerp-1.4.2.md`, 2.2): `localGen`/`confirmedGen`, hooguit één
+  schrijfactie onderweg, en een antwoord of leesactie van vóór een nieuwere generatie zet niets terug.
+- Elke schrijfactie is een PUT met `if-match` (`putIfMatch`). Zonder bruikbare ETag wordt niet
+  geschreven (besluit 9.1); de app meldt dan "Opslaan kan nu niet veilig" en bewaart alles lokaal. De
+  terugval zonder voorwaarde (`noConditional`) is weg, ook in `flush()`.
+- Netwerkfout tijdens opslaan = onbekende uitkomst: eerst de serverstand lezen; staat onze versie er
+  al, dan geldt hij als bevestigd (geen dubbele wijziging), anders samenvoegen en voorwaardelijk
+  opnieuw, met oplopende wachttijd (1–16 s). 412: samenvoegen en opnieuw, hooguit 5 keer per
+  wijziging. Daarna blijft de status "Opslaan mislukt" en blijft de wijziging openstaan tot een poll,
+  weer online of heropenen. "Opgeslagen" verschijnt pas als alles bevestigd is.
+- Geen datamigratie; het dataformaat is gelijk. `APP_VERSION` blijft 1.4.1 tot de integratie (NW-10).
+- Tests: `tests/schrijven.test.js` (T1–T5). De nagebootste database maakt de ETag nu standaard
+  leesbaar, zoals de echte Firebase; `store.test.js` vergelijkt oud en nieuw alleen nog in die variant.
+- Niet live; `index.html` is ongewijzigd.
+

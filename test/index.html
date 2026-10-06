@@ -2451,8 +2451,23 @@ function stampSchemaVersion(d){
 function createFirebaseStore(opts){
   var getLocal=opts.getLocal,beforeWrite=opts.beforeWrite||function(){};
   var dbUrl=null,plannerKey=null;
-  var serverETag=null,loadedOnce=false,noConditional=false,pushing=false,pushQueued=false,saveGen=0;
-  var base='',saveTimer=null,pendingSave=false,saveSeq=0,pollTimer=null;
+  // ── Schrijfcoördinatie (1.4.2, E2; docs/ontwerp-1.4.2.md, 2.2)
+  // Opslaan, wegzetten bij het sluiten (flush), laden, herpogingen en periodiek ophalen volgen samen
+  // één model:
+  //  localGen      generatie van de nieuwste lokale wijziging; loopt op bij elke save()
+  //  confirmedGen  hoogste generatie waarvan de server de opslag heeft bevestigd
+  //  serverETag    ETag van de laatst bekende serverstand; null = geen bruikbare ETag = niet schrijven
+  //  base          laatst bekende serverstand (canon), de basis voor samenvoegen
+  //  inflight      de ene schrijfactie die onderweg is: {gen, kind: 'push'|'flush'}, of null
+  //  readSeq       volgnummer van de laatst gestarte leesactie
+  //  writeEpoch    loopt op bij elke gestarte en afgeronde schrijfactie; een leesactie die daar
+  //                overheen loopt, wordt weggegooid
+  // Elke schrijfactie is een PUT met if-match (putIfMatch). Er is geen terugval naar opslaan zonder
+  // voorwaarde (besluit 9.1).
+  var serverETag=null,loadedOnce=false,localGen=0,confirmedGen=0,inflight=null,readSeq=0,writeEpoch=0;
+  var base='',saveTimer=null,retryTimer=null,pollTimer=null,failures=0,conflicts=0,conflictGen=-1;
+  var RETRY_DELAYS=[1000,2000,4000,8000,16000]; // daarna blijvend "niet opgeslagen" tot online/poll/heropenen
+  var MAX_CONFLICTS=5;                            // per generatie
   var writeBlocked=null; // null | 'moved' | 'outdated'
   var subs=[];
   function emit(ev){subs.forEach(function(fn){fn(ev);});}
@@ -2512,7 +2527,7 @@ function createFirebaseStore(opts){
     if(meta&&meta.migratedTo)reason='moved';
     else if(meta&&meta.minAppVersion&&compareVersions(opts.appVersion,meta.minAppVersion)<0)reason='outdated';
     if(reason){
-      if(writeBlocked!==reason){writeBlocked=reason;clearTimeout(saveTimer);pendingSave=false;emit({type:'guard',reason:reason,meta:meta});}
+      if(writeBlocked!==reason){writeBlocked=reason;clearTimeout(saveTimer);saveTimer=null;clearTimeout(retryTimer);retryTimer=null;emit({type:'guard',reason:reason,meta:meta});}
     } else if(writeBlocked){
       writeBlocked=null;emit({type:'guard',reason:null});
     }
@@ -2527,14 +2542,22 @@ function createFirebaseStore(opts){
     });
   }
 
+  function pending(){return localGen>confirmedGen;}
   function load(o){
     var isInitial=!!(o&&o.initial);
     if(!dbUrl)return;
+    // Geen leesactie zolang er een schrijfactie onderweg is of een opslag gepland staat (regel 8).
+    if(inflight||saveTimer)return;
+    // Een wachtende herpoging (offline, fout) wordt vervangen door deze leesactie: die voegt samen
+    // en slaat daarna opnieuw voorwaardelijk op.
+    if(retryTimer){clearTimeout(retryTimer);retryTimer=null;failures=0;}
     if(!isInitial)status('refreshing');
-    var loadSeq=saveSeq;
+    var seq=++readSeq,epoch=writeEpoch;
     fetchRemote().then(function(rem){
       if(writeBlocked){status(writeBlocked==='moved'?'blocked-moved':'blocked-outdated');return;}
-      if(saveSeq!==loadSeq||pendingSave||pushing)return;
+      // Alleen het antwoord op de nieuwste leesactie, en alleen als er intussen geen schrijfactie
+      // is begonnen of bevestigd en er geen opslag gepland staat (regel 4).
+      if(seq!==readSeq||epoch!==writeEpoch||inflight||saveTimer)return;
       serverETag=rem.etag;
       var s=canon(rem.raw);
       var inc=normalizeData(rem.raw);
@@ -2552,8 +2575,11 @@ function createFirebaseStore(opts){
         base=s;writeCache(inc);
         emit({type:'data',data:inc,render:true,reminders:true});
       }
+      // Lokaal is gelijk aan de server: niets meer dat nog bevestigd moet worden.
+      if(!hasLocalChanges())confirmedGen=localGen;
       emit({type:'loaded',first:!wasLoaded});
-      if(!pendingSave)status('updated');
+      if(!pending())status('updated');
+      else if(!serverETag)status('unsafe');
       emit({type:'connected'});
     }).catch(function(err){
       var m=String(err);
@@ -2567,100 +2593,135 @@ function createFirebaseStore(opts){
   function save(){
     writeCache();
     if(!dbUrl||writeBlocked)return;
-    clearTimeout(saveTimer);
-    pendingSave=true;saveGen++;
+    localGen++;
     // Vóór de eerste geslaagde load weten we niet wat er op de server staat; die load
     // voegt de lokale wijzigingen samen en slaat daarna op.
-    if(!loadedOnce){pendingSave=false;return;}
-    saveTimer=setTimeout(function(){push(0);},400);
-  }
-  function writeHeaders(){
-    var headers={'Content-Type':'application/json','X-Firebase-ETag':'true'};
-    if(serverETag&&!noConditional)headers['if-match']=serverETag;
-    return headers;
-  }
-  function push(attempt){
-    if(writeBlocked){pendingSave=false;return;}
-    if(pushing){pushQueued=true;return;}
-    pushing=true;
-    var gen=saveGen;
-    status('saving');
-    saveSeq++;
-    function finish(){
-      pushing=false;
-      if(gen===saveGen)pendingSave=false;
-      if(pushQueued){pushQueued=false;if(pendingSave)push(0);}
-    }
-    function mergeWith(rem){
-      var inc=normalizeData(rem.raw);
-      var s=canon(rem.raw);
-      if(s!==base){
-        var local=getLocal();
-        emit({type:'incoming',local:local,remote:inc});
-        emit({type:'data',data:mergeData(baseObj(),local,inc),render:true,reminders:false});
-      }
-      serverETag=rem.etag;base=s;
-    }
-    var conditional=!!serverETag&&!noConditional;
-    // Zonder ETag eerst de nieuwste serverversie samenvoegen, zodat we niets overschrijven.
-    var pre=conditional?Promise.resolve():fetchRemote().then(mergeWith);
-    pre.then(function(){
-      if(writeBlocked){pushing=false;pendingSave=false;pushQueued=false;return;}
-      beforeWrite(getLocal());
-      var body=JSON.stringify(getLocal());
-      var headers=writeHeaders();
-      return fetch(dataUrl(),{method:'PUT',headers:headers,body:body}).then(function(r){
-        if(r.status===412){
-          // Iemand anders heeft net opgeslagen: ophalen, samenvoegen, opnieuw proberen.
-          return fetchRemote().then(function(rem){
-            mergeWith(rem);
-            if(attempt>=4)throw new Error('conflict');
-            pushing=false;push(attempt+1);
-            return 'retry';
-          });
-        }
-        if(!r.ok)throw new Error('status:'+r.status);
-        base=canon(JSON.parse(body));
-        serverETag=r.headers.get('ETag')||null;
-        writeCache();
-        status('saved');
-        finish();
-        if(!serverETag&&!noConditional)load();
-      },function(netErr){
-        // Faalt een conditionele PUT op netwerkniveau terwijl een gewone GET wél lukt, dan
-        // blokkeert de server de if-match header: val terug op ophalen+samenvoegen+PUT.
-        // Lukt de GET ook niet, dan zijn we gewoon offline.
-        if(!headers['if-match'])throw netErr;
-        return fetchRemote().then(function(rem){
-          mergeWith(rem);noConditional=true;pushing=false;push(attempt);return 'retry';
-        },function(){throw netErr;});
-      });
-    }).catch(function(err){
-      pushing=false;pendingSave=false;pushQueued=false;
-      var m=String(err);
-      if(m.indexOf('401')>-1||m.indexOf('403')>-1)status('denied');
-      else if(!navigator.onLine)status('offline');
-      else status('save-failed');
-    });
-  }
-  // App gaat naar de achtergrond: openstaande wijziging direct versturen.
-  function flush(){
-    if(!(dbUrl&&pendingSave&&loadedOnce&&!pushing&&!writeBlocked))return;
-    // sendBeacon stuurt altijd POST; Firebase RTDB behandelt POST als "nieuw kind
-    // toevoegen" i.p.v. overschrijven. Daarom fetch met keepalive (blijft een PUT).
-    // Lukt dit niet (bv. conflict of >64 KB), dan staat de wijziging nog in de lokale
-    // cache en wordt hij bij de volgende keer openen samengevoegd en opgeslagen.
+    if(!loadedOnce)return;
     clearTimeout(saveTimer);
+    saveTimer=setTimeout(function(){saveTimer=null;push();},400);
+  }
+
+  // Voorwaardelijk schrijven zonder enige terugval (ontwerp 2.2, regel 10). Geeft
+  // {result:'ok'|'conflict'|'error', status, etag} terug; gooit nooit.
+  function putIfMatch(body,etag,keepalive){
+    if(!etag)return Promise.resolve({result:'error',status:0,reason:'no-etag'});
+    var o={method:'PUT',headers:{'Content-Type':'application/json','X-Firebase-ETag':'true','if-match':etag},body:body};
+    if(keepalive)o.keepalive=true;
+    var req;
+    try{req=fetch(dataUrl(),o);}catch(e){return Promise.resolve({result:'error',status:0,reason:'network'});}
+    return req.then(function(r){
+      if(r.status===412)return {result:'conflict',status:412,etag:r.headers.get('ETag')||null};
+      if(!r.ok)return {result:'error',status:r.status,reason:'status'};
+      return {result:'ok',status:r.status,etag:r.headers.get('ETag')||null};
+    },function(){return {result:'error',status:0,reason:'network'};});
+  }
+
+  // Serverstand verwerken die tijdens het opslaan is opgehaald: samenvoegen met de basis.
+  function mergeRemote(rem){
+    var inc=normalizeData(rem.raw);
+    var s=canon(rem.raw);
+    if(s!==base){
+      var local=getLocal();
+      emit({type:'incoming',local:local,remote:inc});
+      emit({type:'data',data:mergeData(baseObj(),local,inc),render:true,reminders:false});
+    }
+    serverETag=rem.etag;base=s;
+  }
+  function confirm(gen,body,etag){
+    if(gen<=confirmedGen)return; // antwoord voor een oudere generatie: niets terugzetten (regel 3)
+    confirmedGen=gen;base=canon(JSON.parse(body));serverETag=etag;
+    writeCache();
+  }
+  // Na een afgeronde schrijfactie: volgende generatie versturen, of melden dat alles bevestigd is.
+  function afterWrite(){
+    if(writeBlocked)return;
+    if(pending()){if(!saveTimer&&!retryTimer)push();return;}
+    failures=0;
+    status('saved');
+    if(!serverETag)load(); // geen ETag in het antwoord: eerst opnieuw lezen vóór de volgende opslag
+  }
+  function scheduleRetry(){
+    if(failures>RETRY_DELAYS.length){status(navigator.onLine?'save-failed':'offline');return;}
+    var delay=RETRY_DELAYS[failures-1];
+    status(navigator.onLine?'save-failed':'offline');
+    clearTimeout(retryTimer);
+    retryTimer=setTimeout(function(){retryTimer=null;push();},delay);
+  }
+
+  function push(){
+    if(writeBlocked||inflight||!pending())return; // regel 1: hooguit één schrijfactie onderweg
+    if(!serverETag){status('unsafe');return;}     // regel 2 / besluit 9.1: geen ETag = niet schrijven
+    clearTimeout(retryTimer);retryTimer=null;
+    write('push',false);
+  }
+  function write(kind,keepalive){
+    var gen=localGen;
     beforeWrite(getLocal());
     var body=JSON.stringify(getLocal());
-    var headers=writeHeaders();
-    saveSeq++;
-    try{
-      fetch(dataUrl(),{method:'PUT',headers:headers,body:body,keepalive:true}).then(function(r){
-        if(r.ok){base=canon(JSON.parse(body));serverETag=r.headers.get('ETag')||null;writeCache();}
-      }).catch(function(){});
-    }catch(e){}
-    pendingSave=false;
+    inflight={gen:gen,kind:kind};writeEpoch++;
+    if(kind==='push')status('saving');
+    return putIfMatch(body,serverETag,keepalive).then(function(res){
+      if(writeBlocked){done();return;}
+      if(res.result==='ok'){done();confirm(gen,body,res.etag);afterWrite();return;}
+      // Bij een conflict of fout blijft de schrijfactie "onderweg" tot de serverstand opnieuw is
+      // gelezen en verwerkt; zo kan geen leesactie of flush ertussen komen.
+      if(res.result==='conflict')return afterConflict(gen);
+      return afterError(gen,body,res);
+    }).catch(function(e){
+      // Vangnet: een fout in de afhandeling mag de coördinator nooit blijvend "bezet" laten.
+      // De wijziging blijft openstaan (pending) en gaat mee met de volgende poging.
+      if(inflight)done();
+      status('save-failed');
+      try{console.warn('Huisplan opslaan:',e);}catch(x){}
+    });
+  }
+  function done(){inflight=null;writeEpoch++;}
+  // 412: iemand anders heeft net opgeslagen. Ophalen, samenvoegen, opnieuw voorwaardelijk proberen;
+  // hooguit MAX_CONFLICTS keer per generatie (regel 7).
+  function afterConflict(gen){
+    if(conflictGen!==gen){conflictGen=gen;conflicts=0;}
+    conflicts++;
+    return fetchRemote().then(function(rem){
+      done();
+      if(writeBlocked){status(writeBlocked==='moved'?'blocked-moved':'blocked-outdated');return;}
+      mergeRemote(rem);
+      if(conflicts>=MAX_CONFLICTS){status('save-failed');return;} // blijvend; later herstel via poll/online
+      push();
+    },function(){done();failures++;scheduleRetry();});
+  }
+  // Fout zonder 412: bij 401/403 opnieuw lezen (bewaking/slot); bij een netwerkfout of serverfout is
+  // de uitkomst onbekend: eerst de serverstand lezen. Staat onze versie er al, dan is hij bevestigd;
+  // anders samenvoegen en later voorwaardelijk opnieuw (regels 5, 6 en 9).
+  function afterError(gen,body,res){
+    if(res.status===401||res.status===403){
+      return fetchRemote().then(function(){
+        done();
+        if(writeBlocked){status(writeBlocked==='moved'?'blocked-moved':'blocked-outdated');return;}
+        status('denied');
+      },function(){done();status('denied');});
+    }
+    return fetchRemote().then(function(rem){
+      done();
+      if(writeBlocked){status(writeBlocked==='moved'?'blocked-moved':'blocked-outdated');return;}
+      if(canon(rem.raw)===canon(JSON.parse(body))){
+        // De schrijfactie was wél verwerkt; alleen het antwoord ging verloren.
+        confirm(gen,body,rem.etag);afterWrite();return;
+      }
+      mergeRemote(rem);
+      failures++;scheduleRetry();
+    },function(){done();failures++;scheduleRetry();});
+  }
+
+  // App gaat naar de achtergrond: openstaande wijziging direct versturen, alleen voorwaardelijk
+  // en alleen als er niets anders onderweg is. Lukt dat niet, dan staat de wijziging in de lokale
+  // cache en wordt hij bij de volgende keer openen samengevoegd en opgeslagen.
+  // (sendBeacon stuurt altijd POST; Firebase maakt daar een nieuw kind van. Daarom fetch met keepalive.)
+  function flush(){
+    if(!(dbUrl&&loadedOnce&&!writeBlocked&&pending()))return;
+    if(inflight||!serverETag)return;
+    clearTimeout(saveTimer);saveTimer=null;
+    clearTimeout(retryTimer);retryTimer=null;
+    write('flush',true);
   }
   // Elke 15 s de serverstand ophalen zolang de app zichtbaar is.
   function startPolling(){
@@ -2700,7 +2761,8 @@ var SYNC_STATUS={
   denied:['err','Toegang geweigerd — controleer de Firebase-regels (Instellingen → Beveiliging).'],
   offline:['err','Offline — wijzigingen worden bewaard en later gesynchroniseerd.'],
   'load-failed':['err','Vernieuwen mislukt.'],
-  'save-failed':['err','Opslaan mislukt — wordt opnieuw geprobeerd.']
+  'save-failed':['err','Opslaan mislukt — wordt opnieuw geprobeerd.'],
+  unsafe:['err','Opslaan kan nu niet veilig · je wijzigingen blijven op dit toestel bewaard.']
 };
 store.subscribe(function(ev){
   if(ev.type==='data'){

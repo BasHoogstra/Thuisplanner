@@ -107,9 +107,17 @@ async function openApp(browser, base, opts = {}) {
     // opts.log: verloop van de verzoeken vastleggen (om oude en nieuwe opslaglaag te vergelijken).
     const log = m => { if (opts.log) opts.log.push(m + (req.headers()['if-match'] ? ' if-match' : '')); };
     // opts.exposeETag: de ETag is voor de app leesbaar (Access-Control-Expose-Headers), zodat de app
-    // voorwaardelijk opslaat met if-match. Zonder (standaard, zoals tot nu toe) leest de app geen
-    // ETag en voegt hij vóór elke opslag eerst de serverstand samen.
-    const h = o => (opts.exposeETag ? Object.assign({ 'Access-Control-Expose-Headers': 'ETag' }, o) : o);
+    // voorwaardelijk opslaat met if-match. Standaard aan: zo gedraagt de echte Firebase zich
+    // (handmatig bevestigd op 3 okt 2026, docs/fase1-notities.md, 9). Met exposeETag: false kan de app
+    // de ETag niet lezen; sinds 1.4.2 (besluit 9.1) schrijft de testversie dan niet.
+    const h = o => (opts.exposeETag !== false ? Object.assign({ 'Access-Control-Expose-Headers': 'ETag' }, o) : o);
+    // opts.onRequest({method, ifMatch, state}): per verzoek ingrijpen (1.4.2, E2-tests). Geeft terug:
+    //  'abort'  verbinding weg vóór de server (er verandert niets);
+    //  'lost'   alleen bij PUT: de server verwerkt het verzoek, maar het antwoord gaat verloren;
+    //  { delay: ms }  het antwoord komt pas na ms milliseconden; niets = gewoon afhandelen.
+    const act = opts.onRequest ? await opts.onRequest({ method: req.method(), ifMatch: req.headers()['if-match'], url: req.url(), state }) : null;
+    if (act === 'abort') { log(req.method() + ' afgebroken'); return route.abort('failed'); }
+    if (act && act.delay) await new Promise(r => setTimeout(r, act.delay));
     if (req.method() === 'PUT') {
       // Zoals Firebase: een voorwaardelijke PUT met een verouderde ETag geeft 412.
       const ifMatch = req.headers()['if-match'];
@@ -118,6 +126,7 @@ async function openApp(browser, base, opts = {}) {
       const body = JSON.parse(req.postData());
       if (opts.onPut) opts.onPut(body);
       state.db = body; state.puts++; state.etag++; state.putBodies.push(body);
+      if (act === 'lost') return route.abort('failed');
       return route.fulfill({ status: 200, headers: h({ ETag: 'e' + state.etag, 'content-type': 'application/json' }), body: req.postData() });
     }
     // De lijst met alle planners is bij goed ingestelde regels afgeschermd (zoals in Firebase).

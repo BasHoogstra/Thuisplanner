@@ -13,10 +13,12 @@ Controleer eerst de onafgemaakte P1-3 proefbestanden. Hervat uitsluitend de Fire
 **Status (6 okt 2026):** onderzoek afgerond, zie `docs/p1-3-emulatorproef.md`. Eerdere proefbestanden niet teruggevonden; proef opnieuw en reproduceerbaar opgezet (`tools/emulator/`). Besluit P1-3 door de producteigenaar open.
 
 ### NW-02 — E6 verhuisslot-proof 🟠
+**BLOCKED — NW-02 (6 okt 2026).** Reden: het E6-bewijs leunt op drie open P1-vragen die niet stil worden ingevuld: P1-3 (is de emulator als bewijsomgeving aanvaardbaar; onderzoek klaar, zie `docs/p1-3-emulatorproef.md`), P1-1 (werkelijke Firebase-regels; door het cascaderen van regels bepaalt dit waar een slot kan staan) en P1-2 (welke historische clients, o.a. een POST/sendBeacon-schrijver, nog kunnen schrijven; T13 vraagt de echte oude code). Benodigd: besluit P1-3, alleen-lezende controle van de regels (P1-1) en de inventarisatie (P1-2), door de producteigenaar. Geprobeerd: proefslot en schrijfmatrix in de emulator (NW-01, S0–S31) — dat is meetinstrument, geen bewijs voor productie. Veilig vervolg: NW-03 (onafhankelijk, 🟢).
 Na NW-01. Bewijs met fictieve data: bron immutable na lock; alle historische schrijfvormen geblokkeerd; parent/multipath kan niet omzeilen; control niet via gewone datawrites wijzigbaar; target veilig init; twee migrators divergeren niet; hervatten deterministisch; oude/onderweg writers veilig. Output = bewijs + voorstel regels/paden. Niets publiceren.
 
 ### NW-03 — Eén veilige write-coördinator 🟢
 E2: push/flush/load/retry/poll via één coordinator. Geen bruikbare ETag = geen write; geen ongeconditioneerde fallback. Onzeker resultaat/412 → reread → merge met base → conditionele retry; begrensde retries; geen poll tijdens write. Tests T1–T5.
+**Status (6 okt 2026):** gebouwd in de testversie (`test/index.html`), tests `tests/schrijven.test.js`. Niet live; livegang via een aparte PR na akkoord (ontwerp 1.4.2, sectie 9).
 
 ### NW-04 — Cache/storage resilience 🟢
 E3: cache-identiteit database+planner+storage generation zonder secrets leesbaar. Behandel quota/read/parse/delete/network+storage, oude cache, verkeerde planner/generatie. Kritieke fouten zichtbaar; nooit onterecht “opgeslagen”. Tests T6–T8.

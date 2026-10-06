@@ -38,10 +38,13 @@ geïnstalleerde versie in de cloudomgeving).
 | `supabase.test.js` | Migraties, lokale RLS-tests, geen geheime sleutels, app gebruikt nog geen Supabase. |
 | `schema.test.js` | Testdata en opgeslagen data voldoen aan `docs/dataformaat-v1.schema.json`; `meta.schemaVersion` wordt alleen toegevoegd, nooit overschreven, en de live-versie laat het staan. |
 | `emulatorproef.test.js` | P1-3 (NW-01): de emulatorproef uit `tools/emulator/` draait in een eigen proces (zonder jar alleen de statische controles): alleen lokaal, geen productieadressen of regelbestanden in de repo, alle harde controles geslaagd, geen afwijking van bekend productiegedrag, en een mutatietest die bewijst dat een open bronregel wordt betrapt. Zie `docs/p1-3-emulatorproef.md`. |
+| `schrijven.test.js` | 1.4.2, E2 (NW-03), alleen testversie: één voorwaardelijke PUT (`putIfMatch`) en geen terugval zonder if-match; T1 twee toestellen, T2 verbinding weg vóór de server / verwerkt maar antwoord kwijt / offline→online, T3 herhaald 412 met begrensde pogingen en later herstel, T4 vertraagde leesactie en trage flush (nooit twee schrijfacties tegelijk, niets teruggezet), T5 geen leesbare ETag = niet schrijven en melden. |
 
 Opties van `openApp` voor synchronisatietests: `state` (één nagebootste database delen tussen twee
-toestellen, zie `sharedDb`), `log` (verloop van de verzoeken) en `exposeETag` (de app kan de ETag
-lezen en slaat dan voorwaardelijk op met `if-match`; standaard niet, zoals voorheen). Let op:
+toestellen, zie `sharedDb`), `log` (verloop van de verzoeken), `exposeETag` (de app kan de ETag
+lezen en slaat dan voorwaardelijk op met `if-match`; standaard aan, zoals de echte Firebase sinds de
+controle van 3 oktober 2026; met `false` schrijft de testversie sinds 1.4.2 niet) en `onRequest`
+(per verzoek ingrijpen: `'abort'`, `'lost'` of `{ delay }`, zie `lib.js`). Let op:
 Playwright beantwoordt onderschepte verzoeken ook als de browser offline staat; de store-tests maken
 de database daarom zelf onbereikbaar.
 

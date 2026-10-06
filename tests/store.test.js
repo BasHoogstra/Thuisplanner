@@ -55,11 +55,11 @@ async function setHidden(page, hidden) {
 }
 
 // Een scenario geeft per versie een samenvatting terug; oud en nieuw moeten gelijk zijn.
-// Elk scenario draait in twee varianten van de nagebootste database:
-//  - etag:   de app kan de ETag lezen en slaat voorwaardelijk op (if-match, 412 bij conflict);
-//  - zonder: de app leest geen ETag en voegt vóór elke opslag eerst de serverstand samen.
-// Welke van de twee de echte Firebase oplevert, hangt af van de CORS-headers van Firebase.
-async function both(ctx, scenario, modes = ['etag', 'zonder']) {
+// Het scenario draait met een leesbare ETag (voorwaardelijk opslaan, if-match, 412 bij conflict),
+// zoals de echte Firebase (bevestigd op 3 okt 2026). De variant zonder leesbare ETag wordt niet meer
+// vergeleken: daar sloeg de oude code op zonder voorwaarde, en schrijft de testversie sinds 1.4.2
+// bewust niet (besluit 9.1). Dat gedrag bewaakt tests/schrijven.test.js (T5).
+async function both(ctx, scenario, modes = ['etag']) {
   const res = {};
   for (const mode of modes) {
     const out = {};
@@ -116,13 +116,11 @@ module.exports = {
     });
     Object.values(r).forEach(x => {
       assert(boodTexts(x.db).includes('Pindakaas'), 'Boodschap niet opgeslagen');
-      // Zonder leesbare ETag haalt de app na opslaan meteen de serverstand op ("Bijgewerkt").
       assert(/^(Opgeslagen|Bijgewerkt)/.test(x.sync), 'Statusregel: ' + x.sync);
       assert(x.cache && x.cache.key === 'plannerCache_testplanner0123456789', 'Cachesleutel gewijzigd');
       assert(!x.errors.length, 'Fouten: ' + x.errors.join(' | '));
     });
     assert(r.etag.log.includes('PUT if-match'), 'Met leesbare ETag wordt niet voorwaardelijk opgeslagen');
-    assert(!r.zonder.log.some(l => / if-match/.test(l)), 'Zonder ETag toch if-match');
   },
 
   async 'opslaglaag: conflict met een ander toestel wordt samengevoegd als voorheen (412)'(ctx) {
@@ -227,8 +225,8 @@ module.exports = {
       const link = await o2.page.evaluate(() => window.__shared || '');
       await o2.ctx.close();
       return { denied, toast, sec, link: link.replace(/^http:\/\/[^/]+\/(test\/)?index\.html/, '') };
-    }, ['zonder']);
-    const x = r.zonder;
+    });
+    const x = r.etag;
     assert(/Toegang geweigerd/.test(x.denied), 'Geen melding bij 403: ' + x.denied);
     assert(x.toast, 'Geen waarschuwing over een open database');
     assert(/Open/.test(x.sec), 'Beveiligingscheck: ' + x.sec);
@@ -258,8 +256,8 @@ module.exports = {
       const herstel = { overlay: await h.page.isVisible('#setupOverlay'), n: (await localBood(h.page)).length, puts: h.state.puts, gets: h.state.gets > 0 };
       await h.ctx.close();
       return { setup, herstel };
-    }, ['zonder']);
-    const x = r.zonder;
+    });
+    const x = r.etag;
     assert(x.setup.setupShown && x.setup.keyOk && x.setup.urlOk && x.setup.ls === DB_URL, 'Installatie: ' + JSON.stringify(x.setup));
     assert(!x.herstel.overlay && x.herstel.n === fx.boodschappen.length, 'Herstellen: ' + JSON.stringify(x.herstel));
   },
