@@ -369,9 +369,11 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   fictieve data, mutatietest.
 - Uitkomst: 74 controles, geen afwijking van bekend productiegedrag; 7 punten waarvan het
   productiegedrag onbekend is, en de verschillen tussen emulator en productie zijn benoemd in
-  `docs/p1-3-emulatorproef.md`. Besluit P1-3 ligt bij de producteigenaar.
-- Bevinding (niet hersteld, buiten deze stap): een lijst die Firebase als object teruggeeft (lijst
-  met gaten) wordt door `normalizeData` leeg teruggeschreven. Zie `docs/p1-3-emulatorproef.md`, 4.5.
+  `docs/p1-3-emulatorproef.md`. Besluit P1-3 (6 okt 2026): optie A, de emulator is aanvaard als
+  bewijsomgeving binnen die beperkingen; geen toestemming voor productieregels, -data, Supabase of slot.
+- Open data-veiligheidspunt (niet hersteld, buiten deze stap; P1-11, moet vóór 1.5 opgelost of
+  bewezen zijn): een lijst die Firebase als object teruggeeft (lijst met gaten) wordt door
+  `normalizeData` leeg teruggeschreven. Zie `docs/p1-3-emulatorproef.md`, 4.5.
 - Test: `tests/emulatorproef.test.js`. Geen wijziging aan de app, Firebase-regels, Supabase of data.
 
 ## 1.4.2-voorbereiding: één schrijfcoördinatiemodel (NW-03, E2; testversie)

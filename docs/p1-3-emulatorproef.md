@@ -1,9 +1,9 @@
 # P1-3: emulatorproef (NW-01)
 
-**Status: onderzoek afgerond; besluit van de producteigenaar nodig.** Dit document beantwoordt de
+**Status: onderzoek afgerond; besloten (optie A, zie 5).** Dit document beantwoordt de
 onderzoeksvraag P1-3 uit `docs/ontwerp-1.4.2.md` (sectie 10) en voorwaarde 4 uit sectie 7.7. Het is
-geen contract en wijzigt geen besluit. Het besluit over P1-3 ("welke afwijking is aanvaardbaar, of is
-een afzonderlijk akkoord voor een echt testproject nodig?") ligt bij de producteigenaar.
+geen contract. Op 6 oktober 2026 heeft de producteigenaar optie A goedgekeurd: de Firebase Emulator is
+de bewijsomgeving voor P1-3, binnen de beperkingen en onbekenden die hieronder zijn beschreven.
 
 - **Uitgevoerd:** 6 oktober 2026, nachtwerkpakket NW-01.
 - **Niet aangeraakt:** echte Firebase-projecten of plannerdata, Firebase-regels, Supabase, de app
@@ -111,8 +111,8 @@ PUT met `If-Match` toe, en een PUT met een actuele `If-Match` geeft 200 (E3, E4,
 1. **Plaats van het slot hangt af van de werkelijke regels (P1-1).** Regels cascaderen (R1): staat
    in productie boven de bron een `.write` die toestemming geeft (bijvoorbeeld op
    `planners/$key`), dan kan geen enkele regel lager in de boom die toestemming intrekken. Het slot
-   moet dus worden afgedwongen op of boven het hoogste pad dat nu schrijven toestaat. Zonder de
-   alleen-lezende controle van de echte regels (P1-1) is het E6-ontwerp niet af te ronden.
+   moet dus worden afgedwongen op of boven het hoogste pad dat nu schrijven toestaat. Het E6-ontwerp
+   (NW-02) moet daarom aansluiten op de uitkomst van P1-1 (de werkelijke regels; eerder onderzocht).
 2. **`.validate` beschermt niet tegen verwijderen** (R4). Het slot en de bron moeten met `.write`
    worden beschermd.
 3. **Slot en doel kunnen niet in één schrijfactie** (R7): `root` in een regel is de stand vóór de
@@ -120,9 +120,10 @@ PUT met `If-Match` toe, en een PUT met een actuele `If-Match` geeft 200 (E3, E4,
 4. **Een oude POST-schrijver** (sendBeacon) overschrijft niet maar voegt een volledige kopie toe
    onder een push-ID (S0b). Het slot moet POST op de bron en elk subpad net zo weigeren; in de proef
    doet het dat (S21, S22). In de git-geschiedenis van deze repository (vanaf 1 oktober 2026) staat
-   geen `navigator.sendBeacon`-aanroep meer; de inventarisatie van oude clients (P1-2) moet uitwijzen
-   of er nog een versie met deze schrijver in gebruik kan zijn.
-5. **Bestaand risico op dataverlies bij een lijst met gaten (buiten NW-01, niet hersteld).**
+   geen `navigator.sendBeacon`-aanroep meer; of er nog een versie met deze schrijver in gebruik kan
+   zijn, volgt uit de (eerder uitgevoerde) inventarisatie van oude clients (P1-2).
+5. **Open data-veiligheidspunt: lijst met gaten (buiten NW-01, niet hersteld). Moet vóór 1.5 zijn
+   opgelost of aantoonbaar onschadelijk zijn bewezen** (zie ook `docs/ontwerp-1.4.2.md`, P1-11).
    Firebase geeft een lijst waarin minder dan de helft van de sleutels over is terug als object
    (L6). `normalizeData` in de app zet zo'n object niet terug naar een lijst, maar vervangt een lijst
    op het hoogste niveau (bijvoorbeeld `boodschappen`) door `[]`. Nagespeeld met de nagebootste
@@ -132,21 +133,26 @@ PUT met `If-Match` toe, en een PUT met een actuele `If-Match` geeft 200 (E3, E4,
    schrijft altijd hele lijsten. Voorstel: meenemen in E5 (classificatie: komen lijsten als object
    voor?) en in E2/E3 (object met numerieke sleutels terugzetten naar een lijst in plaats van
    leegmaken), als apart pakket met eigen tests. Niet stil aangepast, omdat dit de live-app raakt.
+   Het besluit over P1-3 verandert hier niets aan: dit punt blijft open.
 
-## 5. Besluit nodig (P1-3)
+## 5. Besluit P1-3: optie A (6 oktober 2026)
 
-De vraag uit het ontwerp is: welke afwijking is aanvaardbaar, of is een afzonderlijk akkoord voor een
-echt testproject nodig? Er is geen afwijking gevonden van wat over productie bekend is, maar de
-productieverwachting is grotendeels gebaseerd op documentatie, niet op een meting.
+**Genomen door de producteigenaar:** de Firebase Emulator is aanvaard als bewijsomgeving voor P1-3,
+onder de beschreven beperkingen en onbekenden. Daarbij geldt:
 
-- **Optie A (aanbevolen): de emulator aanvaarden als bewijsomgeving voor E6**, onder deze voorwaarden:
-  - het E6-bewijs leunt alleen op gedrag met het oordeel "gelijk" (3.1), niet op de onbekende punten
-    uit 3.3; de ontwerpregels in 3.3 worden onderdeel van E2 en E6;
-  - de verschillen V1–V6 zijn aanvaard;
-  - P1-1 (de werkelijke regels alleen-lezend controleren) blijft vóór het E6-voorstel nodig,
-    vanwege bevinding 1. Het bewijs geldt alleen voor regels die aantoonbaar dezelfde vorm hebben.
-- **Optie B: aanvullend een echt, leeg Firebase-testproject** (afzonderlijk akkoord, besluit 9.4)
-  om de punten uit 3.3 en V5/V6 te meten. Dat kost een apart project, een aparte opzet en
-  credentials, en raakt nooit de echte planner.
+- het E6-bewijs leunt alleen op gedrag met het oordeel "gelijk" (3.1), niet op de onbekende punten
+  uit 3.3; de ontwerpregels in 3.3 worden onderdeel van E2 en E6;
+- de verschillen V1–V6 (3.2) zijn de bekende beperkingen van deze bewijsomgeving;
+- het bewijs geldt alleen voor regels die aantoonbaar dezelfde vorm hebben als de werkelijke regels
+  (P1-1, eerder onderzocht; zie bevinding 1).
 
-Tot dit besluit is genomen, gaat NW-02 (het E6-bewijs) niet van start; zie het nachtwerkrapport.
+**Wat dit besluit niet toestaat:** geen wijziging aan of publicatie van productie-Firebase-regels, geen
+productiedata, geen Supabase-wijziging, en geen migratie of activering van een slot. Daarvoor blijft
+telkens een afzonderlijk, expliciet akkoord nodig (besluiten 7, 8 en 9.3). Een echt Firebase-testproject
+(de verworpen optie B) vraagt eveneens een afzonderlijk akkoord.
+
+**Niet gekozen:** optie B, aanvullend meten in een echt, leeg Firebase-testproject.
+
+**Gevolg:** P1-3 wacht niet meer op een besluit. NW-02 (het E6-bewijs) is nog niet gestart; de start
+gebeurt pas op aanwijzing van de producteigenaar. Het open data-veiligheidspunt uit bevinding 5 staat
+los van dit besluit en blijft open.
