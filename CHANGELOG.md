@@ -393,3 +393,21 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   leesbaar, zoals de echte Firebase; `store.test.js` vergelijkt oud en nieuw alleen nog in die variant.
 - Niet live; `index.html` is ongewijzigd.
 
+## 1.4.2-voorbereiding: NW-03 hersteld na de Codex-review (testversie)
+- Blocker 1: een lokale wijziging die ontstaat tijdens het tekenen van een binnenkomende stand (bv.
+  het doorschuiven van een verlopen taak in Vandaag) werd door `load()` ten onrechte als bevestigd
+  gemarkeerd en nooit opgeslagen. `load()` bevestigt nu alleen tot en met de generatie van het moment
+  van lezen.
+- Blocker 2: na een verloren bevestiging kon het herstel een latere wijziging of verwijdering door een
+  ander toestel terugdraaien. Het herstel past nu alleen automatisch iets toe als de uitkomst
+  eenduidig is; anders blijft de lokale wijziging bewaard (ook na herladen), wordt er niets geschreven
+  en stelt de app één vraag. Een verzoek dat niet vertrekt omdat de browser offline is, telt niet als
+  onzeker.
+- Een verouderd antwoord verandert de bewakingsstatus niet meer. Elk verzoek heeft een tijdslimiet.
+  Na een uitkomst zonder bevestiging wordt eerst gelezen en nooit eerst geschreven. Een bevestiging
+  zonder ETag leidt meteen tot een herstellezing, ook als een nieuwere wijziging wacht.
+- Tests: 13 nieuwe regressietests in `tests/schrijven.test.js`. De nagebootste database kan nu
+  momentopnames, vertraagde bevestiging na verwerking, antwoorden zonder ETag en hangende verzoeken
+  nabootsen. T2a verwacht nu de vraag. De grens met P1-11 wordt bewaakt: niet vaker of anders schrijven
+  dan live.
+

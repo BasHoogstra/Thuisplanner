@@ -44,7 +44,9 @@ Opties van `openApp` voor synchronisatietests: `state` (één nagebootste databa
 toestellen, zie `sharedDb`), `log` (verloop van de verzoeken), `exposeETag` (de app kan de ETag
 lezen en slaat dan voorwaardelijk op met `if-match`; standaard aan, zoals de echte Firebase sinds de
 controle van 3 oktober 2026; met `false` schrijft de testversie sinds 1.4.2 niet) en `onRequest`
-(per verzoek ingrijpen: `'abort'`, `'lost'` of `{ delay }`, zie `lib.js`). Let op:
+(per verzoek ingrijpen: `'abort'`, `'lost'`, `'hang'` of `{ delay, snapshot, commitFirst, noETag }`;
+`onDone` meldt wanneer een PUT is afgehandeld; `timeouts` verlaagt de tijdslimieten van de app; zie
+`lib.js`). Let op:
 Playwright beantwoordt onderschepte verzoeken ook als de browser offline staat; de store-tests maken
 de database daarom zelf onbereikbaar.
 

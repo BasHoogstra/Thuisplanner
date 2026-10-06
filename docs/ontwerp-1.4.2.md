@@ -81,6 +81,23 @@ Eén coördinator per planner en opslaggeneratie houdt deze toestand bij:
    haar heeft verwerkt. De coördinator haalt dan eerst de serverstand en ETag op, voegt samen met de
    `base`, en probeert daarna opnieuw voorwaardelijk. Een schrijfactie die toch was verwerkt, leidt zo
    tot hooguit een 412 en een samenvoeging, nooit tot een dubbele wijziging.
+   **Aangescherpt na de Codex-review van PR #15 (6 okt 2026):**
+   - Samenvoegen met de oude `base` is niet altijd juist. Is de schrijfactie wél verwerkt en heeft
+     een ander toestel daarna iets gewijzigd of verwijderd, dan zou dat worden teruggedraaid.
+   - Omdat de ETag alleen van de inhoud afhangt (`docs/p1-3-emulatorproef.md`, E9), is "niet verwerkt"
+     zonder extra gegevens niet te onderscheiden van "verwerkt en daarna teruggedraaid". De
+     coördinator volgt daarom deze stappen:
+     1. Staat onze versie er exact, dan is ze bevestigd.
+     2. Anders worden beide hypothesen samengevoegd: verwerkt (basis = wat we stuurden) en niet
+        verwerkt (basis = oude basis). Geven die dezelfde uitkomst, dan gaat het automatisch verder.
+     3. Verschillen ze, dan wordt er niets automatisch geschreven, blijft de lokale wijziging bewaard
+        (ook na herladen), en stelt de app één vraag.
+   - Een verzoek dat niet vertrekt omdat de browser offline is, heeft geen onzekere uitkomst.
+   - Een automatische, altijd juiste oplossing vraagt een schrijfmarkering in de data. Dat is een
+     besluit van de producteigenaar.
+   - Na elke uitkomst zonder bevestiging volgt eerst een verplichte herstellezing; mislukt die,
+     dan wordt opnieuw gelezen, nooit eerst geschreven.
+   - Elk verzoek heeft een tijdslimiet.
 6. **Herpogingen.** Oplopende wachttijd. Na een vast aantal mislukte pogingen: blijvende status
    "Niet opgeslagen", zonder `pendingSave` te wissen. Een `online`-gebeurtenis, de volgende poll of
    het heropenen van de app probeert het opnieuw.
@@ -89,6 +106,8 @@ Eén coördinator per planner en opslaggeneratie houdt deze toestand bij:
 8. **Poll.** Geen leesactie zolang er een schrijfactie onderweg is of een opslag gepland staat.
 9. **Bewaking (0.2) en verhuisslot.** Een 412 of 401/403 leidt altijd tot opnieuw lezen. Daarbij
    worden de bewaking en (na E6) het verhuisslot gecontroleerd.
+   De bewaking wordt alleen bijgewerkt uit een antwoord dat als actueel is geaccepteerd; een verouderd
+   antwoord verandert de bewakingsstatus niet (Codex-review PR #15).
 10. **Migratieschrijven.** Een aparte functie voor voorwaardelijk schrijven (werknaam
     `putIfMatch`) geeft `ok`, `conflict` of `error` terug en kent geen enkele terugval.
 

@@ -103,6 +103,10 @@ async function openApp(browser, base, opts = {}) {
     state.errors.push('console: ' + t);
   });
   await ctx.route(DB_URL + '/**', async route => {
+    // Een verzoek dat de app zelf afbreekt (tijdslimiet) kan niet meer worden beantwoord; dat is geen fout.
+    try { await behandel(route); } catch (e) { if (!/handled|closed|Target|aborted/i.test(String(e && e.message))) throw e; }
+  });
+  async function behandel(route) {
     const req = route.request();
     // opts.log: verloop van de verzoeken vastleggen (om oude en nieuwe opslaglaag te vergelijken).
     const log = m => { if (opts.log) opts.log.push(m + (req.headers()['if-match'] ? ' if-match' : '')); };
@@ -114,27 +118,50 @@ async function openApp(browser, base, opts = {}) {
     // opts.onRequest({method, ifMatch, state}): per verzoek ingrijpen (1.4.2, E2-tests). Geeft terug:
     //  'abort'  verbinding weg vóór de server (er verandert niets);
     //  'lost'   alleen bij PUT: de server verwerkt het verzoek, maar het antwoord gaat verloren;
-    //  { delay: ms }  het antwoord komt pas na ms milliseconden; niets = gewoon afhandelen.
+    //  'hang'   er komt nooit een antwoord (en bij PUT wordt niets verwerkt);
+    //  { delay: ms, snapshot, commitFirst, noETag }  het antwoord komt pas na ms milliseconden.
+    // opts.onDone({method}): een PUT is afgehandeld (antwoord verstuurd of afgebroken).
+    //     snapshot (GET): de inhoud is die op het moment van het verzoek (een echt verouderd antwoord);
+    //     commitFirst (PUT): de server verwerkt meteen, alleen het antwoord is vertraagd;
+    //     noETag: het antwoord heeft geen ETag-header.
     const act = opts.onRequest ? await opts.onRequest({ method: req.method(), ifMatch: req.headers()['if-match'], url: req.url(), state }) : null;
-    if (act === 'abort') { log(req.method() + ' afgebroken'); return route.abort('failed'); }
-    if (act && act.delay) await new Promise(r => setTimeout(r, act.delay));
+    const klaar = () => { if (opts.onDone && req.method() === 'PUT') opts.onDone({ method: 'PUT' }); };
+    if (act === 'abort') { log(req.method() + ' afgebroken'); klaar(); return route.abort('failed'); }
+    if (act === 'hang') { log(req.method() + ' hangt'); await new Promise(r => setTimeout(r, 30000)); klaar(); return route.abort('failed'); }
+    const o = act && typeof act === 'object' ? act : {};
     if (req.method() === 'PUT') {
       // Zoals Firebase: een voorwaardelijke PUT met een verouderde ETag geeft 412.
       const ifMatch = req.headers()['if-match'];
-      if (ifMatch && ifMatch !== 'e' + state.etag) { log('PUT 412'); state.conflicts = (state.conflicts || 0) + 1; return route.fulfill({ status: 412, headers: h({ ETag: 'e' + state.etag }), body: '' }); }
-      log('PUT');
-      const body = JSON.parse(req.postData());
-      if (opts.onPut) opts.onPut(body);
-      state.db = body; state.puts++; state.etag++; state.putBodies.push(body);
+      const verwerk = () => {
+        if (ifMatch && ifMatch !== 'e' + state.etag) { log('PUT 412'); state.conflicts = (state.conflicts || 0) + 1; return 412; }
+        log('PUT');
+        const body = JSON.parse(req.postData());
+        if (opts.onPut) opts.onPut(body);
+        state.db = body; state.puts++; state.etag++; state.putBodies.push(body);
+        return 200;
+      };
+      let st = null, etagNa = null;
+      if (o.commitFirst) { st = verwerk(); etagNa = state.etag; }
+      if (o.delay) await new Promise(r => setTimeout(r, o.delay));
+      if (st === null) { st = verwerk(); etagNa = state.etag; }
+      if (opts.onDone) opts.onDone({ method: 'PUT' }); // het antwoord (of het wegvallen ervan) gaat nu de deur uit
       if (act === 'lost') return route.abort('failed');
-      return route.fulfill({ status: 200, headers: h({ ETag: 'e' + state.etag, 'content-type': 'application/json' }), body: req.postData() });
+      const etagH = o.noETag ? {} : { ETag: 'e' + etagNa };
+      if (st === 412) return route.fulfill({ status: 412, headers: h(etagH), body: '' });
+      return route.fulfill({ status: 200, headers: h(Object.assign(etagH, { 'content-type': 'application/json' })), body: req.postData() });
     }
     // De lijst met alle planners is bij goed ingestelde regels afgeschermd (zoals in Firebase).
     if (/\/planners\.json/.test(req.url())) { log('GET planners'); return route.fulfill({ status: 401, body: '{"error":"Permission denied"}' }); }
     log('GET');
     state.gets++;
-    return route.fulfill({ status: 200, headers: h({ ETag: 'e' + state.etag, 'content-type': 'application/json' }), body: JSON.stringify(state.db) });
-  });
+    const vast = o.snapshot ? { body: JSON.stringify(state.db), etag: state.etag } : null;
+    if (o.delay) await new Promise(r => setTimeout(r, o.delay));
+    const body = vast ? vast.body : JSON.stringify(state.db), et = vast ? vast.etag : state.etag;
+    return route.fulfill({ status: 200, headers: h(Object.assign(o.noETag ? {} : { ETag: 'e' + et }, { 'content-type': 'application/json' })), body });
+  }
+  // opts.timeouts: kortere tijdslimieten voor verzoeken van de app ({get, put} in ms), voor tests met
+  // hangende verzoeken (zie createFirebaseStore, window.HUISPLAN_TIMEOUTS).
+  if (opts.timeouts) await ctx.addInitScript(t => { window.HUISPLAN_TIMEOUTS = t; }, opts.timeouts);
   // Al het andere verkeer naar buiten (weer, kaarten, QR-bibliotheek) wordt geblokkeerd.
   await ctx.route(u => !u.href.startsWith(base) && !u.href.startsWith(DB_URL), r => r.abort());
   await page.clock.setFixedTime(opts.now || FIXED_NOW);
