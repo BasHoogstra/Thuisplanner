@@ -361,3 +361,16 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Geen wijziging aan HTML, UI of functionaliteit. Een al op het beginscherm gezette app houdt het
   oude icoon tot hij opnieuw wordt toegevoegd.
 
+## 1.4.2-voorbereiding: causaal beslislogboek (NW-07, E4; testversie)
+- `test/index.html`, nieuw puur blok BESLISLOGBOEK. Het logboek voegt alleen toe, met een uniek `opId`
+  per handeling en `basedOn` als lijst. Koppen en conflicten worden bepaald zonder klok, en een
+  conflict wordt opgelost met alle koppen. Hetzelfde `opId` met een andere inhoud is een harde fout
+  (uitkomst `null`); een herhaald verzoek is dat niet. `same`/`different` is een apart onderwerp met
+  eigen effectregels. `resolveMember` maakt nooit een lid aan. De omzetting van 1.4.1-antwoorden is
+  deterministisch, met een `opId`-functie van buiten (de codering wacht op P1-6). Nog niet aangesloten:
+  1.4.2 schrijft geen logboek.
+- Hersteld in de testversie: het bijwerken en terugdraaien van het ledenregister wiste onbekende
+  sleutels in `meta.members` (bv. een later logboek); die blijven nu staan.
+- Tests: `tests/beslislogboek.test.js` (T9–T11 plus race-, conflict- en samenvoegtests). Niet live;
+  `index.html` ongewijzigd. Zie `docs/e4-beslislogboek.md`.
+

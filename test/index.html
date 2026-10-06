@@ -2919,12 +2919,271 @@ function planMemberRegister(d,device,decisions,membership){
   return {members:members,added:added,removed:removed,questions:questions,doubts:doubts,changed:changed};
 }
 // Terugdraaien: precies de velden weghalen die deze migratie toevoegde.
+// Onbekende sleutels in meta.members (bv. een later beslislogboek, 1.4.2/E4) blijven staan.
+var MEMBERS_META_KEYS=['version','migratedAt','app','same','different','member','notMember'];
 function withoutMemberRegister(d){
   var c=JSON.parse(JSON.stringify(d));delete c.members;
-  if(c.meta&&typeof c.meta==='object'&&!Array.isArray(c.meta)){delete c.meta.members;if(!Object.keys(c.meta).length)delete c.meta;}
+  if(c.meta&&typeof c.meta==='object'&&!Array.isArray(c.meta)){
+    var mm=c.meta.members;
+    if(mm&&typeof mm==='object'&&!Array.isArray(mm)){
+      MEMBERS_META_KEYS.forEach(function(k){delete mm[k];});
+      if(!Object.keys(mm).length)delete c.meta.members;
+    } else delete c.meta.members;
+    if(!Object.keys(c.meta).length)delete c.meta;
+  }
   return c;
 }
 // ── einde LEDENREGISTER ──
+
+// ── BESLISLOGBOEK (1.4.2, E4) ──────────────────────────────
+// Pure bouwstenen voor het causale beslislogboek uit docs/identiteit-en-items.md, 2.4 (besluiten 2
+// en 9.2) en docs/ontwerp-1.4.2.md, 5. Nog niet aangesloten op de app: 1.4.2 schrijft geen logboek
+// naar echte data (ontwerp 5.3). Alleen dit blok tot "einde BESLISLOGBOEK" hoort erbij; het gebruikt
+// uit het ledenregister alleen memberKey en memberHash, en wordt los getest (tests/beslislogboek.test.js).
+//
+// Een beslissing: log[opId] = {type, label | pair, state, basedOn: [opId, …], byMember, at}
+//   type 'membership'   : label = genormaliseerd label; state 'member' | 'notMember'
+//   type 'identityPair' : pair = [a, b], twee verschillende genormaliseerde labels, gesorteerd;
+//                         state 'same' | 'different'
+//   basedOn  : alle koppen van hetzelfde onderwerp die deze beslissing vervangt (altijd een lijst;
+//              Firebase bewaart geen lege lijst, dus "ontbreekt" betekent [])
+//   byMember : wie besliste (informatief), at : tijdstip (alleen voor weergave)
+// Regels: alleen toevoegen; een beslissing verandert nooit. Geen klok beslist: `at` telt niet mee
+// voor de uitkomst en ook niet voor de identiteit van een beslissing. Hetzelfde opId met een andere
+// inhoud is een harde fout: het onderwerp krijgt de uitkomst null.
+var DECISION_TYPES={membership:['member','notMember'],identityPair:['same','different']};
+// Firebase staat in sleutels geen . # $ [ ] / toe.
+function decisionOpIdOk(id){return typeof id==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(id);}
+function decisionBasedOn(d){return d&&Array.isArray(d.basedOn)?d.basedOn.filter(function(x){return typeof x==='string';}):[];}
+// Het onderwerp: type plus label of gesorteerd paar.
+function decisionSubject(d){
+  if(!d||typeof d!=='object')return null;
+  if(d.type==='membership')return typeof d.label==='string'?'membership:'+d.label:null;
+  if(d.type==='identityPair')return Array.isArray(d.pair)&&d.pair.length===2?'identityPair:'+d.pair[0]+'|'+d.pair[1]:null;
+  return null;
+}
+// Canonieke inhoud: alles wat de beslissing is, zonder `at` (informatief) en met basedOn als
+// gesorteerde verzameling. Twee kopieën van dezelfde beslissing hebben dezelfde canonieke vorm, ook
+// als Firebase de lege basedOn of byMember: null heeft weggelaten.
+function decisionCanon(d){
+  if(!d||typeof d!=='object')return 'ongeldig';
+  var b=decisionBasedOn(d).slice().sort().filter(function(x,i,a){return i===0||a[i-1]!==x;});
+  return JSON.stringify([d.type,d.type==='identityPair'?(Array.isArray(d.pair)?d.pair:null):(d.label===undefined?null:d.label),d.state,b,d.byMember==null?null:d.byMember]);
+}
+// Geeft een lijst met fouten (leeg = geldig).
+function decisionErrors(opId,d){
+  var e=[];
+  if(!decisionOpIdOk(opId))e.push('opId ongeldig');
+  if(!d||typeof d!=='object'){e.push('geen object');return e;}
+  var states=DECISION_TYPES[d.type];
+  if(!states)e.push('onbekend type');
+  else if(states.indexOf(d.state)<0)e.push('onbekende uitkomst voor '+d.type);
+  if(d.type==='membership'&&(typeof d.label!=='string'||!d.label||memberKey(d.label)!==d.label))e.push('label niet genormaliseerd');
+  if(d.type==='identityPair'){
+    var p=d.pair;
+    if(!Array.isArray(p)||p.length!==2||typeof p[0]!=='string'||typeof p[1]!=='string')e.push('paar ongeldig');
+    else if(!p[0]||!p[1]||memberKey(p[0])!==p[0]||memberKey(p[1])!==p[1])e.push('paar niet genormaliseerd');
+    else if(!(p[0]<p[1]))e.push('paar niet gesorteerd of twee keer hetzelfde label');
+  }
+  if(d.basedOn!==undefined&&!Array.isArray(d.basedOn))e.push('basedOn is geen lijst');
+  else if(Array.isArray(d.basedOn)&&d.basedOn.some(function(x){return typeof x!=='string'||!decisionOpIdOk(x);}))e.push('basedOn bevat een ongeldig opId');
+  if(decisionBasedOn(d).indexOf(opId)>-1)e.push('basedOn verwijst naar zichzelf');
+  return e;
+}
+// Vóór het samenvoegen: hetzelfde opId met een andere inhoud in twee logboeken.
+function decisionCollisions(a,b){
+  a=a&&typeof a==='object'?a:{};b=b&&typeof b==='object'?b:{};
+  return Object.keys(a).filter(function(id){return Object.prototype.hasOwnProperty.call(b,id)&&decisionCanon(a[id])!==decisionCanon(b[id]);}).sort();
+}
+// Logboeken samenvoegen (alleen toevoegen). Een botsing (zelfde opId, andere inhoud) wordt niet
+// opgelost: de versie uit `a` blijft staan en het opId komt in `collisions`; resolveDecisions geeft
+// die onderwerpen null. Geeft {log, collisions}; wijzigt de invoer niet.
+function mergeDecisionLogs(a,b){
+  a=a&&typeof a==='object'?a:{};b=b&&typeof b==='object'?b:{};
+  var log={},collisions=decisionCollisions(a,b);
+  Object.keys(b).forEach(function(id){log[id]=b[id];});
+  Object.keys(a).forEach(function(id){log[id]=a[id];});
+  return {log:log,collisions:collisions};
+}
+// Uitkomst per onderwerp. opts.collisions: opId's met een harde fout (uit mergeDecisionLogs).
+// Per onderwerp: {type, subject, state, status, heads, errors}
+//   status 'decided'  één kop, of meerdere koppen met dezelfde uitkomst → state
+//          'conflict' koppen met verschillende uitkomst → state null (één vraag)
+//          'error'    ongeldige beslissing, botsing, verwijzing naar een ander onderwerp of een
+//                     kringloop → state null (melden; een migratie stopt)
+function resolveDecisions(log,opts){
+  log=log&&typeof log==='object'?log:{};opts=opts||{};
+  var bad={};(opts.collisions||[]).forEach(function(id){bad[id]=1;});
+  var bySubject={},subjectOf={},out={};
+  function result(s){
+    if(!out[s]){var t=s.slice(0,s.indexOf(':'));out[s]={type:t,subject:s.slice(t.length+1),state:null,status:'decided',heads:[],errors:[]};}
+    return out[s];
+  }
+  Object.keys(log).sort().forEach(function(id){
+    var d=log[id],s=decisionSubject(d),errs=decisionErrors(id,d);
+    if(!s)return; // zonder herkenbaar onderwerp: niet toe te wijzen, en niet stil gebruikt
+    subjectOf[id]=s;(bySubject[s]=bySubject[s]||[]).push(id);
+    if(errs.length)result(s).errors.push(id+': '+errs.join(', '));
+    if(bad[id])result(s).errors.push(id+': zelfde opId met andere inhoud');
+  });
+  Object.keys(bySubject).sort().forEach(function(s){
+    var r=result(s),ids=bySubject[s],replaced={};
+    ids.forEach(function(id){
+      decisionBasedOn(log[id]).forEach(function(p){
+        // Een voorganger van een ander onderwerp is ongeldig; een nog onbekende voorganger is
+        // gewoon vervangen zodra hij binnenkomt (een opvolger mag eerder aankomen).
+        if(subjectOf[p]&&subjectOf[p]!==s)r.errors.push(id+': basedOn verwijst naar een ander onderwerp');
+        replaced[p]=1;
+      });
+    });
+    r.heads=ids.filter(function(id){return !replaced[id];}).sort();
+    if(!r.heads.length||decisionCycle(log,ids))r.errors.push('kringloop in basedOn');
+    if(r.errors.length){r.status='error';r.state=null;return;}
+    var states=r.heads.map(function(id){return log[id].state;}).filter(function(x,i,a){return a.indexOf(x)===i;});
+    if(states.length===1){r.state=states[0];r.status='decided';}
+    else{r.state=null;r.status='conflict';}
+  });
+  return out;
+}
+// Kringloop in basedOn binnen één onderwerp? (Kan bij geldig gebruik niet ontstaan: een opId is
+// uniek en verwijst alleen naar eerdere beslissingen. Wel een teken van beschadigde data.)
+function decisionCycle(log,ids){
+  var inSet={},state={};ids.forEach(function(id){inSet[id]=1;});
+  function visit(id){
+    if(state[id]===1)return true;if(state[id]===2)return false;
+    state[id]=1;
+    var c=decisionBasedOn(log[id]).some(function(p){return inSet[p]&&visit(p);});
+    state[id]=2;return c;
+  }
+  return ids.some(function(id){return visit(id);});
+}
+// Alle fouten in een logboek, ook van beslissingen zonder herkenbaar onderwerp. Een migratie die
+// hier iets vindt, stopt.
+function decisionLogErrors(log,collisions){
+  log=log&&typeof log==='object'?log:{};
+  var e=[];
+  Object.keys(log).sort().forEach(function(id){
+    var errs=decisionErrors(id,log[id]);
+    if(!decisionSubject(log[id])&&errs.indexOf('onbekend type')<0)errs.push('geen onderwerp');
+    if(errs.length)e.push(id+': '+errs.join(', '));
+  });
+  (collisions||[]).forEach(function(id){e.push(id+': zelfde opId met andere inhoud');});
+  var res=resolveDecisions(log,{collisions:collisions});
+  Object.keys(res).sort().forEach(function(s){if(res[s].status==='error')res[s].errors.forEach(function(x){if(e.indexOf(x)<0)e.push(s+' — '+x);});});
+  return e;
+}
+function membershipSubject(label){return 'membership:'+memberKey(label);}
+function pairSubject(a,b){var p=[memberKey(a),memberKey(b)].sort();return 'identityPair:'+p[0]+'|'+p[1];}
+// Een nieuwe beslissing die voortbouwt op ALLE huidige koppen van het onderwerp (ook bij een
+// conflict). Het opId komt van de aanroeper (uniek per handeling). Geeft {opId, decision} of gooit
+// bij een ongeldige beslissing of een bestaand opId met andere inhoud.
+function newDecision(log,type,subjectLabels,state,o){
+  o=o||{};
+  var d={type:type,state:state};
+  if(type==='membership')d.label=memberKey(subjectLabels);
+  else if(type==='identityPair'){d.pair=[memberKey(subjectLabels[0]),memberKey(subjectLabels[1])].sort();}
+  d.byMember=o.byMember==null?null:o.byMember;
+  if(o.at!=null)d.at=o.at;
+  // Bestaat dit opId al, dan is dit een herhaald verzoek: dezelfde beslissing (met haar eigen
+  // voorgangers) teruggeven, of een harde fout als de inhoud verschilt.
+  if(log&&Object.prototype.hasOwnProperty.call(log,o.opId)){
+    var old=log[o.opId],same={};Object.keys(d).forEach(function(k){same[k]=d[k];});same.basedOn=decisionBasedOn(old);
+    if(decisionCanon(old)!==decisionCanon(same))throw new Error('Hetzelfde opId met andere inhoud: '+o.opId);
+    return {opId:o.opId,decision:old,repeated:true};
+  }
+  var s=decisionSubject(d),r=s&&resolveDecisions(log)[s];
+  d.basedOn=r?r.heads.slice():[];
+  var errs=decisionErrors(o.opId,d);
+  if(errs.length)throw new Error('Ongeldige beslissing: '+errs.join(', '));
+  return {opId:o.opId,decision:d};
+}
+// ── Effectregels (contract 2.4). Gescheiden per onderwerptype; geen impliciete effecten.
+function membershipOutcome(res,label){var r=res[membershipSubject(label)];return r?{state:r.state,status:r.status}:{state:null,status:'none'};}
+function pairOutcome(res,a,b){var r=res[pairSubject(a,b)];return r?{state:r.state,status:r.status}:{state:null,status:'none'};}
+// Wat betekenen een paarbeslissing en de lidmaatschapsuitkomsten samen voor twee labels?
+// Geeft {link: true|false|null, ask: bool}:
+//   link true  : beide labels verwijzen naar dezelfde persoon (same + eenduidig, gelijk lidmaatschap)
+//   link false : nooit samenvoegen (different, of geen same)
+//   link null  : niet te bepalen; ask = één vraag nodig
+// Een paarbeslissing verandert nooit een lidmaatschap, en andersom.
+function pairEffect(res,a,b){
+  var p=pairOutcome(res,a,b);
+  if(p.status==='conflict'||p.status==='error')return {link:null,ask:true};
+  if(p.state!=='same')return {link:false,ask:false};
+  var ma=membershipOutcome(res,a),mb=membershipOutcome(res,b);
+  if(ma.status==='decided'&&mb.status==='decided'&&ma.state===mb.state)return {link:true,ask:false};
+  return {link:null,ask:true};
+}
+// Van een verwijzing (member-ID of label) naar een bestaand lid. Maakt nooit een lid aan en geeft
+// bij twijfel null (contract 2.2–2.4). members = het register, res = resolveDecisions(log).
+//  - een bestaand member-ID (of legacy-ID) blijft hetzelfde lid (omzetten is idempotent);
+//  - een label met een notMember-uitkomst, een conflict of een fout: null;
+//  - geen lid met die naam of alias: null; meer dan één: null (ambiguous);
+//  - alleen via een alias gevonden, terwijl het paar (naam, label) different, conflict of fout is: null.
+function resolveMember(ref,members,res){
+  if(typeof ref!=='string'||!ref)return null;
+  members=Array.isArray(members)?members.filter(function(m){return m&&typeof m.id==='string'&&typeof m.name==='string';}):[];
+  res=res||{};
+  var byId=members.filter(function(m){return m.id===ref||(Array.isArray(m.legacyIds)&&m.legacyIds.indexOf(ref)>-1);});
+  if(byId.length===1)return byId[0].id;
+  if(byId.length>1)return null;
+  var k=memberKey(ref);if(!k)return null;
+  var mo=membershipOutcome(res,k);
+  if(mo.status==='conflict'||mo.status==='error'||mo.state==='notMember')return null;
+  var hits=members.filter(function(m){return [m.name].concat(Array.isArray(m.aliases)?m.aliases:[]).map(memberKey).indexOf(k)>-1;});
+  if(hits.length!==1)return null;
+  var m=hits[0];
+  if(memberKey(m.name)!==k){
+    var p=pairOutcome(res,m.name,k);
+    if(p.state==='different'||p.status==='conflict'||p.status==='error')return null;
+  }
+  return m.id;
+}
+// ── Omzetting van 1.4.1-antwoorden (meta.members.member/notMember/same/different).
+// Eén beslissing per label of paar, met basedOn: []. "Nee wint" en "twee personen wint" worden daarbij
+// nog één keer toegepast, zodat de uitkomst gelijk blijft. Deterministisch: dezelfde invoer geeft
+// dezelfde beslissingen, ongeacht de volgorde van de sleutels.
+// opIdFor(type, subjectString, state) levert het deterministische opId. De definitieve vorm (UUIDv5
+// met vaste namespace en invoercodering) wacht op goedkeuring (P1-6, besluit 9.9) en wordt daarom
+// niet hier gekozen; zonder opIdFor gooit deze functie.
+function convertMemberAnswers141(mm,opIdFor,o){
+  if(typeof opIdFor!=='function')throw new Error('opIdFor ontbreekt (codering nog niet vastgesteld, P1-6)');
+  o=o||{};mm=mm&&typeof mm==='object'?mm:{};
+  var log={};
+  function vals(t){var x=mm[t]&&typeof mm[t]==='object'?mm[t]:{};return Object.keys(x).map(function(h){return x[h];}).filter(function(v){return typeof v==='string';});}
+  var no={};vals('notMember').forEach(function(l){no[memberKey(l)]=1;});
+  var labels={};vals('member').concat(vals('notMember')).forEach(function(l){var k=memberKey(l);if(k)labels[k]=1;});
+  Object.keys(labels).sort().forEach(function(k){
+    var state=no[k]?'notMember':'member';
+    var id=opIdFor('membership',k,state);
+    log[id]={type:'membership',label:k,state:state,basedOn:[],byMember:null};
+    if(o.at!=null)log[id].at=o.at;
+  });
+  var diff={};vals('different').forEach(function(pk){diff[pk.split('|').map(memberKey).sort().join('|')]=1;});
+  var pairs={};vals('same').concat(vals('different')).forEach(function(pk){
+    var p=pk.split('|');if(p.length!==2)return;
+    var a=memberKey(p[0]),b=memberKey(p[1]);if(!a||!b||a===b)return;
+    pairs[[a,b].sort().join('|')]=1;
+  });
+  Object.keys(pairs).sort().forEach(function(pk){
+    var state=diff[pk]?'different':'same';
+    var id=opIdFor('identityPair',pk,state);
+    log[id]={type:'identityPair',pair:pk.split('|'),state:state,basedOn:[],byMember:null};
+    if(o.at!=null)log[id].at=o.at;
+  });
+  return log;
+}
+// meta.members met een (samengevoegd) logboek erbij. Alle bestaande sleutels, ook onbekende, blijven
+// staan. Geeft {members: nieuw object, collisions}; bij een botsing wordt niets toegevoegd.
+function withDecisionLog(mm,log){
+  var base=mm&&typeof mm==='object'&&!Array.isArray(mm)?mm:{};
+  var m=mergeDecisionLogs(base.decisions,log);
+  var out={};Object.keys(base).forEach(function(k){out[k]=base[k];});
+  if(m.collisions.length)return {members:out,collisions:m.collisions};
+  out.decisions=m.log;
+  return {members:out,collisions:[]};
+}
+// ── einde BESLISLOGBOEK ──
 
 // Het register opbouwen gebeurt alleen op een toestel waar dat expliciet aan staat
 // (localStorage plannerLedenregister = 'aan'), zodat de echte planner pas wordt gemigreerd na een
@@ -3026,8 +3285,10 @@ function applyMemberPlan(plan,pending){
   if(data.meta==null)data.meta={};
   var meta=memberMeta();
   if(meta){
-    var prev=meta.members&&typeof meta.members==='object'?meta.members:{};
-    var mm={version:MEMBERS_VERSION,migratedAt:prev.migratedAt||new Date().toISOString(),app:APP_VERSION};
+    var prev=meta.members&&typeof meta.members==='object'&&!Array.isArray(meta.members)?meta.members:{};
+    // 1.4.2 (ontwerp 5.3): onbekende sleutels blijven staan, zodat een later beslislogboek niet wordt gewist.
+    var mm={};Object.keys(prev).forEach(function(k){if(MEMBERS_META_KEYS.indexOf(k)<0)mm[k]=prev[k];});
+    mm.version=MEMBERS_VERSION;mm.migratedAt=prev.migratedAt||new Date().toISOString();mm.app=APP_VERSION;
     [['same','decisions','same'],['different','decisions','different'],['member','membership','yes'],['notMember','membership','no']].forEach(function(t){
       var o=Object.assign({},prev[t[0]]&&typeof prev[t[0]]==='object'?prev[t[0]]:{}),ans=pending[t[1]];
       Object.keys(ans).forEach(function(k){if(ans[k]===t[2])o[memberDecisionKey(k)]=k;});
