@@ -1961,8 +1961,8 @@ var BOOD_CAT_ICONS={'Groente & fruit':'🥦','Vlees, vis & vega':'🥩','Zuivel 
 var MONTH_NAMES=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
 var DAY_NAMES=['ma','di','wo','do','vr','za','zo'];
 var DAY_FULL=['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];
-var myName=localStorage.getItem('plannerMyName')||'';
-var partnerName=localStorage.getItem('plannerPartnerName')||'';
+var myName=lsGet('plannerMyName')||'';
+var partnerName=lsGet('plannerPartnerName')||'';
 var data={tasks:{},notes:{},recurring:[],recurringDone:{},multiDayTasks:[],bestellingen:[],boodschappen:[],notitieboek:'',notitieboekMeta:{},notities:[],backlog:[],onderhoud:[],garanties:[],vakanties:[],vasteBoodschappen:[],boodschappenHistory:[],vervaldata:[],briefjes:[],huisgeheugen:[],recepten:[],maaltijdplan:{},boodCatOverrides:{},gewoonten:[],gewoontenDone:{},vakantiePersonen:[],verjaardagen:[],verlanglijstjes:{},cadeaus:[],inbox:[],budget:[],budgetCustomCats:[],wieIsWaar:{}};
 var viewYear=new Date().getFullYear(),viewMonth=new Date().getMonth();
 var calMode='month',viewWeekStart=getMonday(new Date());
@@ -2173,10 +2173,10 @@ function applyTheme(accent,light,accentDark,lightDark){
   document.querySelector('meta[name="theme-color"]').content=a;
 }
 function reapplyTheme(){
-  var acc=localStorage.getItem('plannerAccent');
-  var lgt=localStorage.getItem('plannerAccentLight');
-  var acd=localStorage.getItem('plannerAccentDark');
-  var lgd=localStorage.getItem('plannerAccentLightDark');
+  var acc=lsGet('plannerAccent');
+  var lgt=lsGet('plannerAccentLight');
+  var acd=lsGet('plannerAccentDark');
+  var lgd=lsGet('plannerAccentLightDark');
   if(acc&&lgt)applyTheme(acc,lgt,acd,lgd);
 }
 (function(){
@@ -2445,6 +2445,82 @@ function stampSchemaVersion(d){
   if(d.meta.schemaVersion==null)d.meta.schemaVersion=SCHEMA_VERSION;
 }
 
+// ── Lokale opslag (1.4.2, E3; docs/ontwerp-1.4.2.md, 3; docs/identiteit-en-items.md, 3.2)
+// Alle schrijf- en verwijderacties op localStorage gaan via bewaar(), met een niveau:
+//   'kritiek'    cache, koppeling met de planner, ledenback-ups: een fout is altijd zichtbaar
+//   'belangrijk' identiteit van dit toestel (naam, lid): een fout wordt gemeld
+//   'voorkeur'   weergave-instellingen: een fout mag stil blijven (wel in de diagnose)
+// bewaar() en leesOpslag() gooien nooit; ze geven {ok, ...} terug. Een lege catch die een mislukte
+// opslag verbergt, is niet meer toegestaan.
+function opslagDiagnose(soort,sleutel,fout){
+  // Alleen soort, (geanonimiseerde) sleutel en fouttype; nooit inhoud of geheimen.
+  var d=window.__huisplanOpslagDiag=window.__huisplanOpslagDiag||[];
+  // Een lang achtervoegsel kan een geheime sleutel zijn (oude cache): niet in de diagnose.
+  d.push({t:Date.now(),soort:soort,sleutel:String(sleutel).replace(/_[0-9A-Za-z-]{16,}$/,'_…'),fout:String(fout&&fout.name||fout)});
+  if(d.length>50)d.shift();
+  try{console.warn('Huisplan lokale opslag:',soort,d[d.length-1].sleutel,d[d.length-1].fout);}catch(e){}
+}
+function bewaar(k,v,niveau){
+  try{
+    if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);
+    return {ok:true};
+  }catch(e){
+    opslagDiagnose(v==null?'verwijderen':'schrijven',k,e);
+    if(niveau==='belangrijk'&&v!=null)opslagMelding('belangrijk');
+    return {ok:false,fout:e};
+  }
+}
+function leesOpslag(k){
+  try{return {ok:true,waarde:localStorage.getItem(k)};}
+  catch(e){opslagDiagnose('lezen',k,e);return {ok:false,fout:e};}
+}
+// Schrijven én teruglezen. Alleen als het teruggelezen resultaat exact gelijk is, geldt iets als
+// duurzaam bewaard. Een migratie die een herstelkopie nodig heeft, start niet als dit mislukt.
+function bewaarDuurzaam(k,v){
+  var r=bewaar(k,v,'kritiek');
+  if(!r.ok)return r;
+  var t=leesOpslag(k);
+  if(!t.ok||t.waarde!==v){opslagDiagnose('teruglezen',k,t.ok?'verschil':t.fout);return {ok:false,fout:'teruglezen'};}
+  return {ok:true};
+}
+// Eén keer per sessie een rustige melding als een 'belangrijk' gegeven niet bewaard kon worden.
+var _opslagGemeld={};
+function opslagMelding(soort){
+  if(_opslagGemeld[soort])return;_opslagGemeld[soort]=true;
+  var tekst={
+    belangrijk:'Dit toestel kon een instelling niet onthouden (opslag vol of geblokkeerd).',
+    koppeling:'Dit toestel kan de koppeling met jullie planner niet onthouden. Open Huisplan voortaan via de deellink.',
+    onleesbaar:'De lokale kopie op dit toestel is niet te lezen. Hij blijft onaangeroerd; je wijzigingen gaan rechtstreeks naar de server.',
+    quarantaine:'Een beschadigde lokale kopie is apart bewaard. Je planner wordt opnieuw van de server geladen.',
+    vangnet:'Het ledenregister is niet bijgewerkt: de veiligheidskopie kon op dit toestel niet worden bewaard.'
+  }[soort];
+  if(tekst)setTimeout(function(){if(typeof showToast==='function')showToast(tekst);},0);
+}
+
+// SHA-256 (synchroon), voor een cachesleutel die niets geheims leesbaar maakt.
+function sha256Hex(str){
+  var K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var b=unescape(encodeURIComponent(str)),n=b.length,bytes=[];
+  for(var i=0;i<n;i++)bytes.push(b.charCodeAt(i));
+  bytes.push(0x80);while(bytes.length%64!==56)bytes.push(0);
+  var bits=n*8;for(i=7;i>=0;i--)bytes.push(i>=4?0:(bits>>>(i*8))&255);
+  var w=new Array(64);
+  function rotr(x,r){return (x>>>r)|(x<<(32-r));}
+  for(var o=0;o<bytes.length;o+=64){
+    for(i=0;i<16;i++)w[i]=(bytes[o+4*i]<<24)|(bytes[o+4*i+1]<<16)|(bytes[o+4*i+2]<<8)|bytes[o+4*i+3];
+    for(i=16;i<64;i++){var s0=rotr(w[i-15],7)^rotr(w[i-15],18)^(w[i-15]>>>3),s1=rotr(w[i-2],17)^rotr(w[i-2],19)^(w[i-2]>>>10);w[i]=(w[i-16]+s0+w[i-7]+s1)|0;}
+    var a=H[0],bb=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(i=0;i<64;i++){
+      var t1=(h+(rotr(e,6)^rotr(e,11)^rotr(e,25))+((e&f)^(~e&g))+K[i]+w[i])|0;
+      var t2=((rotr(a,2)^rotr(a,13)^rotr(a,22))+((a&bb)^(a&c)^(bb&c)))|0;
+      h=g;g=f;f=e;e=(d+t1)|0;d=c;c=bb;bb=a;a=(t1+t2)|0;
+    }
+    H[0]=(H[0]+a)|0;H[1]=(H[1]+bb)|0;H[2]=(H[2]+c)|0;H[3]=(H[3]+d)|0;H[4]=(H[4]+e)|0;H[5]=(H[5]+f)|0;H[6]=(H[6]+g)|0;H[7]=(H[7]+h)|0;
+  }
+  return H.map(function(x){return ('0000000'+(x>>>0).toString(16)).slice(-8);}).join('');
+}
+
 // opts.getLocal()   geeft het actuele data-object van de app (de app blijft eigenaar ervan)
 // opts.appVersion   voor de bewaking op meta.minAppVersion
 // opts.beforeWrite  wordt vlak vóór elke schrijfactie op het data-object aangeroepen
@@ -2466,12 +2542,16 @@ function createFirebaseStore(opts){
     var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);
     window.history.replaceState({},'',u.toString());
   }
-  function persist(){localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);}
+  function persist(){
+    var a=bewaar('plannerDbUrl',dbUrl,'kritiek'),b=bewaar('plannerKey',plannerKey,'kritiek');
+    // De sessie werkt verder via de link; alleen onthouden op dit toestel lukt niet.
+    if(!a.ok||!b.ok)opslagMelding('koppeling');
+  }
   // Uit de link of uit de opslag van dit toestel; true als er een planner gekoppeld is.
   function restore(){
     var p=new URL(window.location.href).searchParams;
     var urlDb=p.get('db'),urlP=p.get('p');
-    var sDb=localStorage.getItem('plannerDbUrl'),sKey=localStorage.getItem('plannerKey');
+    var sDb=leesOpslag('plannerDbUrl').waarde,sKey=leesOpslag('plannerKey').waarde;
     var rDb=urlDb||sDb,rKey=urlP||sKey;
     if(!(rDb&&rKey))return false;
     dbUrl=rDb;plannerKey=rKey;persist();
@@ -2487,18 +2567,80 @@ function createFirebaseStore(opts){
   // Is de lijst met alle planners op te vragen? Lost op met de HTTP-status; faalt als offline.
   function checkAccess(){return fetch(dbUrl.replace(/\/$/,'')+'/planners.json?shallow=true',{cache:'no-store'}).then(function(r){return r.status;});}
 
-  // ── Lokale cache
-  function cacheKey(){return 'plannerCache_'+plannerKey;}
+  // ── Lokale cache (1.4.2, E3)
+  // Eén cache per database, planner en opslaggeneratie. De sleutel is een hash daarvan, zodat de
+  // plannersleutel niet in de naam staat. De oude cache van vóór 1.4.2 (plannerCache_<sleutel>)
+  // blijft leesbaar als generatie 1 en wordt pas opgeruimd als aantoonbaar alles eruit op de
+  // server staat. Een onleesbare cache wordt nooit overschreven: hij wordt eerst apart bewaard,
+  // en lukt dat niet, dan blijft hij onaangeroerd en schrijft de app voor deze sessie geen cache.
+  var STORAGE_GEN=1;      // opslaggeneratie: 1 = Firebase-planner vóór 1.5
+  var CACHE_FORMAT=2;
+  var cacheState='ok';    // 'ok' | 'onleesbaar'
+  var cacheFailed=false;  // laatste schrijfactie naar de cache mislukt
+  var legacyPending=false;// oude cache nog niet aantoonbaar verwerkt
+  function cacheId(){return sha256Hex('huisplan-cache\n'+String(dbUrl||'').replace(/\/+$/,'')+'\n'+plannerKey+'\n'+STORAGE_GEN).slice(0,32);}
+  function cacheKey(){return 'huisplanCache_'+cacheId();}
+  function legacyKey(){return 'plannerCache_'+plannerKey;}
+  function setCacheFailed(f){cacheFailed=f;emit({type:'storage',cacheFailed:f,cacheState:cacheState});}
+  // Geeft true als de cache is bewaard.
   function writeCache(d){
-    if(!plannerKey)return;
-    try{localStorage.setItem(cacheKey(),JSON.stringify({data:d||getLocal(),base:base,t:Date.now()}));}catch(e){}
+    if(!plannerKey)return true;
+    if(cacheState!=='ok'){setCacheFailed(true);return false;}
+    var rec={format:CACHE_FORMAT,gen:STORAGE_GEN,id:cacheId(),app:opts.appVersion,data:d||getLocal(),base:base,t:Date.now()};
+    if(legacyPending)rec.legacy='te-verwerken';
+    var r=bewaar(cacheKey(),JSON.stringify(rec),'kritiek');
+    setCacheFailed(!r.ok);
+    return r.ok;
+  }
+  function parseCache(raw){
+    var c;try{c=JSON.parse(raw);}catch(e){return null;}
+    if(!c||typeof c!=='object'||!c.data||typeof c.data!=='object'||Array.isArray(c.data))return null;
+    if(c.format!==CACHE_FORMAT||c.gen!==STORAGE_GEN||c.id!==cacheId())return null; // onbekend formaat of andere cache
+    return c;
+  }
+  function readLegacy(){
+    var r=leesOpslag(legacyKey());
+    if(!r.ok||r.waarde==null)return null;
+    var c;try{c=JSON.parse(r.waarde);}catch(e){opslagDiagnose('oude cache onleesbaar',legacyKey(),e);return null;}
+    if(!c||typeof c!=='object'||!c.data||typeof c.data!=='object'){opslagDiagnose('oude cache onbekend',legacyKey(),'formaat');return null;}
+    return c;
+  }
+  function useCache(c){
+    var d=normalizeData(c.data);base=typeof c.base==='string'?c.base:'';
+    emit({type:'data',data:d,render:false});
   }
   function readCache(){
-    try{
-      var c=JSON.parse(localStorage.getItem(cacheKey())||'null');
-      if(c&&c.data){var d=normalizeData(c.data);base=c.base||'';emit({type:'data',data:d,render:false});return true;}
-    }catch(e){}
+    if(!plannerKey)return false;
+    var r=leesOpslag(cacheKey());
+    if(!r.ok){
+      // Niet te lezen = onbekend, niet leeg: niet overschrijven.
+      cacheState='onleesbaar';opslagMelding('onleesbaar');setCacheFailed(true);return false;
+    }
+    var legacy=readLegacy();
+    legacyPending=!!legacy;
+    if(r.waarde!=null){
+      var c=parseCache(r.waarde);
+      if(c){useCache(c);return true;}
+      // Beschadigd of onbekend formaat: eerst apart bewaren, pas daarna mag de sleutel opnieuw.
+      var apart=bewaarDuurzaam('huisplanCacheApart_'+cacheId()+'_'+Date.now(),r.waarde);
+      if(apart.ok)opslagMelding('quarantaine');
+      else{cacheState='onleesbaar';opslagMelding('onleesbaar');setCacheFailed(true);}
+      return false; // geen data uit een onleesbare cache; ook niet terugvallen op de oude cache
+    }
+    if(legacy){useCache(legacy);return true;}
     return false;
+  }
+  // Na een verse serverlezing zonder lokale wijzigingen: staat alles uit de oude cache op de
+  // server (zijn eigen wijzigingen t.o.v. zijn basis voegen niets meer toe), dan mag hij weg.
+  function settleLegacy(inc){
+    if(!legacyPending||cacheState!=='ok')return;
+    var c=readLegacy();
+    if(!c){legacyPending=false;return;}
+    var lb={};try{lb=c.base?JSON.parse(c.base):{};}catch(e){return;}
+    if(canon(mergeData(lb,normalizeData(JSON.parse(JSON.stringify(c.data))),JSON.parse(JSON.stringify(inc))))!==canon(inc))return; // nog niet verwerkt
+    if(!writeCache())return; // eerst de nieuwe cache veilig, dan pas de oude weg
+    var del=bewaar(legacyKey(),null,'kritiek');
+    if(del.ok){legacyPending=false;writeCache();} // verwijderen mislukt: onschadelijk, staat in de diagnose
   }
 
   // ── Bewaking (roadmap 0.2)
@@ -2551,7 +2693,8 @@ function createFirebaseStore(opts){
         if(s!==base)emit({type:'incoming',local:local,remote:inc});
         base=s;writeCache(inc);
         emit({type:'data',data:inc,render:true,reminders:true});
-      }
+        settleLegacy(inc);
+      } else settleLegacy(inc);
       emit({type:'loaded',first:!wasLoaded});
       if(!pendingSave)status('updated');
       emit({type:'connected'});
@@ -2565,14 +2708,15 @@ function createFirebaseStore(opts){
   }
 
   function save(){
-    writeCache();
+    var cached=writeCache();
     if(!dbUrl||writeBlocked)return;
     clearTimeout(saveTimer);
     pendingSave=true;saveGen++;
     // Vóór de eerste geslaagde load weten we niet wat er op de server staat; die load
     // voegt de lokale wijzigingen samen en slaat daarna op.
     if(!loadedOnce){pendingSave=false;return;}
-    saveTimer=setTimeout(function(){push(0);},400);
+    // Lukt lokaal bewaren niet, dan direct synchroniseren (E3).
+    saveTimer=setTimeout(function(){push(0);},cached?400:0);
   }
   function writeHeaders(){
     var headers={'Content-Type':'application/json','X-Firebase-ETag':'true'};
@@ -2685,7 +2829,9 @@ function createFirebaseStore(opts){
     // Is er een bekende serverstand (en niet de lege)? Voor meldingen over wijzigingen van anderen.
     hasBase:function(){return !!base&&base!=='{}';},
     // Lokale wijzigingen die nog niet op de server staan (alleen te bepalen met een bekende serverstand).
-    hasUnsavedChanges:function(){return !!base&&hasLocalChanges();}
+    hasUnsavedChanges:function(){return !!base&&hasLocalChanges();},
+    // E3: staat de lokale cache er nu goed bij? (false = laatste bewaarpoging mislukt of onleesbaar)
+    cacheOk:function(){return !cacheFailed&&cacheState==='ok';}
   };
 }
 
@@ -2702,6 +2848,38 @@ var SYNC_STATUS={
   'load-failed':['err','Vernieuwen mislukt.'],
   'save-failed':['err','Opslaan mislukt — wordt opnieuw geprobeerd.']
 };
+// E3: lukt lokaal bewaren niet terwijl er wijzigingen nog niet op de server staan, dan zegt de
+// statusregel dat eerlijk, in plaats van "Opgeslagen" of "wijzigingen worden bewaard".
+var syncCode=null;
+function cacheRisk(){return !store.cacheOk()&&store.hasUnsavedChanges();}
+function showSyncStatus(){
+  var c=syncCode;
+  if(cacheRisk()){
+    if(c==='offline'||c==='save-failed'||c==='denied'||c==='load-failed')
+      setSync('err','Niet bewaard — geen verbinding en lokaal bewaren lukt niet. Houd de app open; we blijven het proberen.');
+    else if(c==='blocked-moved'||c==='blocked-outdated')setSync('err',SYNC_STATUS[c][1]+' · lokaal bewaren lukt ook niet');
+    else setSync('err','Je wijzigingen zijn nog niet veilig bewaard — lokaal bewaren lukt niet. Ze worden nu naar de server gestuurd.');
+    return;
+  }
+  if(c==='updated')setSync('','Bijgewerkt · '+nowTime());
+  else if(c==='saved')setSync('','Opgeslagen · '+nowTime());
+  else if(c==='new')setSync('','Nieuw dagboek · '+nowTime());
+  else if(SYNC_STATUS[c])setSync(SYNC_STATUS[c][0],SYNC_STATUS[c][1]);
+}
+// Diagnose (ontwikkelhulpmiddelen en tests): fouten in de lokale opslag, zonder inhoud of geheimen.
+// bewaarDuurzaam en gezond() zijn de bouwstenen waarmee een migratie kan stoppen als een
+// herstelkopie niet duurzaam bewaard kan worden.
+window.huisplanOpslag={
+  diagnose:function(){return (window.__huisplanOpslagDiag||[]).slice();},
+  risico:function(){return cacheRisk();},
+  bewaarDuurzaam:function(k,v){return bewaarDuurzaam(k,v).ok;},
+  gezond:function(){var k='huisplanOpslagProef',ok=bewaarDuurzaam(k,'proef-'+Date.now()).ok;bewaar(k,null,'voorkeur');return ok;},
+  sha256:sha256Hex
+};
+// Waarschuwen vóór sluiten als wijzigingen nergens veilig staan.
+window.addEventListener('beforeunload',function(e){
+  if(cacheRisk()){e.preventDefault();e.returnValue='';return '';}
+});
 store.subscribe(function(ev){
   if(ev.type==='data'){
     data=ev.data;
@@ -2709,10 +2887,9 @@ store.subscribe(function(ev){
   } else if(ev.type==='incoming'){
     detectChanges(ev.local,ev.remote);
   } else if(ev.type==='status'){
-    if(ev.code==='updated')setSync('','Bijgewerkt · '+nowTime());
-    else if(ev.code==='saved')setSync('','Opgeslagen · '+nowTime());
-    else if(ev.code==='new')setSync('','Nieuw dagboek · '+nowTime());
-    else if(SYNC_STATUS[ev.code])setSync(SYNC_STATUS[ev.code][0],SYNC_STATUS[ev.code][1]);
+    syncCode=ev.code;showSyncStatus();
+  } else if(ev.type==='storage'){
+    if(syncCode)showSyncStatus();
   } else if(ev.type==='guard'){
     if(ev.reason)showWriteGuard(ev.reason,ev.meta);
     else document.getElementById('writeGuardOverlay').hidden=true;
@@ -2929,8 +3106,8 @@ function withoutMemberRegister(d){
 // Het register opbouwen gebeurt alleen op een toestel waar dat expliciet aan staat
 // (localStorage plannerLedenregister = 'aan'), zodat de echte planner pas wordt gemigreerd na een
 // bewuste keuze. Lezen en het koppelen van dit toestel werken altijd zodra er een register is.
-function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
-function lsSet(k,v){try{if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){}}
+function lsGet(k){var r=leesOpslag(k);return r.ok?r.waarde:null;}
+function lsSet(k,v,niveau){return bewaar(k,v,niveau||'belangrijk');}
 // 1.4.1 zet 'aan' om naar 'aan-1.4.1'. Een nog openstaande 1.4.0-versie op dit toestel (die alleen
 // 'aan' kent) stopt daardoor met aanvullen, zodat die geen labels als lid terugzet.
 var MEMBERS_SWITCH_ON='aan-1.4.1';
@@ -2984,6 +3161,9 @@ function memberQuestionText(q){
 function ensureMemberRegister(pending){
   linkDeviceMember();
   if(!membersMigrationEnabled()||_memberDoubtsOpen)return;
+  // E3: kon de veiligheidskopie deze sessie niet worden bewaard, dan niet opnieuw vragen (de
+  // migratie zou toch niet starten). Bij de volgende keer openen wordt het opnieuw geprobeerd.
+  if(_opslagGemeld.vangnet)return;
   pending=pending&&pending.membership?pending:{decisions:{},membership:{}};
   var meta=memberMeta(),mm=meta&&meta.members;
   var decisions=memberDecisions(mm),membership=memberMembership(mm);
@@ -3015,12 +3195,13 @@ function applyMemberPlan(plan,pending){
   if(!Array.isArray(data.members)){
     // Vangnet vóór de eerste migratie op dit toestel: wat de migratie raakt plus een controlesom
     // van de hele planner, zodat terugdraaien aantoonbaar de oude stand oplevert.
-    lsSet('plannerLedenBackup',JSON.stringify({at:new Date().toISOString(),app:APP_VERSION,check:memberHash(canon(data)),hadMembers:'members' in data,members:data.members}));
+    // E3: lukt dat niet aantoonbaar (schrijven + teruglezen), dan start de migratie niet.
+    if(!bewaarDuurzaam('plannerLedenBackup',JSON.stringify({at:new Date().toISOString(),app:APP_VERSION,check:memberHash(canon(data)),hadMembers:'members' in data,members:data.members})).ok){opslagMelding('vangnet');return;}
   } else {
     // Vangnet vóór de 1.4.1-correctie van een register uit 1.4.0: het register zoals het was.
     var pm=memberMeta()&&memberMeta().members;
-    if(!lsGet('plannerLedenBackupV1')&&!(pm&&pm.version>=MEMBERS_VERSION))
-      lsSet('plannerLedenBackupV1',JSON.stringify({at:new Date().toISOString(),app:APP_VERSION,members:data.members,meta:pm||null}));
+    if(!lsGet('plannerLedenBackupV1')&&!(pm&&pm.version>=MEMBERS_VERSION)&&
+      !bewaarDuurzaam('plannerLedenBackupV1',JSON.stringify({at:new Date().toISOString(),app:APP_VERSION,members:data.members,meta:pm||null})).ok){opslagMelding('vangnet');return;}
   }
   data.members=plan.members;
   if(data.meta==null)data.meta={};
@@ -3259,8 +3440,8 @@ document.getElementById('setupSubmitBtn').addEventListener('click',function(){
   var err=document.getElementById('setupError');err.textContent='';
   if(!raw){err.textContent='Vul de database-URL in.';return;}
   if(!raw.startsWith('https://')){err.textContent='URL moet beginnen met https://';return;}
-  if(mn){myName=mn;localStorage.setItem('plannerMyName',mn);}
-  if(pn){partnerName=pn;localStorage.setItem('plannerPartnerName',pn);}
+  if(mn){myName=mn;bewaar('plannerMyName',mn,'belangrijk');}
+  if(pn){partnerName=pn;bewaar('plannerPartnerName',pn,'belangrijk');}
   store.connect({url:raw.replace(/\/$/,''),key:newPlannerKey()});
   document.getElementById('setupOverlay').style.display='none';
   updateAssigneeLabels();updateGreeting();store.load({initial:true});
@@ -3285,8 +3466,8 @@ document.getElementById('nameBannerSave').addEventListener('click',function(){
   var mn=document.getElementById('nameBannerInput').value.trim();
   var pn=document.getElementById('partnerBannerInput').value.trim();
   if(!mn)return;
-  myName=mn;localStorage.setItem('plannerMyName',mn);
-  if(pn){partnerName=pn;localStorage.setItem('plannerPartnerName',pn);}
+  myName=mn;bewaar('plannerMyName',mn,'belangrijk');
+  if(pn){partnerName=pn;bewaar('plannerPartnerName',pn,'belangrijk');}
   document.getElementById('nameBanner').style.display='none';
   relinkDeviceMember();
   updateAssigneeLabels();updateGreeting();showToast('Namen opgeslagen!');
@@ -3327,11 +3508,11 @@ document.querySelectorAll('.nav-item').forEach(function(btn){
 
 // Settings
 // Instelbare lagen op Vandaag (0.11). Standaard aan; per toestel uit te zetten.
-function optOn(key){try{return localStorage.getItem(key)!=='0';}catch(e){return true;}}
+function optOn(key){try{return lsGet(key)!=='0';}catch(e){return true;}}
 function syncOptSwitches(){document.querySelectorAll('.opt-switch').forEach(function(sw){sw.checked=optOn(sw.dataset.opt);});}
 document.querySelectorAll('.opt-switch').forEach(function(sw){
   sw.addEventListener('change',function(){
-    try{localStorage.setItem(sw.dataset.opt,sw.checked?'1':'0');}catch(e){}
+    bewaar(sw.dataset.opt,sw.checked?'1':'0','voorkeur');
     if(!sw.checked&&sw.dataset.opt==='plannerOptSeason'){var b=document.getElementById('seasonBanner');if(b)b.style.display='none';}
     if(!sw.checked&&sw.dataset.opt==='plannerOptWeekScore'){var w=document.getElementById('weekScoreBanner');if(w)w.classList.remove('visible');}
   });
@@ -3340,14 +3521,14 @@ function openSettingsSheet(){
   syncOptSwitches();
   document.getElementById('settingsMyName').value=myName;
   document.getElementById('settingsPartnerName').value=partnerName;
-  document.getElementById('settingsCity').value=localStorage.getItem('plannerCity')||'';
+  document.getElementById('settingsCity').value=lsGet('plannerCity')||'';
   document.getElementById('instellingenOverlay').classList.add('open');
   showQrCode();checkSecurity();
 }
 document.getElementById('settingsBtn').addEventListener('click',openSettingsSheet);
 document.getElementById('weatherBar').addEventListener('click',function(){
   openSettingsSheet();
-  if(!localStorage.getItem('plannerCity')){
+  if(!lsGet('plannerCity')){
     setTimeout(function(){var f=document.getElementById('settingsCity');if(f)f.focus();},100);
   }
 });
@@ -3356,9 +3537,9 @@ document.getElementById('settingsSaveBtn').addEventListener('click',function(){
   var mn=document.getElementById('settingsMyName').value.trim();
   var pn=document.getElementById('settingsPartnerName').value.trim();
   var ct=document.getElementById('settingsCity').value.trim();
-  if(mn){myName=mn;localStorage.setItem('plannerMyName',mn);}
-  if(pn){partnerName=pn;localStorage.setItem('plannerPartnerName',pn);}
-  if(ct){localStorage.setItem('plannerCity',ct);_weatherCache=null;loadWeather();}
+  if(mn){myName=mn;bewaar('plannerMyName',mn,'belangrijk');}
+  if(pn){partnerName=pn;bewaar('plannerPartnerName',pn,'belangrijk');}
+  if(ct){bewaar('plannerCity',ct,'voorkeur');_weatherCache=null;loadWeather();}
   if(mn||pn)relinkDeviceMember();
   updateAssigneeLabels();updateGreeting();
   document.getElementById('instellingenOverlay').classList.remove('open');
@@ -3368,13 +3549,13 @@ document.getElementById('themeSwatches').addEventListener('click',function(e){
   var sw=e.target.closest('.theme-swatch');if(!sw)return;
   var acc=sw.dataset.accent,lgt=sw.dataset.light,acd=sw.dataset.accentDark||'',lgd=sw.dataset.lightDark||'';
   applyTheme(acc,lgt,acd,lgd);
-  localStorage.setItem('plannerAccent',acc);localStorage.setItem('plannerAccentLight',lgt);
-  localStorage.setItem('plannerAccentDark',acd);localStorage.setItem('plannerAccentLightDark',lgd);
+  bewaar('plannerAccent',acc,'voorkeur');bewaar('plannerAccentLight',lgt,'voorkeur');
+  bewaar('plannerAccentDark',acd,'voorkeur');bewaar('plannerAccentLightDark',lgd,'voorkeur');
   document.querySelectorAll('.theme-swatch').forEach(function(s){s.classList.toggle('active',s===sw);});
 });
 // Mark active swatch on open
 document.getElementById('settingsBtn').addEventListener('click',function(){
-  var cur=localStorage.getItem('plannerAccent')||'#5b4fe0';
+  var cur=lsGet('plannerAccent')||'#5b4fe0';
   document.querySelectorAll('.theme-swatch').forEach(function(s){s.classList.toggle('active',s.dataset.accent===cur);});
 },true);
 
@@ -3486,7 +3667,7 @@ var HERO_OPTIONS=[
   {key:'eten',label:'Vanavond eten'}
 ];
 var HERO_MAX_PILLS=3;
-function getHeroPrefs(){try{var p=JSON.parse(localStorage.getItem('plannerHeroPills')||'{}');return p&&typeof p==='object'?p:{};}catch(e){return {};}}
+function getHeroPrefs(){try{var p=JSON.parse(lsGet('plannerHeroPills')||'{}');return p&&typeof p==='object'?p:{};}catch(e){return {};}}
 function heroOn(k){return getHeroPrefs()[k]!==false;}
 function openOverlay(id,render){document.getElementById(id).classList.add('open');if(render)render();}
 function heroPill(iconName,text,onClick){
@@ -3539,7 +3720,7 @@ document.getElementById('heroEditBtn').addEventListener('click',function openHer
   ui.actionSheet('Wat zie je bovenaan Vandaag?',HERO_OPTIONS.map(function(o){
     var on=p[o.key]!==false;
     return {icon:on?'check':'x',label:o.label,selected:on,onClick:function(){
-      var q=getHeroPrefs();q[o.key]=!on;try{localStorage.setItem('plannerHeroPills',JSON.stringify(q));}catch(e){}
+      var q=getHeroPrefs();q[o.key]=!on;bewaar('plannerHeroPills',JSON.stringify(q),'voorkeur');
       renderVandaag();openHeroPrefs();
     }};
   }),ui.el('p','hero-prefs-note','Er staan nooit meer dan '+HERO_MAX_PILLS+' items tegelijk, de dringendste eerst.'));
@@ -4865,11 +5046,11 @@ function renderBoodschappen(){
   }
   // Afgevinkt: één ingeklapt blok onderaan, met "Wissen" (met ongedaan maken)
   if(doneItems.length){
-    var open=false;try{open=localStorage.getItem('plannerBoodDoneOpen')==='1';}catch(e){}
+    var open=false;try{open=lsGet('plannerBoodDoneOpen')==='1';}catch(e){}
     var head=ui.el('div','section-label');
     var tog=ui.el('button','aside done-toggle');tog.type='button';tog.setAttribute('aria-expanded',open?'true':'false');
     tog.innerHTML=icon(open?'chevron-down':'chevron-right','xs');tog.appendChild(document.createTextNode('Afgevinkt · '+doneItems.length));
-    tog.addEventListener('click',function(){try{localStorage.setItem('plannerBoodDoneOpen',open?'0':'1');}catch(e){}renderBoodschappen();});
+    tog.addEventListener('click',function(){bewaar('plannerBoodDoneOpen',open?'0':'1','voorkeur');renderBoodschappen();});
     var wis=ui.el('button','aside','Wissen');wis.type='button';
     wis.addEventListener('click',function(){document.getElementById('boodDoneBanner').click();});
     head.appendChild(tog);head.appendChild(wis);list.appendChild(head);
@@ -4899,8 +5080,8 @@ document.getElementById('clearDoneBoodschappen').addEventListener('click',functi
 // hebben vaste id's, zodat twee telefoons die ze tegelijk aanmaken er niet twee van maken.
 // Vervangt de oude Cadeaus-lijst; data.cadeaus blijft in de database bewaard, alleen niet getoond.
 var STANDAARD_LIJSTEN=[{id:'te-bestellen',naam:'📦 Te bestellen'},{id:'overige-winkels',naam:'🏬 Overige winkels'}];
-function getLijstDicht(){try{return JSON.parse(localStorage.getItem('plannerLijstDicht')||'[]');}catch(e){return [];}}
-function setLijstDicht(ids){try{localStorage.setItem('plannerLijstDicht',JSON.stringify(ids));}catch(e){}}
+function getLijstDicht(){try{return JSON.parse(lsGet('plannerLijstDicht')||'[]');}catch(e){return [];}}
+function setLijstDicht(ids){bewaar('plannerLijstDicht',JSON.stringify(ids),'voorkeur');}
 function findLijst(id){return (data.lijsten||[]).filter(function(l){return l.id===id;})[0];}
 
 function renderCadeaus(){
@@ -5176,12 +5357,12 @@ function renderMeerStats(){
 }
 // "Veelgebruikt": de 4 tegels die op dit toestel het vaakst worden geopend (min. 3 keer),
 // bovenaan Meer. Kopieën van de echte tegels; een tik opent het origineel.
-function getMeerClicks(){try{return JSON.parse(localStorage.getItem('plannerMeerClicks')||'{}');}catch(e){return {};}}
+function getMeerClicks(){try{return JSON.parse(lsGet('plannerMeerClicks')||'{}');}catch(e){return {};}}
 document.getElementById('meerView').addEventListener('click',function(e){
   var card=e.target.closest('.menu-row');if(!card)return;
   var id=card.id;if(!id)return; // een kopie roept orig.click() aan en telt zo via het origineel
   var c=getMeerClicks();c[id]=(c[id]||0)+1;
-  try{localStorage.setItem('plannerMeerClicks',JSON.stringify(c));}catch(err){}
+  bewaar('plannerMeerClicks',JSON.stringify(c),'voorkeur');
 },true);
 function renderMeerFavorieten(){
   var wrap=document.getElementById('meerFavorieten'),grid=document.getElementById('meerFavGrid');if(!wrap||!grid)return;
@@ -6371,7 +6552,7 @@ document.getElementById('closeBudgetBtn').addEventListener('click',function(){do
   var m=new Date().getMonth();
   var match=SEASONS.find(function(s){return s.months.indexOf(m)>-1;});
   if(!match)return;
-  var stored=localStorage.getItem('seasonDismissed_'+match.key);
+  var stored=lsGet('seasonDismissed_'+match.key);
   if(stored)return;
   var banner=document.getElementById('seasonBanner');
   var txt=document.getElementById('seasonBannerText');
@@ -6380,7 +6561,7 @@ document.getElementById('closeBudgetBtn').addEventListener('click',function(){do
   txt.textContent=match.emoji+' '+match.text;
   banner.style.display='flex';
   close.addEventListener('click',function(){
-    localStorage.setItem('seasonDismissed_'+match.key,'1');
+    bewaar('seasonDismissed_'+match.key,'1','voorkeur');
     banner.style.display='none';
   });
 })();
@@ -6391,7 +6572,7 @@ document.getElementById('closeBudgetBtn').addEventListener('click',function(){do
   var isFriday=now.getDay()===5;
   if(!isFriday)return;
   if(!optOn('plannerOptWeekScore'))return;
-  var dismissed=localStorage.getItem('weekScoreDismissed_'+dateKey(now.getFullYear(),now.getMonth(),now.getDate()));
+  var dismissed=lsGet('weekScoreDismissed_'+dateKey(now.getFullYear(),now.getMonth(),now.getDate()));
   if(dismissed)return;
   setTimeout(function(){
     var mon=getMonday(now);
@@ -6411,7 +6592,7 @@ document.getElementById('closeBudgetBtn').addEventListener('click',function(){do
     txt.textContent='Deze week samen '+done+(done===1?' taak':' taken')+' afgerond';
     banner.classList.add('visible');
     close.addEventListener('click',function(){
-      localStorage.setItem('weekScoreDismissed_'+dateKey(now.getFullYear(),now.getMonth(),now.getDate()),'1');
+      bewaar('weekScoreDismissed_'+dateKey(now.getFullYear(),now.getMonth(),now.getDate()),'1','voorkeur');
       banner.classList.remove('visible');
     });
   },1200);
@@ -6664,11 +6845,11 @@ function getDailyQuote(){
 
 function showBriefing(force){
   var todayStr=todayKey();
-  if(!force && localStorage.getItem('briefingShown')===todayStr) return;
+  if(!force && lsGet('briefingShown')===todayStr) return;
   if(!force && !optOn('plannerOptBriefing')) return;
   // Wacht tot data geladen is
   if(!store.isConfigured()){setTimeout(function(){showBriefing(force);},500);return;}
-  localStorage.setItem('briefingShown',todayStr);
+  bewaar('briefingShown',todayStr,'voorkeur');
 
   var overlay=document.getElementById('briefingOverlay');
   var body=document.getElementById('briefingBody');
@@ -7419,7 +7600,7 @@ function syncBriefingWeather(){
   if(lblEl)lblEl.textContent='Het weer'+(city?' in '+city:'');
 }
 function loadWeather(){
-  var city=localStorage.getItem('plannerCity')||'';
+  var city=lsGet('plannerCity')||'';
   if(!city){
     document.getElementById('weatherIcon').textContent='📍';
     document.getElementById('weatherTemp').textContent='';
@@ -7479,13 +7660,13 @@ function applyWeather(json){
 (function(){
   var isIos=/iphone|ipad|ipod/i.test(navigator.userAgent);
   var isStandalone=window.navigator.standalone===true;
-  var dismissed=localStorage.getItem('iosBannerDismissed');
+  var dismissed=lsGet('iosBannerDismissed');
   if(isIos&&!isStandalone&&!dismissed){
     setTimeout(function(){document.getElementById('iosInstallBanner').classList.add('show');},1500);
   }
   document.getElementById('iosInstallClose').addEventListener('click',function(){
     document.getElementById('iosInstallBanner').classList.remove('show');
-    localStorage.setItem('iosBannerDismissed','1');
+    bewaar('iosBannerDismissed','1','voorkeur');
   });
 })();
 
@@ -7662,10 +7843,10 @@ function checkSecurity(){
 document.getElementById('checkSecurityBtn').addEventListener('click',checkSecurity);
 function warnIfDatabaseOpen(){
   var k='plannerSecWarned';
-  try{if(localStorage.getItem(k)===todayKey())return;}catch(e){}
+  try{if(lsGet(k)===todayKey())return;}catch(e){}
   store.checkAccess().then(function(st){
     if(!(st>=200&&st<300))return;
-    try{localStorage.setItem(k,todayKey());}catch(e){}
+    bewaar(k,todayKey(),'voorkeur');
     showUndoToast('⚠️ Jullie database staat open voor iedereen.',openSettingsSheet,'Beveiligen');
   }).catch(function(){});
 }
@@ -7675,7 +7856,8 @@ document.getElementById('exportBackupBtn').addEventListener('click',function(){
   var blob=new Blob([JSON.stringify({app:'huisplan',version:1,exportedAt:new Date().toISOString(),data:data},null,1)],{type:'application/json'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='huisplan-backup-'+todayKey()+'.json';
   document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
-  showToast('Back-up gedownload ✓');
+  // Of het bestand echt is bewaard, kan de app niet zien; de bevestiging hoort bij E1 (herstelkopie).
+  showToast('Back-up-bestand aangemaakt — controleer of het in je downloads staat.');
 });
 document.getElementById('importBackupInput').addEventListener('change',function(){
   var f=this.files[0];this.value='';if(!f)return;

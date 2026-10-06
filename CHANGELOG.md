@@ -361,3 +361,22 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Geen wijziging aan HTML, UI of functionaliteit. Een al op het beginscherm gezette app houdt het
   oude icoon tot hij opnieuw wordt toegevoegd.
 
+## 1.4.2-voorbereiding: cache en lokale opslag (NW-04, E3; testversie)
+- `test/index.html`: alle `localStorage`-toegang via `bewaar()`/`leesOpslag()`, met een niveau
+  (kritiek, belangrijk, voorkeur). Geen lege `catch` meer die een mislukte opslag verbergt; fouten
+  staan in een diagnose zonder inhoud of geheimen (`window.huisplanOpslag`).
+- Cache per database, planner en opslaggeneratie onder `huisplanCache_<SHA-256>`, zonder de
+  plannersleutel in de naam. De oude cache `plannerCache_<sleutel>` blijft leesbaar en wordt pas
+  opgeruimd als alles daaruit aantoonbaar op de server staat.
+- Een onleesbare cache wordt nooit overschreven: eerst apart bewaard, en lukt dat niet, dan blijft hij
+  onaangeroerd. Een leesfout geldt als "onbekend", niet als "leeg".
+- Lukt lokaal bewaren niet terwijl er wijzigingen openstaan, dan zegt de statusregel dat ("nog niet
+  veilig bewaard", of "Niet bewaard" zonder verbinding), wordt er direct gesynchroniseerd en volgt een
+  waarschuwing bij sluiten. "Opgeslagen" verschijnt alleen na bevestiging door de server.
+- De ledenmigratie (1.4.1) start alleen als de veiligheidskopie duurzaam bewaard is (schrijven en
+  teruglezen); anders een melding, en de vragen komen die sessie niet terug.
+- Na een export geen "Back-up gedownload ✓" meer; de app kan dat niet weten.
+- Tests: `tests/opslag.test.js` (T6–T8 en extra gevallen); `lib.js` kan opslagfouten nabootsen. De
+  bestaande tests herkennen beide cachesleutels. Niet live; `index.html` ongewijzigd. Zie
+  `docs/e3-lokale-opslag.md`.
+

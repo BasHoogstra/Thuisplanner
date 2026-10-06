@@ -102,8 +102,11 @@ async function openApp(browser, base, opts = {}) {
     if (/Failed to load resource|net::ERR_|ERR_FAILED|blocked/i.test(t)) return; // afgebroken externe verzoeken
     state.errors.push('console: ' + t);
   });
+  // opts.dbOnbereikbaar: de database is vanaf de start onbereikbaar, tot state.onbereikbaar = false.
+  if (opts.dbOnbereikbaar) state.onbereikbaar = true;
   await ctx.route(DB_URL + '/**', async route => {
     const req = route.request();
+    if (state.onbereikbaar) return route.abort('internetdisconnected');
     // opts.log: verloop van de verzoeken vastleggen (om oude en nieuwe opslaglaag te vergelijken).
     const log = m => { if (opts.log) opts.log.push(m + (req.headers()['if-match'] ? ' if-match' : '')); };
     // opts.exposeETag: de ETag is voor de app leesbaar (Access-Control-Expose-Headers), zodat de app
@@ -138,6 +141,19 @@ async function openApp(browser, base, opts = {}) {
     sessionStorage.setItem('__seeded', '1');
     Object.keys(items).forEach(k => { if (items[k] === null) localStorage.removeItem(k); else localStorage.setItem(k, items[k]); });
   }, ls);
+  // Opslagfouten nabootsen (1.4.2, E3). De instelling staat in sessionStorage ('__opslagFout'), zodat
+  // hij een herlaadactie overleeft en tijdens een test te wijzigen is (zie zetOpslagFout):
+  //   { schrijven: '<regex>', lezen: '<regex>', verwijderen: '<regex>' } op de sleutelnaam.
+  // Schrijven gooit QuotaExceededError, lezen en verwijderen een SecurityError.
+  await ctx.addInitScript(start => {
+    if (start && !sessionStorage.getItem('__opslagFout')) sessionStorage.setItem('__opslagFout', JSON.stringify(start));
+    const P = Storage.prototype, set = P.setItem, get = P.getItem, rem = P.removeItem;
+    const cfg = () => { try { return JSON.parse(get.call(sessionStorage, '__opslagFout') || '{}'); } catch (e) { return {}; } };
+    const raakt = (soort, k, self) => self === localStorage && cfg()[soort] && new RegExp(cfg()[soort]).test(k);
+    P.setItem = function (k, v) { if (raakt('schrijven', k, this)) throw new DOMException('vol', 'QuotaExceededError'); return set.call(this, k, v); };
+    P.getItem = function (k) { if (raakt('lezen', k, this)) throw new DOMException('geblokkeerd', 'SecurityError'); return get.call(this, k); };
+    P.removeItem = function (k) { if (raakt('verwijderen', k, this)) throw new DOMException('geblokkeerd', 'SecurityError'); return rem.call(this, k); };
+  }, opts.opslagFout || null);
   await page.goto(url);
   await page.waitForTimeout(opts.settle || 1500);
   return { ctx, page, state, url };
@@ -147,6 +163,9 @@ async function openApp(browser, base, opts = {}) {
 function serverWrite(state, mutate) { mutate(state.db); state.etag++; }
 // Lege nagebootste database om te delen tussen twee toestellen (openApp met { state }).
 function sharedDb(data) { return { db: data === undefined ? null : clone(data), puts: 0, gets: 0, etag: 1, errors: [], putBodies: [] }; }
+
+// Opslagfouten tijdens een test aan- of uitzetten (zie openApp, opts.opslagFout).
+function zetOpslagFout(page, cfg) { return page.evaluate(c => sessionStorage.setItem('__opslagFout', JSON.stringify(c || {})), cfg); }
 
 async function waitForPut(state, before, timeout = 4000) {
   const t0 = Date.now();
@@ -170,4 +189,4 @@ function shotPath(target, name) {
   return path.join(dir, name + '.png');
 }
 
-module.exports = { serverWrite, sharedDb, startServer, launch, openApp, readFixture, clone, firebaseCanon, diffPaths, waitForPut, assert, assertSameSet, shotPath, FIXED_NOW, DB_URL };
+module.exports = { zetOpslagFout, serverWrite, sharedDb, startServer, launch, openApp, readFixture, clone, firebaseCanon, diffPaths, waitForPut, assert, assertSameSet, shotPath, FIXED_NOW, DB_URL };

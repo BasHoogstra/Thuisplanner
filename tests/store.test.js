@@ -11,6 +11,8 @@ const path = require('path');
 const { openApp, readFixture, serverWrite, sharedDb, assert, firebaseCanon, DB_URL, FIXED_NOW } = require('./lib');
 
 const APP = path.join(__dirname, '..', 'test', 'index.html');
+// Cachesleutel van de testversie (E3): hash van database, planner en opslaggeneratie 1.
+const CACHE_ID = require('crypto').createHash('sha256').update('huisplan-cache\n' + DB_URL.replace(/\/+$/, '') + '\ntestplanner0123456789\n1').digest('hex').slice(0, 32);
 
 // Code van createFirebaseStore (tot en met de afsluitende accolade) en de rest van de app.
 function splitStore() {
@@ -42,7 +44,7 @@ const localBood = async page => { const c = await readCacheOf(page); return c ? 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 // Lokale cache zonder tijdstempel.
 const readCacheOf = page => page.evaluate(() => {
-  const k = Object.keys(localStorage).find(x => x.startsWith('plannerCache_'));
+  const k = Object.keys(localStorage).find(x => /^(plannerCache_|huisplanCache_)/.test(x));
   if (!k) return null;
   const c = JSON.parse(localStorage.getItem(k)); delete c.t; return { key: k, data: c.data, base: c.base };
 });
@@ -64,7 +66,8 @@ async function both(ctx, scenario, modes = ['etag', 'zonder']) {
   for (const mode of modes) {
     const out = {};
     for (const target of ['root', 'test']) out[target] = await scenario(target, mode === 'etag');
-    const a = stripIds(JSON.stringify(out.root, null, 1)), b = stripIds(JSON.stringify(out.test, null, 1));
+    const zonderSleutel = (k, v) => (k === 'cacheKey' ? undefined : v); // verschilt bewust sinds 1.4.2 (E3)
+    const a = stripIds(JSON.stringify(out.root, zonderSleutel, 1)), b = stripIds(JSON.stringify(out.test, zonderSleutel, 1));
     if (a !== b) {
       const la = a.split('\n'), lb = b.split('\n');
       const i = la.findIndex((l, n) => l !== lb[n]);
@@ -80,7 +83,8 @@ const blockDb = route => route.abort('internetdisconnected');
 async function goOffline(o) { await o.ctx.route(DB_URL + '/**', blockDb); await o.ctx.setOffline(true); }
 async function goOnline(o) { await o.ctx.unroute(DB_URL + '/**', blockDb); await o.ctx.setOffline(false); }
 function summary(o) {
-  return { log: o.log, db: firebaseCanon(o.state.db), cache: o.cache && { data: firebaseCanon(o.cache.data), base: o.cache.base, key: o.cache.key }, sync: o.sync, conflicts: o.state.conflicts || 0, errors: o.state.errors };
+  // De cachesleutel verschilt sinds 1.4.2 (E3) tussen oud en nieuw; die wordt apart gecontroleerd.
+  return { log: o.log, db: firebaseCanon(o.state.db), cache: o.cache && { data: firebaseCanon(o.cache.data), base: o.cache.base }, cacheKey: o.cache && o.cache.key, sync: o.sync, conflicts: o.state.conflicts || 0, errors: o.state.errors };
 }
 
 module.exports = {
@@ -99,9 +103,10 @@ module.exports = {
     const fetches = rest.match(/fetch\([^;]{0,80}/g) || [];
     const dbFetch = fetches.filter(f => !/wttr\.in|nominatim|overpass|url\+'\?data=/.test(f));
     assert(!dbFetch.length, 'fetch buiten de store: ' + dbFetch.join(' | '));
-    // De bestaande opslag (localStorage-sleutels en cacheformaat) is ongewijzigd.
-    assert(store.includes("'plannerCache_'+plannerKey") && store.includes('{data:d||getLocal(),base:base,t:Date.now()}'), 'Cacheformaat gewijzigd');
-    assert(store.includes("localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);"), 'Opslag van de koppeling gewijzigd');
+    // Opslag sinds 1.4.2 (E3): de koppeling via bewaar() ('kritiek'); de cache per database, planner
+    // en opslaggeneratie onder een hash; de oude cache (plannerCache_<sleutel>) blijft leesbaar.
+    assert(store.includes("bewaar('plannerDbUrl',dbUrl,'kritiek'),b=bewaar('plannerKey',plannerKey,'kritiek')"), 'Opslag van de koppeling gewijzigd');
+    assert(store.includes("'huisplanCache_'+cacheId()") && store.includes("'plannerCache_'+plannerKey"), 'Cachesleutels gewijzigd');
   },
 
 
@@ -118,7 +123,7 @@ module.exports = {
       assert(boodTexts(x.db).includes('Pindakaas'), 'Boodschap niet opgeslagen');
       // Zonder leesbare ETag haalt de app na opslaan meteen de serverstand op ("Bijgewerkt").
       assert(/^(Opgeslagen|Bijgewerkt)/.test(x.sync), 'Statusregel: ' + x.sync);
-      assert(x.cache && x.cache.key === 'plannerCache_testplanner0123456789', 'Cachesleutel gewijzigd');
+      assert(x.cacheKey === 'huisplanCache_' + CACHE_ID, 'Cachesleutel: ' + x.cacheKey);
       assert(!x.errors.length, 'Fouten: ' + x.errors.join(' | '));
     });
     assert(r.etag.log.includes('PUT if-match'), 'Met leesbare ETag wordt niet voorwaardelijk opgeslagen');

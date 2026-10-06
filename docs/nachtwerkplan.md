@@ -19,6 +19,7 @@ E2: push/flush/load/retry/poll via één coordinator. Geen bruikbare ETag = geen
 
 ### NW-04 — Cache/storage resilience 🟢
 E3: cache-identiteit database+planner+storage generation zonder secrets leesbaar. Behandel quota/read/parse/delete/network+storage, oude cache, verkeerde planner/generatie. Kritieke fouten zichtbaar; nooit onterecht “opgeslagen”. Tests T6–T8.
+**Status (6 okt 2026):** gebouwd in de testversie (`test/index.html`), apart van NW-03 vanaf `main`; tests `tests/opslag.test.js`. Gedrag, productie-overname en risico's: `docs/e3-lokale-opslag.md`. Niet live.
 
 ### NW-05 — Recovery bundle v2 🟠
 E1: raw serverdata+ETag/hash, local data/base, localGen/confirmedGen, member-backups, storage identity, appversie/checksum, ruimte UUID-mapping. Pas bevestigd na teruglezen/checksum. Alleen fixtures/emulator.
