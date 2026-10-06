@@ -286,6 +286,9 @@ Tot en met 1.15 blijft de Firebase-versie werken.
 - ⛔ **Gate** (besluiten 7 en 8): dat het slot herbruikbaar is, geeft geen toestemming vooraf. Het
   wijzigen van de Firebase-regels en het activeren van een slot vereisen ook hier een afzonderlijk,
   expliciet akkoord.
+- 📝 **Follow-up (nog niet verwerkt):** stap 1.14 noemt nu nog "markering in Firebase". Een
+  markering is volgens `docs/identiteit-en-items.md` (3.1) niet genoeg als slot. 1.14 moet later
+  naar het server-side verhuisslot verwijzen. Dat gebeurt in een aparte wijziging.
 
 ## Fase 2: Eén samenhangend model
 

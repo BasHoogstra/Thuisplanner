@@ -137,7 +137,12 @@ Er zijn drie niveaus, en ze worden niet door elkaar gebruikt.
   dan `rewriting`, dan `done`), samen met de mapping. De uitvoering:
   1. eerst wordt de mapping met een gecontroleerde schrijfactie (ETag) vastgelegd;
   2. daarna worden de verwijzingen omgezet.
-- **Bij een conflict wint de opgeslagen mapping.** Staat er al een mapping op de server, dan wordt
+- **Status en mapping staan op het doel, niet op de bron (besluit 8).** Na het activeren van het
+  verhuisslot (3.1, eis 4) is de bron afgesloten en wordt daar niets meer geschreven, ook geen
+  status of mapping. De migratie legt `meta.migration15` en de mapping vast op het doel van de
+  migratie. De afgesloten bron blijft ongewijzigd en dient als vaste invoer voor hervatten en
+  herstel.
+- **Bij een conflict wint de opgeslagen mapping.** Staat er al een mapping op het doel, dan wordt
   die hergebruikt en wordt de lokale berekening verworpen. Door de deterministische afleiding zijn
   ze normaal gelijk; een verschil is een fout die de migratie stopt.
 - **Omzetten is idempotent.** `resolveMember()` begrijpt zowel `m_` als UUID. Een tweede keer omzetten
@@ -269,17 +274,20 @@ terug.
      - een slot hoort bij één bronpad, bijvoorbeeld de plek waar een planner in Firebase staat;
      - zodra het slot actief is, weigert de **server** elke schrijfactie op dat bronpad, ongeacht
        wat er wordt meegestuurd. Het slot hangt dus niet af van een markering of token in de data;
-     - een client kan een actief slot niet zelf opheffen. Opheffen is een bewuste handeling van de
-       beheerder, buiten de app;
-     - de migratie schrijft pas naar het doel nadat het slot actief is en aantoonbaar werkt, en
-       leest de bron pas daarna. Schrijfacties die vóór het slot binnenkwamen, zitten daardoor in
-       de gelezen bron; latere worden geweigerd;
+     - **(goedgekeurde eis)** een actief verhuisslot kan alleen door de beheerder worden opgeheven,
+       buiten de app. Geen client kan een actief slot zelf opheffen;
+     - **(goedgekeurde eis)** de migratie leest de bron pas nadat het slot actief is **én** een
+       zelftest heeft bewezen dat schrijven op de bron wordt geweigerd. Pas daarna schrijft zij naar
+       het doel. Schrijfacties die vóór het slot binnenkwamen, zitten daardoor in de gelezen bron;
+       latere worden geweigerd;
      - het doel wordt gecontroleerd en herhaalbaar beschreven, en na het schrijven teruggelezen en
        vergeleken met de bron. Bij elke afwijking of fout stopt de migratie;
      - een client die op een actief slot stuit, stopt met schrijven, meldt dat de planner is
        verhuisd en laat zijn lokale cache onaangeroerd (zie eis 3);
      - het acceptatiescenario van eis 2 wordt bij **elke** toepassing opnieuw bewezen, voor het
        betreffende doel (in 1.5 binnen Firebase, in 1.12 naar Supabase).
+   - **Goedkeuring.** De producteigenaar heeft de twee eisen die hierboven als goedgekeurde eis zijn
+     gemarkeerd op 6 oktober 2026 expliciet goedgekeurd, als onderdeel van besluit 8.
    - **Bewust niet vastgelegd.** Hoe een nieuwe app bepaalt waar een planner nu staat (in het ontwerp
      `resolveLocation()`), het exacte formaat en de plaats van het slot, de namen van paden en de
      precieze Firebase-regels zijn onderdeel van het ontwerp in E6. Ze worden alleen vastgelegd
@@ -483,7 +491,8 @@ Nu wordt geen migratie uitgevoerd. Het gaat om deze ontwerpbeslissingen:
 
 ### 5.3 Overige roadmapvoorstellen (nog niet besloten)
 
-De punten hieronder vallen buiten de zeven besluiten en blijven voorstellen.
+De punten hieronder vallen buiten de architectuurbesluiten van sectie 7 (besluiten 1 t/m 8) en
+blijven voorstellen.
 
 - **Itemcontract vóór 2.1.** Het minimale itemcontract (4.1–4.4) wordt vastgelegd vóór de bredere
   weergaven van 2.1. Zo bouwt 2.1 Vandaag direct als projectie, zonder tijdelijke conversielogica.
@@ -535,7 +544,7 @@ Genomen door de producteigenaar.
 | 5 | **1.4.2 vóór 1.5.** De veiligheidsvoorbereiding van 1.4.2 (E1 t/m E6, sectie 5.1) is een harde voorwaarde voordat 1.5 de bestaande persoonsverwijzingen migreert. | **Ja** |
 | 6 | **Vandaag als weergave.** Vandaag is definitief een niet-schrijvende weergave: alleen renderen mag geen huishouddata wijzigen. De implementatie blokkeert 1.5 niet en gebeurt op het passende moment in de roadmap. | **Ja** |
 | 7 | **Oude Firebase-clients aan de serverkant blokkeren.** Vóór de migratie van 1.5 moet aantoonbaar server-side zijn geborgd dat oude clients niet meer kunnen schrijven, ook niet met oude of gekopieerde markeringen en niet met schrijfacties die al onderweg zijn (3.1). | **Ja voor de eis; nog geen keuze voor het mechanisme.** Het mechanisme wordt in 1.4.2 onderzocht en bewezen (E6). Een wijziging aan de Firebase-configuratie gebeurt niet zonder apart, expliciet akkoord. (Het principe is uitgewerkt in besluit 8.) |
-| 8 | **Herbruikbaar verhuisslot; 1.5 en 1.12 apart** (aanvulling op besluit 7, 6 oktober 2026). 1.5 blijft een afzonderlijke migratie binnen Firebase; 1.12 blijft een afzonderlijke migratie naar Supabase. Het server-side verhuisslot uit 1.4.2 wordt een herbruikbaar migratiemechanisme per bronpad, zodat hetzelfde principe in 1.12 opnieuw kan worden toegepast (3.1, eis 4). | **Ja.** 1.4.2 ontwerpt en bewijst het mechanisme alleen in een geïsoleerde omgeving. `resolveLocation()` en het exacte slotformaat horen bij het ontwerp en worden alleen vastgelegd voor zover ze nodig zijn als contract. Herbruikbaarheid geeft geen toestemming vooraf: het wijzigen van Firebase-regels en het activeren van een slot vereist iedere keer afzonderlijk expliciet akkoord. |
+| 8 | **Herbruikbaar verhuisslot; 1.5 en 1.12 apart** (aanvulling op besluit 7, 6 oktober 2026). 1.5 blijft een afzonderlijke migratie binnen Firebase; 1.12 blijft een afzonderlijke migratie naar Supabase. Het server-side verhuisslot uit 1.4.2 wordt een herbruikbaar migratiemechanisme per bronpad, zodat hetzelfde principe in 1.12 opnieuw kan worden toegepast (3.1, eis 4). | **Ja.** 1.4.2 ontwerpt en bewijst het mechanisme alleen in een geïsoleerde omgeving. `resolveLocation()` en het exacte slotformaat horen bij het ontwerp en worden alleen vastgelegd voor zover ze nodig zijn als contract. Expliciet goedgekeurd: een actief slot kan alleen door de beheerder buiten de app worden opgeheven, en de migratie leest de bron pas nadat het slot actief is én een zelftest heeft bewezen dat schrijven op de bron wordt geweigerd (3.1, eis 4). Status en mapping van de migratie staan op het doel (2.3). Herbruikbaarheid geeft geen toestemming vooraf: het wijzigen van Firebase-regels en het activeren van een slot vereist iedere keer afzonderlijk expliciet akkoord. |
 
 ## 8. Verwerking van de review (Codex, PR #12)
 
