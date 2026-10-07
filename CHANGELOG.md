@@ -432,3 +432,27 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Een schrijfmarkering in de data is niet gebouwd: hooguit een latere UX-verbetering, geen
   veiligheidsvereiste.
 
+## 1.4.2-voorbereiding: NW-03 hersteld na de derde Codex-review (testversie)
+- Journaal per venster (`plannerJournal_<sleutel>_<id>`, versie 2) met context (database, planner,
+  generatie), eigenaar en hartslag. Inspectie los van de cache met drie uitkomsten: geen journaal,
+  geldig, of onbekend/ongeldig. Onbekend/ongeldig (leesfout, kapotte JSON, onbekende versie, ongeldige
+  inhoud, andere database/planner/generatie) blokkeert schrijven en hervatten; er wordt niets
+  verwijderd en regelmatig opnieuw gekeken. Opstartscherm met "Opnieuw controleren" en
+  "Herstelgegevens bewaren".
+- Een record verdwijnt pas nadat de afgehandelde toestand duurzaam vastligt: eerst het record als
+  `settled` (basis + lokale stand), dan de cache (teruggelezen), dan opruimen. Mislukt een stap, dan
+  blijft het record staan, wordt er niets verstuurd en is de status "Lokaal bewaren mislukt".
+- Vensters: een venster schrijft en wist alleen zijn eigen record. Een record van een levend venster
+  (Web Locks) wordt nooit overgenomen; een nieuw venster wacht. Een verweesd record wordt onder een
+  claim-lock overgenomen. Zonder Web Locks: hartslag en vrijgeven bij `pagehide`.
+- Na een crash telt de cache alleen als lokale stand als ze aantoonbaar bij het record hoort; anders de
+  verzonden stand. Een cache van een ander venster met eigen niet-opgeslagen wijzigingen wordt nooit
+  stil gecombineerd.
+- De keuze na een onzekere uitkomst schrijft alleen als alles buiten de onzekere wijzigingen
+  aantoonbaar verliesvrij samengaat; anders niets, en de vraag komt later terug.
+- `flattenPaths`: alle lijsten zonder (unieke) `id` alleen als geheel, ook tekstlijsten; volgorde in
+  `id`-lijsten telt; typewisselingen tellen altijd.
+- Cache krijgt extra velden (`inst`, `seq`, `db`); `data`, `base` en `t` blijven gelijk.
+- Tests: `tests/journaal3.test.js` (19), `tests/verliesvrij.test.js` (12). `tests/lib.js`: opties
+  `initScript` en `realClock`.
+

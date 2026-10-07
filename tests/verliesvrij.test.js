@@ -68,7 +68,7 @@ module.exports = {
     assert(!lv(oud, lokaalVerwijderd, serverBewerkt), 'Verwijderd hier, bewerkt daar: niet verliesvrij');
   },
 
-  async 'Verliesvrij: veilige gevallen blijven automatisch (andere items, gelijke wijziging, verzamelingen)'() {
+  async 'Verliesvrij: veilige gevallen blijven automatisch (andere items, gelijke wijziging, één kant)'() {
     const oud = { boodschappen: [{ id: 'a', text: 'Melk' }, { id: 'b', text: 'Brood' }], winkels: ['AH'] };
     // Lokaal verwijderd a, server bewerkt b.
     const l = { boodschappen: [oud.boodschappen[1]], winkels: ['AH'] };
@@ -76,11 +76,61 @@ module.exports = {
     assert(lv(oud, l, s), 'Verschillende items: zou verliesvrij moeten zijn');
     // Beide hetzelfde gedaan.
     assert(lv(oud, l, l), 'Gelijke wijziging aan beide kanten');
-    // Verzameling (tekstlijst): lokaal +Jumbo, server -AH.
+    // Tekstlijst alleen aan één kant veranderd.
     const l2 = j(oud); l2.winkels = ['AH', 'Jumbo'];
-    const s2 = j(oud); s2.winkels = [];
-    const m2 = C.mergeData(j(oud), j(l2), j(s2));
-    assert(lv(oud, l2, s2) && JSON.stringify(m2.winkels) === '["Jumbo"]', 'Verzameling: ' + JSON.stringify(m2.winkels));
+    assert(lv(oud, l2, oud), 'Tekstlijst aan één kant: zou verliesvrij moeten zijn');
+  },
+
+  // ── Derde Codex-review, punt 7: structurele twijfel = conservatief ────────────────────────────
+  async 'Verliesvrij: tekstlijst aan beide kanten veranderd = niet automatisch (volgorde/dubbelen tellen)'() {
+    const oud = { winkels: ['AH', 'Lidl'] };
+    // Vroeger als verzameling gezien (lokaal +Jumbo, server -AH = verliesvrij); nu als geheel.
+    assert(!lv(oud, { winkels: ['AH', 'Lidl', 'Jumbo'] }, { winkels: ['Lidl'] }), 'Tekstlijst aan beide kanten veranderd toch verliesvrij');
+    // Alleen de volgorde (bv. een rangorde) aan beide kanten anders.
+    assert(!lv(oud, { winkels: ['Lidl', 'AH'] }, { winkels: ['AH', 'Lidl', 'AH'] }), 'Volgorde/dubbele waarde genegeerd');
+    const f = plain(C.flattenPaths({ winkels: ['AH', 'AH'] }));
+    assert(f['.winkels'] === '["AH","AH"]', 'Dubbele waarde niet bewaard in de vergelijking: ' + JSON.stringify(f));
+  },
+
+  async 'Verliesvrij: typewisseling (object ↔ lijst ↔ waarde) telt altijd als wijziging'() {
+    const oud = { notitieboekMeta: { a: 1 }, extra: { x: { y: 1 } } };
+    const lokaal = j(oud); lokaal.extra.x = [1, 2];         // object → lijst
+    const server = j(oud); server.extra.x = { y: 1, z: 2 }; // object uitgebreid
+    assert(!lv(oud, lokaal, server), 'Typewisseling tegen een wijziging in: toch verliesvrij');
+    const f1 = plain(C.flattenPaths({ extra: { x: { y: 1 } } })), f2 = plain(C.flattenPaths({ extra: { x: [1] } })), f3 = plain(C.flattenPaths({ extra: { x: 'tekst' } }));
+    assert(f1['.extra.x#t'] === 'o' && f2['.extra.x#t'] === 'a' && f3['.extra.x#t'] === undefined && f3['.extra.x'] === '"tekst"', 'Typemarkering ontbreekt: ' + JSON.stringify([f1, f2, f3]));
+    // Een typewisseling aan één kant blijft gewoon verliesvrij.
+    assert(lv(oud, lokaal, oud), 'Typewisseling aan één kant onterecht als verlies');
+  },
+
+  async 'Verliesvrij: volgorde in een lijst met id\'s — aan beide kanten anders = niet automatisch'() {
+    const a = { id: 'a', text: 'A' }, b = { id: 'b', text: 'B' }, c = { id: 'c', text: 'C' };
+    const oud = { backlog: [a, b, c] };
+    assert(!lv(oud, { backlog: [b, a, c] }, { backlog: [a, c, b] }), 'Twee verschillende herordeningen toch verliesvrij');
+    // Herordening alleen op de server en lokaal niets: de serverstand wordt overgenomen, verliesvrij.
+    assert(lv(oud, oud, { backlog: [c, b, a] }), 'Alleen herordening op de server onterecht als verlies');
+    // Herordening op de server + lokaal een item erbij: de samenvoeging houdt de lokale volgorde aan,
+    // dus gaat de herordening verloren: niet verliesvrij.
+    const m = C.mergeData(j(oud), j({ backlog: [a, b, c, { id: 'd' }] }), j({ backlog: [c, b, a] }));
+    assert(!C.losslessMerge(C.normalizeData(j(oud)), C.normalizeData(j({ backlog: [a, b, c, { id: 'd' }] })), C.normalizeData(j({ backlog: [c, b, a] })), m), 'Herordening van de server verloren maar toch verliesvrij');
+    // Toevoegen aan beide kanten (andere items, gemeenschappelijke volgorde gelijk) blijft verliesvrij.
+    assert(lv(oud, { backlog: [a, b, c, { id: 'd' }] }, { backlog: [a, b, c, { id: 'e' }] }), 'Toevoegen aan beide kanten onterecht als verlies');
+  },
+
+  async 'Verliesvrij: gemengde en geneste lijsten zonder id als geheel; toestemming geldt niet voor hele lijsten'() {
+    const oud = { vakanties: [{ id: 'v', budget: { uitgaven: [{ desc: 'a', amount: 1 }] }, tags: ['x', { y: 1 }] }] };
+    const l = j(oud); l.vakanties[0].tags.push('z');
+    const s = j(oud); s.vakanties[0].tags.push('w');
+    assert(!lv(oud, l, s), 'Gemengde lijst aan beide kanten veranderd: toch verliesvrij');
+    // Toestemming ("opnieuw toepassen") geldt voor losse waarden, niet voor een hele lijst zonder id.
+    const sent = { boodschappenHistory: [{ text: 'Melk', norm: 'melk' }], notitieboek: 'van mij' };
+    const cp = plain(C.changedPaths({}, sent));
+    assert(cp['.notitieboek'] === 1 && !cp['.boodschappenHistory'] && !Object.keys(cp).some(k => /#t$/.test(k)), 'Toestemmingspaden: ' + JSON.stringify(cp));
+    const B = {}, L = j(sent), R = { boodschappenHistory: [{ text: 'Brood', norm: 'brood' }], notitieboek: 'van een ander' };
+    const X = { boodschappenHistory: L.boodschappenHistory, notitieboek: 'van mij' };
+    assert(!C.losslessMerge(B, L, R, X, C.changedPaths(B, sent)), 'Toestemming liet de geschiedenis van een ander vallen');
+    const R2 = { notitieboek: 'van een ander' }, X2 = { boodschappenHistory: L.boodschappenHistory, notitieboek: 'van mij' };
+    assert(C.losslessMerge(B, L, R2, X2, C.changedPaths(B, sent)), 'Toestemming voor een losse waarde werkt niet');
   },
 
   async 'Verliesvrij: verloren bevestiging + ander toestel voegt iets toe = automatisch; + verwijdert ons item = niet'() {
@@ -99,7 +149,8 @@ module.exports = {
     assert(!lv(oud, l, s), 'Gemengde lijst aan beide kanten veranderd: niet verliesvrij');
     const d = { boodschappen: [{ id: 'z', text: '1' }, { id: 'z', text: '2' }] };
     const fl = plain(C.flattenPaths(d));
-    assert(Object.keys(fl).length === 1 && Object.keys(fl)[0] === '.boodschappen', 'Dubbele id\'s niet als geheel: ' + JSON.stringify(Object.keys(fl)));
+    const sl = Object.keys(fl).filter(k => !/#t$/.test(k));
+    assert(sl.length === 1 && sl[0] === '.boodschappen', 'Dubbele id\'s niet als geheel: ' + JSON.stringify(Object.keys(fl)));
   },
 
   async 'Lijst met gaten (P1-11): telt nooit als veilig — los van dit pakket niet opgelost'() {

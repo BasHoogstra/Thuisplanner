@@ -99,8 +99,10 @@ module.exports = {
     const fetches = rest.match(/fetch\([^;]{0,80}/g) || [];
     const dbFetch = fetches.filter(f => !/wttr\.in|nominatim|overpass|url\+'\?data=/.test(f));
     assert(!dbFetch.length, 'fetch buiten de store: ' + dbFetch.join(' | '));
-    // De bestaande opslag (localStorage-sleutels en cacheformaat) is ongewijzigd.
-    assert(store.includes("'plannerCache_'+plannerKey") && store.includes('{data:d||getLocal(),base:base,t:Date.now()}'), 'Cacheformaat gewijzigd');
+    // De bestaande opslag (localStorage-sleutels en cacheformaat) is ongewijzigd. De testversie
+    // (1.4.2, E2) voegt alleen velden toe (inst, seq, db: bij welk venster de cache hoort); data, base
+    // en t blijven gelijk, dus een oudere versie leest dezelfde cache zoals voorheen.
+    assert(store.includes("'plannerCache_'+plannerKey") && (store.includes('{data:d||getLocal(),base:base,t:Date.now()}') || store.includes('{data:d,base:b,t:Date.now(),inst:instId,seq:seq,db:normDb(dbUrl)}')), 'Cacheformaat gewijzigd');
     assert(store.includes("localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);"), 'Opslag van de koppeling gewijzigd');
   },
 

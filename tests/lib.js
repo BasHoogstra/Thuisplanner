@@ -162,10 +162,13 @@ async function openApp(browser, base, opts = {}) {
   // opts.timeouts: kortere tijdslimieten voor verzoeken van de app ({get, put} in ms), voor tests met
   // hangende verzoeken (zie createFirebaseStore, window.HUISPLAN_TIMEOUTS).
   if (opts.timeouts) await ctx.addInitScript(t => { window.HUISPLAN_TIMEOUTS = t; }, opts.timeouts);
+  // opts.initScript: extra script (tekst) dat vóór de app draait, in elk venster van deze context.
+  if (opts.initScript) await ctx.addInitScript({ content: opts.initScript });
   // Al het andere verkeer naar buiten (weer, kaarten, QR-bibliotheek) wordt geblokkeerd.
   // opts.allowUrl: een extra lokaal adres dat wél bereikbaar is (bv. tests/nepdb.js).
   await ctx.route(u => !u.href.startsWith(base) && !u.href.startsWith(DB_URL) && !(opts.allowUrl && u.href.startsWith(opts.allowUrl)), r => r.abort());
-  await page.clock.setFixedTime(opts.now || FIXED_NOW);
+  // opts.realClock: de echte klok (nodig als tijd moet verstrijken, bv. een hartslag die veroudert).
+  if (!opts.realClock) await page.clock.setFixedTime(opts.now || FIXED_NOW);
   const ls = Object.assign({
     plannerDbUrl: DB_URL, plannerKey: PLANNER_KEY, plannerMyName: 'Bas', plannerPartnerName: 'Sanne',
     briefingShown: '2026-10-02', plannerCity: ''
@@ -207,4 +210,4 @@ function shotPath(target, name) {
   return path.join(dir, name + '.png');
 }
 
-module.exports = { serverWrite, sharedDb, startServer, launch, openApp, readFixture, clone, firebaseCanon, diffPaths, waitForPut, assert, assertSameSet, shotPath, FIXED_NOW, DB_URL };
+module.exports = { PLANNER_KEY, serverWrite, sharedDb, startServer, launch, openApp, readFixture, clone, firebaseCanon, diffPaths, waitForPut, assert, assertSameSet, shotPath, FIXED_NOW, DB_URL };

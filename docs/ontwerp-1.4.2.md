@@ -121,6 +121,52 @@ Eén coördinator per planner en opslaggeneratie houdt deze toestand bij:
    - **Schrijfmarkering (optioneel, later).** Een markering per toestel in de data zou een verloren
      bevestiging vaker automatisch kunnen afhandelen (minder vragen). Dat is een mogelijke latere
      UX-verbetering, geen voorwaarde voor de veiligheid hierboven; ze is niet gebouwd.
+
+   **Aangescherpt na de derde Codex-review (7 okt 2026)** (alleen `test/index.html`):
+   - **Journaal per venster.** Elk venster (één geladen pagina, "instantie") heeft een eigen record
+     `plannerJournal_<sleutel>_<id>`. Het id is willekeurig, bestaat alleen in het geheugen van die
+     pagina en zegt niets over toestel of persoon. Een record bevat versie (2), context
+     (`db`, `planner`, generatie), eigenaar, hartslag, toestand (`sending`, `unknown`, `uncertain`,
+     `settled`), wat er verstuurd is, de oude basis en bij welke cache-opslag het hoort. Een venster
+     schrijft en verwijdert alleen zijn eigen record. Het journaal van vóór deze versie (sleutel
+     zonder id) geldt als onbekende versie.
+   - **Inspectie met drie uitkomsten, los van de cache.** `absent` (aantoonbaar geen record), `valid`
+     of `unknown-invalid` (leesfout, kapotte JSON, onbekende versie, ongeldige structuur, andere
+     database/planner/generatie). `unknown-invalid` blokkeert schrijven en het hervatten uit de cache,
+     er wordt niets verwijderd, en de app kijkt regelmatig opnieuw (een tijdelijke leesfout lost zich
+     dus vanzelf op, met daarna het gewone herstel). Bij het opstarten toont de app dan een scherm met
+     "Opnieuw controleren" en "Herstelgegevens bewaren" (journaal en cache ongewijzigd als bestand).
+   - **Eigenaarschap tussen vensters (Web Locks).** Elk venster houdt zijn hele leven een eigen lock
+     vast (`navigator.locks`); de browser geeft dat vrij als de pagina sluit of crasht. Een record
+     van een levend venster wordt nooit overgenomen: een nieuw venster wacht dan ("Huisplan is nog
+     bezig in een ander venster"). Een verweesd record wordt onder een gedeeld claim-lock opnieuw
+     gelezen, gevalideerd en pas dan op naam van het nieuwe venster gezet. Zonder Web Locks geldt een
+     record als verweesd als het bij het sluiten is vrijgegeven (`pagehide`) of zijn hartslag ouder is
+     dan de verlooptijd. Meerdere verweesde records worden één voor één afgehandeld, bij opeenvolgende
+     starts.
+   - **Pas opruimen na een duurzaam vastgelegde afgehandelde toestand** (`settle`): eerst het record
+     naar `settled` met de nieuwe basis en de lokale stand (teruggelezen), dan de cache (teruggelezen),
+     dan pas het record weg (gecontroleerd). Mislukt een stap, dan blijft het record staan, wordt er
+     niets meer verstuurd tot het lukt en toont de app nooit "opgeslagen" of "bijgewerkt" (status
+     "Lokaal bewaren mislukt"). Een `settled`-record wordt na herladen gebruikt als basis en lokale
+     stand. Zo kan een na het afhandelen door een ander verwijderd item niet terugkomen.
+   - **Cache en journaal lopen uiteen.** De cache noteert welk venster haar schreef en de hoeveelste
+     keer. Na een crash telt de cache alleen als lokale stand als ze aantoonbaar bij het record hoort
+     (zelfde venster, zelfde basis, niet ouder dan de verzonden stand); anders is de verzonden (of
+     vastgelegde) stand de lokale waarheid. Mislukt de cache-opslag vlak vóór een PUT, dan staat dat
+     in het record. Een cache van een ander venster met eigen niet-opgeslagen wijzigingen wordt nooit
+     stil weggegooid of gecombineerd: dan stopt de app ("Twee onafgeronde standen").
+   - **De keuze verliest geen onafhankelijke wijzigingen.** De toestemming geldt alleen voor de
+     onzekere wijzigingen. "Server laten": basis = verstuurd. "Opnieuw toepassen": basis = oude basis,
+     en alleen op losse waarden die de onzekere wijzigingen raken wint de lokale stand ook tegen een
+     latere wijziging van een ander (zo staat het in de vraag). Al het andere moet met dezelfde regels
+     als de automatische afhandeling aantoonbaar verliesvrij zijn; een lijst zonder `id` valt nooit
+     onder de toestemming. Lukt dat niet, dan wordt er niets geschreven, blijft de onzekerheid staan
+     (ook na herladen) en komt de vraag na een minuut terug.
+   - **Conservatiever vergelijken.** Alleen lijsten waarvan elk element een uniek `id` heeft, worden
+     per element vergeleken, en daarbij telt nu ook de onderlinge volgorde. Alle andere lijsten, ook
+     lijsten met alleen tekst of getallen, alleen als geheel (volgorde en dubbele waarden kunnen
+     betekenis hebben). Een typewisseling (object, lijst, waarde) telt altijd als wijziging.
 6. **Herpogingen.** Oplopende wachttijd. Na een vast aantal mislukte pogingen: blijvende status
    "Niet opgeslagen", zonder `pendingSave` te wissen. Een `online`-gebeurtenis, de volgende poll of
    het heropenen van de app probeert het opnieuw.
