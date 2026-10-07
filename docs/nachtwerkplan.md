@@ -10,12 +10,16 @@ Uitvoerbare queue voor zelfstandig Claude-nachtwerk. Zie docs/claude-nachtwerk-p
 Controleer eerst de onafgemaakte P1-3 proefbestanden. Hervat uitsluitend de Firebase Emulator-proef. Eerdere harness-correcties: leeg object is geen geldige persisted-control; A5.2 toetst aantoonbare weigering, niet specifiek HTTP 401. Test ETag/If-Match, lege locaties, regelevaluatie en PUT/PATCH/DELETE/subpad/parent/multipath/**POST** (historische sendBeacon-writer).
 **Klaar:** reproduceerbaar rapport, emulator/productieverschillen benoemd, lokale tests groen.
 **Verboden:** echte Firebase/plannerdata, rules publiceren, Supabase, migratie.
+**Status (6 okt 2026):** afgerond. Onderzoek in `docs/p1-3-emulatorproef.md`; eerdere proefbestanden niet teruggevonden, proef opnieuw en reproduceerbaar opgezet (`tools/emulator/`). **Besluit P1-3: optie A** (producteigenaar, 6 okt 2026): emulator aanvaard als bewijsomgeving binnen de beschreven beperkingen; geen toestemming voor productieregels, productiedata, Supabase of slotactivering. Open data-veiligheidspunt P1-11 (lijst met gaten / `normalizeData`) blijft open en moet vóór 1.5 zijn opgelost of bewezen.
 
 ### NW-02 — E6 verhuisslot-proof 🟠
+**Status (6 okt 2026): niet gestart, op aanwijzing van de producteigenaar.** P1-3 is besloten (optie A). P1-1 (werkelijke regels) en P1-2 (historische clients) zijn eerder onderzocht en worden niet opnieuw gedaan; NW-02 sluit bij de start aan op die uitkomsten. Aandachtspunten uit NW-01: door het cascaderen van regels moet het slot op of boven het hoogste schrijfbare pad staan; een historische POST/sendBeacon-schrijver moet net zo worden geweigerd als PUT. Start alleen na expliciete opdracht.
 Na NW-01. Bewijs met fictieve data: bron immutable na lock; alle historische schrijfvormen geblokkeerd; parent/multipath kan niet omzeilen; control niet via gewone datawrites wijzigbaar; target veilig init; twee migrators divergeren niet; hervatten deterministisch; oude/onderweg writers veilig. Output = bewijs + voorstel regels/paden. Niets publiceren.
 
 ### NW-03 — Eén veilige write-coördinator 🟢
 E2: push/flush/load/retry/poll via één coordinator. Geen bruikbare ETag = geen write; geen ongeconditioneerde fallback. Onzeker resultaat/412 → reread → merge met base → conditionele retry; begrensde retries; geen poll tijdens write. Tests T1–T5.
+**Status (6 okt 2026):** gebouwd in de testversie (`test/index.html`), tests `tests/schrijven.test.js`. Niet live; livegang via een aparte PR na akkoord (ontwerp 1.4.2, sectie 9).
+**Codex-review (6 okt 2026): FIX BEFORE MERGE** — beide blockers en de belangrijke bevindingen hersteld in PR #15; opnieuw ter review. Tweede Codex-herreview (7 okt 2026): FIX BEFORE MERGE — schrijfjournaal (reload-veilig), tijdslimiet over het hele antwoord, automatische acceptatie alleen bij aantoonbaar verliesvrij samenvoegen, duidelijkere vraag; hersteld in PR #15, opnieuw ter review. Een schrijfmarkering is een mogelijke latere UX-verbetering, geen veiligheidsvereiste.
 
 ### NW-04 — Cache/storage resilience 🟢
 E3: cache-identiteit database+planner+storage generation zonder secrets leesbaar. Behandel quota/read/parse/delete/network+storage, oude cache, verkeerde planner/generatie. Kritieke fouten zichtbaar; nooit onterecht “opgeslagen”. Tests T6–T8.

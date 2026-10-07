@@ -81,6 +81,133 @@ Eén coördinator per planner en opslaggeneratie houdt deze toestand bij:
    haar heeft verwerkt. De coördinator haalt dan eerst de serverstand en ETag op, voegt samen met de
    `base`, en probeert daarna opnieuw voorwaardelijk. Een schrijfactie die toch was verwerkt, leidt zo
    tot hooguit een 412 en een samenvoeging, nooit tot een dubbele wijziging.
+   **Aangescherpt na de Codex-review van PR #15 (6 okt 2026):**
+   - Samenvoegen met de oude `base` is niet altijd juist. Is de schrijfactie wél verwerkt en heeft
+     een ander toestel daarna iets gewijzigd of verwijderd, dan zou dat worden teruggedraaid.
+   - Omdat de ETag alleen van de inhoud afhangt (`docs/p1-3-emulatorproef.md`, E9), is "niet verwerkt"
+     zonder extra gegevens niet te onderscheiden van "verwerkt en daarna teruggedraaid". De
+     coördinator volgt daarom deze stappen:
+     1. Staat onze versie er exact, dan is ze bevestigd.
+     2. Anders worden beide hypothesen samengevoegd: verwerkt (basis = wat we stuurden) en niet
+        verwerkt (basis = oude basis). Automatisch verder gaat het alleen als beide hypothesen
+        dezelfde uitkomst geven én die uitkomst onder beide aantoonbaar verliesvrij is én de
+        serverstand bij normaliseren niets verliest (zie hieronder).
+     3. In alle andere gevallen wordt er niets automatisch geschreven, blijft alles bewaard (ook na
+        herladen) en stelt de app één vraag over precies de onzekere wijzigingen.
+   - Een verzoek dat niet vertrekt omdat de browser offline is, heeft geen onzekere uitkomst.
+   - Na elke uitkomst zonder bevestiging volgt eerst een verplichte herstellezing; mislukt die,
+     dan wordt opnieuw gelezen, nooit eerst geschreven.
+
+   **Aangescherpt na de tweede Codex-herreview (7 okt 2026):**
+   - **Schrijfjournaal (reload-veilig).** Vóór elke PUT legt de app synchroon in `localStorage` vast
+     wat er wordt verstuurd en wat de basis was (`plannerJournal_<sleutel>`, toestand `sending`,
+     daarna `unknown` of `uncertain`). Lukt dat niet, dan wordt er niet verstuurd (status
+     "Opslaan gepauzeerd"). Het journaal verdwijnt pas na een bevestiging, een 412/401/403 (niet
+     verwerkt) of een afgehandelde keuze. Na herladen met een open journaal begint de app met de
+     verplichte herstellezing; tot die is afgehandeld wordt er niet geschreven en toont de app nooit
+     "opgeslagen" of "bijgewerkt".
+   - **Eén tijdslimiet over het hele verzoek**, inclusief het lezen van de body (een antwoord met
+     headers maar een hangende body houdt de coördinator niet vast).
+   - **Aantoonbaar verliesvrij** (`losslessMerge`): op elk pad staat wat alleen lokaal of alleen op
+     de server veranderde in het resultaat, en nergens is aan beide kanten verschillend veranderd.
+     Lijsten met unieke `id`'s worden per element vergeleken, lijsten met alleen tekst/getallen als
+     verzameling, alle andere lijsten (zonder `id`, gemengd, genest, dubbele `id`'s) alleen als geheel.
+     "Gelijke hypothesen" alleen is dus niet genoeg: bij "lokaal wint" kan een wijziging van de
+     server verdwijnen terwijl beide hypothesen hetzelfde opleveren. De volgorde van elementen telt
+     niet mee (zoals in `mergeArrays`).
+   - **De vraag noemt de onzekere set** (oud → verstuurd, per item met korte omschrijving) en zegt dat
+     latere lokale wijzigingen in beide gevallen blijven. De keuze leest eerst opnieuw; het schrijven
+     daarna is voorwaardelijk.
+   - **Schrijfmarkering (optioneel, later).** Een markering per toestel in de data zou een verloren
+     bevestiging vaker automatisch kunnen afhandelen (minder vragen). Dat is een mogelijke latere
+     UX-verbetering, geen voorwaarde voor de veiligheid hierboven; ze is niet gebouwd.
+
+   **Aangescherpt na de derde Codex-review (7 okt 2026)** (alleen `test/index.html`):
+   - **Journaal per venster.** Elk venster (één geladen pagina, "instantie") heeft een eigen record
+     `plannerJournal_<sleutel>_<id>`. Het id is willekeurig, bestaat alleen in het geheugen van die
+     pagina en zegt niets over toestel of persoon. Een record bevat versie (2), context
+     (`db`, `planner`, generatie), eigenaar, hartslag, toestand (`sending`, `unknown`, `uncertain`,
+     `settled`), wat er verstuurd is, de oude basis en bij welke cache-opslag het hoort. Een venster
+     schrijft en verwijdert alleen zijn eigen record. Het journaal van vóór deze versie (sleutel
+     zonder id) geldt als onbekende versie.
+   - **Inspectie met drie uitkomsten, los van de cache.** `absent` (aantoonbaar geen record), `valid`
+     of `unknown-invalid` (leesfout, kapotte JSON, onbekende versie, ongeldige structuur, andere
+     database/planner/generatie). `unknown-invalid` blokkeert schrijven en het hervatten uit de cache,
+     er wordt niets verwijderd, en de app kijkt regelmatig opnieuw (een tijdelijke leesfout lost zich
+     dus vanzelf op, met daarna het gewone herstel). Bij het opstarten toont de app dan een scherm met
+     "Opnieuw controleren" en "Herstelgegevens bewaren" (journaal en cache ongewijzigd als bestand).
+   - **Eigenaarschap tussen vensters (Web Locks).** Elk venster houdt zijn hele leven een eigen lock
+     vast (`navigator.locks`); de browser geeft dat vrij als de pagina sluit of crasht. Een record
+     van een levend venster wordt nooit overgenomen: een nieuw venster wacht dan ("Huisplan is nog
+     bezig in een ander venster"). Een verweesd record wordt onder een gedeeld claim-lock opnieuw
+     gelezen, gevalideerd en pas dan op naam van het nieuwe venster gezet. Zonder Web Locks geldt een
+     record als verweesd als het bij het sluiten is vrijgegeven (`pagehide`) of zijn hartslag ouder is
+     dan de verlooptijd. Meerdere verweesde records worden één voor één afgehandeld, bij opeenvolgende
+     starts.
+   - **Pas opruimen na een duurzaam vastgelegde afgehandelde toestand** (`settle`): eerst het record
+     naar `settled` met de nieuwe basis en de lokale stand (teruggelezen), dan de cache (teruggelezen),
+     dan pas het record weg (gecontroleerd). Mislukt een stap, dan blijft het record staan, wordt er
+     niets meer verstuurd tot het lukt en toont de app nooit "opgeslagen" of "bijgewerkt" (status
+     "Lokaal bewaren mislukt"). Een `settled`-record wordt na herladen gebruikt als basis en lokale
+     stand. Zo kan een na het afhandelen door een ander verwijderd item niet terugkomen.
+   - **Cache en journaal lopen uiteen.** De cache noteert welk venster haar schreef en de hoeveelste
+     keer. Na een crash telt de cache alleen als lokale stand als ze aantoonbaar bij het record hoort
+     (zelfde venster, zelfde basis, niet ouder dan de verzonden stand); anders is de verzonden (of
+     vastgelegde) stand de lokale waarheid. Mislukt de cache-opslag vlak vóór een PUT, dan staat dat
+     in het record. Een cache van een ander venster met eigen niet-opgeslagen wijzigingen wordt nooit
+     stil weggegooid of gecombineerd: dan stopt de app ("Twee onafgeronde standen").
+   - **De keuze verliest geen onafhankelijke wijzigingen.** De toestemming geldt alleen voor de
+     onzekere wijzigingen. "Server laten": basis = verstuurd. "Opnieuw toepassen": basis = oude basis,
+     en alleen op losse waarden die de onzekere wijzigingen raken wint de lokale stand ook tegen een
+     latere wijziging van een ander (zo staat het in de vraag). Al het andere moet met dezelfde regels
+     als de automatische afhandeling aantoonbaar verliesvrij zijn; een lijst zonder `id` valt nooit
+     onder de toestemming. Lukt dat niet, dan wordt er niets geschreven, blijft de onzekerheid staan
+     (ook na herladen) en komt de vraag na een minuut terug.
+   - **Conservatiever vergelijken.** Alleen lijsten waarvan elk element een uniek `id` heeft, worden
+     per element vergeleken, en daarbij telt nu ook de onderlinge volgorde. Alle andere lijsten, ook
+     lijsten met alleen tekst of getallen, alleen als geheel (volgorde en dubbele waarden kunnen
+     betekenis hebben). Een typewisseling (object, lijst, waarde) telt altijd als wijziging.
+
+   **Aangescherpt na de vierde Codex-review (7 okt 2026)** (alleen `test/index.html`):
+   - **Het record is de waarheid zolang het bestaat (B1).** Elk record heeft een revisie (`rev`,
+     uniek per venster) en de nieuwste duurzame lokale stand (`local`). Elke lokale opslag gaat
+     eerst naar het record (nieuwe revisie) en pas daarna naar de cache, die zichzelf markeert als
+     spiegel van precies die revisie (`jkey`, `jrev`). Lukt het record niet, dan ook de cache niet.
+     Herstel gebruikt altijd `record.local`, nooit de cache. De cache wordt alleen gecontroleerd op
+     gegevens die nergens anders staan: een spiegel van dit record of een oudere cache van dezelfde
+     schrijver is gedekt; een cache zonder eigen niet-opgeslagen wijzigingen is onschadelijk; anders
+     stopt de app. Het record verdwijnt pas via `settle()` (record, dan cache, dan opruimen).
+   - **Fencing (B2).** Elke overname verhoogt de eigendomsgeneratie (`epoch`) en zet een nieuwe
+     eigenaar. Een venster onthoudt de exacte tekst die het zelf het laatst in zijn record schreef;
+     vóór elke record- of cache-mutatie en vóór opruimen vergelijkt het die met de opslag. Wijkt die af
+     (overgenomen of door een ander opgeruimd), dan is het venster onherroepelijk "overgenomen": het
+     schrijft geen record, geen cache en niets naar de server meer, ook niet als een oude PUT of GET
+     later terugkomt, en toont "Dit venster is overgenomen". Zonder Web Locks wacht een claim even en
+     leest dan terug; staat er iets anders dan wat het schreef, dan trekt het zich terug. Met Web Locks
+     kan een gepauzeerd maar levend venster niet worden overgenomen.
+   - **Volgorde per paar (I1).** De verliesvrij-controle kijkt naar elk paar `id`'s in het resultaat,
+     ook nieuw toegevoegde. Een kant die over een paar een volgorde heeft die van de basis afwijkt of
+     nieuw is, legt die op; tegenstrijdige of geschonden volgordes = niet aantoonbaar verliesvrij.
+     Voorbeeld: basis `[a,b]`, lokaal `[a,b,c]`, server `[d,a,b]` → `[a,b,c,d]` is niet verliesvrij.
+     Lijsten met meer dan 1500 elementen: conservatief niet verliesvrij.
+
+   **Aangescherpt na de vijfde Codex-review (7 okt 2026)** (alleen `test/index.html`; vervangt het
+   punt "Zonder Web Locks … hartslag/pagehide" hierboven):
+   - **Zonder Web Locks wordt een record van een ander venster nooit automatisch overgenomen.**
+     `localStorage` heeft geen atomische vergelijk-en-schrijf: een oude eigenaar die zijn
+     eigenaarscontrole net voorbij is en daarna pauzeert, kan na een overname altijd nog zijn
+     voorbereide schrijfactie uitvoeren (Codex reproduceerde zo verlies van Z). Hartslag, `epoch`,
+     teruglezen en wachttijden sluiten dat niet uit; daarom zijn hartslag, verlooptijd en vrijgeven
+     bij `pagehide` verwijderd. Zonder Web Locks blijft een vreemd record staan, wordt er niets
+     geschreven of opgeruimd, en toont de app "Onafgeronde opslag van een ander venster" met
+     "Opnieuw controleren" en "Herstelgegevens bewaren". Rondt het andere venster zelf af, dan gaat dit
+     venster vanzelf verder.
+   - **Met Web Locks** blijft overnemen zoals het was. Waarom de race daar structureel niet kan: een
+     record wordt alleen overgenomen als het instantie-lock van de eigenaar niet meer wordt
+     vastgehouden. De browser geeft dat lock pas vrij als de pagina is verdwenen (gesloten,
+     gecrasht, weggegooid); een gepauzeerde of bevroren pagina houdt het vast. Een eigenaar die nog
+     kan hervatten, kan dus nooit zijn overgenomen, en een eigenaar die is overgenomen, kan nooit meer
+     code uitvoeren. Twee overnemers sluiten elkaar uit met het claim-lock per record.
 6. **Herpogingen.** Oplopende wachttijd. Na een vast aantal mislukte pogingen: blijvende status
    "Niet opgeslagen", zonder `pendingSave` te wissen. Een `online`-gebeurtenis, de volgende poll of
    het heropenen van de app probeert het opnieuw.
@@ -89,6 +216,8 @@ Eén coördinator per planner en opslaggeneratie houdt deze toestand bij:
 8. **Poll.** Geen leesactie zolang er een schrijfactie onderweg is of een opslag gepland staat.
 9. **Bewaking (0.2) en verhuisslot.** Een 412 of 401/403 leidt altijd tot opnieuw lezen. Daarbij
    worden de bewaking en (na E6) het verhuisslot gecontroleerd.
+   De bewaking wordt alleen bijgewerkt uit een antwoord dat als actueel is geaccepteerd; een verouderd
+   antwoord verandert de bewakingsstatus niet (Codex-review PR #15).
 10. **Migratieschrijven.** Een aparte functie voor voorwaardelijk schrijven (werknaam
     `putIfMatch`) geeft `ok`, `conflict` of `error` terug en kent geen enkele terugval.
 
@@ -386,7 +515,7 @@ een verzoek naar een ander adres dan de lokale mock of emulator.
 | --- | --- | --- |
 | P1-1 | Hoe zien de werkelijke Firebase-regels eruit? Alleen-lezende controle per project (besluit 9.5). | producteigenaar |
 | P1-2 | Welke Firebase-projecten en welke historische clientversies doen mee (besluit 9.6)? In het bijzonder: zijn er nog apps van vóór 0.2 in gebruik? | producteigenaar |
-| P1-3 | Gedraagt de emulator zich bij ETag, `if-match`, lege plekken, PATCH en regelevaluatie zoals productie? Zo niet: welke afwijking is aanvaardbaar, of is een afzonderlijk akkoord voor een echt testproject nodig? | onderzoek, daarna besluit |
+| P1-3 | Gedraagt de emulator zich bij ETag, `if-match`, lege plekken, PATCH en regelevaluatie zoals productie? Zo niet: welke afwijking is aanvaardbaar, of is een afzonderlijk akkoord voor een echt testproject nodig? | **Besloten (6 okt 2026): optie A.** De emulator is de bewijsomgeving, binnen de beperkingen en onbekenden in `docs/p1-3-emulatorproef.md` (onderzoek NW-01). Geen toestemming voor productieregels, productiedata, Supabase of slotactivering. |
 | P1-4 | Welke variant voor herstel ná wijzigingen in het doel (R3a, R3b of R3c)? Moet vóór het activeren van een slot vaststaan. | producteigenaar |
 | P1-5 | Kloppen de effectregels voor `same` bij tegenstrijdig lidmaatschap (contract 2.4)? | producteigenaar |
 | P1-6 | Goedkeuring van de UUIDv5-namespace en de exacte invoercodering, inclusief de keuzes in 5.4 (besluit 9.9). | producteigenaar |
@@ -394,3 +523,4 @@ een verzoek naar een ander adres dan de lokale mock of emulator.
 | P1-8 | Hoe wordt vóór het slot gecontroleerd dat alle toestellen zijn gesynchroniseerd, en wat gebeurt er met een toestel dat dat niet doet? | ontwerp + producteigenaar |
 | P1-9 | Zonder accounts kan iedereen met de plannersleutel het slot zetten (een planner afsluiten). Is dat aanvaardbaar, gegeven dat dezelfde sleutel nu al alle data kan wijzigen? | producteigenaar |
 | P1-10 | De migrator is gewone appcode; de regels kunnen hem niet onderscheiden van andere nieuwe clients. Is de volgorde van statussen (A4) als bescherming voldoende? | onderzoek |
+| P1-11 | **Data-veiligheid, open; moet vóór 1.5 zijn opgelost of bewezen.** Firebase geeft een lijst met gaten (minder dan de helft van de sleutels over) terug als object; `normalizeData` vervangt zo'n lijst op het hoogste niveau door `[]`, en de app schrijft die bij de eerste keer laden leeg terug (nagespeeld in test- en live-versie; `docs/p1-3-emulatorproef.md`, bevinding 5). Op te lossen in de app (object met numerieke sleutels terug naar lijst, met tests) en/of aan te tonen via de classificatie (E5) dat het niet voorkomt. | onderzoek + besluit |
