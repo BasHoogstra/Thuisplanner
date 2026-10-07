@@ -48,7 +48,7 @@ function bewaker(extra) {
 const open = (ctx, o) => openApp(ctx.browser, ctx.base, Object.assign({ target: 'test' }, o, o && o.onRequest && o.onRequest.bewaker ? { onDone: o.onRequest.bewaker.onDone } : {}));
 // Wacht tot de eerste keer laden (die één keer terugschrijft, bestaand gedrag) is afgerond.
 // De vraag na een onzekere uitkomst (Codex-blocker 2) afwachten en beantwoorden.
-const ONZEKER = /verbinding viel weg/;
+const ONZEKER = /verbinding weg/;
 async function vraagZichtbaar(page, ms) {
   try { await page.waitForSelector('#confirmOverlay.open', { timeout: ms || 6000 }); } catch (e) { return false; }
   return ONZEKER.test(await page.textContent('#confirmTitle'));

@@ -163,7 +163,8 @@ async function openApp(browser, base, opts = {}) {
   // hangende verzoeken (zie createFirebaseStore, window.HUISPLAN_TIMEOUTS).
   if (opts.timeouts) await ctx.addInitScript(t => { window.HUISPLAN_TIMEOUTS = t; }, opts.timeouts);
   // Al het andere verkeer naar buiten (weer, kaarten, QR-bibliotheek) wordt geblokkeerd.
-  await ctx.route(u => !u.href.startsWith(base) && !u.href.startsWith(DB_URL), r => r.abort());
+  // opts.allowUrl: een extra lokaal adres dat wél bereikbaar is (bv. tests/nepdb.js).
+  await ctx.route(u => !u.href.startsWith(base) && !u.href.startsWith(DB_URL) && !(opts.allowUrl && u.href.startsWith(opts.allowUrl)), r => r.abort());
   await page.clock.setFixedTime(opts.now || FIXED_NOW);
   const ls = Object.assign({
     plannerDbUrl: DB_URL, plannerKey: PLANNER_KEY, plannerMyName: 'Bas', plannerPartnerName: 'Sanne',

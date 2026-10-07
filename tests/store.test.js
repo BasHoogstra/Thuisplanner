@@ -162,30 +162,36 @@ module.exports = {
     });
   },
 
-  async 'opslaglaag: opstarten uit de cache met niet-opgeslagen wijziging als voorheen'(ctx) {
+  async 'opslaglaag: opstarten uit de cache met niet-opgeslagen wijziging (testversie: eerst de onzekere opslag afhandelen)'(ctx) {
+    // Sinds de Codex-herreview van PR #15 (blocker 1) is dit bewust anders dan de oude code: de PUT
+    // die mislukte terwijl de server onbereikbaar was, heeft een onbekende uitkomst. Na herladen voegt
+    // de testversie daarom niet stil samen, maar handelt eerst die onzekerheid af (één vraag). Het
+    // eindresultaat op de server is gelijk.
     const fx = readFixture('huishouden.json');
-    const r = await both(ctx, async (target, exposeETag) => {
-      const log = [];
-      const o = await openApp(ctx.browser, ctx.base, { data: fx, target, log, exposeETag });
+    for (const target of ['root', 'test']) {
+      const o = await openApp(ctx.browser, ctx.base, { data: fx, target, exposeETag: true });
       await o.ctx.route(DB_URL + '/**', blockDb); // server onbereikbaar, de app-pagina zelf wel
       await addBood(o.page, 'Eieren'); await wait(1500);
       const failText = await syncText(o.page);
       await o.page.reload(); await wait(1500);
-      const startText = await syncText(o.page);
       await o.page.click('[data-view="boodschappenView"]');
       const shown = (await o.page.textContent('#boodschappenView')).includes('Eieren');
       serverWrite(o.state, db => db.boodschappen.push({ id: 'remote3', text: 'Thee', addedBy: 'Sanne', done: false }));
       await o.ctx.unroute(DB_URL + '/**', blockDb);
       await o.page.evaluate(() => document.getElementById('refreshBtn').click());
+      if (target === 'test') {
+        await o.page.waitForSelector('#confirmOverlay.open', { timeout: 6000 });
+        assert(/verbinding weg/.test(await o.page.textContent('#confirmTitle')) && /Eieren/.test(await o.page.textContent('#confirmTitle')), 'Vraag noemt de onzekere wijziging niet');
+        await o.page.click('#confirmOkBtn');
+      }
       await wait(2500);
-      const res = Object.assign(summary({ log, state: o.state, cache: await readCacheOf(o.page), sync: await syncText(o.page) }), { failText, startText, shown });
-      await o.ctx.close(); return res;
-    });
-    Object.values(r).forEach(x => {
-      assert(/mislukt/.test(x.failText), 'Geen melding bij mislukte opslag: ' + x.failText);
-      assert(x.shown, 'Niet-opgeslagen wijziging niet zichtbaar na opnieuw openen');
-      ['Eieren', 'Thee'].forEach(t => assert(boodTexts(x.db).includes(t), t + ' ontbreekt na samenvoegen'));
-    });
+      const label = '[' + target + '] ';
+      assert(/mislukt/.test(failText), label + 'Geen melding bij mislukte opslag: ' + failText);
+      assert(shown, label + 'Niet-opgeslagen wijziging niet zichtbaar na opnieuw openen');
+      ['Eieren', 'Thee'].forEach(t => assert(boodTexts(o.state.db).filter(x => x === t).length === 1, label + t + ' niet precies één keer na samenvoegen'));
+      assert(!o.state.errors.length, label + 'Fouten: ' + o.state.errors.join(' | '));
+      await o.ctx.close();
+    }
   },
 
   async 'opslaglaag: naar de achtergrond verstuurt de wijziging direct als voorheen'(ctx) {

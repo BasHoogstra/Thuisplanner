@@ -411,3 +411,24 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   nabootsen. T2a verwacht nu de vraag. De grens met P1-11 wordt bewaakt: niet vaker of anders schrijven
   dan live.
 
+## 1.4.2-voorbereiding: NW-03 hersteld na de tweede Codex-herreview (testversie)
+- Schrijfjournaal: vóór elke PUT staan de verzonden inhoud en de oude basis synchroon in
+  `localStorage` (`plannerJournal_<sleutel>`). Lukt dat niet, dan wordt er niet verstuurd. Na herladen
+  met een open journaal begint de app met de verplichte herstellezing. Er wordt niet geschreven en
+  nooit "opgeslagen/bijgewerkt" getoond tot de onzekerheid is afgehandeld; een latere wijziging of
+  verwijdering door een ander wordt niet teruggedraaid.
+- Eén tijdslimiet over het hele verzoek, inclusief de body.
+- Automatisch verder na een onbekende uitkomst alleen als de samenvoeging aantoonbaar verliesvrij is
+  (`losslessMerge`). Lijsten zonder `id`, gemengde en geneste lijsten tellen alleen als geheel, en een
+  lijst met gaten (P1-11) telt nooit als veilig. P1-11 zelf blijft open.
+- De vraag noemt welke wijzigingen onzeker zijn en zegt dat latere wijzigingen blijven. De keuze leest
+  eerst opnieuw.
+- Een nieuwe lokale wijziging toont direct "Opslaan…" in plaats van een verouderd "Opgeslagen". Een
+  401/403 tijdens de herstellezing toont "Toegang geweigerd". Na herladen met een open journaal krijgt
+  de app dezelfde eerste-laadsignalen. De `schemaVersion`-stempel telt niet als onzekere wijziging.
+- Tests: `tests/journaal.test.js` (18), `tests/verliesvrij.test.js` (8), `tests/nepdb.js` (echte lokale
+  nepdatabase voor hangende bodies), `tests/schrijfhulp.js`. De store-test voor opstarten uit de cache
+  verwacht in de testversie nu eerst de vraag.
+- Een schrijfmarkering in de data is niet gebouwd: hooguit een latere UX-verbetering, geen
+  veiligheidsvereiste.
+

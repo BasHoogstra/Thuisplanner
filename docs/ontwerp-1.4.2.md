@@ -89,15 +89,38 @@ Eén coördinator per planner en opslaggeneratie houdt deze toestand bij:
      coördinator volgt daarom deze stappen:
      1. Staat onze versie er exact, dan is ze bevestigd.
      2. Anders worden beide hypothesen samengevoegd: verwerkt (basis = wat we stuurden) en niet
-        verwerkt (basis = oude basis). Geven die dezelfde uitkomst, dan gaat het automatisch verder.
-     3. Verschillen ze, dan wordt er niets automatisch geschreven, blijft de lokale wijziging bewaard
-        (ook na herladen), en stelt de app één vraag.
+        verwerkt (basis = oude basis). Automatisch verder gaat het alleen als beide hypothesen
+        dezelfde uitkomst geven én die uitkomst onder beide aantoonbaar verliesvrij is én de
+        serverstand bij normaliseren niets verliest (zie hieronder).
+     3. In alle andere gevallen wordt er niets automatisch geschreven, blijft alles bewaard (ook na
+        herladen) en stelt de app één vraag over precies de onzekere wijzigingen.
    - Een verzoek dat niet vertrekt omdat de browser offline is, heeft geen onzekere uitkomst.
-   - Een automatische, altijd juiste oplossing vraagt een schrijfmarkering in de data. Dat is een
-     besluit van de producteigenaar.
    - Na elke uitkomst zonder bevestiging volgt eerst een verplichte herstellezing; mislukt die,
      dan wordt opnieuw gelezen, nooit eerst geschreven.
-   - Elk verzoek heeft een tijdslimiet.
+
+   **Aangescherpt na de tweede Codex-herreview (7 okt 2026):**
+   - **Schrijfjournaal (reload-veilig).** Vóór elke PUT legt de app synchroon in `localStorage` vast
+     wat er wordt verstuurd en wat de basis was (`plannerJournal_<sleutel>`, toestand `sending`,
+     daarna `unknown` of `uncertain`). Lukt dat niet, dan wordt er niet verstuurd (status
+     "Opslaan gepauzeerd"). Het journaal verdwijnt pas na een bevestiging, een 412/401/403 (niet
+     verwerkt) of een afgehandelde keuze. Na herladen met een open journaal begint de app met de
+     verplichte herstellezing; tot die is afgehandeld wordt er niet geschreven en toont de app nooit
+     "opgeslagen" of "bijgewerkt".
+   - **Eén tijdslimiet over het hele verzoek**, inclusief het lezen van de body (een antwoord met
+     headers maar een hangende body houdt de coördinator niet vast).
+   - **Aantoonbaar verliesvrij** (`losslessMerge`): op elk pad staat wat alleen lokaal of alleen op
+     de server veranderde in het resultaat, en nergens is aan beide kanten verschillend veranderd.
+     Lijsten met unieke `id`'s worden per element vergeleken, lijsten met alleen tekst/getallen als
+     verzameling, alle andere lijsten (zonder `id`, gemengd, genest, dubbele `id`'s) alleen als geheel.
+     "Gelijke hypothesen" alleen is dus niet genoeg: bij "lokaal wint" kan een wijziging van de
+     server verdwijnen terwijl beide hypothesen hetzelfde opleveren. De volgorde van elementen telt
+     niet mee (zoals in `mergeArrays`).
+   - **De vraag noemt de onzekere set** (oud → verstuurd, per item met korte omschrijving) en zegt dat
+     latere lokale wijzigingen in beide gevallen blijven. De keuze leest eerst opnieuw; het schrijven
+     daarna is voorwaardelijk.
+   - **Schrijfmarkering (optioneel, later).** Een markering per toestel in de data zou een verloren
+     bevestiging vaker automatisch kunnen afhandelen (minder vragen). Dat is een mogelijke latere
+     UX-verbetering, geen voorwaarde voor de veiligheid hierboven; ze is niet gebouwd.
 6. **Herpogingen.** Oplopende wachttijd. Na een vast aantal mislukte pogingen: blijvende status
    "Niet opgeslagen", zonder `pendingSave` te wissen. Een `online`-gebeurtenis, de volgende poll of
    het heropenen van de app probeert het opnieuw.

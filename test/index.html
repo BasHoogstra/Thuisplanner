@@ -2429,6 +2429,74 @@ function normalizeData(inc){
 }
 function mergeData(base,local,remote){var m=normalizeData(merge3(base,local,remote));dedupeTasks(m,local);return m;}
 
+// ── Verliesvrij samenvoegen aantonen (1.4.2, E2; Codex-herreview PR #15)
+// Een samenvoeging is alleen "aantoonbaar verliesvrij" als op elk pad geldt: wat alleen lokaal is
+// veranderd staat in het resultaat, wat alleen op de server is veranderd ook, en nergens zijn beide
+// verschillend veranderd. Lijsten waarvan de elementen een uniek id hebben worden per element
+// vergeleken, lijsten met alleen tekst/getallen als verzameling; alle andere lijsten (zonder id,
+// gemengd, genest, dubbele id's) alleen als geheel. Daar is een gelijktijdige wijziging dus altijd
+// een conflict, ook als "lokaal wint" toevallig dezelfde uitkomst geeft.
+function flattenPaths(v,p,out){
+  out=out||{};p=p||'';
+  if(isPlainObj(v)){Object.keys(v).forEach(function(k){flattenPaths(v[k],p+'.'+k,out);});return out;}
+  if(Array.isArray(v)){
+    var ids={};
+    var perId=v.length>0&&v.every(function(x){if(!isPlainObj(x)||x.id==null)return false;var k=String(x.id);if(ids[k])return false;ids[k]=1;return true;});
+    if(perId){v.forEach(function(x){flattenPaths(x,p+'[id='+JSON.stringify(String(x.id))+']',out);});return out;}
+    if(v.every(function(x){return x===null||typeof x!=='object';})){v.forEach(function(x){if(x!==null)out[p+'{'+JSON.stringify(x)+'}']='1';});return out;}
+    var c=canon(v);if(c!=='')out[p]=c;return out;
+  }
+  var cv=canon(v);if(cv!=='')out[p]=cv;return out;
+}
+function losslessMerge(base,local,remote,result){
+  var B=flattenPaths(base),L=flattenPaths(local),R=flattenPaths(remote),X=flattenPaths(result),all={};
+  [B,L,R,X].forEach(function(m){Object.keys(m).forEach(function(k){all[k]=1;});});
+  return Object.keys(all).every(function(p){
+    var b=B[p],l=L[p],r=R[p],x=X[p];
+    if(l===r)return x===l;
+    if(l===b)return x===r;
+    if(r===b)return x===l;
+    return false; // aan beide kanten verschillend veranderd
+  });
+}
+// Zou normalizeData gegevens uit deze serverstand laten vallen (bv. een lijst met gaten, P1-11)?
+function normalizeLoses(raw){
+  if(!isPlainObj(raw))return false;
+  var R=flattenPaths(raw),N=flattenPaths(normalizeData(JSON.parse(JSON.stringify(raw))));
+  return Object.keys(R).some(function(p){return !(p in N);});
+}
+// Welke wijzigingen zitten tussen twee standen? Voor de onzekerheidsvraag: per item (op id) wat er
+// is toegevoegd, gewijzigd of verwijderd, met een korte omschrijving; de rest als "andere gegevens".
+var CHANGE_NOUNS={boodschappen:'boodschap',tasks:'taak',multiDayTasks:'taak',bestellingen:'bestelling',inbox:'notitie',backlog:'idee',lijsten:'lijst',vakanties:'vakantie',recurring:'vaste taak',notities:'notitie',onderhoud:'onderhoudstaak',garanties:'garantie',vervaldata:'document',verjaardagen:'verjaardag',recepten:'recept',gewoonten:'gewoonte',huisgeheugen:'herinnering',budget:'vaste last'};
+function describeChanges(oldD,newD){
+  oldD=isPlainObj(oldD)?oldD:{};newD=isPlainObj(newD)?newD:{};
+  var out=[],keys={};
+  [oldD,newD].forEach(function(o){Object.keys(o).forEach(function(k){keys[k]=1;});});
+  function items(v,k){
+    var m={};
+    var add=function(x){if(isPlainObj(x)&&x.id!=null)m[String(x.id)]=x;};
+    if(k==='tasks'&&isPlainObj(v))Object.keys(v).forEach(function(d){(Array.isArray(v[d])?v[d]:[]).forEach(add);});
+    else if(Array.isArray(v))v.forEach(add);
+    else return null;
+    return m;
+  }
+  function label(x){var t=x&&(x.text||x.naam||x.titel||x.name||x.tekst);t=typeof t==='string'?t.trim():'';return t.length>40?t.slice(0,39)+'…':t;}
+  Object.keys(keys).sort().forEach(function(k){
+    if(k==='meta')return; // technische stempel (schemaVersion); geen gebruikerswijziging
+    if(canon(oldD[k])===canon(newD[k]))return;
+    var a=items(oldD[k],k),b=items(newD[k],k),noun=CHANGE_NOUNS[k]||'item';
+    if(!a||!b){out.push({soort:'anders',veld:k});return;}
+    Object.keys(b).forEach(function(id){
+      if(!(id in a))out.push({soort:'toegevoegd',veld:k,noun:noun,label:label(b[id])});
+      else if(canon(a[id])!==canon(b[id]))out.push({soort:'gewijzigd',veld:k,noun:noun,label:label(b[id])});
+    });
+    Object.keys(a).forEach(function(id){if(!(id in b))out.push({soort:'verwijderd',veld:k,noun:noun,label:label(a[id])});});
+    // Verschil zonder itemwijziging (bv. volgorde): als andere gegevens melden.
+    if(!out.some(function(c){return c.veld===k;}))out.push({soort:'anders',veld:k});
+  });
+  return out;
+}
+
 // Versies vergelijken (bewaking, roadmap 0.2).
 function compareVersions(a,b){
   var x=String(a||'0').split('.'),y=String(b||'0').split('.');
@@ -2476,7 +2544,12 @@ function createFirebaseStore(opts){
   var writeBlocked=null; // null | 'moved' | 'outdated'
   var subs=[];
   function emit(ev){subs.forEach(function(fn){fn(ev);});}
-  function status(code){emit({type:'status',code:code});}
+  function status(code){
+    // Zolang er een schrijfactie onzeker is (ook uit een vorige sessie), nooit "opgeslagen" of
+    // "bijgewerkt" tonen.
+    if((code==='saved'||code==='updated')&&(uncertain||recon&&recon.kind==='unknown'))code=uncertain?'uncertain':'checking';
+    emit({type:'status',code:code});
+  }
   function dataUrl(){return dbUrl.replace(/\/$/,'')+'/planners/'+plannerKey+'.json';}
   function baseObj(){try{return base?JSON.parse(base):{};}catch(e){return {};}}
   function hasLocalChanges(){return canon(getLocal())!==base;}
@@ -2509,18 +2582,43 @@ function createFirebaseStore(opts){
 
   // ── Lokale cache
   function cacheKey(){return 'plannerCache_'+plannerKey;}
+  // Geeft true als de cache is bewaard.
   function writeCache(d){
-    if(!plannerKey)return;
-    var rec={data:d||getLocal(),base:base,t:Date.now()};
-    if(uncertain)rec.onzeker=uncertain;
-    try{localStorage.setItem(cacheKey(),JSON.stringify(rec));}catch(e){}
+    if(!plannerKey)return true;
+    try{localStorage.setItem(cacheKey(),JSON.stringify({data:d||getLocal(),base:base,t:Date.now()}));return true;}
+    catch(e){return false;}
+  }
+  // ── Schrijfjournaal (Codex-herreview PR #15, blocker 1)
+  // Vóór elke PUT staat in localStorage wat we versturen (sent) en de basis van dat moment (oldBase).
+  // Zolang dat journaal bestaat, is de uitkomst van die schrijfactie niet afgehandeld; ook na
+  // herladen begint de app dan met een verplichte herstellezing in plaats van gewoon samen te voegen.
+  // state: 'sending' (onderweg), 'unknown' (mislukt, uitkomst onbekend), 'uncertain' (vraag open).
+  function journalKey(){return 'plannerJournal_'+plannerKey;}
+  function writeJournal(j){
+    if(!plannerKey)return false;
+    try{localStorage.setItem(journalKey(),JSON.stringify(j));return localStorage.getItem(journalKey())===JSON.stringify(j);}
+    catch(e){return false;}
+  }
+  function clearJournal(){try{localStorage.removeItem(journalKey());}catch(e){}}
+  function readJournal(){
+    try{
+      var j=JSON.parse(localStorage.getItem(journalKey())||'null');
+      if(j&&typeof j.sent==='string'&&typeof j.oldBase==='string'&&(j.state==='sending'||j.state==='unknown'||j.state==='uncertain'))return j;
+    }catch(e){}
+    return null;
   }
   function readCache(){
     try{
       var c=JSON.parse(localStorage.getItem(cacheKey())||'null');
       if(c&&c.data){
         var d=normalizeData(c.data);base=c.base||'';
-        if(c.onzeker&&typeof c.onzeker.sent==='string')uncertain={sent:c.onzeker.sent,oldBase:typeof c.onzeker.oldBase==='string'?c.onzeker.oldBase:''};
+        // Een schrijfactie van een vorige sessie is niet afgehandeld: conservatief hervatten.
+        var j=readJournal();
+        if(j){
+          localGen=Math.max(localGen,1);
+          if(j.state==='uncertain')uncertain={sent:j.sent,oldBase:j.oldBase};
+          else recon={kind:'unknown',gen:localGen,sent:j.sent,oldBase:j.oldBase,restored:true};
+        }
         emit({type:'data',data:d,render:false});return true;
       }
     }catch(e){}
@@ -2545,25 +2643,31 @@ function createFirebaseStore(opts){
     return !!reason;
   }
 
-  // Elk verzoek naar Firebase heeft een tijdslimiet: een hangend verzoek mag de coördinator nooit
-  // onbeperkt bezet houden. (Tests kunnen de limieten verlagen via window.HUISPLAN_TIMEOUTS.)
+  // Elk verzoek naar Firebase heeft één tijdslimiet over het HELE verzoek, inclusief het lezen van
+  // het antwoord (Codex-herreview, punt 2): een antwoord waarvan de headers binnen zijn maar de body
+  // blijft hangen, mag de coördinator niet onbeperkt bezet houden.
+  // (Tests kunnen de limieten verlagen via window.HUISPLAN_TIMEOUTS.)
   var TIMEOUTS=(function(){var t=(typeof window!=='undefined'&&window.HUISPLAN_TIMEOUTS)||{};return {get:t.get||15000,put:t.put||20000};})();
-  function fetchTimed(url,o,ms){
-    var ctrl=typeof AbortController==='function'?new AbortController():null,timer=null;
-    if(ctrl){o.signal=ctrl.signal;timer=setTimeout(function(){ctrl.abort();},ms);}
-    var p;
-    try{p=fetch(url,o);}catch(e){clearTimeout(timer);return Promise.reject(e);}
-    return p.then(function(r){clearTimeout(timer);return r;},function(e){clearTimeout(timer);throw e;});
-  }
-  // Leest de serverstand. De bewaking (checkWriteGuard) gebeurt NIET hier, maar pas als de
-  // aanroeper het antwoord als actueel heeft geaccepteerd: een verouderd antwoord mag de
-  // bewakingsstatus niet veranderen.
-  function fetchRemote(){
-    return fetchTimed(dataUrl(),{headers:{'X-Firebase-ETag':'true'},cache:'no-store'},TIMEOUTS.get).then(function(r){
-      if(!r.ok)throw new Error('status:'+r.status);
-      var et=r.headers.get('ETag');
-      return r.json().then(function(json){return {raw:json,etag:et};});
+  function withDeadline(fn,ms){
+    var ctrl=typeof AbortController==='function'?new AbortController():null;
+    return new Promise(function(res,rej){
+      var klaar=false;
+      var timer=setTimeout(function(){if(klaar)return;klaar=true;try{if(ctrl)ctrl.abort();}catch(e){}rej(new Error('timeout'));},ms);
+      var p;try{p=fn(ctrl?ctrl.signal:undefined);}catch(e){p=Promise.reject(e);}
+      p.then(function(v){if(klaar)return;klaar=true;clearTimeout(timer);res(v);},
+             function(e){if(klaar)return;klaar=true;clearTimeout(timer);rej(e);});
     });
+  }
+  // Leest de serverstand (inclusief de body, binnen de tijdslimiet). De bewaking (checkWriteGuard)
+  // gebeurt NIET hier, maar pas als de aanroeper het antwoord als actueel heeft geaccepteerd.
+  function fetchRemote(){
+    return withDeadline(function(signal){
+      return fetch(dataUrl(),{headers:{'X-Firebase-ETag':'true'},cache:'no-store',signal:signal}).then(function(r){
+        if(!r.ok)throw new Error('status:'+r.status);
+        var et=r.headers.get('ETag');
+        return r.json().then(function(json){return {raw:json,etag:et};});
+      });
+    },TIMEOUTS.get);
   }
   function blockedStatus(){status(writeBlocked==='moved'?'blocked-moved':'blocked-outdated');}
   function clone(x){return x===undefined?undefined:JSON.parse(JSON.stringify(x));}
@@ -2577,7 +2681,7 @@ function createFirebaseStore(opts){
     // Geen leesactie zolang er een schrijf- of herstelactie onderweg is of een opslag gepland staat (regel 8).
     if(inflight||saveTimer)return;
     // Een wachtende herpoging (offline, fout) wordt vervangen door deze leesactie. Staat er een
-    // verplichte herstellezing open, dan doet die het werk.
+    // verplichte herstellezing open (ook na herladen), dan doet die het werk.
     if(retryTimer){clearTimeout(retryTimer);retryTimer=null;failures=0;}
     if(recon){reconcile();return;}
     if(!isInitial)status('refreshing');
@@ -2633,6 +2737,9 @@ function createFirebaseStore(opts){
     // voegt de lokale wijzigingen samen en slaat daarna op.
     if(!loadedOnce)return;
     clearTimeout(saveTimer);
+    // Een nieuwe lokale wijziging is nog niet opgeslagen: niet "Opgeslagen" laten staan tijdens de
+    // wachttijd (wel een open onzekerheid of pauze laten staan).
+    if(!uncertain&&!(recon&&recon.kind==='unknown'))status('saving');
     saveTimer=setTimeout(function(){saveTimer=null;push();},400);
   }
 
@@ -2641,13 +2748,15 @@ function createFirebaseStore(opts){
   // netwerkfout: de uitkomst is dan onbekend.
   function putIfMatch(body,etag,keepalive){
     if(!etag)return Promise.resolve({result:'error',status:0,reason:'no-etag'});
-    var o={method:'PUT',headers:{'Content-Type':'application/json','X-Firebase-ETag':'true','if-match':etag},body:body};
-    if(keepalive)o.keepalive=true;
-    return fetchTimed(dataUrl(),o,TIMEOUTS.put).then(function(r){
-      if(r.status===412)return {result:'conflict',status:412,etag:r.headers.get('ETag')||null};
-      if(!r.ok)return {result:'error',status:r.status,reason:'status'};
-      return {result:'ok',status:r.status,etag:r.headers.get('ETag')||null};
-    },function(){return {result:'error',status:0,reason:'network'};});
+    return withDeadline(function(signal){
+      var o={method:'PUT',headers:{'Content-Type':'application/json','X-Firebase-ETag':'true','if-match':etag},body:body,signal:signal};
+      if(keepalive)o.keepalive=true;
+      return fetch(dataUrl(),o).then(function(r){
+        if(r.status===412)return {result:'conflict',status:412,etag:r.headers.get('ETag')||null};
+        if(!r.ok)return {result:'error',status:r.status,reason:'status'};
+        return {result:'ok',status:r.status,etag:r.headers.get('ETag')||null};
+      });
+    },TIMEOUTS.put).then(null,function(){return {result:'error',status:0,reason:'network'};});
   }
 
   // Serverstand verwerken die tijdens het opslaan is opgehaald: samenvoegen met de basis.
@@ -2686,7 +2795,7 @@ function createFirebaseStore(opts){
 
   function push(){
     if(writeBlocked||inflight||uncertain)return; // regel 1: hooguit één schrijf- of herstelactie onderweg
-    // Na een niet-bevestigde uitkomst eerst de verplichte herstellezing; nooit eerst schrijven.
+    // Na een niet-bevestigde uitkomst (ook uit een vorige sessie) eerst de verplichte herstellezing.
     if(recon){reconcile();return;}
     if(!pending())return;
     if(!serverETag){status('unsafe');return;}     // regel 2 / besluit 9.1: geen ETag = niet schrijven
@@ -2700,21 +2809,33 @@ function createFirebaseStore(opts){
     var gen=localGen,oldBase=base;
     beforeWrite(getLocal());
     var body=JSON.stringify(getLocal());
+    // Eerst duurzaam vastleggen wat er onderweg gaat (blocker 1). Lukt dat niet, dan niet versturen:
+    // zonder journaal kan een herladen tijdens of na deze PUT een latere wijziging van een ander
+    // terugdraaien.
+    if(!writeJournal({v:1,state:'sending',sent:body,oldBase:oldBase,t:Date.now()})){
+      status('journal-failed');
+      return Promise.resolve();
+    }
     inflight={gen:gen,kind:kind};writeEpoch++;
     if(kind==='push')status('saving');
     return putIfMatch(body,serverETag,keepalive).then(function(res){
       if(writeBlocked){done();return;}
-      if(res.result==='ok'){done();confirm(gen,body,res.etag);afterWrite();return;}
+      if(res.result==='ok'){done();confirm(gen,body,res.etag);clearJournal();afterWrite();return;}
       // Geen bevestiging: eerst opnieuw lezen. Tot die lezing is verwerkt, blijft de coördinator
       // bezet (inflight) en wordt er niets geschreven.
       if(res.result==='conflict'){
+        // 412: niet verwerkt. Het journaal is afgehandeld.
+        clearJournal();
         if(conflictGen!==gen){conflictGen=gen;conflicts=0;}
         conflicts++;
         recon={kind:'conflict'};
       } else if(res.status===401||res.status===403){
+        clearJournal(); // geweigerd: niet verwerkt
         recon={kind:'denied'};
       } else {
-        // Netwerkfout, tijdslimiet of serverfout: misschien wel verwerkt, misschien niet.
+        // Netwerkfout, tijdslimiet of serverfout: misschien wel verwerkt, misschien niet. Het
+        // journaal blijft staan tot dit is afgehandeld (ook na herladen).
+        writeJournal({v:1,state:'unknown',sent:body,oldBase:oldBase,t:Date.now()});
         recon={kind:'unknown',gen:gen,sent:body,oldBase:oldBase};
       }
       return reconcile(true);
@@ -2729,18 +2850,20 @@ function createFirebaseStore(opts){
   function done(){inflight=null;writeEpoch++;}
 
   // De verplichte herstellezing na een schrijfactie zonder bevestiging (412, 401/403, onbekende
-  // uitkomst, of een bevestiging zonder ETag). Mislukt de lezing, dan wordt later opnieuw gelezen,
-  // nooit eerst geschreven (recon blijft staan).
+  // uitkomst, of een bevestiging zonder ETag), en na herladen met een open journaal. Mislukt de
+  // lezing, dan wordt later opnieuw gelezen, nooit eerst geschreven (recon en journaal blijven staan).
   function reconcile(fromWrite){
     var r=recon;if(!r)return;
     if(!fromWrite){if(inflight)return;inflight={kind:'reconcile'};writeEpoch++;}
+    if(r.kind==='unknown')status('checking');
     var seq=++readSeq;
     return fetchRemote().then(function(rem){
       done();
       if(seq!==readSeq)return;
       checkWriteGuard(rem.raw);
-      if(writeBlocked){recon=null;blockedStatus();return;}
+      if(writeBlocked){blockedStatus();return;} // recon en journaal blijven staan
       recon=null;
+      if(r.kind!=='unknown'&&!loadedOnce)markLoaded();
       if(r.kind==='denied'){status('denied');return;}
       if(r.kind==='conflict'){
         mergeRemote(rem);
@@ -2748,25 +2871,54 @@ function createFirebaseStore(opts){
         push();return;
       }
       if(r.kind==='read'){mergeRemote(rem);if(pending())push();else status('saved');return;}
-      // Onbekende uitkomst (blocker 2). Staat onze versie er exact, dan is hij verwerkt.
-      if(canon(rem.raw)===canon(JSON.parse(r.sent))){confirm(r.gen,r.sent,rem.etag);serverETag=rem.etag;afterWrite();return;}
-      // Twee hypothesen: verwerkt (basis = wat we stuurden) of niet verwerkt (basis = oude basis).
-      // Geven ze dezelfde samenvoeging, dan maakt het niet uit. Verschillen ze, dan is een afwijkende
-      // serverstand GEEN bewijs dat onze wijziging opnieuw moet worden toegepast: een ander toestel
-      // kan haar na ontvangst juist hebben gewijzigd of verwijderd (ook terug naar exact de oude
-      // inhoud, met dezelfde ETag). Dan niets automatisch: één keuze voor de gebruiker.
-      var C=rem.raw,local=getLocal();
-      var h1=mergeData(normalizeData(JSON.parse(r.sent)),clone(local),normalizeData(clone(C)));
-      var h2=mergeData(r.oldBase?JSON.parse(r.oldBase):{},clone(local),normalizeData(clone(C)));
-      if(canon(h1)===canon(h2)){mergeRemote(rem);failures++;scheduleRetry();return;} // met wachttijd: geen snelle lus
-      uncertain={sent:r.sent,oldBase:r.oldBase};
-      writeCache();
-      status('uncertain');emit({type:'uncertain'});
-    },function(){done();failures++;scheduleRetry();});
+      if(!loadedOnce)markLoaded();
+      resolveUnknown(r,rem);
+    },function(err){
+      done();
+      // Geweigerd: geen netwerkfout. De herstellezing blijft openstaan.
+      if(/40[13]/.test(String(err))){status('denied');return;}
+      failures++;scheduleRetry();
+    });
   }
-  // De keuze na een onzekere uitkomst. reapply=true: de wijziging opnieuw toepassen op de huidige
-  // serverstand; false: aannemen dat ze al verwerkt was (en dus ook wat anderen daarna deden).
-  // Leest eerst opnieuw; mislukt dat, dan blijft de keuze open.
+  // Eerste geslaagde lezing via een herstellezing (bv. na herladen met een open journaal): de app
+  // krijgt dezelfde signalen als na een gewone eerste lading (migraties, controles, verversknop).
+  function markLoaded(){var first=!loadedOnce;loadedOnce=true;emit({type:'loaded',first:first});emit({type:'connected'});}
+  // Onbekende uitkomst (blocker 2 en 3). Automatisch verder ALLEEN als:
+  //  - onze versie er exact staat (dan is ze verwerkt), of
+  //  - beide hypothesen (verwerkt: basis = sent; niet verwerkt: basis = oldBase) dezelfde
+  //    samenvoeging geven EN die samenvoeging onder beide aantoonbaar verliesvrij is, EN de
+  //    serverstand bij normaliseren niets verliest (P1-11).
+  // Anders: niets schrijven, alles bewaren (journaal 'uncertain', ook na herladen) en één vraag.
+  function resolveUnknown(r,rem){
+    var C=rem.raw;
+    if(canon(C)===canon(JSON.parse(r.sent))){
+      confirm(r.gen,r.sent,rem.etag);serverETag=rem.etag;clearJournal();
+      if(!pending()&&hasLocalChanges())save(); // na herladen: latere lokale wijzigingen alsnog versturen
+      afterWrite();return;
+    }
+    var local=getLocal();
+    // De schemaVersion-stempel (stampSchemaVersion) is deterministisch en wordt nooit verwijderd; een
+    // verschil daarin is geen onzekerheid over gebruikerswijzigingen.
+    var zonderStempel=function(o){if(isPlainObj(o)&&isPlainObj(o.meta)){delete o.meta.schemaVersion;if(!Object.keys(o.meta).length)delete o.meta;}return o;};
+    var S=zonderStempel(normalizeData(JSON.parse(r.sent))),O=zonderStempel(normalizeData(r.oldBase?JSON.parse(r.oldBase):{})),Cn=zonderStempel(normalizeData(clone(C))),Ln=zonderStempel(normalizeData(clone(local)));
+    var h1=mergeData(clone(S),clone(Ln),clone(Cn)),h2=mergeData(clone(O),clone(Ln),clone(Cn));
+    var veilig=canon(h1)===canon(h2)&&!normalizeLoses(C)&&losslessMerge(S,Ln,Cn,h1)&&losslessMerge(O,Ln,Cn,h2);
+    if(veilig){
+      clearJournal();
+      mergeRemote(rem); // = h2 = h1
+      if(!hasLocalChanges()){if(confirmedGen<r.gen)confirmedGen=r.gen;}
+      if(pending()){failures++;scheduleRetry();}else status('updated'); // met wachttijd: geen snelle lus
+      return;
+    }
+    uncertain={sent:r.sent,oldBase:r.oldBase};
+    writeJournal({v:1,state:'uncertain',sent:r.sent,oldBase:r.oldBase,t:Date.now()});
+    status('uncertain');emit({type:'uncertain'});
+  }
+  // De keuze na een onzekere uitkomst, alleen over de onzekere wijzigingen (oldBase → sent).
+  // reapply=true: die wijzigingen opnieuw toepassen op de huidige serverstand; false: aannemen dat ze
+  // al verwerkt waren (en dus ook wat anderen daarna deden). Latere lokale wijzigingen blijven in
+  // beide gevallen staan. Leest eerst opnieuw (een serverwijziging tussen vraag en antwoord gaat dus
+  // mee); het schrijven daarna is gewoon voorwaardelijk. Mislukt het lezen, dan blijft de vraag open.
   function resolveUncertain(reapply){
     var u=uncertain;if(!u||inflight)return;
     inflight={kind:'reconcile'};writeEpoch++;
@@ -2779,13 +2931,19 @@ function createFirebaseStore(opts){
       var local=getLocal(),inc=normalizeData(clone(rem.raw));
       var merged=reapply?mergeData(u.oldBase?JSON.parse(u.oldBase):{},clone(local),inc)
                         :mergeData(normalizeData(JSON.parse(u.sent)),clone(local),inc);
-      uncertain=null;
+      uncertain=null;clearJournal();
+      if(!loadedOnce)markLoaded();
       emit({type:'incoming',local:local,remote:normalizeData(clone(rem.raw))});
       base=canon(rem.raw);serverETag=rem.etag;
       emit({type:'data',data:merged,render:true,reminders:false});
       if(hasLocalChanges())save();
       else{confirmedGen=localGen;writeCache();status('updated');}
-    },function(){done();status(navigator.onLine?'save-failed':'offline');});
+    },function(){done();status(navigator.onLine?'save-failed':'offline');emit({type:'uncertain'});});
+  }
+  // Voor de vraag: welke wijzigingen zijn onzeker (oldBase → sent)?
+  function uncertainChanges(){
+    if(!uncertain)return [];
+    try{return describeChanges(uncertain.oldBase?JSON.parse(uncertain.oldBase):{},JSON.parse(uncertain.sent));}catch(e){return [];}
   }
 
   // App gaat naar de achtergrond: openstaande wijziging direct versturen, alleen voorwaardelijk
@@ -2825,6 +2983,7 @@ function createFirebaseStore(opts){
     hasUnsavedChanges:function(){return !!base&&hasLocalChanges();},
     // Onzekere uitkomst van een opslag (zie reconcile): staat er een keuze open, en die keuze maken.
     isUncertain:function(){return !!uncertain;},
+    uncertainChanges:function(){return uncertainChanges();},
     resolveUncertain:function(reapply){resolveUncertain(!!reapply);}
   };
 }
@@ -2841,7 +3000,9 @@ var SYNC_STATUS={
   offline:['err','Offline — wijzigingen worden bewaard en later gesynchroniseerd.'],
   'load-failed':['err','Vernieuwen mislukt.'],
   'save-failed':['err','Opslaan mislukt — wordt opnieuw geprobeerd.'],
-  uncertain:['err','Niet zeker of je laatste wijziging is opgeslagen — kies wat er moet gebeuren.'],
+  uncertain:['err','Niet zeker of je wijzigingen zijn aangekomen — kies wat er moet gebeuren.'],
+  checking:['busy','Controleren of je wijzigingen zijn aangekomen…'],
+  'journal-failed':['err','Opslaan gepauzeerd: dit toestel kan niet veilig bijhouden wat er onderweg is (opslag vol?). Je wijzigingen staan nog alleen op dit toestel.'],
   unsafe:['err','Opslaan kan nu niet veilig · je wijzigingen blijven op dit toestel bewaard.']
 };
 store.subscribe(function(ev){
@@ -2874,9 +3035,16 @@ store.subscribe(function(ev){
 // stelt hij één vraag. Staat er al een andere vraag open, dan komt deze bij de volgende verversing.
 function askUncertain(){
   if(!store.isUncertain()||document.getElementById('confirmOverlay').classList.contains('open'))return;
-  customConfirm('De verbinding viel weg tijdens het opslaan. Het is niet zeker of je laatste wijziging is aangekomen, en intussen is er ook iets anders veranderd. Wil je jouw wijziging (opnieuw) toepassen?',
+  var ch=store.uncertainChanges(),delen=[];
+  var werkw={toegevoegd:'toegevoegd',gewijzigd:'gewijzigd',verwijderd:'verwijderd'};
+  ch.filter(function(c){return c.soort!=='anders';}).slice(0,4).forEach(function(c){delen.push(c.noun+' '+werkw[c.soort]+(c.label?' “'+c.label+'”':''));});
+  var rest=ch.length-delen.length;
+  if(rest>0)delen.push(rest===1?'nog 1 andere wijziging':'nog '+rest+' andere wijzigingen');
+  var wat=delen.length?delen.join('; '):'je laatste wijzigingen';
+  customConfirm('Bij het opslaan viel de verbinding weg. Het is niet zeker of deze wijzigingen zijn aangekomen: '+wat+
+    '. Opnieuw toepassen kan een latere wijziging van iemand anders terugdraaien; niet toepassen kan deze wijzigingen laten vervallen. Wat je daarna nog hebt gewijzigd, blijft in beide gevallen bewaard.',
     function(){store.resolveUncertain(true);},
-    {okText:'Opnieuw toepassen',cancelText:'Laat staan zoals het nu is',onCancel:function(){store.resolveUncertain(false);}});
+    {okText:'Deze wijzigingen opnieuw toepassen',cancelText:'Server laten zoals hij is',onCancel:function(){store.resolveUncertain(false);}});
 }
 function showWriteGuard(reason,meta){
   var ov=document.getElementById('writeGuardOverlay');

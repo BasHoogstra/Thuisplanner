@@ -19,7 +19,7 @@ Na NW-01. Bewijs met fictieve data: bron immutable na lock; alle historische sch
 ### NW-03 — Eén veilige write-coördinator 🟢
 E2: push/flush/load/retry/poll via één coordinator. Geen bruikbare ETag = geen write; geen ongeconditioneerde fallback. Onzeker resultaat/412 → reread → merge met base → conditionele retry; begrensde retries; geen poll tijdens write. Tests T1–T5.
 **Status (6 okt 2026):** gebouwd in de testversie (`test/index.html`), tests `tests/schrijven.test.js`. Niet live; livegang via een aparte PR na akkoord (ontwerp 1.4.2, sectie 9).
-**Codex-review (6 okt 2026): FIX BEFORE MERGE** — beide blockers en de belangrijke bevindingen hersteld in PR #15; opnieuw ter review. Open besluit: schrijfmarkering in de data voor een volledig automatische afhandeling van een verloren bevestiging.
+**Codex-review (6 okt 2026): FIX BEFORE MERGE** — beide blockers en de belangrijke bevindingen hersteld in PR #15; opnieuw ter review. Tweede Codex-herreview (7 okt 2026): FIX BEFORE MERGE — schrijfjournaal (reload-veilig), tijdslimiet over het hele antwoord, automatische acceptatie alleen bij aantoonbaar verliesvrij samenvoegen, duidelijkere vraag; hersteld in PR #15, opnieuw ter review. Een schrijfmarkering is een mogelijke latere UX-verbetering, geen veiligheidsvereiste.
 
 ### NW-04 — Cache/storage resilience 🟢
 E3: cache-identiteit database+planner+storage generation zonder secrets leesbaar. Behandel quota/read/parse/delete/network+storage, oude cache, verkeerde planner/generatie. Kritieke fouten zichtbaar; nooit onterecht “opgeslagen”. Tests T6–T8.

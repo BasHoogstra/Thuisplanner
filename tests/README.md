@@ -39,11 +39,14 @@ geïnstalleerde versie in de cloudomgeving).
 | `schema.test.js` | Testdata en opgeslagen data voldoen aan `docs/dataformaat-v1.schema.json`; `meta.schemaVersion` wordt alleen toegevoegd, nooit overschreven, en de live-versie laat het staan. |
 | `emulatorproef.test.js` | P1-3 (NW-01): de emulatorproef uit `tools/emulator/` draait in een eigen proces (zonder jar alleen de statische controles): alleen lokaal, geen productieadressen of regelbestanden in de repo, alle harde controles geslaagd, geen afwijking van bekend productiegedrag, en een mutatietest die bewijst dat een open bronregel wordt betrapt. Zie `docs/p1-3-emulatorproef.md`. |
 | `schrijven.test.js` | 1.4.2, E2 (NW-03), alleen testversie: één voorwaardelijke PUT (`putIfMatch`) en geen terugval zonder if-match; T1 twee toestellen, T2 verbinding weg vóór de server / verwerkt maar antwoord kwijt / offline→online, T3 herhaald 412 met begrensde pogingen en later herstel, T4 vertraagde leesactie en trage flush (nooit twee schrijfacties tegelijk, niets teruggezet), T5 geen leesbare ETag = niet schrijven en melden. |
+| `journaal.test.js` | E2, tweede Codex-herreview (alleen testversie). Reload-veiligheid met het schrijfjournaal: herladen tijdens een PUT (wel of niet verwerkt), na een verloren antwoord met een hangende of mislukte herstellezing, en met een wijziging of verwijdering elders; meerdere verloren bevestigingen, ook met herladen ertussen; journaal niet te bewaren. Verder: een hangende body (met `tests/nepdb.js`), gelijke hypothesen met verlies (lijst zonder id), de vraag (serverwijziging tussen tonen en keuze, onzekere set, latere lokale wijzigingen), status terwijl bevestiging wordt tegengehouden, herstellezing zonder ETag, geen snelle lus, en een lokale bewerking plus een verwijdering elders. |
+| `verliesvrij.test.js` | E2, tweede Codex-herreview: `losslessMerge`, `flattenPaths`, `normalizeLoses` en `describeChanges` los in Node (lijsten zonder id, geneste gegevens, bewerken/verwijderen aan twee kanten, veilige gevallen, dubbele id's, lijst met gaten). |
 
 Opties van `openApp` voor synchronisatietests: `state` (één nagebootste database delen tussen twee
 toestellen, zie `sharedDb`), `log` (verloop van de verzoeken), `exposeETag` (de app kan de ETag
 lezen en slaat dan voorwaardelijk op met `if-match`; standaard aan, zoals de echte Firebase sinds de
 controle van 3 oktober 2026; met `false` schrijft de testversie sinds 1.4.2 niet) en `onRequest`
+`allowUrl` (een extra lokaal adres, bv. `tests/nepdb.js`), `onRequest`
 (per verzoek ingrijpen: `'abort'`, `'lost'`, `'hang'` of `{ delay, snapshot, commitFirst, noETag }`;
 `onDone` meldt wanneer een PUT is afgehandeld; `timeouts` verlaagt de tijdslimieten van de app; zie
 `lib.js`). Let op:
