@@ -2652,9 +2652,8 @@ function createFirebaseStore(opts){
   // ── Tijdslimieten en wachttijden (tests kunnen ze verlagen via window.HUISPLAN_TIMEOUTS)
   //  get/put  tijdslimiet over het HELE verzoek, inclusief het lezen van het antwoord
   //  gate     wachttijd tussen twee controles zolang een journaal het opstarten of schrijven blokkeert
-  //  hb/stale hartslag en verlooptijd van een journaal, alleen in browsers zonder Web Locks
   //  block    hoe lang na een keuze die niet verliesvrij kon, de vraag niet opnieuw komt
-  var TIMEOUTS=(function(){var t=(typeof window!=='undefined'&&window.HUISPLAN_TIMEOUTS)||{};return {get:t.get||15000,put:t.put||20000,gate:t.gate||3000,hb:t.hb||5000,stale:t.stale||30000,block:t.block||60000};})();
+  var TIMEOUTS=(function(){var t=(typeof window!=='undefined'&&window.HUISPLAN_TIMEOUTS)||{};return {get:t.get||15000,put:t.put||20000,gate:t.gate||3000,block:t.block||60000};})();
 
   // ── Lokale cache
   // {data, base, t, inst, seq, db}: inst/seq zeggen welke instantie (venster) de cache schreef en
@@ -2704,7 +2703,7 @@ function createFirebaseStore(opts){
   // bestaat, is de uitkomst niet afgehandeld; ook na herladen of een crash.
   //  sleutel   plannerJournal_<planner>_<id>; id = de instantie die het record maakte
   //  v, ctx    versie (2) en context {db, planner, gen}; elke afwijking = onbekend/ongeldig
-  //  owner     instantie die het record nu beheert (null = vrijgegeven); hb = laatste hartslag
+  //  owner     instantie die het record nu beheert (null = vrijgegeven); hb = tijdstip van de laatste schrijfactie (alleen informatief)
   //  epoch     eigendomsgeneratie: +1 bij elke overname (fencing, zie ownsRecord)
   //  rev       revisie: +1 bij elke schrijfactie op het record
   //  state     'sending' (onderweg), 'unknown' (uitkomst onbekend), 'uncertain' (vraag open),
@@ -2717,9 +2716,12 @@ function createFirebaseStore(opts){
   // nergens buiten dit toestel gebruikt en zegt niets over het toestel of de persoon. Een instantie
   // schrijft en verwijdert alleen haar eigen record. Een record van een ander venster wordt alleen
   // overgenomen als dat venster aantoonbaar weg is: met Web Locks (navigator.locks) houdt elke
-  // instantie haar hele leven een eigen lock vast, en de browser geeft die vrij als de pagina sluit
-  // of crasht; zonder Web Locks geldt een record als verweesd als het is vrijgegeven (pagehide) of
-  // zijn hartslag ouder is dan TIMEOUTS.stale. Overnemen gebeurt onder een claim-lock per record.
+  // instantie haar hele leven een eigen lock vast, en de browser geeft die pas vrij als de pagina
+  // sluit of crasht (een gepauzeerde pagina houdt hem vast). Overnemen gebeurt onder een claim-lock
+  // per record. ZONDER Web Locks wordt een record van een ander venster NOOIT automatisch
+  // overgenomen (vijfde Codex-review): localStorage heeft geen atomische vergelijk-en-schrijf, dus een
+  // oude eigenaar die net zijn controle voorbij is, kan altijd nog schrijven. Dan blijft alles staan
+  // en toont de app een eerlijke herstelstatus (zie runGate, 'no-locks').
   var JOURNAL_V=2,JOURNAL_GEN=1,ID_RE=/^i[0-9a-f]{16}$/;
   var instId=(function(){
     try{var a=new Uint8Array(8);crypto.getRandomValues(a);return 'i'+Array.prototype.map.call(a,function(b){return ('0'+b.toString(16)).slice(-2);}).join('');}
@@ -2732,7 +2734,7 @@ function createFirebaseStore(opts){
   var pendingSettle=false;     // afgehandelde toestand nog niet volledig vastgelegd (settle mislukt)
   var localFail=false;         // laatste cache-opslag mislukt: de nieuwste stand staat alleen in het geheugen
   var startGate=false;         // poortcontrole bij het opstarten loopt of blokkeert
-  var gateTimer=null,gateRunning=false,gateReason=null,claimRelease=null,claiming=false;
+  var gateTimer=null,gateRunning=false,gateReason=null,claimRelease=null;
   function jPrefix(){return 'plannerJournal_'+plannerKey;}
   function jctx(){return {db:normDb(dbUrl),planner:plannerKey,gen:JOURNAL_GEN};}
   function parseObj(s,allowEmpty){
@@ -2869,23 +2871,14 @@ function createFirebaseStore(opts){
       var s={};(q.held||[]).forEach(function(l){if(l&&typeof l.name==='string'&&l.name.indexOf(INST_LOCK)===0)s[l.name.slice(INST_LOCK.length)]=1;});return s;
     },function(){return 'fout';});
   }
+  // Leeft de eigenaar van dit record nog? Alleen met Web Locks is "nee" aantoonbaar; zonder Web
+  // Locks of als het niet te bepalen is, geldt het record altijd als levend (nooit overnemen).
   function isLive(r,live){
     if(r.owner===instId)return true;
-    if(r.owner===null)return false;
-    if(live==='fout')return true;           // onbekend: als levend behandelen
-    if(live)return !!live[r.owner];
-    return Date.now()-r.hb<TIMEOUTS.stale;  // zonder Web Locks: hartslag
+    if(!live||live==='fout')return true;
+    return !!live[r.owner];
   }
   if(typeof window!=='undefined'){
-    // Zonder Web Locks: hartslag op het eigen record, en vrijgeven bij het sluiten van de pagina.
-    setInterval(function(){if(!locksOk&&myRec&&!claiming)putRecord({});},TIMEOUTS.hb);
-    window.addEventListener('pagehide',function(e){
-      if(locksOk||!myRec||fenced||claiming||e&&e.persisted)return;
-      try{
-        if(localStorage.getItem(recKey)!==myRaw)return; // niet (meer) van ons: niets vrijgeven
-        var r=JSON.parse(JSON.stringify(myRec));r.owner=null;localStorage.setItem(recKey,JSON.stringify(r));
-      }catch(x){}
-    });
     // Een ander venster ruimt zijn record op: de geblokkeerde poortcontrole meteen opnieuw.
     window.addEventListener('storage',function(e){if(startGate&&(!e||e.key===null||String(e.key).indexOf('plannerJournal_')===0))runGate();});
   }
@@ -2927,18 +2920,8 @@ function createFirebaseStore(opts){
         }).then(null,function(){klaar('busy');});
       });
     }
-    var r=lees();if(typeof r==='string')return Promise.resolve(r);
-    if(isLive(r.r,null))return Promise.resolve('busy');
-    var res=neem(r);if(res!=='ok')return Promise.resolve(res);
-    // Zonder lock: even wachten (zonder hartslag) en teruglezen. Staat er iets anders dan wat wij
-    // schreven (een ander venster claimde, of de vorige eigenaar schreef nog net), dan niet.
-    claiming=true;
-    return new Promise(function(z){setTimeout(z,250);}).then(function(){
-      claiming=false;
-      var cur;try{cur=localStorage.getItem(key);}catch(e){cur=null;}
-      if(cur!==myRaw){myRec=null;recKey=null;myRaw=null;return 'busy';}
-      return 'ok';
-    });
+    // Zonder Web Locks: nooit overnemen (zie boven). Er bestaat geen veilige vergelijk-en-schrijf.
+    return Promise.resolve('no-locks');
   }
   // ── Poortcontrole bij het opstarten (blocker 1 en 4)
   // Het journaal wordt altijd eerst en los van de cache bekeken:
@@ -2957,12 +2940,15 @@ function createFirebaseStore(opts){
       var mine=insp.records.filter(function(x){return x.rec.owner===instId;})[0];
       if(mine){myRec=mine.rec;recKey=mine.key;myRaw=mine.raw;adopt();return;}
       if(!insp.records.length){gateOpen();return;}
+      // Zonder Web Locks: een record van een ander venster wordt nooit overgenomen. Alles blijft
+      // staan; zodra dat venster zelf klaar is (record weg), gaat dit venster vanzelf verder.
+      if(!locksOk){gateBlock('no-locks');return;}
       if(insp.records.some(function(x){return isLive(x.rec,live);})){gateBlock('other-window');return;}
       return claim(insp.records[0].key).then(function(res){
         if(!startGate)return;
         if(res==='ok'){adopt();return;}
         if(res==='gone'){runGate();return;}
-        gateBlock(res==='busy'?'other-window':'journal-invalid');
+        gateBlock(res==='busy'?'other-window':res==='no-locks'?'no-locks':'journal-invalid');
       });
     }).then(null,function(e){gateRunning=false;gateBlock('journal-invalid');try{console.warn('Huisplan journaal:',e);}catch(x){}});
   }
@@ -3468,6 +3454,7 @@ var SYNC_STATUS={
   'journal-invalid':['err','Opslaan gepauzeerd: er staat een onafgeronde opslag op dit toestel die niet betrouwbaar te lezen is. Er wordt niets overschreven.'],
   'other-window':['err','Wacht op een ander venster met Huisplan dat nog een opslag afrondt…'],
   'cache-mismatch':['err','Opslaan gepauzeerd: op dit toestel staan twee onafgeronde standen die niet zeker bij elkaar horen.'],
+  'no-locks':['err','Opslaan gepauzeerd: een ander venster heeft hier een onafgeronde opslag, en deze browser kan niet veilig vaststellen of dat venster nog open is.'],
   'taken-over':['err','Dit venster is overgenomen door een ander venster met Huisplan en slaat niets meer op. Laad dit venster opnieuw.'],
   'local-failed':['err','Lokaal bewaren mislukt — houd dit venster open; er wordt opnieuw geprobeerd en niets verstuurd tot het lukt.'],
   'uncertain-blocked':['err','Je keuze kon niet zonder verlies worden toegepast (er is intussen ook iets anders veranderd). Er is niets opgeslagen; je wijzigingen blijven bewaard en de vraag komt later terug.'],
@@ -3522,6 +3509,7 @@ function askUncertain(){
 var JOURNAL_GATE_TEXT={
   'journal-invalid':['Huisplan wacht even','Op dit toestel staat informatie over een opslag die niet is afgerond, maar die nu niet betrouwbaar te lezen is (of bij een andere database of versie hoort). Om niets te verliezen of te overschrijven gaat Huisplan hier niet verder.'],
   'other-window':['Huisplan is nog bezig in een ander venster','In een ander venster of tabblad op dit toestel wordt nog een opslag afgerond, of staat daar een vraag open. Rond dat eerst af of sluit dat venster; dit venster gaat daarna vanzelf verder.'],
+  'no-locks':['Onafgeronde opslag van een ander venster','Een ander venster met Huisplan op dit toestel heeft een opslag die nog niet is afgerond. Deze browser kan niet veilig vaststellen of dat venster nog open is, dus Huisplan neemt die opslag niet over. Is dat venster nog open, rond het daar af of sluit het netjes; dit venster gaat dan vanzelf verder. Zo niet, bewaar dan de herstelgegevens. Er wordt niets overschreven of verwijderd. (Met een recente browser speelt dit niet.)'],
   'taken-over':['Dit venster is overgenomen','Een ander venster met Huisplan op dit toestel heeft de onafgeronde opslag van dit venster overgenomen. Dit venster slaat daarom niets meer op en verandert niets meer. Laad het opnieuw om verder te gaan.'],
   'cache-mismatch':['Twee onafgeronde standen','Op dit toestel staan een onafgeronde opslag en niet-opgeslagen wijzigingen uit een ander venster die niet zeker bij elkaar horen. Om niets te verliezen gaat Huisplan niet automatisch verder.']
 };

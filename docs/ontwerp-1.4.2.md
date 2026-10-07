@@ -190,6 +190,24 @@ Eén coördinator per planner en opslaggeneratie houdt deze toestand bij:
      nieuw is, legt die op; tegenstrijdige of geschonden volgordes = niet aantoonbaar verliesvrij.
      Voorbeeld: basis `[a,b]`, lokaal `[a,b,c]`, server `[d,a,b]` → `[a,b,c,d]` is niet verliesvrij.
      Lijsten met meer dan 1500 elementen: conservatief niet verliesvrij.
+
+   **Aangescherpt na de vijfde Codex-review (7 okt 2026)** (alleen `test/index.html`; vervangt het
+   punt "Zonder Web Locks … hartslag/pagehide" hierboven):
+   - **Zonder Web Locks wordt een record van een ander venster nooit automatisch overgenomen.**
+     `localStorage` heeft geen atomische vergelijk-en-schrijf: een oude eigenaar die zijn
+     eigenaarscontrole net voorbij is en daarna pauzeert, kan na een overname altijd nog zijn
+     voorbereide schrijfactie uitvoeren (Codex reproduceerde zo verlies van Z). Hartslag, `epoch`,
+     teruglezen en wachttijden sluiten dat niet uit; daarom zijn hartslag, verlooptijd en vrijgeven
+     bij `pagehide` verwijderd. Zonder Web Locks blijft een vreemd record staan, wordt er niets
+     geschreven of opgeruimd, en toont de app "Onafgeronde opslag van een ander venster" met
+     "Opnieuw controleren" en "Herstelgegevens bewaren". Rondt het andere venster zelf af, dan gaat dit
+     venster vanzelf verder.
+   - **Met Web Locks** blijft overnemen zoals het was. Waarom de race daar structureel niet kan: een
+     record wordt alleen overgenomen als het instantie-lock van de eigenaar niet meer wordt
+     vastgehouden. De browser geeft dat lock pas vrij als de pagina is verdwenen (gesloten,
+     gecrasht, weggegooid); een gepauzeerde of bevroren pagina houdt het vast. Een eigenaar die nog
+     kan hervatten, kan dus nooit zijn overgenomen, en een eigenaar die is overgenomen, kan nooit meer
+     code uitvoeren. Twee overnemers sluiten elkaar uit met het claim-lock per record.
 6. **Herpogingen.** Oplopende wachttijd. Na een vast aantal mislukte pogingen: blijvende status
    "Niet opgeslagen", zonder `pendingSave` te wissen. Een `online`-gebeurtenis, de volgende poll of
    het heropenen van de app probeert het opnieuw.

@@ -467,3 +467,12 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Cache krijgt `jkey`/`jrev` (spiegel van welke recordrevisie); `data`, `base` en `t` blijven gelijk.
 - Tests: `tests/journaal3.test.js` (26), `tests/verliesvrij.test.js` (15).
 
+## 1.4.2-voorbereiding: NW-03 hersteld na de vijfde Codex-review (testversie)
+- Zonder Web Locks wordt een journaalrecord van een ander venster nooit meer automatisch overgenomen
+  (geen veilige vergelijk-en-schrijf in `localStorage`). Hartslag, verlooptijd en vrijgeven bij
+  `pagehide` zijn verwijderd. De app blokkeert dan met een eerlijke herstelstatus; niets wordt
+  overschreven of opgeruimd. Met Web Locks blijft overnemen ongewijzigd.
+- Tests: de Codex-interleaving (A pauzeert na de eigenaarscontrole vóór record, cache of opruimen;
+  B probeert over te nemen; A hervat) en "nooit overnemen zonder Web Locks" (open, gesloten,
+  gecrasht). `tests/journaal3.test.js`: 28.
+

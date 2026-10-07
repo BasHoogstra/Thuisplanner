@@ -19,6 +19,8 @@ const gateZichtbaar = page => page.evaluate(() => { const e = document.getElemen
 // Wat de app toont (de boodschappenlijst) en wat er in de lokale cache staat.
 const appToont = (page, t) => page.evaluate(x => (document.getElementById('boodschappenList').textContent || '').includes(x), t);
 const cacheData = page => page.evaluate(k => { try { return JSON.parse(localStorage.getItem(k)).data; } catch (e) { return null; } }, CKEY);
+const GEEN_LOCKS = "try{Object.defineProperty(Navigator.prototype,'locks',{get:function(){return undefined;},configurable:true});}catch(e){}";
+const VANDAAG = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' });
 const ids = async page => Object.keys(await journalen(page)).map(k => k.slice(JPRE.length + 1));
 
 // Storingen in localStorage (alleen localStorage, niet sessionStorage). Regels:
@@ -45,9 +47,25 @@ window.__installeer = function (rs) {
     }
     return false;
   }
-  P.setItem = function (k, v) { if (raak(this, 'set', k, v)) throw new DOMException('storing', 'QuotaExceededError'); return oSet.call(this, k, v); };
+  // 'pauze-set' / 'pauze-remove' (met ms): de pagina blijft vlak vóór de echte schrijf-/verwijderactie
+  // synchroon staan, dus NA de eigenaarscontrole van de app (zoals een gepauzeerd venster).
+  function pauze(st, op, k, v) {
+    if (st !== window.localStorage) return;
+    var rs = window.__storing || [];
+    for (var i = 0; i < rs.length; i++) {
+      var r = rs[i];
+      if (r.op !== op || r.n === 0 || !new RegExp(r.key).test(String(k))) continue;
+      if (r.val && !new RegExp(r.val).test(String(v))) continue;
+      if (r.n > 0) r.n--;
+      window.__gepauzeerd = (window.__gepauzeerd || 0) + 1;
+      try { oSet.call(window.sessionStorage, '__gepauzeerd', String(window.__gepauzeerd)); } catch (e) {}
+      var t = performance.now(); while (performance.now() - t < r.ms) {}
+      return;
+    }
+  }
+  P.setItem = function (k, v) { if (raak(this, 'set', k, v)) throw new DOMException('storing', 'QuotaExceededError'); pauze(this, 'pauze-set', k, v); return oSet.call(this, k, v); };
   P.getItem = function (k) { if (raak(this, 'get', k)) throw new DOMException('storing', 'SecurityError'); return oGet.call(this, k); };
-  P.removeItem = function (k) { if (raak(this, 'remove', k)) return; return oRem.call(this, k); };
+  P.removeItem = function (k) { if (raak(this, 'remove', k)) return; pauze(this, 'pauze-remove', k); return oRem.call(this, k); };
 };
 (function () { try { var rs = JSON.parse(sessionStorage.getItem('__storing') || 'null'); if (rs) window.__installeer(rs); } catch (e) {} })();
 `;
@@ -483,26 +501,34 @@ module.exports = {
     await o.ctx.close();
   },
 
-  async 'Zonder Web Locks: hartslag; verweesd pas na de verlooptijd, vrijgegeven record meteen'(ctx) {
-    const geenLocks = "try{Object.defineProperty(Navigator.prototype,'locks',{get:function(){return undefined;},configurable:true});}catch(e){}";
-    for (const crash of [true, false]) {
+  async 'Zonder Web Locks: een record van een ander venster wordt nooit overgenomen (open, gesloten of gecrasht)'(ctx) {
+    for (const afloop of ['levend', 'gesloten', 'gecrasht']) {
       let fase = 0;
-      const bw = bewaker(info => { if (info.method === 'PUT' && fase === 1) { fase = 2; return 'hang'; } });
-      const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest, timeouts: { gate: 400, hb: 300, stale: 2500 }, initScript: geenLocks, realClock: true, localStorage: { briefingShown: new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' }) } });
+      const bw = bewaker(info => { if (info.method === 'PUT' && fase === 1) { fase = 2; return afloop === 'levend' ? { delay: 5000 } : 'hang'; } });
+      const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest, timeouts: { gate: 400 }, initScript: GEEN_LOCKS + STORING_SRC });
       await rustig(o); fase = 1;
       assert(await o.page.evaluate(() => !navigator.locks), 'Testopzet: Web Locks nog aanwezig');
-      await addBood(o.page, 'Hartslag ' + crash);
-      await until(async () => fase === 2, 3000, 'PUT hangt');
+      await addBood(o.page, 'Geen lock ' + afloop);
+      await until(async () => fase === 2, 3000, 'PUT onderweg');
+      const [idA] = await ids(o.page);
+      const kA = JPRE + '_' + idA, rawA = (await journalen(o.page))[kA];
       const b = await o.ctx.newPage();
+      await b.clock.setFixedTime(FIXED_NOW);
       await b.goto(o.url); await b.waitForTimeout(1200);
-      assert(await gateZichtbaar(b), 'Record met verse hartslag overgenomen');
-      // Crash nabootsen: het vrijgeven bij pagehide (en de hartslag) lukt niet meer.
-      if (crash) await storing(o.page, [{ op: 'set', key: '^plannerJournal_', n: -1 }]);
-      await o.page.close();
-      const t0 = Date.now();
-      assert(await vraagZichtbaar(b, 8000), 'Verweesd record niet overgenomen');
-      const duur = Date.now() - t0;
-      assert(crash ? duur > 1200 : duur < 2500, (crash ? 'Overgenomen vóór de verlooptijd' : 'Vrijgegeven record niet meteen overgenomen') + ' (' + duur + ' ms)');
+      assert(await gateZichtbaar(b) && /niet veilig vaststellen/.test(await b.textContent('#journalGateText')), afloop + ': geen eerlijke herstelstatus');
+      if (afloop === 'gecrasht') await storing(o.page, [{ op: 'set', key: '^plannerJournal_', n: -1 }]);
+      if (afloop !== 'levend') await o.page.close();
+      if (afloop === 'levend') {
+        // Het venster dat de opslag begon, rondt hem zelf af; daarna gaat B vanzelf verder.
+        await until(async () => !(await gateZichtbaar(b)), 9000, 'B gaat verder als A klaar is');
+        await until(() => appToont(b, 'Geen lock levend'), 4000, 'B ziet de wijziging');
+      } else {
+        await wait(3000);
+        const j = await journalen(b);
+        assert(await gateZichtbaar(b), afloop + ': B ging toch verder');
+        assert(j[kA] && JSON.parse(j[kA]).owner === idA && JSON.parse(j[kA]).local === JSON.parse(rawA).local, afloop + ': record overgenomen, gewijzigd of verwijderd');
+        assert(!(await vraagZichtbaar(b, 300)), afloop + ': toch hersteld');
+      }
       await o.ctx.close();
     }
   },
@@ -565,57 +591,65 @@ module.exports = {
   })(),
 
   // ── Vierde Codex-review, B2: fencing — een hervatte oude eigenaar muteert niets meer ──────────
-  async 'B2: zonder Web Locks — A gepauzeerd, B neemt over, B-herstel hangt, B maakt Z, A hervat: A wijzigt niets; Z blijft'(ctx) {
-    const geenLocks = "try{Object.defineProperty(Navigator.prototype,'locks',{get:function(){return undefined;},configurable:true});}catch(e){}";
-    let fase = 0, hangGet = false;
-    const bw = bewaker(info => {
-      if (info.method === 'PUT' && fase === 1) { fase = 2; return { delay: 7000 }; } // A's PUT: verwerkt pas na 7 s
-      if (info.method === 'GET' && hangGet && /\/planners\/[^/]+\.json/.test(info.url)) { hangGet = false; return 'hang'; }
+  // ── Vijfde Codex-review: check-to-write race zonder Web Locks ─────────────────────────────────
+  // Exact de Codex-interleaving: A passeert de eigenaarscontrole en pauzeert (synchroon) vlak vóór de
+  // schrijfactie: het record naar 'settled', de cache, of het opruimen van het record. Intussen
+  // probeert B over te nemen en (als dat lukt) Z toe te voegen. Daarna hervat A.
+  // Bewijs: B neemt zonder Web Locks nooit over, dus er is geen herstelbewijs van B dat A kan
+  // overschrijven of verwijderen; X staat precies één keer op de server en een Z die ooit duurzaam
+  // was, overleeft een crash/herladen van B.
+  ...(() => {
+    const out = {};
+    const grenzen = [
+      ['record → afgehandeld', { op: 'pauze-set', key: '^plannerJournal_', val: '"state":"settled"', n: 1, ms: 8000 }, 'sending'],
+      // De cache-schrijfactie in settle(): de enige waarvan de basis al X bevat.
+      ['cache-schrijven', { op: 'pauze-set', key: '^plannerCache_', val: '\\\\"Race R5\\\\"', n: 1, ms: 8000 }, 'settled'],
+      ['opruimen van het record', { op: 'pauze-remove', key: '^plannerJournal_', n: 1, ms: 8000 }, 'settled']
+    ];
+    grenzen.forEach(([naam, regel, toestand]) => {
+      out['R5: zonder Web Locks — A pauzeert na de eigenaarscontrole vóór ' + naam + '; B probeert over te nemen; A hervat: niets verloren'] = async ctx => {
+        let fase = 0;
+        const bw = bewaker(info => {
+          if (info.method === 'PUT' && fase === 1) { fase = 2; return { delay: 200 }; }
+          if (info.method === 'GET' && fase === 3 && /\/planners\/[^/]+\.json/.test(info.url)) { fase = 4; return 'hang'; } // herstellezing van B (als B overneemt)
+        });
+        // hb/stale: alleen relevant voor de oude code (tegenproef), die zonder Web Locks op hartslag overnam.
+        const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest, timeouts: { gate: 300, get: 60000, hb: 300, stale: 1000 }, initScript: GEEN_LOCKS + STORING_SRC, realClock: true, localStorage: { briefingShown: VANDAAG() } });
+        await rustig(o);
+        await storing(o.page, [regel]);
+        fase = 1;
+        await addBood(o.page, 'Race R5');
+        await wait(1500); // A staat nu stil in settle(), na zijn eigenaarscontrole
+        fase = 3;
+        const b = await o.ctx.newPage();
+        await b.goto(o.url); await b.waitForTimeout(2500);
+        // A staat stil, dus zijn record moet er nog precies zo staan. Is het weg of van eigenaar
+        // gewisseld, dan heeft B het van een levend venster overgenomen (alleen de oude code).
+        const j0 = await journalen(b), sleutels = Object.keys(j0);
+        assert(sleutels.length <= 1, 'Testopzet: meer dan één record');
+        const kA = sleutels[0], idA = kA ? kA.slice(JPRE.length + 1) : null;
+        const overgenomen = !kA || JSON.parse(j0[kA]).owner !== idA;
+        if (!overgenomen) assert(JSON.parse(j0[kA]).state === toestand, naam + ': testopzet — A pauzeert niet op de bedoelde grens (record ' + JSON.parse(j0[kA]).state + ')');
+        let zToegevoegd = false;
+        if (!(await gateZichtbaar(b))) { await addBood(b, 'Z R5'); zToegevoegd = true; await wait(800); }
+        const zDuurzaam = zToegevoegd && (JSON.stringify(await journalen(b)).includes('Z R5') || ((await b.evaluate(k => localStorage.getItem(k), CKEY)) || '').includes('Z R5'));
+        // A hervat en rondt af.
+        await until(async () => !Object.keys(await journalen(b)).length, 15000, naam + ': A rondt zijn opslag af');
+        await wait(1500);
+        // B crasht/herlaadt.
+        await b.reload(); await wait(3000);
+        if (zDuurzaam) assert(boodTexts(o.state.db).includes('Z R5') || await appToont(b, 'Z R5'), naam + ': Z was duurzaam bewaard en is verloren gegaan');
+        assert(!overgenomen && !zToegevoegd, naam + ': B nam zonder Web Locks het record over van een venster dat nog leefde');
+        assert(boodTexts(o.state.db).filter(t => t === 'Race R5').length === 1, naam + ': X niet precies één keer op de server');
+        // Daarna gaat B gewoon verder.
+        await until(async () => !(await gateZichtbaar(b)), 5000, naam + ': B blijft geblokkeerd na A\'s afronding');
+        await addBood(b, 'Na race R5');
+        await until(async () => boodTexts(o.state.db).includes('Na race R5'), 6000, naam + ': B schrijft daarna gewoon');
+        await o.ctx.close();
+      };
     });
-    const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest, timeouts: { gate: 400, hb: 300, stale: 1500, get: 60000 }, initScript: geenLocks + STORING_SRC, realClock: true, localStorage: { briefingShown: new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' }) } });
-    await rustig(o); fase = 1;
-    await addBood(o.page, 'X B2');
-    await until(async () => fase === 2, 3000, 'PUT van A onderweg');
-    const [idA] = await ids(o.page);
-    const kA = JPRE + '_' + idA;
-    // A "gepauzeerd": leeft nog, maar zijn hartslag komt niet meer aan.
-    await storing(o.page, [{ op: 'set', key: '^plannerJournal_', n: -1 }]);
-    hangGet = true;
-    const b = await o.ctx.newPage();
-    await b.goto(o.url);
-    await until(async () => { const j = await journalen(b); return j[kA] && JSON.parse(j[kA]).owner && JSON.parse(j[kA]).owner !== idA; }, 6000, 'B neemt het verweesde record over');
-    const naOvername = JSON.parse((await journalen(b))[kA]);
-    assert(naOvername.epoch >= 1, 'Geen nieuwe eigendomsgeneratie bij overname');
-    const idB = naOvername.owner;
-    await wait(500);
-    // B maakt Z terwijl zijn herstellezing hangt.
-    await b.evaluate(() => { const ov = document.getElementById('confirmOverlay'); if (ov) ov.classList.remove('open'); });
-    await addBood(b, 'Z B2');
-    await until(async () => { const j = await journalen(b); return j[kA] && JSON.parse(j[kA]).local.includes('Z B2'); }, 4000, 'Z duurzaam in B\'s record');
-    // A hervat; zijn oude PUT komt daarna alsnog terug (en is verwerkt).
-    await geenStoring(o.page);
-    await until(async () => boodTexts(o.state.db).includes('X B2'), 9000, 'oude PUT van A verwerkt');
-    await wait(1500);
-    const j = await journalen(b), r = j[kA] && JSON.parse(j[kA]);
-    assert(r && r.owner === idB && r.local.includes('Z B2'), 'A heeft het record van B gewijzigd of verwijderd: ' + JSON.stringify(r && { owner: r.owner, z: r.local.includes('Z B2') }));
-    const c = await b.evaluate(k => JSON.parse(localStorage.getItem(k)), CKEY);
-    assert(c.inst !== idA, 'A schreef na de overname nog de cache');
-    assert(await gateZichtbaar(o.page) && /overgenomen/.test(await syncText(o.page)), 'A meldt niet dat hij is overgenomen: ' + await syncText(o.page));
-    // Ook een poging om in A verder te werken komt nergens terecht (B's eigen herstel mag wel schrijven).
-    await o.page.evaluate(() => { document.getElementById('journalGateOverlay').hidden = true; });
-    await addBood(o.page, 'Na overname A').catch(() => {});
-    await wait(1500);
-    assert(!o.state.putBodies.some(d => JSON.stringify(d).includes('Na overname A')), 'Overgenomen venster schreef nog naar de server');
-    const c2 = await b.evaluate(k => localStorage.getItem(k), CKEY), j2 = await journalen(b);
-    assert(!c2.includes('Na overname A') && !JSON.stringify(j2).includes('Na overname A'), 'Overgenomen venster schreef nog cache of journaal');
-    // B crasht / herlaadt terwijl Z alleen in zijn record staat: Z blijft en komt alsnog op de server.
-    assert(!boodTexts(o.state.db).includes('Z B2'), 'Testopzet: Z stond al op de server vóór het herladen van B');
-    await b.reload();
-    await until(async () => boodTexts(o.state.db).includes('Z B2'), 9000, 'Z na herladen van B opgeslagen');
-    await wait(800);
-    assert(boodTexts(o.state.db).filter(t => t === 'X B2').length === 1 && boodTexts(o.state.db).filter(t => t === 'Z B2').length === 1, 'Niet precies één keer');
-    await o.ctx.close();
-  },
+    return out;
+  })(),
 
   async 'B2: met Web Locks — een gepauzeerd maar levend venster wordt nooit overgenomen'(ctx) {
     let fase = 0;
@@ -638,9 +672,9 @@ module.exports = {
     await o.ctx.close();
   },
 
-  async 'B2: twee vensters claimen tegelijk een verweesd record — precies één neemt het over'(ctx) {
-    for (const zonderLocks of [false, true]) {
-      const geenLocks = zonderLocks ? "try{Object.defineProperty(Navigator.prototype,'locks',{get:function(){return undefined;},configurable:true});}catch(e){}" : '';
+  async 'B2: met Web Locks — twee vensters claimen tegelijk een verweesd record — precies één neemt het over'(ctx) {
+    for (const zonderLocks of [false]) { // zonder Web Locks wordt er nooit overgenomen (zie hierboven)
+      const geenLocks = '';
       let fase = 0;
       const bw = bewaker(info => { if (info.method === 'PUT' && fase === 1) { fase = 2; return 'hang'; } });
       const extra = zonderLocks ? { realClock: true, localStorage: { briefingShown: new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' }) } } : {};
