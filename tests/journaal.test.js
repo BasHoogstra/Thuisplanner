@@ -324,9 +324,11 @@ module.exports = {
     await rustig(o); fase = 1;
     await addBood(o.page, 'Zonder ETag J14');
     await until(async () => boodTexts(o.state.db).includes('Zonder ETag J14'), 4000, 'verwerkt');
-    const g0 = bw.gets;
+    const g0 = bw.log.length;
     await wait(3000);
-    assert(bw.gets - g0 <= 2, 'Leeslus zonder ETag: ' + (bw.gets - g0) + ' GET\'s in 3 s');
+    // Alleen leesacties op de planner tellen (niet de beveiligingscheck op planners.json).
+    const lezingen = bw.urls.slice(g0).filter(u => /\/planners\/[^/]+\.json/.test(u));
+    assert(lezingen.length <= 2, 'Leeslus zonder ETag: ' + lezingen.length + ' leesacties in 3 s');
     const p0 = bw.puts;
     await addBood(o.page, 'Daarna J14'); await wait(1200);
     assert(bw.puts === p0, 'Geschreven zonder bruikbare ETag');

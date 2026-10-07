@@ -31,10 +31,11 @@ async function until(cond, ms, label) {
 // Telt PUT's (met en zonder if-match) en hoeveel er tegelijk onderweg zijn; geeft instructies
 // ongewijzigd door aan de nagebootste database.
 function bewaker(extra) {
-  const b = { puts: 0, gets: 0, zonderIfMatch: 0, tegelijk: 0, maxTegelijk: 0, log: [] };
+  const b = { puts: 0, gets: 0, zonderIfMatch: 0, tegelijk: 0, maxTegelijk: 0, log: [], urls: [] };
   b.onRequest = async info => {
     const act = extra ? extra(info, b) : undefined;
     b.log.push(info.method + (act ? ':' + (typeof act === 'string' ? act : JSON.stringify(act)) : ''));
+    b.urls.push(info.method === 'GET' ? info.url : '');
     if (info.method === 'GET') b.gets++;
     if (info.method === 'PUT') { b.puts++; if (!info.ifMatch) b.zonderIfMatch++; b.tegelijk++; b.maxTegelijk = Math.max(b.maxTegelijk, b.tegelijk); }
     return act;
