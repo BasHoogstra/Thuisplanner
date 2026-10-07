@@ -361,3 +361,118 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Geen wijziging aan HTML, UI of functionaliteit. Een al op het beginscherm gezette app houdt het
   oude icoon tot hij opnieuw wordt toegevoegd.
 
+## 1.4.2-voorbereiding: P1-3 emulatorproef (NW-01, alleen tooling en documentatie)
+- Reproduceerbare proef `tools/emulator/p1-3-proef.js` tegen een lokaal gestarte Firebase Realtime
+  Database Emulator: ETag/if-match, lege locaties, regelevaluatie en de schrijfvormen
+  PUT/PATCH/DELETE/subpad/ouder/meerdere paden/POST (historische sendBeacon-vorm) tegen een
+  proefslot. Harde lokale netwerkallowlist, optioneel een eigen netwerknamespace (`--netns`), alleen
+  fictieve data, mutatietest.
+- Uitkomst: 74 controles, geen afwijking van bekend productiegedrag; 7 punten waarvan het
+  productiegedrag onbekend is, en de verschillen tussen emulator en productie zijn benoemd in
+  `docs/p1-3-emulatorproef.md`. Besluit P1-3 (6 okt 2026): optie A, de emulator is aanvaard als
+  bewijsomgeving binnen die beperkingen; geen toestemming voor productieregels, -data, Supabase of slot.
+- Open data-veiligheidspunt (niet hersteld, buiten deze stap; P1-11, moet vóór 1.5 opgelost of
+  bewezen zijn): een lijst die Firebase als object teruggeeft (lijst met gaten) wordt door
+  `normalizeData` leeg teruggeschreven. Zie `docs/p1-3-emulatorproef.md`, 4.5.
+- Test: `tests/emulatorproef.test.js`. Geen wijziging aan de app, Firebase-regels, Supabase of data.
+
+## 1.4.2-voorbereiding: één schrijfcoördinatiemodel (NW-03, E2; testversie)
+- `test/index.html`: opslaan, wegzetten bij het sluiten (flush), laden, herpogingen en periodiek
+  ophalen volgen één model (`docs/ontwerp-1.4.2.md`, 2.2): `localGen`/`confirmedGen`, hooguit één
+  schrijfactie onderweg, en een antwoord of leesactie van vóór een nieuwere generatie zet niets terug.
+- Elke schrijfactie is een PUT met `if-match` (`putIfMatch`). Zonder bruikbare ETag wordt niet
+  geschreven (besluit 9.1); de app meldt dan "Opslaan kan nu niet veilig" en bewaart alles lokaal. De
+  terugval zonder voorwaarde (`noConditional`) is weg, ook in `flush()`.
+- Netwerkfout tijdens opslaan = onbekende uitkomst: eerst de serverstand lezen; staat onze versie er
+  al, dan geldt hij als bevestigd (geen dubbele wijziging), anders samenvoegen en voorwaardelijk
+  opnieuw, met oplopende wachttijd (1–16 s). 412: samenvoegen en opnieuw, hooguit 5 keer per
+  wijziging. Daarna blijft de status "Opslaan mislukt" en blijft de wijziging openstaan tot een poll,
+  weer online of heropenen. "Opgeslagen" verschijnt pas als alles bevestigd is.
+- Geen datamigratie; het dataformaat is gelijk. `APP_VERSION` blijft 1.4.1 tot de integratie (NW-10).
+- Tests: `tests/schrijven.test.js` (T1–T5). De nagebootste database maakt de ETag nu standaard
+  leesbaar, zoals de echte Firebase; `store.test.js` vergelijkt oud en nieuw alleen nog in die variant.
+- Niet live; `index.html` is ongewijzigd.
+
+## 1.4.2-voorbereiding: NW-03 hersteld na de Codex-review (testversie)
+- Blocker 1: een lokale wijziging die ontstaat tijdens het tekenen van een binnenkomende stand (bv.
+  het doorschuiven van een verlopen taak in Vandaag) werd door `load()` ten onrechte als bevestigd
+  gemarkeerd en nooit opgeslagen. `load()` bevestigt nu alleen tot en met de generatie van het moment
+  van lezen.
+- Blocker 2: na een verloren bevestiging kon het herstel een latere wijziging of verwijdering door een
+  ander toestel terugdraaien. Het herstel past nu alleen automatisch iets toe als de uitkomst
+  eenduidig is; anders blijft de lokale wijziging bewaard (ook na herladen), wordt er niets geschreven
+  en stelt de app één vraag. Een verzoek dat niet vertrekt omdat de browser offline is, telt niet als
+  onzeker.
+- Een verouderd antwoord verandert de bewakingsstatus niet meer. Elk verzoek heeft een tijdslimiet.
+  Na een uitkomst zonder bevestiging wordt eerst gelezen en nooit eerst geschreven. Een bevestiging
+  zonder ETag leidt meteen tot een herstellezing, ook als een nieuwere wijziging wacht.
+- Tests: 13 nieuwe regressietests in `tests/schrijven.test.js`. De nagebootste database kan nu
+  momentopnames, vertraagde bevestiging na verwerking, antwoorden zonder ETag en hangende verzoeken
+  nabootsen. T2a verwacht nu de vraag. De grens met P1-11 wordt bewaakt: niet vaker of anders schrijven
+  dan live.
+
+## 1.4.2-voorbereiding: NW-03 hersteld na de tweede Codex-herreview (testversie)
+- Schrijfjournaal: vóór elke PUT staan de verzonden inhoud en de oude basis synchroon in
+  `localStorage` (`plannerJournal_<sleutel>`). Lukt dat niet, dan wordt er niet verstuurd. Na herladen
+  met een open journaal begint de app met de verplichte herstellezing. Er wordt niet geschreven en
+  nooit "opgeslagen/bijgewerkt" getoond tot de onzekerheid is afgehandeld; een latere wijziging of
+  verwijdering door een ander wordt niet teruggedraaid.
+- Eén tijdslimiet over het hele verzoek, inclusief de body.
+- Automatisch verder na een onbekende uitkomst alleen als de samenvoeging aantoonbaar verliesvrij is
+  (`losslessMerge`). Lijsten zonder `id`, gemengde en geneste lijsten tellen alleen als geheel, en een
+  lijst met gaten (P1-11) telt nooit als veilig. P1-11 zelf blijft open.
+- De vraag noemt welke wijzigingen onzeker zijn en zegt dat latere wijzigingen blijven. De keuze leest
+  eerst opnieuw.
+- Een nieuwe lokale wijziging toont direct "Opslaan…" in plaats van een verouderd "Opgeslagen". Een
+  401/403 tijdens de herstellezing toont "Toegang geweigerd". Na herladen met een open journaal krijgt
+  de app dezelfde eerste-laadsignalen. De `schemaVersion`-stempel telt niet als onzekere wijziging.
+- Tests: `tests/journaal.test.js` (18), `tests/verliesvrij.test.js` (8), `tests/nepdb.js` (echte lokale
+  nepdatabase voor hangende bodies), `tests/schrijfhulp.js`. De store-test voor opstarten uit de cache
+  verwacht in de testversie nu eerst de vraag.
+- Een schrijfmarkering in de data is niet gebouwd: hooguit een latere UX-verbetering, geen
+  veiligheidsvereiste.
+
+## 1.4.2-voorbereiding: NW-03 hersteld na de derde Codex-review (testversie)
+- Journaal per venster (`plannerJournal_<sleutel>_<id>`, versie 2) met context (database, planner,
+  generatie), eigenaar en hartslag. Inspectie los van de cache met drie uitkomsten: geen journaal,
+  geldig, of onbekend/ongeldig. Onbekend/ongeldig (leesfout, kapotte JSON, onbekende versie, ongeldige
+  inhoud, andere database/planner/generatie) blokkeert schrijven en hervatten; er wordt niets
+  verwijderd en regelmatig opnieuw gekeken. Opstartscherm met "Opnieuw controleren" en
+  "Herstelgegevens bewaren".
+- Een record verdwijnt pas nadat de afgehandelde toestand duurzaam vastligt: eerst het record als
+  `settled` (basis + lokale stand), dan de cache (teruggelezen), dan opruimen. Mislukt een stap, dan
+  blijft het record staan, wordt er niets verstuurd en is de status "Lokaal bewaren mislukt".
+- Vensters: een venster schrijft en wist alleen zijn eigen record. Een record van een levend venster
+  (Web Locks) wordt nooit overgenomen; een nieuw venster wacht. Een verweesd record wordt onder een
+  claim-lock overgenomen. Zonder Web Locks: hartslag en vrijgeven bij `pagehide`.
+- Na een crash telt de cache alleen als lokale stand als ze aantoonbaar bij het record hoort; anders de
+  verzonden stand. Een cache van een ander venster met eigen niet-opgeslagen wijzigingen wordt nooit
+  stil gecombineerd.
+- De keuze na een onzekere uitkomst schrijft alleen als alles buiten de onzekere wijzigingen
+  aantoonbaar verliesvrij samengaat; anders niets, en de vraag komt later terug.
+- `flattenPaths`: alle lijsten zonder (unieke) `id` alleen als geheel, ook tekstlijsten; volgorde in
+  `id`-lijsten telt; typewisselingen tellen altijd.
+- Cache krijgt extra velden (`inst`, `seq`, `db`); `data`, `base` en `t` blijven gelijk.
+- Tests: `tests/journaal3.test.js` (19), `tests/verliesvrij.test.js` (12). `tests/lib.js`: opties
+  `initScript` en `realClock`.
+
+## 1.4.2-voorbereiding: NW-03 hersteld na de vierde Codex-review (testversie)
+- B1: het journaalrecord heeft een revisie en de nieuwste lokale stand; elke lokale opslag gaat eerst
+  naar het record, dan naar de cache (spiegel van die revisie). Herstel gebruikt altijd het record;
+  een oudere cache kan een nieuwer record nooit meer vervangen.
+- B2: fencing met eigendomsgeneratie (`epoch`) en een exacte vergelijking met het eigen laatst
+  geschreven record vóór elke mutatie. Een overgenomen venster muteert niets meer, ook niet na een
+  late PUT/GET, en meldt "Dit venster is overgenomen".
+- I1: de verliesvrij-controle bewaakt de volgorde per paar `id`'s, ook van nieuw toegevoegde items.
+- Cache krijgt `jkey`/`jrev` (spiegel van welke recordrevisie); `data`, `base` en `t` blijven gelijk.
+- Tests: `tests/journaal3.test.js` (26), `tests/verliesvrij.test.js` (15).
+
+## 1.4.2-voorbereiding: NW-03 hersteld na de vijfde Codex-review (testversie)
+- Zonder Web Locks wordt een journaalrecord van een ander venster nooit meer automatisch overgenomen
+  (geen veilige vergelijk-en-schrijf in `localStorage`). Hartslag, verlooptijd en vrijgeven bij
+  `pagehide` zijn verwijderd. De app blokkeert dan met een eerlijke herstelstatus; niets wordt
+  overschreven of opgeruimd. Met Web Locks blijft overnemen ongewijzigd.
+- Tests: de Codex-interleaving (A pauzeert na de eigenaarscontrole vóór record, cache of opruimen;
+  B probeert over te nemen; A hervat) en "nooit overnemen zonder Web Locks" (open, gesloten,
+  gecrasht). `tests/journaal3.test.js`: 28.
+

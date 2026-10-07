@@ -55,11 +55,11 @@ async function setHidden(page, hidden) {
 }
 
 // Een scenario geeft per versie een samenvatting terug; oud en nieuw moeten gelijk zijn.
-// Elk scenario draait in twee varianten van de nagebootste database:
-//  - etag:   de app kan de ETag lezen en slaat voorwaardelijk op (if-match, 412 bij conflict);
-//  - zonder: de app leest geen ETag en voegt vóór elke opslag eerst de serverstand samen.
-// Welke van de twee de echte Firebase oplevert, hangt af van de CORS-headers van Firebase.
-async function both(ctx, scenario, modes = ['etag', 'zonder']) {
+// Het scenario draait met een leesbare ETag (voorwaardelijk opslaan, if-match, 412 bij conflict),
+// zoals de echte Firebase (bevestigd op 3 okt 2026). De variant zonder leesbare ETag wordt niet meer
+// vergeleken: daar sloeg de oude code op zonder voorwaarde, en schrijft de testversie sinds 1.4.2
+// bewust niet (besluit 9.1). Dat gedrag bewaakt tests/schrijven.test.js (T5).
+async function both(ctx, scenario, modes = ['etag']) {
   const res = {};
   for (const mode of modes) {
     const out = {};
@@ -99,8 +99,10 @@ module.exports = {
     const fetches = rest.match(/fetch\([^;]{0,80}/g) || [];
     const dbFetch = fetches.filter(f => !/wttr\.in|nominatim|overpass|url\+'\?data=/.test(f));
     assert(!dbFetch.length, 'fetch buiten de store: ' + dbFetch.join(' | '));
-    // De bestaande opslag (localStorage-sleutels en cacheformaat) is ongewijzigd.
-    assert(store.includes("'plannerCache_'+plannerKey") && store.includes('{data:d||getLocal(),base:base,t:Date.now()}'), 'Cacheformaat gewijzigd');
+    // De bestaande opslag (localStorage-sleutels en cacheformaat) is ongewijzigd. De testversie
+    // (1.4.2, E2) voegt alleen velden toe (inst, seq, db, jkey, jrev: welk venster en welke journaalrevisie); data, base
+    // en t blijven gelijk, dus een oudere versie leest dezelfde cache zoals voorheen.
+    assert(store.includes("'plannerCache_'+plannerKey") && (store.includes('{data:d||getLocal(),base:base,t:Date.now()}') || store.includes('{data:d,base:b,t:Date.now(),inst:instId,seq:seq,db:normDb(dbUrl),jkey:')), 'Cacheformaat gewijzigd');
     assert(store.includes("localStorage.setItem('plannerDbUrl',dbUrl);localStorage.setItem('plannerKey',plannerKey);"), 'Opslag van de koppeling gewijzigd');
   },
 
@@ -116,13 +118,11 @@ module.exports = {
     });
     Object.values(r).forEach(x => {
       assert(boodTexts(x.db).includes('Pindakaas'), 'Boodschap niet opgeslagen');
-      // Zonder leesbare ETag haalt de app na opslaan meteen de serverstand op ("Bijgewerkt").
       assert(/^(Opgeslagen|Bijgewerkt)/.test(x.sync), 'Statusregel: ' + x.sync);
       assert(x.cache && x.cache.key === 'plannerCache_testplanner0123456789', 'Cachesleutel gewijzigd');
       assert(!x.errors.length, 'Fouten: ' + x.errors.join(' | '));
     });
     assert(r.etag.log.includes('PUT if-match'), 'Met leesbare ETag wordt niet voorwaardelijk opgeslagen');
-    assert(!r.zonder.log.some(l => / if-match/.test(l)), 'Zonder ETag toch if-match');
   },
 
   async 'opslaglaag: conflict met een ander toestel wordt samengevoegd als voorheen (412)'(ctx) {
@@ -164,30 +164,36 @@ module.exports = {
     });
   },
 
-  async 'opslaglaag: opstarten uit de cache met niet-opgeslagen wijziging als voorheen'(ctx) {
+  async 'opslaglaag: opstarten uit de cache met niet-opgeslagen wijziging (testversie: eerst de onzekere opslag afhandelen)'(ctx) {
+    // Sinds de Codex-herreview van PR #15 (blocker 1) is dit bewust anders dan de oude code: de PUT
+    // die mislukte terwijl de server onbereikbaar was, heeft een onbekende uitkomst. Na herladen voegt
+    // de testversie daarom niet stil samen, maar handelt eerst die onzekerheid af (één vraag). Het
+    // eindresultaat op de server is gelijk.
     const fx = readFixture('huishouden.json');
-    const r = await both(ctx, async (target, exposeETag) => {
-      const log = [];
-      const o = await openApp(ctx.browser, ctx.base, { data: fx, target, log, exposeETag });
+    for (const target of ['root', 'test']) {
+      const o = await openApp(ctx.browser, ctx.base, { data: fx, target, exposeETag: true });
       await o.ctx.route(DB_URL + '/**', blockDb); // server onbereikbaar, de app-pagina zelf wel
       await addBood(o.page, 'Eieren'); await wait(1500);
       const failText = await syncText(o.page);
       await o.page.reload(); await wait(1500);
-      const startText = await syncText(o.page);
       await o.page.click('[data-view="boodschappenView"]');
       const shown = (await o.page.textContent('#boodschappenView')).includes('Eieren');
       serverWrite(o.state, db => db.boodschappen.push({ id: 'remote3', text: 'Thee', addedBy: 'Sanne', done: false }));
       await o.ctx.unroute(DB_URL + '/**', blockDb);
       await o.page.evaluate(() => document.getElementById('refreshBtn').click());
+      if (target === 'test') {
+        await o.page.waitForSelector('#confirmOverlay.open', { timeout: 6000 });
+        assert(/verbinding weg/.test(await o.page.textContent('#confirmTitle')) && /Eieren/.test(await o.page.textContent('#confirmTitle')), 'Vraag noemt de onzekere wijziging niet');
+        await o.page.click('#confirmOkBtn');
+      }
       await wait(2500);
-      const res = Object.assign(summary({ log, state: o.state, cache: await readCacheOf(o.page), sync: await syncText(o.page) }), { failText, startText, shown });
-      await o.ctx.close(); return res;
-    });
-    Object.values(r).forEach(x => {
-      assert(/mislukt/.test(x.failText), 'Geen melding bij mislukte opslag: ' + x.failText);
-      assert(x.shown, 'Niet-opgeslagen wijziging niet zichtbaar na opnieuw openen');
-      ['Eieren', 'Thee'].forEach(t => assert(boodTexts(x.db).includes(t), t + ' ontbreekt na samenvoegen'));
-    });
+      const label = '[' + target + '] ';
+      assert(/mislukt/.test(failText), label + 'Geen melding bij mislukte opslag: ' + failText);
+      assert(shown, label + 'Niet-opgeslagen wijziging niet zichtbaar na opnieuw openen');
+      ['Eieren', 'Thee'].forEach(t => assert(boodTexts(o.state.db).filter(x => x === t).length === 1, label + t + ' niet precies één keer na samenvoegen'));
+      assert(!o.state.errors.length, label + 'Fouten: ' + o.state.errors.join(' | '));
+      await o.ctx.close();
+    }
   },
 
   async 'opslaglaag: naar de achtergrond verstuurt de wijziging direct als voorheen'(ctx) {
@@ -227,8 +233,8 @@ module.exports = {
       const link = await o2.page.evaluate(() => window.__shared || '');
       await o2.ctx.close();
       return { denied, toast, sec, link: link.replace(/^http:\/\/[^/]+\/(test\/)?index\.html/, '') };
-    }, ['zonder']);
-    const x = r.zonder;
+    });
+    const x = r.etag;
     assert(/Toegang geweigerd/.test(x.denied), 'Geen melding bij 403: ' + x.denied);
     assert(x.toast, 'Geen waarschuwing over een open database');
     assert(/Open/.test(x.sec), 'Beveiligingscheck: ' + x.sec);
@@ -258,8 +264,8 @@ module.exports = {
       const herstel = { overlay: await h.page.isVisible('#setupOverlay'), n: (await localBood(h.page)).length, puts: h.state.puts, gets: h.state.gets > 0 };
       await h.ctx.close();
       return { setup, herstel };
-    }, ['zonder']);
-    const x = r.zonder;
+    });
+    const x = r.etag;
     assert(x.setup.setupShown && x.setup.keyOk && x.setup.urlOk && x.setup.ls === DB_URL, 'Installatie: ' + JSON.stringify(x.setup));
     assert(!x.herstel.overlay && x.herstel.n === fx.boodschappen.length, 'Herstellen: ' + JSON.stringify(x.herstel));
   },

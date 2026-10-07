@@ -2,3 +2,4 @@ tests/output/
 .env
 .env.*
 !.env.example
+tools/emulator/output/
