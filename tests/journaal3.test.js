@@ -188,9 +188,9 @@ module.exports = {
     await addBood(o.page, 'Alleen verzonden');
     await until(async () => fase === 3, 4000, 'herstellezing hangt');
     const rec = await eenRecord(o.page);
-    assert(rec && rec.cacheOk === false && rec.sent.includes('Alleen verzonden'), 'Record weet niet dat de cache achterloopt: ' + JSON.stringify(rec && { cacheOk: rec.cacheOk }));
     const c = await o.page.evaluate(k => JSON.parse(localStorage.getItem(k)), CKEY);
-    assert(!JSON.stringify(c.data).includes('Alleen verzonden'), 'Testopzet: de cache had de wijziging toch');
+    assert(rec && rec.local.includes('Alleen verzonden') && rec.sent.includes('Alleen verzonden'), 'Record heeft de nieuwste lokale stand niet');
+    assert(!JSON.stringify(c.data).includes('Alleen verzonden') && c.jrev !== rec.rev, 'Testopzet: de cache had de wijziging toch, of spiegelt het record: ' + JSON.stringify({ jrev: c.jrev, rev: rec.rev, jkey: c.jkey, heeft: JSON.stringify(c.data).includes('Alleen verzonden') }));
     assert(!(await statussen(o.page)).slice(1).some(t => VEILIG.test(t)), 'Toonde "opgeslagen" terwijl de cache faalde: ' + (await statussen(o.page)).join(' | '));
     const p0 = bw.puts;
     await o.page.reload(); fase = 4;
@@ -503,6 +503,169 @@ module.exports = {
       assert(await vraagZichtbaar(b, 8000), 'Verweesd record niet overgenomen');
       const duur = Date.now() - t0;
       assert(crash ? duur > 1200 : duur < 2500, (crash ? 'Overgenomen vóór de verlooptijd' : 'Vrijgegeven record niet meteen overgenomen') + ' (' + duur + ' ms)');
+      await o.ctx.close();
+    }
+  },
+
+  // ── Vierde Codex-review, B1: een oudere cache vervangt nooit een nieuwer duurzaam record ───────
+  // X bevestigd; opruimen van het record mislukt; Z erbij; het record ('settled', X+Z) lukt, de cache
+  // niet; herladen. Z moet blijven, en het record mag pas weg als het herstel aantoonbaar veilig is.
+  // Ook met storingen tijdens het herstel: cache niet te lezen, cache niet te schrijven, record niet
+  // te schrijven.
+  ...(() => {
+    const out = {};
+    const varianten = [
+      ['geen storing bij herstel', null],
+      ['cache niet te lezen bij herstel', [{ op: 'get', key: '^plannerCache_', n: 3 }]],
+      ['cache niet te schrijven bij herstel', [{ op: 'set', key: '^plannerCache_', n: -1 }]],
+      ['record niet te schrijven bij herstel', [{ op: 'set', key: '^plannerJournal_', n: -1 }]]
+    ];
+    varianten.forEach(([naam, bijHerstel]) => {
+      out['B1: oudere cache vervangt nooit het nieuwere record (X, opruimen mislukt, Z, cache mislukt, herladen; ' + naam + ')'] = async ctx => {
+        const bw = bewaker();
+        const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest, timeouts: { gate: 500 }, initScript: STORING_SRC });
+        await rustig(o);
+        await storing(o.page, [{ op: 'remove', key: '^plannerJournal_', n: -1 }]);
+        await addBood(o.page, 'X B1');
+        await until(async () => boodTexts(o.state.db).includes('X B1'), 4000, 'X bevestigd');
+        await wait(600);
+        let rec = await eenRecord(o.page);
+        assert(rec && rec.state === 'settled' && rec.local.includes('X B1'), 'Testopzet: record niet blijven staan na mislukt opruimen');
+        await storing(o.page, [{ op: 'remove', key: '^plannerJournal_', n: -1 }, { op: 'set', key: '^plannerCache_', n: -1 }]);
+        const p0 = bw.puts;
+        await addBood(o.page, 'Z B1');
+        await wait(1200);
+        rec = await eenRecord(o.page);
+        const c = await o.page.evaluate(k => JSON.parse(localStorage.getItem(k)), CKEY);
+        assert(rec.state === 'settled' && rec.local.includes('Z B1'), 'Z niet duurzaam in het record');
+        assert(!JSON.stringify(c.data).includes('Z B1') && JSON.stringify(c.data).includes('X B1') && c.jrev < rec.rev, 'Testopzet: cache is niet de oudere stand X');
+        assert(bw.puts === p0 && /Lokaal bewaren mislukt/.test(await syncText(o.page)), 'Verstuurd of geen eerlijke melding: ' + await syncText(o.page));
+        await geenStoring(o.page);
+        if (bijHerstel) await o.page.evaluate(r => sessionStorage.setItem('__storing', JSON.stringify(r)), bijHerstel);
+        await o.page.reload();
+        const leesStoring = naam === 'cache niet te lezen bij herstel';
+        await wait(leesStoring ? 400 : 2500);
+        if (leesStoring) assert(await gateZichtbaar(o.page), 'Geen blokkade bij een onleesbare cache');
+        if (bijHerstel) {
+          // Tijdens de storing: het record staat er nog en bevat Z.
+          const r2 = await eenRecord(o.page);
+          assert(r2 && r2.local.includes('Z B1'), naam + ': record weg of zonder Z tijdens een storing');
+          await geenStoring(o.page);
+          if (!leesStoring) await o.page.reload(); // anders herstelt de app vanzelf
+        }
+        await until(async () => boodTexts(o.state.db).includes('Z B1'), 8000, naam + ': Z opgeslagen na herstel');
+        await wait(800);
+        assert(await appToont(o.page, 'Z B1') && await appToont(o.page, 'X B1'), naam + ': Z of X niet in de app');
+        assert(boodTexts(o.state.db).filter(t => t === 'Z B1').length === 1 && boodTexts(o.state.db).filter(t => t === 'X B1').length === 1, naam + ': niet precies één keer');
+        await until(async () => !Object.keys(await journalen(o.page)).length, 4000, naam + ': record opgeruimd na veilig herstel');
+        await o.ctx.close();
+      };
+    });
+    return out;
+  })(),
+
+  // ── Vierde Codex-review, B2: fencing — een hervatte oude eigenaar muteert niets meer ──────────
+  async 'B2: zonder Web Locks — A gepauzeerd, B neemt over, B-herstel hangt, B maakt Z, A hervat: A wijzigt niets; Z blijft'(ctx) {
+    const geenLocks = "try{Object.defineProperty(Navigator.prototype,'locks',{get:function(){return undefined;},configurable:true});}catch(e){}";
+    let fase = 0, hangGet = false;
+    const bw = bewaker(info => {
+      if (info.method === 'PUT' && fase === 1) { fase = 2; return { delay: 7000 }; } // A's PUT: verwerkt pas na 7 s
+      if (info.method === 'GET' && hangGet && /\/planners\/[^/]+\.json/.test(info.url)) { hangGet = false; return 'hang'; }
+    });
+    const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest, timeouts: { gate: 400, hb: 300, stale: 1500, get: 60000 }, initScript: geenLocks + STORING_SRC, realClock: true, localStorage: { briefingShown: new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' }) } });
+    await rustig(o); fase = 1;
+    await addBood(o.page, 'X B2');
+    await until(async () => fase === 2, 3000, 'PUT van A onderweg');
+    const [idA] = await ids(o.page);
+    const kA = JPRE + '_' + idA;
+    // A "gepauzeerd": leeft nog, maar zijn hartslag komt niet meer aan.
+    await storing(o.page, [{ op: 'set', key: '^plannerJournal_', n: -1 }]);
+    hangGet = true;
+    const b = await o.ctx.newPage();
+    await b.goto(o.url);
+    await until(async () => { const j = await journalen(b); return j[kA] && JSON.parse(j[kA]).owner && JSON.parse(j[kA]).owner !== idA; }, 6000, 'B neemt het verweesde record over');
+    const naOvername = JSON.parse((await journalen(b))[kA]);
+    assert(naOvername.epoch >= 1, 'Geen nieuwe eigendomsgeneratie bij overname');
+    const idB = naOvername.owner;
+    await wait(500);
+    // B maakt Z terwijl zijn herstellezing hangt.
+    await b.evaluate(() => { const ov = document.getElementById('confirmOverlay'); if (ov) ov.classList.remove('open'); });
+    await addBood(b, 'Z B2');
+    await until(async () => { const j = await journalen(b); return j[kA] && JSON.parse(j[kA]).local.includes('Z B2'); }, 4000, 'Z duurzaam in B\'s record');
+    // A hervat; zijn oude PUT komt daarna alsnog terug (en is verwerkt).
+    await geenStoring(o.page);
+    await until(async () => boodTexts(o.state.db).includes('X B2'), 9000, 'oude PUT van A verwerkt');
+    await wait(1500);
+    const j = await journalen(b), r = j[kA] && JSON.parse(j[kA]);
+    assert(r && r.owner === idB && r.local.includes('Z B2'), 'A heeft het record van B gewijzigd of verwijderd: ' + JSON.stringify(r && { owner: r.owner, z: r.local.includes('Z B2') }));
+    const c = await b.evaluate(k => JSON.parse(localStorage.getItem(k)), CKEY);
+    assert(c.inst !== idA, 'A schreef na de overname nog de cache');
+    assert(await gateZichtbaar(o.page) && /overgenomen/.test(await syncText(o.page)), 'A meldt niet dat hij is overgenomen: ' + await syncText(o.page));
+    // Ook een poging om in A verder te werken komt nergens terecht (B's eigen herstel mag wel schrijven).
+    await o.page.evaluate(() => { document.getElementById('journalGateOverlay').hidden = true; });
+    await addBood(o.page, 'Na overname A').catch(() => {});
+    await wait(1500);
+    assert(!o.state.putBodies.some(d => JSON.stringify(d).includes('Na overname A')), 'Overgenomen venster schreef nog naar de server');
+    const c2 = await b.evaluate(k => localStorage.getItem(k), CKEY), j2 = await journalen(b);
+    assert(!c2.includes('Na overname A') && !JSON.stringify(j2).includes('Na overname A'), 'Overgenomen venster schreef nog cache of journaal');
+    // B crasht / herlaadt terwijl Z alleen in zijn record staat: Z blijft en komt alsnog op de server.
+    assert(!boodTexts(o.state.db).includes('Z B2'), 'Testopzet: Z stond al op de server vóór het herladen van B');
+    await b.reload();
+    await until(async () => boodTexts(o.state.db).includes('Z B2'), 9000, 'Z na herladen van B opgeslagen');
+    await wait(800);
+    assert(boodTexts(o.state.db).filter(t => t === 'X B2').length === 1 && boodTexts(o.state.db).filter(t => t === 'Z B2').length === 1, 'Niet precies één keer');
+    await o.ctx.close();
+  },
+
+  async 'B2: met Web Locks — een gepauzeerd maar levend venster wordt nooit overgenomen'(ctx) {
+    let fase = 0;
+    const bw = bewaker(info => { if (info.method === 'PUT' && fase === 1) { fase = 2; return { delay: 5000 }; } });
+    const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest, timeouts: { gate: 400, hb: 300, stale: 1000 }, initScript: STORING_SRC });
+    await rustig(o); fase = 1;
+    await addBood(o.page, 'Levend L');
+    await until(async () => fase === 2, 3000, 'PUT onderweg');
+    const [idA] = await ids(o.page);
+    await storing(o.page, [{ op: 'set', key: '^plannerJournal_', n: -1 }]); // geen hartslag meer
+    const b = await o.ctx.newPage();
+    await b.clock.setFixedTime(FIXED_NOW);
+    await b.goto(o.url);
+    await wait(2500);
+    assert(await gateZichtbaar(b), 'Levend venster overgenomen');
+    assert(JSON.parse((await journalen(b))[JPRE + '_' + idA]).owner === idA, 'Eigenaar gewijzigd terwijl A leefde');
+    await geenStoring(o.page);
+    await until(async () => !(await gateZichtbaar(b)), 8000, 'B gaat verder als A klaar is');
+    await until(() => appToont(b, 'Levend L'), 4000, 'B ziet de wijziging');
+    await o.ctx.close();
+  },
+
+  async 'B2: twee vensters claimen tegelijk een verweesd record — precies één neemt het over'(ctx) {
+    for (const zonderLocks of [false, true]) {
+      const geenLocks = zonderLocks ? "try{Object.defineProperty(Navigator.prototype,'locks',{get:function(){return undefined;},configurable:true});}catch(e){}" : '';
+      let fase = 0;
+      const bw = bewaker(info => { if (info.method === 'PUT' && fase === 1) { fase = 2; return 'hang'; } });
+      const extra = zonderLocks ? { realClock: true, localStorage: { briefingShown: new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' }) } } : {};
+      const o = await open(ctx, Object.assign({ data: readFixture('huishouden.json'), onRequest: bw.onRequest, timeouts: { gate: 300, hb: 300, stale: 1000 }, initScript: geenLocks + STORING_SRC }, extra));
+      await rustig(o); fase = 1;
+      await addBood(o.page, 'Wees ' + zonderLocks);
+      await until(async () => fase === 2, 3000, 'PUT hangt');
+      const [idA] = await ids(o.page);
+      await storing(o.page, [{ op: 'set', key: '^plannerJournal_', n: -1 }]); // crash zonder vrijgeven
+      await o.page.close();
+      const [b, c] = await Promise.all([o.ctx.newPage(), o.ctx.newPage()]);
+      if (!zonderLocks) { await b.clock.setFixedTime(FIXED_NOW); await c.clock.setFixedTime(FIXED_NOW); }
+      await Promise.all([b.goto(o.url), c.goto(o.url)]);
+      const [vb, vc] = await Promise.all([vraagZichtbaar(b, 8000), vraagZichtbaar(c, 8000)]);
+      assert(vb !== vc, (zonderLocks ? 'zonder' : 'met') + ' Web Locks: ' + (vb ? 'beide vensters namen het record over' : 'geen venster nam het record over'));
+      const eig = JSON.parse((await journalen(b))[JPRE + '_' + idA]).owner;
+      assert(eig && eig !== idA, 'Record niet op naam van het overnemende venster');
+      const winnaar = vb ? b : c, ander = vb ? c : b;
+      assert(await gateZichtbaar(ander), 'Het andere venster wacht niet');
+      await winnaar.click('#confirmOkBtn');
+      await until(async () => !Object.keys(await journalen(winnaar)).length, 6000, 'record opgeruimd');
+      await until(async () => !(await gateZichtbaar(ander)), 6000, 'het andere venster gaat daarna verder');
+      await until(async () => boodTexts(o.state.db).includes('Wees ' + zonderLocks), 5000, 'opgeslagen na de keuze');
+      await wait(800);
+      assert(boodTexts(o.state.db).filter(t => t === 'Wees ' + zonderLocks).length === 1, 'Niet precies één keer');
       await o.ctx.close();
     }
   }

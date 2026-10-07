@@ -117,6 +117,55 @@ module.exports = {
     assert(lv(oud, { backlog: [a, b, c, { id: 'd' }] }, { backlog: [a, b, c, { id: 'e' }] }), 'Toevoegen aan beide kanten onterecht als verlies');
   },
 
+  // ── Vierde Codex-review, I1: volgorde van nieuw toegevoegde id-items ─────────────────────────
+  async 'Volgorde (I1): Codex-repro basis [a,b], lokaal [a,b,c], server [d,a,b] → [a,b,c,d] is NIET verliesvrij'() {
+    const L = ids => ({ backlog: ids.map(id => ({ id, text: id })) });
+    const m = C.mergeData(j(L(['a', 'b'])), j(L(['a', 'b', 'c'])), j(L(['d', 'a', 'b'])));
+    assert(JSON.stringify(m.backlog.map(x => x.id)) === '["a","b","c","d"]', 'Testopzet: samenvoeging ' + JSON.stringify(m.backlog.map(x => x.id)));
+    const n = x => C.normalizeData(j(x));
+    assert(!C.losslessMerge(n(L(['a', 'b'])), n(L(['a', 'b', 'c'])), n(L(['d', 'a', 'b'])), m), 'Positie van d (vóór a) verloren maar toch verliesvrij');
+    assert(C.losslessMerge(L(['a', 'b']), L(['a', 'b', 'c']), L(['d', 'a', 'b']), L(['d', 'a', 'b', 'c'])), 'Een volgorde die alles respecteert wordt afgekeurd');
+  },
+
+  async 'Volgorde (I1): prepend, append, invoegen, beide kanten nieuw, herordenen + toevoegen'() {
+    const L = ids => ({ backlog: ids.map(id => ({ id, text: id })) });
+    const n = x => C.normalizeData(j(x));
+    const geval = (b, l, r) => { const m = C.mergeData(n(L(b)), n(L(l)), n(L(r))); return { m: m.backlog.map(x => x.id), lv: C.losslessMerge(n(L(b)), n(L(l)), n(L(r)), m) }; };
+    // Alleen aan één kant: de samenvoeging neemt die kant over → verliesvrij.
+    assert(geval(['a', 'b'], ['c', 'a', 'b'], ['a', 'b']).lv, 'Prepend aan één kant onterecht afgekeurd');
+    assert(geval(['a', 'b'], ['a', 'b'], ['a', 'b', 'd']).lv, 'Append aan één kant onterecht afgekeurd');
+    assert(geval(['a', 'b'], ['a', 'c', 'b'], ['a', 'b']).lv, 'Invoegen aan één kant onterecht afgekeurd');
+    // Append aan beide kanten: geen tegenstrijdige positie → verliesvrij.
+    assert(geval(['a', 'b'], ['a', 'b', 'c'], ['a', 'b', 'd']).lv, 'Append aan beide kanten onterecht afgekeurd');
+    // Prepend aan beide kanten / server prepend + lokaal append: de positie van de server gaat verloren.
+    const pp = geval(['a', 'b'], ['c', 'a', 'b'], ['d', 'a', 'b']);
+    assert(!pp.lv, 'Prepend aan beide kanten (' + pp.m + ') toch verliesvrij');
+    assert(!geval(['a', 'b'], ['a', 'b', 'c'], ['d', 'a', 'b']).lv, 'Server prepend + lokaal append toch verliesvrij');
+    // Invoegen tussen bestaande items aan beide kanten.
+    const ins = geval(['a', 'b'], ['a', 'c', 'b'], ['a', 'd', 'b']);
+    assert(!ins.lv, 'Invoegen aan beide kanten (' + ins.m + ') toch verliesvrij');
+    // Server herordent, lokaal voegt toe.
+    assert(!geval(['a', 'b', 'c'], ['a', 'b', 'c', 'x'], ['c', 'a', 'b']).lv, 'Herordenen + toevoegen toch verliesvrij');
+    // Beide kanten herordenen verschillend.
+    assert(!geval(['a', 'b', 'c'], ['b', 'a', 'c'], ['a', 'c', 'b']).lv, 'Twee herordeningen toch verliesvrij');
+    // Verwijderen aan de ene kant zegt niets over de volgorde.
+    assert(geval(['a', 'b', 'c'], ['a', 'c'], ['a', 'b', 'c', 'd']).lv, 'Verwijderen + append onterecht afgekeurd');
+  },
+
+  async 'Volgorde (I1): dubbele id\'s, gemengde en geneste lijsten blijven conservatief'() {
+    // Dubbele id's: als geheel; aan beide kanten veranderd = niet verliesvrij.
+    const dup = { backlog: [{ id: 'a' }, { id: 'a' }] };
+    assert(!lv(dup, { backlog: [{ id: 'a' }, { id: 'a' }, { id: 'b' }] }, { backlog: [{ id: 'c' }, { id: 'a' }, { id: 'a' }] }), 'Dubbele id\'s aan beide kanten toch verliesvrij');
+    // Gemengd (een element zonder id): als geheel.
+    const mix = { backlog: [{ id: 'a' }, { text: 'los' }] };
+    assert(!lv(mix, { backlog: [{ id: 'a' }, { text: 'los' }, { id: 'b' }] }, { backlog: [{ id: 'c' }, { id: 'a' }, { text: 'los' }] }), 'Gemengde lijst aan beide kanten toch verliesvrij');
+    // Geneste id-lijst (paklijst in een vakantie): dezelfde volgorderegel.
+    const V = ids => ({ vakanties: [{ id: 'v', paklijst: { Bas: ids.map(id => ({ id, text: id })) } }] });
+    const m = C.mergeData(C.normalizeData(j(V(['a', 'b']))), C.normalizeData(j(V(['a', 'b', 'c']))), C.normalizeData(j(V(['d', 'a', 'b']))));
+    const n = x => C.normalizeData(j(x));
+    assert(!C.losslessMerge(n(V(['a', 'b'])), n(V(['a', 'b', 'c'])), n(V(['d', 'a', 'b'])), m), 'Geneste id-lijst: positie van de server verloren maar verliesvrij');
+  },
+
   async 'Verliesvrij: gemengde en geneste lijsten zonder id als geheel; toestemming geldt niet voor hele lijsten'() {
     const oud = { vakanties: [{ id: 'v', budget: { uitgaven: [{ desc: 'a', amount: 1 }] }, tags: ['x', { y: 1 }] }] };
     const l = j(oud); l.vakanties[0].tags.push('z');

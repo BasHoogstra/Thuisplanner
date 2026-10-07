@@ -2498,19 +2498,31 @@ function losslessMerge(base,local,remote,result,consent){
     return false; // aan beide kanten verschillend veranderd
   });
   if(!waarden)return false;
-  // Volgorde in id-lijsten: alleen de id's die in alle vier de standen voorkomen; zelfde regel.
+  // Volgorde in id-lijsten (vierde Codex-review, I1): per PAAR id's dat in het resultaat staat, ook
+  // nieuw toegevoegde. Elke kant die over dat paar een volgorde heeft (beide id's aanwezig) die
+  // afwijkt van de basis of die de basis niet kende, legt die volgorde op; leggen beide kanten
+  // verschillende volgordes op, of wijkt het resultaat af, dan is het niet aantoonbaar verliesvrij.
+  // Is geen kant veranderd, dan moet de basisvolgorde blijven. Een kant zonder het paar (bv. een id
+  // daar verwijderd of nooit gezien) zegt niets over de volgorde.
+  // Bijvoorbeeld basis [a,b], lokaal [a,b,c], server [d,a,b], resultaat [a,b,c,d]: de server legt
+  // d vóór a op, het resultaat niet → niet verliesvrij. Te lange lijsten: conservatief niet.
   var lijsten={};
   [oB,oL,oR,oX].forEach(function(m){Object.keys(m).forEach(function(k){lijsten[k]=1;});});
   return Object.keys(lijsten).every(function(p){
-    var sets=[oB[p]||[],oL[p]||[],oR[p]||[],oX[p]||[]];
-    var gemeen=sets[0].filter(function(id){return sets.every(function(s){return s.indexOf(id)>-1;});});
-    var f=function(s){return s.filter(function(id){return gemeen.indexOf(id)>-1;}).join('\u0001');};
-    var b=f(sets[0]),l=f(sets[1]),r=f(sets[2]),x=f(sets[3]);
-    if(l===r)return x===l;
-    if(l===b)return x===r;
-    if(r===b)return x===l;
-    if(consent&&consent[p])return x===l;
-    return false;
+    var pos=function(a){var m={};(a||[]).forEach(function(id,i){m[id]=i;});return m;};
+    var PB=pos(oB[p]),PL=pos(oL[p]),PR=pos(oR[p]),xs=oX[p]||[];
+    if(xs.length>1500)return false;
+    var rel=function(P,i,j){return (i in P)&&(j in P)?(P[i]<P[j]?'<':'>'):undefined;};
+    for(var u=0;u<xs.length;u++)for(var w=u+1;w<xs.length;w++){
+      var i=xs[u],j=xs[w],x='<';
+      var b=rel(PB,i,j),l=rel(PL,i,j),r=rel(PR,i,j),eis=[];
+      if(l!==undefined&&l!==b)eis.push(l);
+      if(r!==undefined&&r!==b)eis.push(r);
+      if(eis.length===2&&eis[0]!==eis[1])return false;
+      if(eis.length){if(x!==eis[0])return false;}
+      else if(b!==undefined&&(l===b||r===b)&&x!==b)return false;
+    }
+    return true;
   });
 }
 // Zou normalizeData gegevens uit deze serverstand laten vallen (bv. een lijst met gaten, P1-11)?
@@ -2602,6 +2614,7 @@ function createFirebaseStore(opts){
     // Zolang er een schrijfactie onzeker is (ook uit een vorige sessie), nooit "opgeslagen" of
     // "bijgewerkt" tonen.
     if((code==='saved'||code==='updated')&&(uncertain||recon&&recon.kind==='unknown'))code=uncertain?'uncertain':'checking';
+    if(fenced)code='taken-over';
     // Ook nooit als de afgehandelde toestand niet duurzaam op dit toestel staat (blocker 2 en 6).
     if((code==='saved'||code==='updated')&&(pendingSettle||localFail))code='local-failed';
     emit({type:'status',code:code});
@@ -2650,20 +2663,32 @@ function createFirebaseStore(opts){
   function normDb(u){return String(u||'').replace(/\/+$/,'');}
   var cacheSeq=0;
   // Schrijft en leest terug; true als de cache aantoonbaar is bewaard.
+  // Staat er een eigen record, dan is deze cache een spiegel van precies die recordversie
+  // (jkey/jrev): het record is altijd eerst geschreven (zie writeCache, settle, write, adopt).
   function writeCacheRaw(d,b){
     if(!plannerKey)return true;
-    var seq=cacheSeq+1,s=JSON.stringify({data:d,base:b,t:Date.now(),inst:instId,seq:seq,db:normDb(dbUrl)});
+    if(fenced)return false;
+    if(myRec&&!ownsRecord())return false;
+    var seq=cacheSeq+1,s=JSON.stringify({data:d,base:b,t:Date.now(),inst:instId,seq:seq,db:normDb(dbUrl),jkey:myRec?recKey:null,jrev:myRec?myRec.rev:null});
     try{localStorage.setItem(cacheKey(),s);if(localStorage.getItem(cacheKey())!==s)throw new Error('teruglezen');}
     catch(e){localFail=true;return false;}
     cacheSeq=seq;localFail=false;return true;
   }
   // Gewone cache-opslag. Tijdens de poortcontrole bij het opstarten nooit (de cache kan dan nog
-  // herstelinformatie zijn); staat er een afgehandeld eigen journaal dat nog niet weg kon, dan via settle().
+  // herstelinformatie zijn). Zolang er een eigen record bestaat, is dat record de duurzame waarheid
+  // (vierde Codex-review, B1): eerst de nieuwe lokale stand in het record (nieuwe revisie), pas dan de
+  // cache als spiegel van die revisie. Lukt het record niet, dan ook de cache niet: de nieuwste stand
+  // staat dan alleen in het geheugen (status "Lokaal bewaren mislukt"), nooit een oudere cache die
+  // een nieuwer record zou kunnen vervangen. Afgehandeld record dat nog niet weg kon: via settle().
   function writeCache(d){
     if(!plannerKey)return true;
-    if(startGate)return false;
+    if(startGate||fenced)return false;
     if(pendingSettle||myRec&&myRec.state==='settled')return settle(d);
-    return writeCacheRaw(d||getLocal(),base);
+    d=d||getLocal();
+    if(myRec){
+      if(!putRecord({local:JSON.stringify(d)})){localFail=true;return false;}
+    }
+    return writeCacheRaw(d,base);
   }
   function readCacheRaw(){
     var raw;
@@ -2680,10 +2705,14 @@ function createFirebaseStore(opts){
   //  sleutel   plannerJournal_<planner>_<id>; id = de instantie die het record maakte
   //  v, ctx    versie (2) en context {db, planner, gen}; elke afwijking = onbekend/ongeldig
   //  owner     instantie die het record nu beheert (null = vrijgegeven); hb = laatste hartslag
+  //  epoch     eigendomsgeneratie: +1 bij elke overname (fencing, zie ownsRecord)
+  //  rev       revisie: +1 bij elke schrijfactie op het record
   //  state     'sending' (onderweg), 'unknown' (uitkomst onbekend), 'uncertain' (vraag open),
   //            'settled' (afgehandeld; base + local staan in het record, opruimen nog bezig)
-  //  sent, oldBase                 de verzonden stand en de basis van dat moment
-  //  cacheInst, cacheSeq, cacheOk  welke cache-opslag bij dit record hoort (zie adopt)
+  //  sent, oldBase       de verzonden stand en de basis van dat moment
+  //  local               de nieuwste duurzame lokale stand; zolang het record bestaat is dit de
+  //                      waarheid, de cache is alleen een spiegel (jkey/jrev) van een recordrevisie
+  //  cacheInst, cacheSeq cache-opslagen van cacheInst t/m cacheSeq zijn door dit record achterhaald
   // Instantie = één geladen pagina (venster/tabblad). Het id bestaat alleen in het geheugen, wordt
   // nergens buiten dit toestel gebruikt en zegt niets over het toestel of de persoon. Een instantie
   // schrijft en verwijdert alleen haar eigen record. Een record van een ander venster wordt alleen
@@ -2697,10 +2726,13 @@ function createFirebaseStore(opts){
     catch(e){var s='i';for(var i=0;i<16;i++)s+=Math.floor(Math.random()*16).toString(16);return s;}
   })();
   var myRec=null,recKey=null;  // het eigen (of overgenomen) record zoals het laatst duurzaam is geschreven
+  var myRaw=null;              // precies de tekst die deze instantie het laatst in dat record schreef
+  var revSeq=0;                // hoogste uitgegeven recordrevisie van deze instantie
+  var fenced=false;            // overgenomen door een ander venster: deze instantie muteert niets meer
   var pendingSettle=false;     // afgehandelde toestand nog niet volledig vastgelegd (settle mislukt)
   var localFail=false;         // laatste cache-opslag mislukt: de nieuwste stand staat alleen in het geheugen
   var startGate=false;         // poortcontrole bij het opstarten loopt of blokkeert
-  var gateTimer=null,gateRunning=false,gateReason=null,claimRelease=null;
+  var gateTimer=null,gateRunning=false,gateReason=null,claimRelease=null,claiming=false;
   function jPrefix(){return 'plannerJournal_'+plannerKey;}
   function jctx(){return {db:normDb(dbUrl),planner:plannerKey,gen:JOURNAL_GEN};}
   function parseObj(s,allowEmpty){
@@ -2719,8 +2751,11 @@ function createFirebaseStore(opts){
     if(['sending','unknown','uncertain','settled'].indexOf(r.state)<0)return 'toestand';
     if(!parseObj(r.sent,false))return 'sent';
     if(!parseObj(r.oldBase,true))return 'oldBase';
-    if(!(r.cacheInst===null||typeof r.cacheInst==='string')||typeof r.cacheSeq!=='number'||Math.floor(r.cacheSeq)!==r.cacheSeq||r.cacheSeq<0||typeof r.cacheOk!=='boolean')return 'cache';
+    if(!(r.cacheInst===null||typeof r.cacheInst==='string')||typeof r.cacheSeq!=='number'||Math.floor(r.cacheSeq)!==r.cacheSeq||r.cacheSeq<0||r.cacheOk!==undefined&&typeof r.cacheOk!=='boolean')return 'cache';
     if(r.state==='settled'&&(!parseObj(r.base,true)||!parseObj(r.local,false)))return 'settled';
+    if(r.local!==undefined&&!parseObj(r.local,false))return 'local';
+    var geheel=function(x){return x===undefined||typeof x==='number'&&Math.floor(x)===x&&x>=0;};
+    if(!geheel(r.rev)||!geheel(r.epoch))return 'revisie';
     return null;
   }
   // Alle journaalrecords van deze planner, los van de cache. status:
@@ -2749,29 +2784,54 @@ function createFirebaseStore(opts){
       var r;try{r=JSON.parse(raw);}catch(e){out.problems.push({key:k,why:'json'});return;}
       var why=invalidReason(k,r);
       if(why){out.problems.push({key:k,why:why});return;}
-      out.records.push({key:k,rec:r});
+      out.records.push({key:k,rec:r,raw:raw});
     });
     if(out.problems.length)out.status='unknown-invalid';
     else if(out.records.length)out.status='valid';
     return out;
   }
   // Eigen record (bij)werken: altijd met teruglezen. Mislukt het, dan blijft het vorige record staan.
+  // ── Fencing (vierde Codex-review, B2)
+  // Alleen de eigenaar schrijft een record. Staat er iets anders in de opslag dan wat deze instantie
+  // er het laatst zelf in schreef (myRaw), dan heeft een ander venster het overgenomen (nieuwe
+  // epoch) of opgeruimd. Vanaf dat moment is deze instantie onherroepelijk "stale" (fenced): ze
+  // schrijft geen record, geen cache en niets naar de server meer, ook niet als een oude PUT of GET
+  // later alsnog terugkomt. Deze controle gebeurt vóór elke record- en cache-mutatie en vóór opruimen.
+  function ownsRecord(){
+    if(fenced)return false;
+    if(!myRec)return true;
+    var cur;
+    try{cur=localStorage.getItem(recKey);}catch(e){return false;} // niet te lezen: niet muteren (geen fence)
+    if(cur===myRaw)return true;
+    fence();return false;
+  }
+  function fence(){
+    if(fenced)return;
+    fenced=true;myRec=null;recKey=null;myRaw=null;
+    clearTimeout(saveTimer);saveTimer=null;clearTimeout(retryTimer);retryTimer=null;clearTimeout(gateTimer);gateTimer=null;
+    emit({type:'journal-gate',reason:'taken-over'});
+    emit({type:'status',code:'taken-over'});
+  }
+  // Eigen record (bij)werken: altijd met eigenaarscontrole vooraf en teruglezen achteraf. Elke
+  // geslaagde schrijfactie verhoogt rev. Mislukt het, dan blijft het vorige record staan.
   function putRecord(ch){
-    if(!plannerKey)return false;
+    if(!plannerKey||fenced)return false;
+    if(myRec&&!ownsRecord())return false;
     var key=recKey||jPrefix()+'_'+instId,r={},k;
     if(myRec)for(k in myRec)r[k]=myRec[k];
-    else{r.v=JOURNAL_V;r.ctx=jctx();r.id=instId;}
+    else{r.v=JOURNAL_V;r.ctx=jctx();r.id=instId;r.epoch=0;r.rev=0;}
     for(k in ch)r[k]=ch[k];
     for(k in r)if(r[k]===undefined)delete r[k];
-    r.owner=instId;r.hb=Date.now();
+    r.owner=instId;r.hb=Date.now();r.rev=revSeq=Math.max(r.rev||0,revSeq)+1; // uniek, ook over opeenvolgende records op dezelfde sleutel
     var s=JSON.stringify(r);
     try{localStorage.setItem(key,s);if(localStorage.getItem(key)!==s)return false;}catch(e){return false;}
-    myRec=r;recKey=key;return true;
+    myRec=r;recKey=key;myRaw=s;return true;
   }
   function dropRecord(){
     if(!recKey)return true;
+    if(!ownsRecord())return false;
     try{localStorage.removeItem(recKey);if(localStorage.getItem(recKey)!==null)return false;}catch(e){return false;}
-    myRec=null;recKey=null;
+    myRec=null;recKey=null;myRaw=null;
     if(claimRelease){claimRelease();claimRelease=null;} // overgenomen record is weg: claim-lock los
     return true;
   }
@@ -2782,6 +2842,7 @@ function createFirebaseStore(opts){
   // Mislukt een stap, dan blijft het record staan (een eerdere toestand of 'settled'), wordt er niets
   // meer verstuurd tot het lukt (pendingSettle) en toont de app nooit "opgeslagen".
   function settle(d){
+    if(fenced)return false;
     d=d||getLocal();
     if(myRec&&!putRecord({state:'settled',base:base,local:JSON.stringify(d)})){pendingSettle=true;localFail=true;return false;}
     if(!writeCacheRaw(d,base)){pendingSettle=true;return false;}
@@ -2817,10 +2878,13 @@ function createFirebaseStore(opts){
   }
   if(typeof window!=='undefined'){
     // Zonder Web Locks: hartslag op het eigen record, en vrijgeven bij het sluiten van de pagina.
-    setInterval(function(){if(!locksOk&&myRec)putRecord({});},TIMEOUTS.hb);
+    setInterval(function(){if(!locksOk&&myRec&&!claiming)putRecord({});},TIMEOUTS.hb);
     window.addEventListener('pagehide',function(e){
-      if(locksOk||!myRec||e&&e.persisted)return;
-      try{var r=JSON.parse(JSON.stringify(myRec));r.owner=null;localStorage.setItem(recKey,JSON.stringify(r));}catch(x){}
+      if(locksOk||!myRec||fenced||claiming||e&&e.persisted)return;
+      try{
+        if(localStorage.getItem(recKey)!==myRaw)return; // niet (meer) van ons: niets vrijgeven
+        var r=JSON.parse(JSON.stringify(myRec));r.owner=null;localStorage.setItem(recKey,JSON.stringify(r));
+      }catch(x){}
     });
     // Een ander venster ruimt zijn record op: de geblokkeerde poortcontrole meteen opnieuw.
     window.addEventListener('storage',function(e){if(startGate&&(!e||e.key===null||String(e.key).indexOf('plannerJournal_')===0))runGate();});
@@ -2833,9 +2897,20 @@ function createFirebaseStore(opts){
       var raw;try{raw=localStorage.getItem(key);}catch(e){return 'invalid';}
       if(raw===null)return 'gone';
       var r;try{r=JSON.parse(raw);}catch(e){return 'invalid';}
-      return invalidReason(key,r)?'invalid':r;
+      return invalidReason(key,r)?'invalid':{r:r,raw:raw};
     }
-    function neem(r){var vm=myRec,vk=recKey;myRec=r;recKey=key;if(putRecord({}))return 'ok';myRec=vm;recKey=vk;return 'write-failed';}
+    // Overnemen = nieuwe eigenaar + nieuwe epoch (eigendomsgeneratie). Alleen als het record nog exact
+    // is wat we net lazen; daarna is elke schrijfactie van de vorige eigenaar stale (zie ownsRecord).
+    function neem(x){
+      var n={},k;for(k in x.r)n[k]=x.r[k];
+      n.owner=instId;n.hb=Date.now();n.epoch=(x.r.epoch||0)+1;n.rev=(x.r.rev||0)+1;
+      var s=JSON.stringify(n);
+      try{
+        if(localStorage.getItem(key)!==x.raw)return 'busy';
+        localStorage.setItem(key,s);if(localStorage.getItem(key)!==s)return 'write-failed';
+      }catch(e){return 'write-failed';}
+      myRec=n;recKey=key;myRaw=s;revSeq=Math.max(revSeq,n.rev);return 'ok';
+    }
     if(locksOk){
       // Het claim-lock (per record) blijft vastgehouden tot dit venster het record heeft opgeruimd of
       // zelf verdwijnt. Een tweede venster kan het dus niet claimen, ook niet als het de nieuwe eigenaar
@@ -2845,7 +2920,7 @@ function createFirebaseStore(opts){
           if(!lock){klaar('busy');return;}
           return liveOwners().then(function(live){
             var r=lees();if(typeof r==='string'){klaar(r);return;}
-            if(isLive(r,live)){klaar('busy');return;}
+            if(isLive(r.r,live)){klaar('busy');return;}
             var res=neem(r);klaar(res);
             if(res==='ok')return new Promise(function(los){claimRelease=los;});
           });
@@ -2853,11 +2928,15 @@ function createFirebaseStore(opts){
       });
     }
     var r=lees();if(typeof r==='string')return Promise.resolve(r);
-    if(isLive(r,null))return Promise.resolve('busy');
+    if(isLive(r.r,null))return Promise.resolve('busy');
     var res=neem(r);if(res!=='ok')return Promise.resolve(res);
-    // Zonder lock: even wachten en teruglezen; heeft een ander venster het intussen geclaimd, dan niet.
+    // Zonder lock: even wachten (zonder hartslag) en teruglezen. Staat er iets anders dan wat wij
+    // schreven (een ander venster claimde, of de vorige eigenaar schreef nog net), dan niet.
+    claiming=true;
     return new Promise(function(z){setTimeout(z,250);}).then(function(){
-      var n=lees();if(typeof n==='string'||n.owner!==instId){myRec=null;recKey=null;return 'busy';}
+      claiming=false;
+      var cur;try{cur=localStorage.getItem(key);}catch(e){cur=null;}
+      if(cur!==myRaw){myRec=null;recKey=null;myRaw=null;return 'busy';}
       return 'ok';
     });
   }
@@ -2876,7 +2955,7 @@ function createFirebaseStore(opts){
       var insp=inspectJournals();
       if(insp.status==='unknown-invalid'){gateBlock('journal-invalid');return;}
       var mine=insp.records.filter(function(x){return x.rec.owner===instId;})[0];
-      if(mine){myRec=mine.rec;recKey=mine.key;adopt();return;}
+      if(mine){myRec=mine.rec;recKey=mine.key;myRaw=mine.raw;adopt();return;}
       if(!insp.records.length){gateOpen();return;}
       if(insp.records.some(function(x){return isLive(x.rec,live);})){gateBlock('other-window');return;}
       return claim(insp.records[0].key).then(function(res){
@@ -2906,29 +2985,32 @@ function createFirebaseStore(opts){
   function cacheUnsaved(c){
     try{return canon(normalizeData(clone(c.data)))!==canon(normalizeData(c.base?JSON.parse(c.base):{}));}catch(e){return true;}
   }
-  // Overgenomen (of eigen) record hervatten. De gewone cache telt alleen als lokale stand als hij
-  // aantoonbaar bij dit record hoort: door dezelfde instantie geschreven als in het record staat, met
-  // dezelfde basis en niet ouder dan de verzonden stand (blocker 6). Anders is de lokale stand de
-  // verzonden stand (of bij 'settled' de vastgelegde stand). Een cache van een ander venster met eigen
-  // niet-opgeslagen wijzigingen wordt nooit stil weggegooid of gecombineerd: dan stoppen.
+  // Overgenomen (of eigen) record hervatten (vierde Codex-review, B1). Het record is de duurzame
+  // waarheid: de lokale stand is altijd record.local (of, bij een record zonder local, de verzonden
+  // stand). De cache wordt NOOIT als lokale stand gebruikt; ze wordt alleen gecontroleerd op
+  // niet-opgeslagen gegevens die nergens anders staan:
+  //  - spiegel van dit record (jkey = dit record, jrev <= rev): door het record gedekt;
+  //  - geschreven door de instantie in het record (cacheInst) vóór die recordversie (seq <= cacheSeq):
+  //    gedekt (de verzonden stand is nieuwer);
+  //  - zonder niet-opgeslagen wijzigingen ten opzichte van haar eigen basis: niets te verliezen;
+  //  - anders (een cache van een ander venster met eigen wijzigingen, of een cache die nieuwer zou zijn
+  //    dan het record): niet gokken, stoppen ("Twee onafgeronde standen"), niets verwijderen.
+  // Daarna eerst het record bijwerken (nieuwe revisie, deze instantie als cache-schrijver), dan de cache
+  // als spiegel, en bij 'settled' pas via settle() opruimen.
   function adopt(){
     var rec=myRec,cr=readCacheRaw();
     if(!cr.ok){gateBlock('journal-invalid');return;}
-    var c=cr.c,recBase=rec.state==='settled'?rec.base:rec.oldBase,local=null;
+    var c=cr.c,recBase=rec.state==='settled'?rec.base:rec.oldBase;
     if(c){
-      var mineNow=c.inst===instId;
-      var same=mineNow||c.inst===rec.cacheInst&&c.db===rec.ctx.db;
-      var newer=mineNow||typeof c.seq==='number'&&(c.seq>rec.cacheSeq||c.seq===rec.cacheSeq&&rec.cacheOk);
-      if(same&&newer){
-        if(c.base!==recBase){gateBlock('cache-mismatch');return;} // hoort niet bij dit record: niet gokken
-        local=c.data;
-      } else if(!same&&cacheUnsaved(c)){gateBlock('cache-mismatch');return;}
-      // same && ouder: de verzonden/vastgelegde stand in het record is nieuwer.
+      var spiegel=c.jkey===recKey&&typeof c.jrev==='number'&&c.jrev<=rec.rev;
+      var ouder=c.inst===rec.cacheInst&&typeof c.seq==='number'&&c.seq<=rec.cacheSeq;
+      var vanMij=c.inst===instId; // zelf geschreven tijdens een eerdere poging van deze instantie
+      if(!(spiegel||ouder||vanMij)&&cacheUnsaved(c)){gateBlock('cache-mismatch');return;}
     }
-    var d=normalizeData(clone(local||JSON.parse(rec.state==='settled'?rec.local:rec.sent)));
+    var d=normalizeData(clone(JSON.parse(typeof rec.local==='string'?rec.local:rec.sent)));
     base=recBase;
-    var ok=writeCacheRaw(d,base);
-    if(!putRecord({cacheInst:instId,cacheSeq:cacheSeq,cacheOk:ok})){gateBlock('journal-invalid');return;}
+    if(!putRecord({local:JSON.stringify(d),cacheInst:instId,cacheSeq:cacheSeq})){gateBlock('journal-invalid');return;}
+    writeCacheRaw(d,base); // spiegel van de nieuwe revisie; mislukt dit, dan blijft het record de waarheid
     gateClear();
     localGen=Math.max(localGen,1);
     emit({type:'data',data:d,render:true});
@@ -3009,7 +3091,7 @@ function createFirebaseStore(opts){
   function pending(){return localGen>confirmedGen;}
   function load(o){
     var isInitial=!!(o&&o.initial);
-    if(!dbUrl)return;
+    if(!dbUrl||fenced)return;
     // Bij het opstarten eerst het journaal (poortcontrole); tot die klaar is: niets lezen of schrijven.
     if(startGate){runGate();return;}
     // Onzekere uitkomst van een eerdere opslag: eerst de keuze (zie resolveUncertain). Kon een eerdere
@@ -3027,6 +3109,7 @@ function createFirebaseStore(opts){
     if(!isInitial)status('refreshing');
     var seq=++readSeq,epoch=writeEpoch;
     fetchRemote().then(function(rem){
+      if(fenced)return; // overgenomen: oud antwoord, niets meer doen
       // Alleen het antwoord op de nieuwste leesactie, en alleen als er intussen geen schrijfactie
       // is begonnen of bevestigd en er geen opslag gepland staat (regel 4). Een verouderd antwoord
       // verandert niets: geen data, basis, ETag, cache of bewaking.
@@ -3070,7 +3153,7 @@ function createFirebaseStore(opts){
   }
 
   function save(){
-    if(startGate)return; // poortcontrole loopt: de cache niet overschrijven (zie runGate)
+    if(startGate||fenced)return; // poortcontrole loopt / overgenomen: de cache niet overschrijven
     writeCache();
     if(!dbUrl||writeBlocked)return;
     localGen++;
@@ -3135,7 +3218,7 @@ function createFirebaseStore(opts){
   }
 
   function push(){
-    if(writeBlocked||inflight||uncertain||startGate)return; // regel 1: hooguit één schrijf- of herstelactie onderweg
+    if(writeBlocked||inflight||uncertain||startGate||fenced)return; // regel 1: hooguit één schrijf- of herstelactie onderweg
     // Is een afgehandelde toestand nog niet duurzaam vastgelegd, dan eerst dat; anders niets versturen.
     if(pendingSettle&&!settle()){status('local-failed');return;}
     // Na een niet-bevestigde uitkomst (ook uit een vorige sessie) eerst de verplichte herstellezing.
@@ -3158,20 +3241,22 @@ function createFirebaseStore(opts){
     var gen=localGen,oldBase=base;
     beforeWrite(getLocal());
     var body=JSON.stringify(getLocal());
-    // Eerst de cache (teruggelezen), dan het eigen journaalrecord met wat er onderweg gaat. Lukt het
-    // record niet, dan niet versturen. Lukt alleen de cache niet, dan wel versturen, maar het record
-    // zegt dat (cacheOk: false): herstel neemt dan de verzonden stand als lokale waarheid, niet de
-    // oudere cache (blocker 6).
-    var cacheOk=writeCacheRaw(getLocal(),base);
-    if(!putRecord({state:'sending',sent:body,oldBase:oldBase,cacheInst:instId,cacheSeq:cacheSeq,cacheOk:cacheOk,base:undefined,local:undefined})){
-      status('journal-failed');
+    // Eerst het eigen journaalrecord met wat er onderweg gaat (local = sent, nieuwe revisie); lukt dat
+    // niet, dan niet versturen. Daarna de cache als spiegel van die revisie. Lukt alleen de cache niet,
+    // dan wel versturen: het record is de lokale waarheid, een oudere cache telt nooit (B1, blocker 6).
+    if(!putRecord({state:'sending',sent:body,local:body,oldBase:oldBase,cacheInst:instId,cacheSeq:cacheSeq,cacheOk:undefined,base:undefined})){
+      status(fenced?'taken-over':'journal-failed');
       return Promise.resolve();
     }
+    writeCacheRaw(getLocal(),base);
     pendingSettle=false; // dit record vervangt een eerder, nog niet opgeruimd 'settled'-record
     inflight={gen:gen,kind:kind};writeEpoch++;
     if(kind==='push')status('saving');
     return putIfMatch(body,serverETag,keepalive).then(function(res){
       if(writeBlocked){done();return;}
+      // Intussen overgenomen door een ander venster: deze (oude) uitkomst verandert hier niets meer.
+      ownsRecord(); // stelt "overgenomen" vast (fence) als het record niet meer van ons is
+      if(fenced){done();return;}
       if(res.result==='ok'){done();confirm(gen,body,res.etag);settle();afterWrite();return;}
       // Geen bevestiging: eerst opnieuw lezen. Tot die lezing is verwerkt, blijft de coördinator
       // bezet (inflight) en wordt er niets geschreven.
@@ -3211,6 +3296,7 @@ function createFirebaseStore(opts){
     if(r.kind==='unknown')status('checking');
     var seq=++readSeq;
     return fetchRemote().then(function(rem){
+      if(fenced){if(inflight)done();return;} // overgenomen: oud antwoord, niets meer doen
       done();
       if(seq!==readSeq)return;
       checkWriteGuard(rem.raw);
@@ -3281,11 +3367,12 @@ function createFirebaseStore(opts){
   // staan (ook na herladen) en de vraag komt na TIMEOUTS.block opnieuw. Leest altijd eerst opnieuw
   // (een wijziging tussen vraag en antwoord gaat dus mee). Mislukt het lezen, dan blijft de vraag open.
   function resolveUncertain(reapply){
-    var u=uncertain;if(!u||inflight)return;
+    var u=uncertain;if(!u||inflight||fenced)return;
     if(pendingSettle&&!settle()){status('local-failed');return;}
     inflight={kind:'reconcile'};writeEpoch++;
     var seq=++readSeq;
     fetchRemote().then(function(rem){
+      if(fenced){if(inflight)done();return;} // overgenomen: oud antwoord, niets meer doen
       done();
       if(seq!==readSeq||uncertain!==u)return;
       checkWriteGuard(rem.raw);
@@ -3323,7 +3410,7 @@ function createFirebaseStore(opts){
   // (sendBeacon stuurt altijd POST; Firebase maakt daar een nieuw kind van. Daarom fetch met keepalive.)
   function flush(){
     if(!(dbUrl&&loadedOnce&&!writeBlocked&&pending()))return;
-    if(inflight||recon||uncertain||startGate||pendingSettle||!serverETag||navigator.onLine===false)return;
+    if(inflight||recon||uncertain||startGate||fenced||pendingSettle||!serverETag||navigator.onLine===false)return;
     clearTimeout(saveTimer);saveTimer=null;
     clearTimeout(retryTimer);retryTimer=null;
     write('flush',true);
@@ -3381,6 +3468,7 @@ var SYNC_STATUS={
   'journal-invalid':['err','Opslaan gepauzeerd: er staat een onafgeronde opslag op dit toestel die niet betrouwbaar te lezen is. Er wordt niets overschreven.'],
   'other-window':['err','Wacht op een ander venster met Huisplan dat nog een opslag afrondt…'],
   'cache-mismatch':['err','Opslaan gepauzeerd: op dit toestel staan twee onafgeronde standen die niet zeker bij elkaar horen.'],
+  'taken-over':['err','Dit venster is overgenomen door een ander venster met Huisplan en slaat niets meer op. Laad dit venster opnieuw.'],
   'local-failed':['err','Lokaal bewaren mislukt — houd dit venster open; er wordt opnieuw geprobeerd en niets verstuurd tot het lukt.'],
   'uncertain-blocked':['err','Je keuze kon niet zonder verlies worden toegepast (er is intussen ook iets anders veranderd). Er is niets opgeslagen; je wijzigingen blijven bewaard en de vraag komt later terug.'],
   'journal-failed':['err','Opslaan gepauzeerd: dit toestel kan niet veilig bijhouden wat er onderweg is (opslag vol?). Je wijzigingen staan nog alleen op dit toestel.'],
@@ -3434,6 +3522,7 @@ function askUncertain(){
 var JOURNAL_GATE_TEXT={
   'journal-invalid':['Huisplan wacht even','Op dit toestel staat informatie over een opslag die niet is afgerond, maar die nu niet betrouwbaar te lezen is (of bij een andere database of versie hoort). Om niets te verliezen of te overschrijven gaat Huisplan hier niet verder.'],
   'other-window':['Huisplan is nog bezig in een ander venster','In een ander venster of tabblad op dit toestel wordt nog een opslag afgerond, of staat daar een vraag open. Rond dat eerst af of sluit dat venster; dit venster gaat daarna vanzelf verder.'],
+  'taken-over':['Dit venster is overgenomen','Een ander venster met Huisplan op dit toestel heeft de onafgeronde opslag van dit venster overgenomen. Dit venster slaat daarom niets meer op en verandert niets meer. Laad het opnieuw om verder te gaan.'],
   'cache-mismatch':['Twee onafgeronde standen','Op dit toestel staan een onafgeronde opslag en niet-opgeslagen wijzigingen uit een ander venster die niet zeker bij elkaar horen. Om niets te verliezen gaat Huisplan niet automatisch verder.']
 };
 function showJournalGate(reason){
@@ -3441,9 +3530,14 @@ function showJournalGate(reason){
   if(!reason||!JOURNAL_GATE_TEXT[reason]){ov.hidden=true;return;}
   document.getElementById('journalGateTitle').textContent=JOURNAL_GATE_TEXT[reason][0];
   document.getElementById('journalGateText').textContent=JOURNAL_GATE_TEXT[reason][1];
+  var btn=document.getElementById('journalGateBtn');
+  btn.textContent=reason==='taken-over'?'Venster opnieuw laden':'Opnieuw controleren';
+  btn.dataset.reason=reason;
   ov.hidden=false;
 }
-document.getElementById('journalGateBtn').addEventListener('click',function(){store.recheck();});
+document.getElementById('journalGateBtn').addEventListener('click',function(){
+  if(this.dataset.reason==='taken-over')window.location.reload();else store.recheck();
+});
 document.getElementById('journalGateExport').addEventListener('click',function(){
   try{
     var a=document.createElement('a');

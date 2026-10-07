@@ -167,6 +167,29 @@ Eén coördinator per planner en opslaggeneratie houdt deze toestand bij:
      per element vergeleken, en daarbij telt nu ook de onderlinge volgorde. Alle andere lijsten, ook
      lijsten met alleen tekst of getallen, alleen als geheel (volgorde en dubbele waarden kunnen
      betekenis hebben). Een typewisseling (object, lijst, waarde) telt altijd als wijziging.
+
+   **Aangescherpt na de vierde Codex-review (7 okt 2026)** (alleen `test/index.html`):
+   - **Het record is de waarheid zolang het bestaat (B1).** Elk record heeft een revisie (`rev`,
+     uniek per venster) en de nieuwste duurzame lokale stand (`local`). Elke lokale opslag gaat
+     eerst naar het record (nieuwe revisie) en pas daarna naar de cache, die zichzelf markeert als
+     spiegel van precies die revisie (`jkey`, `jrev`). Lukt het record niet, dan ook de cache niet.
+     Herstel gebruikt altijd `record.local`, nooit de cache. De cache wordt alleen gecontroleerd op
+     gegevens die nergens anders staan: een spiegel van dit record of een oudere cache van dezelfde
+     schrijver is gedekt; een cache zonder eigen niet-opgeslagen wijzigingen is onschadelijk; anders
+     stopt de app. Het record verdwijnt pas via `settle()` (record, dan cache, dan opruimen).
+   - **Fencing (B2).** Elke overname verhoogt de eigendomsgeneratie (`epoch`) en zet een nieuwe
+     eigenaar. Een venster onthoudt de exacte tekst die het zelf het laatst in zijn record schreef;
+     vóór elke record- of cache-mutatie en vóór opruimen vergelijkt het die met de opslag. Wijkt die af
+     (overgenomen of door een ander opgeruimd), dan is het venster onherroepelijk "overgenomen": het
+     schrijft geen record, geen cache en niets naar de server meer, ook niet als een oude PUT of GET
+     later terugkomt, en toont "Dit venster is overgenomen". Zonder Web Locks wacht een claim even en
+     leest dan terug; staat er iets anders dan wat het schreef, dan trekt het zich terug. Met Web Locks
+     kan een gepauzeerd maar levend venster niet worden overgenomen.
+   - **Volgorde per paar (I1).** De verliesvrij-controle kijkt naar elk paar `id`'s in het resultaat,
+     ook nieuw toegevoegde. Een kant die over een paar een volgorde heeft die van de basis afwijkt of
+     nieuw is, legt die op; tegenstrijdige of geschonden volgordes = niet aantoonbaar verliesvrij.
+     Voorbeeld: basis `[a,b]`, lokaal `[a,b,c]`, server `[d,a,b]` → `[a,b,c,d]` is niet verliesvrij.
+     Lijsten met meer dan 1500 elementen: conservatief niet verliesvrij.
 6. **Herpogingen.** Oplopende wachttijd. Na een vast aantal mislukte pogingen: blijvende status
    "Niet opgeslagen", zonder `pendingSave` te wissen. Een `online`-gebeurtenis, de volgende poll of
    het heropenen van de app probeert het opnieuw.

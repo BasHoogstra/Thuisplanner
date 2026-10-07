@@ -456,3 +456,14 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: `tests/journaal3.test.js` (19), `tests/verliesvrij.test.js` (12). `tests/lib.js`: opties
   `initScript` en `realClock`.
 
+## 1.4.2-voorbereiding: NW-03 hersteld na de vierde Codex-review (testversie)
+- B1: het journaalrecord heeft een revisie en de nieuwste lokale stand; elke lokale opslag gaat eerst
+  naar het record, dan naar de cache (spiegel van die revisie). Herstel gebruikt altijd het record;
+  een oudere cache kan een nieuwer record nooit meer vervangen.
+- B2: fencing met eigendomsgeneratie (`epoch`) en een exacte vergelijking met het eigen laatst
+  geschreven record vóór elke mutatie. Een overgenomen venster muteert niets meer, ook niet na een
+  late PUT/GET, en meldt "Dit venster is overgenomen".
+- I1: de verliesvrij-controle bewaakt de volgorde per paar `id`'s, ook van nieuw toegevoegde items.
+- Cache krijgt `jkey`/`jrev` (spiegel van welke recordrevisie); `data`, `base` en `t` blijven gelijk.
+- Tests: `tests/journaal3.test.js` (26), `tests/verliesvrij.test.js` (15).
+
