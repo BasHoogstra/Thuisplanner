@@ -176,6 +176,9 @@ async function openApp(browser, base, opts = {}) {
     plannerDbUrl: DB_URL, plannerKey: PLANNER_KEY, plannerMyName: 'Bas', plannerPartnerName: 'Sanne',
     briefingShown: '2026-10-02', plannerCity: ''
   }, opts.localStorage || {});
+  // De testversie (E3) vertrouwt alleen het koppelrecord 'huisplanKoppeling' (database + planner in één
+  // record). Het hoort bij dezelfde koppeling als de losse sleutels, tenzij een test het zelf zet.
+  if (!('huisplanKoppeling' in (opts.localStorage || {})) && ls.plannerDbUrl && ls.plannerKey) ls.huisplanKoppeling = JSON.stringify({ v: 1, db: ls.plannerDbUrl, key: ls.plannerKey });
   await ctx.addInitScript(items => {
     if (sessionStorage.getItem('__seeded')) return;
     sessionStorage.setItem('__seeded', '1');

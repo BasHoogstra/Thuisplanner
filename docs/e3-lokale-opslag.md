@@ -47,19 +47,26 @@ migratie kan stoppen als hersteldata niet duurzaam bewaard kan worden. Hij is vi
 - **Een andere planner, database of generatie** heeft een andere sleutel en wordt nooit gelezen of
   samengevoegd. Staat er onder de eigen sleutel een record van een andere generatie of in een onbekend
   formaat, dan wordt dat eerst duurzaam apart bewaard (zie 3).
-- **Koppeling:** database en planner staan samen in één record (`huisplanKoppeling`), zodat er nooit
-  een database van de ene en een planner van de andere koppeling kan ontstaan. De losse sleutels
-  `plannerDbUrl`/`plannerKey` worden alleen voor de live-versie bijgehouden; lukt daar maar één van de
-  twee, dan wordt het paar teruggezet of weggehaald.
+- **Koppeling:** database en planner staan samen in één versie-record (`huisplanKoppeling`, één
+  `setItem`), en alleen dát record wordt als koppeling vertrouwd. De losse sleutels
+  `plannerDbUrl`/`plannerKey` worden door deze versie **nooit** geschreven (twee losse schrijfacties
+  kunnen een gemengd paar achterlaten, en terugzetten of wissen kan ook mislukken). Ze worden alleen
+  gelezen als er geen koppelrecord is én het paar aantoonbaar bij elkaar hoort: er staat een geldige
+  E3-cache onder de sleutel die uit precies dat paar is afgeleid, of een oude cache van die planner die
+  zelf die database noemt. Anders, of als het record niet te lezen of kapot is: koppeling onbekend
+  (installatiescherm met melding; de deellink werkt altijd).
 
 ### 2.1 Oude cache (`plannerCache_<plannersleutel>`)
 
 - **Herkomst:** een oude cache telt alleen als hij zelf een database noemt (`db`, sinds E2) die gelijk
   is aan de huidige. De live-versie schrijft geen `db`: zo'n cache wordt **nooit** gebruikt,
   samengevoegd of geüpload, want dezelfde plannersleutel kan in een andere database bestaan.
-- **Eigen oude cache zonder nieuwe cache:** eerst duurzaam als nieuwe cache geschreven, daarna een
-  duurzame markering `huisplanOudeCacheVerwerkt_<id>` met de hash van precies die inhoud. Dezelfde
-  inhoud wordt daarna nooit opnieuw gebruikt (niets kan herrijzen).
+- **Eigen oude cache zonder nieuwe cache:** eerst een duurzame markering
+  `huisplanOudeCacheVerwerkt_<id>` met de hash van precies die inhoud (geschreven én teruggelezen),
+  pas daarna wordt hij als nieuwe cache geschreven. Lukt de markering niet, dan wordt hij niet
+  overgenomen. Dezelfde inhoud wordt dus hooguit één keer automatisch overgenomen, ook als de nieuwe
+  cache later beschadigd raakt of verdwijnt: niets kan herrijzen. Mislukt na de markering de nieuwe
+  cache, dan blijft de oude staan en wordt hij gemeld en als bestand aangeboden, nooit opnieuw ingelezen.
 - **Alle andere gevallen** met mogelijk niet-opgeslagen inhoud (geen of andere herkomst, of naast een
   bestaande nieuwe cache, of onleesbaar, of een twijfelachtige vorm zoals een lijst met gaten of een
   object met numerieke sleutels, P1-11): niet gebruikt, niet samengevoegd, niet verwijderd. De app
@@ -74,7 +81,8 @@ migratie kan stoppen als hersteldata niet duurzaam bewaard kan worden. Hij is vi
 | Cache schrijven mislukt (bijv. vol), met wijzigingen die nog niet op de server staan | Het journaalrecord (E2) houdt de nieuwste stand duurzaam vast; de statusregel zegt "Lokaal bewaren mislukt" (of "Niet bewaard" zonder verbinding); nooit "Opgeslagen"; waarschuwing bij sluiten. Zonder wachttijd naar de server, via het journaal. **E2:** na een geslaagde PUT wordt pas weer verstuurd als de afgehandelde toestand ook in de cache staat (zie 5). | T7a, E2-contract |
 | Netwerk én opslag weg | "Niet bewaard — … Houd de app open"; waarschuwing bij sluiten; herstel zodra beide weer werken. | T7b |
 | Lege of onbekende serverstand + wijziging alleen in het geheugen | Telt als niet opgeslagen (niet-bevestigde generatie); waarschuwing en eerlijke status. | B3 |
-| Cache lezen gooit een fout | Onbekend, niet leeg: niet overschrijven; bij elke poging opnieuw gekeken (een tijdelijke fout blokkeert het E2-herstel niet). | T7c |
+| Cache lezen gooit een fout | Onbekend, niet leeg: niet overschrijven; bij elke poging opnieuw gekeken (een tijdelijke fout blokkeert het E2-herstel niet). Wordt hij later weer leesbaar en bevat hij iets wat (misschien) niet op de server staat, dan is dat **geen** toestemming om te overschrijven: eerst duurzaam apart bewaard, dan zijn inhoud opgenomen in de huidige stand (zoals bij opstarten), pas daarna weer schrijven. Lukt apart bewaren niet: deze sessie geen cache (herladen hervat hem). Dekt een journaalrecord hem (E2-herstel), dan is het record de waarheid. | T7c, R2-B1 |
+| De allereerste opslagactie faalt (vóór de rest van het script) | Geen crash: de opslaghulpjes gebruiken geen variabelen die pas later een waarde krijgen. | R2 |
 | Cache onleesbaar of onbekend formaat | Eerst duurzaam apart bewaard (`huisplanCacheApart_<id>_<tijd>_<willekeurig>`, nooit over een bestaande kopie heen); lukt dat niet, dan onaangeroerd en deze sessie geen cache. | T7d, T7e, T8, quarantaine |
 | Koppeling niet (volledig) op te slaan | Sessie werkt via de link; melding; nooit een gemengd paar. | T7g, koppeling |
 | Veiligheidskopie vóór de ledenmigratie niet duurzaam te bewaren | Migratie start niet; melding. Een back-up telt alleen met de `scope` van deze planner; een vreemde back-up blijft staan en de eigen komt onder `…_<scope>`. | T6d, ledenback-up |

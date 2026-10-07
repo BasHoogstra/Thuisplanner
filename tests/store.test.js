@@ -103,11 +103,11 @@ module.exports = {
     const fetches = rest.match(/fetch\([^;]{0,80}/g) || [];
     const dbFetch = fetches.filter(f => !/wttr\.in|nominatim|overpass|url\+'\?data=/.test(f));
     assert(!dbFetch.length, 'fetch buiten de store: ' + dbFetch.join(' | '));
-    // Opslag sinds 1.4.2 (E3, bovenop E2): de koppeling als één record ('huisplanKoppeling') plus het
-    // losse paar voor de live-versie; de cache per database, planner en opslaggeneratie onder een hash,
+    // Opslag sinds 1.4.2 (E3, bovenop E2): de koppeling als één record ('huisplanKoppeling'); de losse
+    // sleutels worden niet meer geschreven en alleen met bewijs gelezen; de cache per database, planner en opslaggeneratie onder een hash,
     // met de E2-velden; de oude cache (plannerCache_<sleutel>) blijft leesbaar maar wordt nooit
     // zonder bewezen herkomst gebruikt.
-    assert(store.includes("bewaarDuurzaam('huisplanKoppeling'") && store.includes("bewaar('plannerDbUrl',dbUrl,'kritiek')") && store.includes("bewaar('plannerKey',plannerKey,'kritiek')"), 'Opslag van de koppeling gewijzigd');
+    assert(store.includes("bewaarDuurzaam('huisplanKoppeling'") && !/bewaar\('planner(DbUrl|Key)'/.test(store), 'Opslag van de koppeling gewijzigd (alleen het koppelrecord, nooit de losse sleutels)');
     assert(store.includes("'huisplanCache_'+cacheId()") && store.includes("'plannerCache_'+plannerKey"), 'Cachesleutels gewijzigd');
     assert(store.includes('{format:CACHE_FORMAT,gen:STORAGE_GEN,id:cacheId(),app:opts.appVersion,data:d,base:b,t:Date.now(),inst:instId,seq:seq,db:normDb(dbUrl),jkey:'), 'Cacheformaat gewijzigd');
   },
@@ -255,8 +255,11 @@ module.exports = {
       const setupShown = await o.page.isVisible('#setupOverlay');
       await o.page.fill('#dbUrlInput', DB_URL + '/');
       await o.page.click('#setupSubmitBtn'); await wait(1500);
-      const key = await o.page.evaluate(() => localStorage.getItem('plannerKey'));
-      const ls = await o.page.evaluate(() => localStorage.getItem('plannerDbUrl'));
+      // De koppeling die dit toestel onthoudt: de live-versie in de losse sleutels, de testversie (E3)
+      // alleen in het koppelrecord 'huisplanKoppeling' (de losse sleutels schrijft die niet meer).
+      const kop = await o.page.evaluate(() => { try { return JSON.parse(localStorage.getItem('huisplanKoppeling')); } catch (e) { return null; } });
+      const key = target === 'test' ? kop && kop.key : await o.page.evaluate(() => localStorage.getItem('plannerKey'));
+      const ls = target === 'test' ? kop && kop.db : await o.page.evaluate(() => localStorage.getItem('plannerDbUrl'));
       const url = new URL(o.page.url());
       const setup = { setupShown, keyOk: /^[0-9a-f]{32}$/.test(key), ls, urlOk: url.searchParams.get('db') === DB_URL && url.searchParams.get('p') === key, sync: await syncText(o.page), puts: o.state.puts };
       await o.ctx.close();

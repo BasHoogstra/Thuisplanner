@@ -62,7 +62,143 @@ function canon(v) {
   return c === undefined ? '' : JSON.stringify(c);
 }
 
+// Opslagfouten met tellers, vóór de app geladen (ook na herladen): regels in sessionStorage '__fout2'.
+// {op: 'get'|'set'|'remove', key: regex, skip: eerst zoveel keer gewoon laten slagen, n: daarna zoveel
+// keer falen (-1 = altijd)}. 'set'/'get' gooien, 'remove' gooit ook (zoals een geblokkeerde opslag).
+const FOUT2_SRC = `(function(){
+  var P = Storage.prototype, oS = P.setItem, oG = P.getItem, oR = P.removeItem;
+  function regels(){ try { return JSON.parse(oG.call(sessionStorage, '__fout2') || '[]'); } catch (e) { return []; } }
+  function raak(st, op, k){
+    if (st !== window.localStorage) return false;
+    var rs = regels(), hit = false;
+    for (var i = 0; i < rs.length; i++) { var r = rs[i];
+      if (r.op !== op || !new RegExp(r.key).test(String(k))) continue;
+      if (r.skip > 0) { r.skip--; continue; }
+      if (r.n === 0) continue;
+      if (r.n > 0) r.n--; hit = true; break; }
+    oS.call(sessionStorage, '__fout2', JSON.stringify(rs));
+    return hit;
+  }
+  P.setItem = function (k, v) { if (raak(this, 'set', k)) throw new DOMException('fout2', 'QuotaExceededError'); return oS.call(this, k, v); };
+  P.getItem = function (k) { if (raak(this, 'get', k)) throw new DOMException('fout2', 'SecurityError'); return oG.call(this, k); };
+  P.removeItem = function (k) { if (raak(this, 'remove', k)) throw new DOMException('fout2', 'SecurityError'); return oR.call(this, k); };
+})();`;
+const zetFout2 = (page, regels) => page.evaluate(r => sessionStorage.setItem('__fout2', JSON.stringify(r)), regels);
+const apartKopieen = async page => { const ks = (await lsKeys(page)).filter(k => k.startsWith('huisplanCacheApart_')); return Promise.all(ks.map(k => lsRaw(page, k))); };
+
 module.exports = {
+  // ── Tweede Codex-review #16 ───────────────────────────────────────────────────────────────────
+  async 'R2-B1: cache bij opstarten even niet te lezen, daarna wel — onbevestigde X wordt nooit overschreven en overleeft herladen'(ctx) {
+    for (const apartLukt of [true, false]) {
+      const cache = JSON.stringify({ format: 2, gen: 1, id: cacheId(DB_URL, KEY, 1), app: '1.4.1', data: metItem(fx(), 'x-r2', 'X r2'), base: canon(fx()), t: 1, localGen: 1, confirmedGen: 0 });
+      const o = await open(ctx, { data: fx(), localStorage: { [NIEUW]: cache }, opslagFout: Object.assign({ lezen: '^huisplanCache_' }, apartLukt ? {} : { schrijven: '^huisplanCacheApart_' }) });
+      await wait(1200);
+      assert(!(await appToont(o.page, 'X r2')), 'Testopzet: X toch hervat terwijl de cache niet te lezen was');
+      // De leesfout gaat over vóór de eerste vervangende schrijfactie.
+      await zetOpslagFout(o.page, apartLukt ? {} : { schrijven: '^huisplanCacheApart_' });
+      if (await o.page.isVisible('#confirmOverlay.open')) await o.page.click('#confirmCancelBtn');
+      await addBood(o.page, 'Y r2');
+      await wait(2500);
+      if (await o.page.isVisible('#confirmOverlay.open')) await o.page.click('#confirmCancelBtn');
+      const w = apartLukt ? 'apart bewaren lukt' : 'apart bewaren lukt niet';
+      if (apartLukt) {
+        assert((await apartKopieen(o.page)).includes(cache), w + ': geen duurzaam bewijs vóór het overschrijven');
+        await until(async () => boodTexts(o.state.db).includes('X r2'), 6000, w + ': X opgenomen en opgeslagen');
+      } else {
+        assert((await lsRaw(o.page, NIEUW)) === cache, w + ': cache met X overschreven');
+      }
+      // Over twee keer herladen heen: X is nooit verloren.
+      for (let i = 0; i < 2; i++) {
+        await zetOpslagFout(o.page, {});
+        await o.page.reload(); await wait(2500);
+        if (await o.page.isVisible('#confirmOverlay.open')) await o.page.click('#confirmCancelBtn');
+        const c = await lsRaw(o.page, NIEUW);
+        const ergens = boodTexts(o.state.db).includes('X r2') || String(c).includes('X r2') || (await apartKopieen(o.page)).some(a => a.includes('X r2'));
+        assert(ergens, w + ', herladen ' + (i + 1) + ': X verloren');
+      }
+      if (apartLukt) assert(boodTexts(o.state.db).filter(t => t === 'X r2').length === 1 && boodTexts(o.state.db).includes('Y r2'), w + ': X of Y niet (precies één keer) op de server');
+      await o.ctx.close();
+    }
+  },
+
+  async 'R2-B2: eigen oude cache — markering mislukt, of nieuwe cache later kapot/weg + server verwijdert X + herladen: X nooit opnieuw'(ctx) {
+    const gevallen = [['markering mislukt', true, 'kapot'], ['markering gelukt, cache kapot', false, 'kapot'], ['markering gelukt, cache weg', false, 'weg']];
+    for (const [naam, markeringFaalt, metCache] of gevallen) {
+      const oud = JSON.stringify({ data: metItem(fx(), 'x-oud2', 'X oud2'), base: canon(fx()), t: 1, db: DB_URL });
+      const o = await open(ctx, { data: fx(), localStorage: { [OUD]: oud }, opslagFout: markeringFaalt ? { schrijven: '^huisplanOudeCacheVerwerkt_' } : null });
+      await wait(3000);
+      if (await o.page.isVisible('#confirmOverlay.open')) await o.page.click('#confirmCancelBtn');
+      if (markeringFaalt) assert(!boodTexts(o.state.db).includes('X oud2'), naam + ': overgenomen zonder duurzame markering');
+      else await until(async () => boodTexts(o.state.db).includes('X oud2'), 6000, naam + ': X overgenomen');
+      // Ander toestel verwijdert X; de nieuwe cache raakt beschadigd of weg; herladen (dezelfde oude cache staat er nog).
+      serverWrite(o.state, db => { db.boodschappen = db.boodschappen.filter(b => b.text !== 'X oud2'); });
+      await o.page.evaluate(([k, wat]) => { if (wat === 'weg') localStorage.removeItem(k); else localStorage.setItem(k, '{kapot'); }, [NIEUW, metCache]);
+      for (let i = 0; i < 2; i++) {
+        await o.page.reload(); await wait(2500);
+        if (await o.page.isVisible('#confirmOverlay.open')) await o.page.click('#confirmCancelBtn');
+        await refresh(o.page); await wait(1500);
+        assert(!boodTexts(o.state.db).includes('X oud2') && !(await appToont(o.page, 'X oud2')), naam + ', herladen ' + (i + 1) + ': X opnieuw ingelezen of geüpload');
+      }
+      assert((await lsRaw(o.page, OUD)) === oud, naam + ': oude cache verwijderd of gewijzigd');
+      await o.ctx.close();
+    }
+  },
+
+  async 'R2-B3: koppeling — record faalt, db=B lukt, planner faalt, terugzetten en wissen falen, herladen zonder link: nooit B + planner van A'(ctx) {
+    // Variant 1: de exacte Codex-volgorde op deze versie (die schrijft de losse sleutels niet meer).
+    // Variant 2: dezelfde gemengde eindtoestand, achtergelaten door een oudere versie, met een
+    // geldig-ogend maar ontbrekend koppelrecord.
+    for (const variant of ['schrijfvolgorde', 'gemengd achtergelaten']) {
+      // Koppeling A staat alleen als los paar (zoals van een oudere versie), met als bewijs een geldige
+      // cache die precies bij database A + planner A hoort.
+      const cacheA = JSON.stringify({ format: 2, gen: 1, id: cacheId(DB_URL, KEY, 1), app: '1.4.1', data: fx(), base: canon(fx()), t: 1, db: DB_URL, localGen: 0, confirmedGen: 0 });
+      // Exact zoals Codex: een legacy-koppeling A zonder koppelrecord; het koppelrecord is vanaf de
+      // start niet te schrijven (dus ook geen oud record van A om op terug te vallen).
+      const start = variant === 'schrijfvolgorde' ? `;sessionStorage.getItem('__fout2')||sessionStorage.setItem('__fout2', ${JSON.stringify(JSON.stringify([{ op: 'set', key: '^huisplanKoppeling$', n: -1 }]))});` : '';
+      const o = await open(ctx, { data: fx(), initScript: FOUT2_SRC + start, localStorage: { huisplanKoppeling: null, [NIEUW]: cacheA } });
+      await wait(1500);
+      assert(await o.page.isHidden('#setupOverlay') || !(await o.page.isVisible('#setupOverlay')), 'Testopzet: niet verbonden met A');
+      const B = 'https://andere-db.test', BKEY = 'bplanner00000000000x';
+      if (variant === 'schrijfvolgorde') {
+        await zetFout2(o.page, [
+          { op: 'set', key: '^huisplanKoppeling$', n: -1 },
+          { op: 'set', key: '^plannerDbUrl$', skip: 1, n: -1 },  // B lukt, terugzetten naar A mislukt
+          { op: 'set', key: '^plannerKey$', n: -1 },
+          { op: 'remove', key: '^(plannerDbUrl|plannerKey|huisplanKoppeling)$', n: -1 }
+        ]);
+        await o.page.goto(ctx.base + '/test/index.html?db=' + encodeURIComponent(B) + '&p=' + BKEY);
+        await wait(1500);
+      } else {
+        await o.page.evaluate(b => { localStorage.setItem('plannerDbUrl', b); localStorage.removeItem('huisplanKoppeling'); }, B);
+      }
+      await zetFout2(o.page, []);
+      await o.page.goto(ctx.base + '/test/index.html'); await wait(1500);
+      const u = new URL(o.page.url());
+      const gemengd = u.searchParams.get('db') === B && u.searchParams.get('p') === KEY;
+      assert(!gemengd, variant + ': gemengde koppeling gebruikt: ' + o.page.url());
+      const geldig = (!u.searchParams.get('db') && await o.page.isVisible('#setupOverlay')) || (u.searchParams.get('db') === DB_URL && u.searchParams.get('p') === KEY) || (u.searchParams.get('db') === B && u.searchParams.get('p') === BKEY);
+      assert(geldig, variant + ': onverwachte koppeling: ' + o.page.url());
+      await o.ctx.close();
+    }
+  },
+
+  async 'R2: allereerste opslagactie faalt (vóór alle initialisatie) — geen crash, app en waarschuwing bij sluiten werken'(ctx) {
+    for (const [naam, regels] of [['eerste lezing faalt één keer', [{ op: 'get', key: '.*', n: 1 }]], ['alle lezingen falen', [{ op: 'get', key: '.*', n: -1 }]]]) {
+      const o = await open(ctx, { data: fx(), initScript: FOUT2_SRC + `;sessionStorage.getItem('__fout2')||sessionStorage.setItem('__fout2', ${JSON.stringify(JSON.stringify(regels))});` });
+      await wait(1500);
+      const fouten = o.state.errors.filter(e => /pageerror/.test(e));
+      assert(!fouten.length, naam + ': app crasht: ' + fouten.join(' | '));
+      assert(await o.page.evaluate(() => !!window.huisplanOpslag && typeof window.huisplanOpslag.risico === 'function'), naam + ': opslagdiagnose niet bereikt');
+      assert(await o.page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return true; }), naam + ': beforeunload faalt');
+      const diag = await o.page.evaluate(() => window.huisplanOpslag.diagnose());
+      assert(diag.some(d => d.soort === 'lezen'), naam + ': leesfout niet in de diagnose');
+      // Er is een zichtbare toestand: werkende app, herstel- of installatiescherm.
+      const zichtbaar = (await o.page.textContent('#syncText')).trim().length > 0 || await o.page.isVisible('#journalGateOverlay') || await o.page.isVisible('#setupOverlay');
+      assert(zichtbaar, naam + ': geen status, herstel- of installatiescherm');
+      await o.ctx.close();
+    }
+  },
+
   // ── Basis (T6–T8, opnieuw op E2) ──────────────────────────────────────────────────────────────
   async 'E3 statisch: buiten de store alle localStorage-toegang via bewaar()/leesOpslag(); geen stille fouten'() {
     const src = fs.readFileSync(APP, 'utf8');
@@ -331,8 +467,9 @@ module.exports = {
     await o.ctx.close();
   },
 
-  async 'B2: eigen oude cache verwerkt, markering mislukt, server verwijdert het item, herladen — niets herrijst'(ctx) {
-    for (const markeringFaalt of [false, true]) {
+  async 'B2: eigen oude cache verwerkt, server verwijdert het item, herladen — niets herrijst'(ctx) {
+    // Mislukte markering: sinds de tweede review wordt dan helemaal niet overgenomen (zie R2-B2).
+    for (const markeringFaalt of [false]) {
       const oud = JSON.stringify({ data: metItem(fx(), 'x-oud', 'X oud'), base: canon(fx()), t: 1, db: DB_URL });
       const o = await open(ctx, { data: fx(), localStorage: { [OUD]: oud }, opslagFout: markeringFaalt ? { schrijven: '^huisplanOudeCacheVerwerkt_' } : null });
       await until(async () => boodTexts(o.state.db).includes('X oud'), 6000, 'X overgenomen');

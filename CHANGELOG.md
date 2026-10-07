@@ -509,3 +509,15 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Diagnose toont alleen vaste sleutelnamen; quarantainekopieën kunnen elkaar niet overschrijven; een
   tijdelijke leesfout op de cache blokkeert het E2-herstel niet.
 - Tests: `tests/opslag.test.js` (26).
+
+## 1.4.2-voorbereiding: NW-04 (E3) na de tweede Codex-review (testversie)
+- Cache die na een leesfout weer leesbaar wordt en onbevestigde inhoud heeft: nooit zomaar
+  overschreven; eerst apart bewaard, dan opgenomen in de huidige stand (of, als apart bewaren niet
+  lukt, deze sessie geen cache).
+- Oude cache: de verwerkt-markering wordt vóór het overnemen duurzaam geschreven; zonder markering
+  geen overname. Dezelfde inhoud wordt nooit twee keer ingelezen.
+- Koppeling: alleen het koppelrecord telt; de losse sleutels worden niet meer geschreven en alleen
+  met bewijs gelezen. Een gemengd paar kan niet meer ontstaan en wordt nooit gebruikt.
+- De opslaghulpjes werken ook bij een fout op de allereerste opslagactie.
+- Tests: `tests/opslag.test.js` (30).
+

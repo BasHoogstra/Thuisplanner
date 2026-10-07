@@ -2596,10 +2596,20 @@ function opslagDiagnose(soort,sleutel,fout){
 // Sleutelnaam voor de diagnose. Alleen vaste namen zonder variabel deel blijven leesbaar; bij alle
 // andere wordt alles na het eerste '_' weggelaten (daar kan een plannersleutel, database-hash of
 // instantie-id staan, ook als die kort is). Onbekende namen zonder '_' worden helemaal weggelaten.
-var OPSLAG_VASTE_NAMEN=['plannerMyName','plannerPartnerName','plannerMemberId','plannerLedenregister','plannerLedenBackup','plannerLedenBackupV1','huisplanKoppeling','plannerCity','plannerAccent','plannerAccentLight','plannerAccentDark','plannerAccentLightDark','plannerHeroPills','plannerBoodDoneOpen','plannerLijstDicht','plannerMeerClicks','briefingShown','iosBannerDismissed','huisplanOpslagProef','huisplanProef'];
+// Alles hieronder wordt al gebruikt bij de allereerste opslagactie (bv. lsGet('plannerMyName') bovenaan
+// het script, vóórdat deze regels zijn uitgevoerd). Daarom geen afhankelijkheid van variabelen die
+// pas later een waarde krijgen: alleen functies (die bestaan vanaf de start) en lui aangemaakte
+// objecten op window.
+function opslagVasteNamen(){
+  return ['plannerMyName','plannerPartnerName','plannerMemberId','plannerLedenregister','plannerLedenBackup','plannerLedenBackupV1','huisplanKoppeling','plannerCity','plannerAccent','plannerAccentLight','plannerAccentDark','plannerAccentLightDark','plannerHeroPills','plannerBoodDoneOpen','plannerLijstDicht','plannerMeerClicks','briefingShown','iosBannerDismissed','huisplanOpslagProef','huisplanProef'].concat(window.__huisplanOpslagNamen||[]);
+}
+function opslagNaamToevoegen(){
+  var a=window.__huisplanOpslagNamen=window.__huisplanOpslagNamen||[];
+  for(var i=0;i<arguments.length;i++)a.push(arguments[i]);
+}
 function opslagSleutelNaam(k){
   k=String(k);
-  if(OPSLAG_VASTE_NAMEN.indexOf(k)>-1)return k;
+  if(opslagVasteNamen().indexOf(k)>-1)return k;
   var i=k.indexOf('_');
   return i>0?k.slice(0,i)+'_…':'…';
 }
@@ -2627,12 +2637,14 @@ function bewaarDuurzaam(k,v){
   return {ok:true};
 }
 // Eén keer per sessie een rustige melding als een 'belangrijk' gegeven niet bewaard kon worden.
-var _opslagGemeld={};
+function opslagGemeld(){return window.__huisplanOpslagGemeld=window.__huisplanOpslagGemeld||{};}
 function opslagMelding(soort){
-  if(_opslagGemeld[soort])return;_opslagGemeld[soort]=true;
+  var g=opslagGemeld();
+  if(g[soort])return;g[soort]=true;
   var tekst={
     belangrijk:'Dit toestel kon een instelling niet onthouden (opslag vol of geblokkeerd).',
     koppeling:'Dit toestel kan de koppeling met jullie planner niet onthouden. Open Huisplan voortaan via de deellink.',
+    'koppeling-onbekend':'De bewaarde koppeling met jullie planner is niet betrouwbaar te lezen. Open Huisplan via de deellink; er is niets gewijzigd.',
     onleesbaar:'De lokale kopie op dit toestel is niet te lezen. Hij blijft onaangeroerd en wordt niet overschreven. Let op de statusregel: die zegt eerlijk of je wijzigingen veilig staan.',
     quarantaine:'Een beschadigde lokale kopie is apart bewaard. Je planner wordt opnieuw van de server geladen.',
     vangnet:'Het ledenregister is niet bijgewerkt: de veiligheidskopie kon op dit toestel niet worden bewaard.'
@@ -2725,30 +2737,44 @@ function createFirebaseStore(opts){
     var u=new URL(window.location.href);u.searchParams.set('db',dbUrl);u.searchParams.set('p',plannerKey);
     window.history.replaceState({},'',u.toString());
   }
-  // De koppeling (database + planner) staat als één record in 'huisplanKoppeling' (E3): die kan nooit
-  // half geschreven zijn, dus nooit een database van de ene en een planner van de andere koppeling.
-  // De losse sleutels plannerDbUrl/plannerKey worden alleen nog bijgehouden voor de live-versie; lukt
-  // daar maar één van de twee, dan wordt het paar teruggezet of weggehaald, nooit gemengd gelaten.
-  OPSLAG_VASTE_NAMEN.push('plannerDbUrl','plannerKey'); // vaste namen, leesbaar in de diagnose
+  // De koppeling (database + planner) staat als één versie-record in 'huisplanKoppeling' (E3): één
+  // setItem, dus nooit half geschreven, en alleen dát record wordt als koppeling vertrouwd.
+  // De losse sleutels plannerDbUrl/plannerKey (van de live-versie en oudere testversies) worden door
+  // deze versie NOOIT meer geschreven: twee losse schrijfacties kunnen bij een opslagfout een gemengd
+  // paar achterlaten (database van de ene, planner van de andere koppeling), en terugzetten of
+  // weghalen kan net zo goed mislukken. Ze worden alleen gelezen als er geen koppelrecord is én het
+  // paar aantoonbaar bij elkaar hoort (zie losPaarBewezen); anders geldt de koppeling als onbekend.
+  opslagNaamToevoegen('plannerDbUrl','plannerKey'); // vaste namen, leesbaar in de diagnose
   function persist(){
     var c=bewaarDuurzaam('huisplanKoppeling',JSON.stringify({v:1,db:dbUrl,key:plannerKey}));
-    var oud=leesOpslag('plannerDbUrl');
-    var a=bewaar('plannerDbUrl',dbUrl,'kritiek'),b=a.ok?bewaar('plannerKey',plannerKey,'kritiek'):{ok:false};
-    if(a.ok&&!b.ok){
-      var terug=bewaar('plannerDbUrl',oud.ok?oud.waarde:null,'kritiek');
-      if(!terug.ok){bewaar('plannerDbUrl',null,'kritiek');bewaar('plannerKey',null,'kritiek');}
-    }
-    // De sessie werkt verder via de link; alleen onthouden op dit toestel lukt niet (volledig).
-    if(!c.ok||!a.ok||!b.ok)opslagMelding('koppeling');
+    // De sessie werkt verder via de link; alleen onthouden op dit toestel lukt niet.
+    if(!c.ok)opslagMelding('koppeling');
   }
+  // Bewijs dat een los paar (db, planner) bij elkaar hoort: er staat een geldige E3-cache onder de
+  // sleutel die uit precies dit paar is afgeleid (die schrijft alleen deze versie, en alleen als hij
+  // met precies die database en planner werkt), of een oudere cache van deze planner die zelf deze
+  // database noemt (E2-testversie). Zonder bewijs: niet gebruiken.
+  function losPaarBewezen(d,p){
+    var id=sha256Hex('huisplan-cache\n'+normDb(d)+'\n'+p+'\n'+STORAGE_GEN).slice(0,32);
+    var r=leesOpslag('huisplanCache_'+id);
+    if(r.ok&&r.waarde){try{var c=JSON.parse(r.waarde);if(c&&c.id===id&&c.db===normDb(d))return true;}catch(e){}}
+    var o=leesOpslag('plannerCache_'+p);
+    if(o.ok&&o.waarde){try{var c2=JSON.parse(o.waarde);if(c2&&typeof c2.db==='string'&&c2.db===normDb(d))return true;}catch(e){}}
+    return false;
+  }
+  var koppelingOnbekend=false;
   function leesKoppeling(){
     var r=leesOpslag('huisplanKoppeling');
-    if(r.ok&&r.waarde){
+    if(!r.ok){koppelingOnbekend=true;return null;} // niet te lezen: onbekend, niet terugvallen op losse sleutels
+    if(r.waarde!==null){
       try{var k=JSON.parse(r.waarde);if(k&&k.v===1&&typeof k.db==='string'&&typeof k.key==='string'&&k.db&&k.key)return {db:k.db,key:k.key};}catch(e){}
+      koppelingOnbekend=true;return null; // kapot of onbekende versie: niet raden
     }
-    // Geen (geldige) koppeling: alleen een volledig los paar telt.
-    var d=leesOpslag('plannerDbUrl').waarde,p=leesOpslag('plannerKey').waarde;
-    return d&&p?{db:d,key:p}:null;
+    var d=leesOpslag('plannerDbUrl'),p=leesOpslag('plannerKey');
+    if(!d.ok||!p.ok){koppelingOnbekend=true;return null;}
+    if(!d.waarde||!p.waarde)return null;
+    if(losPaarBewezen(d.waarde,p.waarde))return {db:d.waarde,key:p.waarde};
+    koppelingOnbekend=true;return null;
   }
   // Uit de link of uit de opslag van dit toestel; true als er een planner gekoppeld is. De link telt
   // alleen als geheel (database én planner); anders de bewaarde koppeling als geheel.
@@ -2757,7 +2783,7 @@ function createFirebaseStore(opts){
     var urlDb=p.get('db'),urlP=p.get('p');
     var k=urlDb&&urlP?{db:urlDb,key:urlP}:leesKoppeling();
     var rDb=k&&k.db,rKey=k&&k.key;
-    if(!(rDb&&rKey))return false;
+    if(!(rDb&&rKey)){if(koppelingOnbekend)opslagMelding('koppeling-onbekend');return false;}
     dbUrl=rDb;plannerKey=rKey;persist();
     try{setUrlParams();}catch(e){}
     return true;
@@ -2797,9 +2823,35 @@ function createFirebaseStore(opts){
   function legacyKey(){return 'plannerCache_'+plannerKey;}
   function legacyMarkKey(){return 'huisplanOudeCacheVerwerkt_'+cacheId();}
   var cacheSeq=0;
-  var cacheBlocked=null;    // null | 'onleesbaar' | 'kapot': deze sessie geen cache schrijven
+  var cacheBlocked=null;    // null | 'onleesbaar' | 'kapot' | 'herstel': geen cache schrijven
   var _slot=null;           // {key, ok}: de cacheplek is deze sessie al gecontroleerd
   var nextGenHint=false;    // save(): de cache bevat al de wijziging die localGen zo verhoogt
+  var cacheOoitOnbekend=false; // deze sessie is de cache al eens niet te lezen geweest
+  var herstelKandidaat=null;   // na zo'n leesfout weer leesbare cache met onbevestigde inhoud (ruwe tekst)
+  var herstelBezig=false;      // de inhoud van de kandidaat wordt nu in de huidige stand opgenomen
+  // Bevat deze cache iets wat (misschien) niet op de server staat?
+  function cacheOnbevestigd(c){
+    return (typeof c.localGen==='number'&&c.localGen>(typeof c.confirmedGen==='number'?c.confirmedGen:0))||cacheUnsaved(c)||heeftGaten(c.data);
+  }
+  // Vóór elke vervangende schrijfactie met een herstelkandidaat (deze schrijfactie gaat dan NIET door):
+  //  1. de kandidaat eerst duurzaam apart bewaren (bewijs, teruggelezen);
+  //  2. dan zijn inhoud opnemen in de huidige stand, zoals bij gewoon opstarten: zijn eigen
+  //     wijzigingen t.o.v. zijn basis gaan mee, wijzigingen die sindsdien in de huidige stand zitten
+  //     ook; daarna wordt die samengevoegde stand gewoon (via E2) bewaard en verstuurd.
+  // Lukt stap 1 niet, dan wordt de cache deze sessie niet meer geschreven (herladen hervat hem).
+  function blokkeerHerstel(){
+    if(!herstelKandidaat)return false;
+    var raw=herstelKandidaat;herstelKandidaat=null;
+    if(!quarantine(raw)){cacheBlocked='herstel';setTimeout(function(){emit({type:'cache-herstel'});},0);return true;}
+    try{
+      var c=JSON.parse(raw),cb=c.base?JSON.parse(c.base):{};
+      var samen=mergeData(normalizeData(clone(cb)),normalizeData(clone(getLocal())),normalizeData(clone(c.data)));
+      opslagDiagnose('cache hervat na leesfout',cacheKey(),'opgenomen');
+      herstelBezig=true; // tot de samengevoegde stand er is, niets over de cache heen schrijven
+      setTimeout(function(){herstelBezig=false;emit({type:'data',data:samen,render:true});save();},0);
+    }catch(e){cacheBlocked='herstel';setTimeout(function(){emit({type:'cache-herstel'});},0);}
+    return true;
+  }
   function setLocalFail(v){if(localFail!==v){localFail=v;refreshStatus();}}
   function validCache(c){return isPlainObj(c)&&isPlainObj(c.data)&&c.format===CACHE_FORMAT&&c.gen===STORAGE_GEN&&c.id===cacheId()&&typeof c.base==='string';}
   function randHex(n){try{var a=new Uint8Array(n);crypto.getRandomValues(a);return Array.prototype.map.call(a,function(b){return ('0'+b.toString(16)).slice(-2);}).join('');}catch(e){return Math.random().toString(16).slice(2,2+2*n);}}
@@ -2820,13 +2872,19 @@ function createFirebaseStore(opts){
     var r=leesOpslag(k),ok=true;
     // Niet te lezen = onbekend, niet leeg: niet schrijven. Wel bij de volgende poging opnieuw kijken
     // (een tijdelijke leesfout mag het E2-herstel niet de hele sessie blokkeren).
-    if(!r.ok){cacheBlocked='onleesbaar';opslagMelding('onleesbaar');_slot=null;return false;}
+    if(!r.ok){cacheBlocked='onleesbaar';cacheOoitOnbekend=true;opslagMelding('onleesbaar');_slot=null;return false;}
     if(cacheBlocked==='onleesbaar')cacheBlocked=null;
     if(r.waarde!==null){
       var c=null;try{c=JSON.parse(r.waarde);}catch(e){}
       if(!validCache(c)){
         if(quarantine(r.waarde))opslagMelding('quarantaine');
         else{ok=false;cacheBlocked='kapot';opslagMelding('onleesbaar');}
+      } else if(cacheOoitOnbekend&&cacheOnbevestigd(c)){
+        // Tweede Codex-review #16, B1: de cache was eerder deze sessie niet te lezen, dus de huidige
+        // stand is NIET uit deze cache hervat. Weer leesbaar zijn is geen toestemming om te
+        // overschrijven: deze inhoud bevat wat niet op de server staat. Tot hij is hervat (herladen) of
+        // door een journaalrecord gedekt blijkt (adopt), wordt de cache niet overschreven.
+        herstelKandidaat=r.waarde;
       }
     }
     _slot={key:k,ok:ok};
@@ -2839,7 +2897,7 @@ function createFirebaseStore(opts){
     if(!plannerKey)return true;
     if(fenced)return false;
     if(myRec&&!ownsRecord())return false;
-    if(!cacheSlotReady()){setLocalFail(true);return false;}
+    if(herstelBezig||!cacheSlotReady()||cacheBlocked==='herstel'||cacheBlocked==='kapot'||blokkeerHerstel()){setLocalFail(true);return false;}
     var seq=cacheSeq+1,s=JSON.stringify({format:CACHE_FORMAT,gen:STORAGE_GEN,id:cacheId(),app:opts.appVersion,data:d,base:b,t:Date.now(),inst:instId,seq:seq,db:normDb(dbUrl),jkey:myRec?recKey:null,jrev:myRec?myRec.rev:null,localGen:nextGenHint?localGen+1:localGen,confirmedGen:confirmedGen});
     try{localStorage.setItem(cacheKey(),s);if(localStorage.getItem(cacheKey())!==s)throw new Error('teruglezen');}
     catch(e){opslagDiagnose('schrijven',cacheKey(),e);setLocalFail(true);return false;}
@@ -2881,16 +2939,22 @@ function createFirebaseStore(opts){
   // gegevens van database A in database B brengen (E3-review, blocker 1).
   // Een oude cache wordt nooit verwijderd (blocker 2): localStorage kent geen atomisch
   // "verwijder als nog hetzelfde", en de live-versie kan hem intussen opnieuw schrijven. In plaats
-  // daarvan: een duurzame markering (hash van precies de verwerkte inhoud), zodat dezelfde inhoud
-  // nooit opnieuw wordt gebruikt en dus niets kan laten herrijzen. Een onleesbare, onbekende of
-  // twijfelachtige vorm (bv. een lijst met gaten, P1-11) blijft onaangeroerd.
+  // daarvan: een duurzame markering (hash van precies die inhoud) die wordt geschreven en teruggelezen
+  // VÓÓRDAT de inhoud wordt gebruikt (tweede Codex-review #16, B2). Lukt de markering niet, dan wordt
+  // de inhoud niet gebruikt. Daardoor wordt dezelfde inhoud hooguit één keer automatisch overgenomen,
+  // wat er daarna ook met de nieuwe cache gebeurt (kapot, weg): niets kan herrijzen. Mislukt na de
+  // markering het schrijven van de nieuwe cache, dan is de inhoud niet verloren (de oude cache blijft
+  // staan), maar wordt hij alleen nog gemeld en als bestand aangeboden, nooit opnieuw ingelezen.
+  // Een onleesbare, onbekende of twijfelachtige vorm (bv. een lijst met gaten, P1-11) blijft
+  // onaangeroerd.
   function inspectLegacy(){
     var r=leesOpslag(legacyKey());
     if(!r.ok)return {state:'onbekend'};
     if(r.waarde===null)return null;
     var raw=r.waarde,hash=sha256Hex(raw).slice(0,32);
     var m=leesOpslag(legacyMarkKey());
-    if(m.ok&&m.waarde===hash)return {state:'verwerkt'};
+    if(!m.ok)return {state:'onbekend'}; // markering niet te lezen: niet gebruiken
+    if(m.waarde===hash)return {state:'verwerkt'};
     var c=null;try{c=JSON.parse(raw);}catch(e){}
     if(!isPlainObj(c)||!isPlainObj(c.data)||typeof c.base!=='string'||(c.base&&!parseObj(c.base,false)))return {state:'onleesbaar',hash:hash};
     var twijfel=heeftGaten(c.data)||normalizeLoses(c.data)||(c.base?normalizeLoses(JSON.parse(c.base)):false);
@@ -2911,15 +2975,15 @@ function createFirebaseStore(opts){
     opslagDiagnose('oude cache bewaard',legacyKey(),lg.state);
     setTimeout(function(){emit({type:'legacy-kept',state:lg.state});},0);
   }
-  // Eigen oude cache zonder nieuwe cache: eerst de nieuwe cache duurzaam schrijven, dan de markering.
+  // Eigen oude cache zonder nieuwe cache: eerst de markering duurzaam (geschreven én teruggelezen), pas
+  // dan de nieuwe cache. Lukt de markering niet: niet overnemen.
   function takeOverLegacy(lg){
     if(lg.twijfel)return false;
+    if(!bewaarDuurzaam(legacyMarkKey(),lg.hash).ok)return false;
     nextGenHint=!!lg.unsaved;
     var ok=writeCacheRaw(normalizeData(clone(lg.c.data)),lg.c.base);
     nextGenHint=false;
-    if(!ok)return false;
-    bewaarDuurzaam(legacyMarkKey(),lg.hash); // mislukt dit: volgende keer alleen een melding, geen gebruik
-    return true;
+    return ok;
   }
 
   // ── Schrijfjournaal (Codex-reviews PR #15; docs/ontwerp-1.4.2.md, regel 5)
@@ -3216,6 +3280,7 @@ function createFirebaseStore(opts){
       var ouder=c.inst===rec.cacheInst&&typeof c.seq==='number'&&c.seq<=rec.cacheSeq;
       var vanMij=c.inst===instId; // zelf geschreven tijdens een eerdere poging van deze instantie
       if(!(spiegel||ouder||vanMij)&&cacheUnsaved(c)){gateBlock('cache-mismatch');return;}
+      herstelKandidaat=null; // gedekt door dit record (of zonder eigen inhoud): het record is de waarheid
     }
     var d=normalizeData(clone(JSON.parse(typeof rec.local==='string'?rec.local:rec.sent)));
     base=recBase;
@@ -3236,7 +3301,10 @@ function createFirebaseStore(opts){
   function resumeCache(render){
     var cr=readCacheRaw(),lg=inspectLegacy();
     var c=cr.ok?cr.c:null;
-    if(lg&&lg.state!=='verwerkt'){
+    if(lg&&lg.state==='verwerkt'){
+      // Al eens overgenomen: nooit opnieuw. Is er (nu) geen nieuwe cache, dan alleen melden.
+      if(!c)legacyKept(lg);
+    } else if(lg){
       if(!c&&cr.ok&&lg.state==='eigen'&&takeOverLegacy(lg)){var cr2=readCacheRaw();c=cr2.ok?cr2.c:null;}
       else if(lg.state==='onbekend'||lg.state==='onleesbaar'||lg.unsaved)legacyKept(lg);
     }
@@ -3725,6 +3793,10 @@ store.subscribe(function(ev){
     showJournalGate(ev.reason);
   } else if(ev.type==='legacy-kept'){
     showLegacyKept(ev.state);
+  } else if(ev.type==='cache-herstel'){
+    var t='De lokale kopie op dit toestel was even niet te lezen en bevat wijzigingen die nog niet op de server staan. Huisplan overschrijft hem niet. Herlaad de app om die wijzigingen weer op te nemen.';
+    if(document.getElementById('confirmOverlay').classList.contains('open'))showToast('Lokale kopie bewaard; herlaad om hem op te nemen.');
+    else customConfirm(t,function(){window.location.reload();},{okText:'Nu herladen',cancelText:'Later'});
   } else if(ev.type==='guard'){
     if(ev.reason)showWriteGuard(ev.reason,ev.meta);
     else document.getElementById('writeGuardOverlay').hidden=true;
@@ -4067,7 +4139,7 @@ function ensureMemberRegister(pending){
   if(!membersMigrationEnabled()||_memberDoubtsOpen)return;
   // E3: kon de veiligheidskopie deze sessie niet worden bewaard, dan niet opnieuw vragen (de
   // migratie zou toch niet starten). Bij de volgende keer openen wordt het opnieuw geprobeerd.
-  if(_opslagGemeld.vangnet)return;
+  if(opslagGemeld().vangnet)return;
   pending=pending&&pending.membership?pending:{decisions:{},membership:{}};
   var meta=memberMeta(),mm=meta&&meta.members;
   var decisions=memberDecisions(mm),membership=memberMembership(mm);
