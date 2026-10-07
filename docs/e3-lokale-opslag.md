@@ -2,7 +2,8 @@
 
 **Status:** gebouwd in de testversie (`test/index.html`), niet live. Uitwerking van
 `docs/identiteit-en-items.md` (3.2) en `docs/ontwerp-1.4.2.md` (3). Geen contract; bij
-tegenstrijdigheid gaan die documenten voor.
+tegenstrijdigheid gaan die documenten voor. **Herzien na de Codex-review van PR #16**, bovenop de
+gemergde E2 (PR #15); waar E3 en E2 botsen, wint E2.
 
 - **Niet aangeraakt:** `index.html` (live), de Firebase-regels, Supabase en de serverdata. Er is geen
   migratie en geen slot. Het dataformaat op de server is gelijk gebleven.
@@ -30,71 +31,74 @@ resultaat exact gelijk is, geldt iets als duurzaam bewaard. Dit is de bouwsteen 
 migratie kan stoppen als hersteldata niet duurzaam bewaard kan worden. Hij is via
 `window.huisplanOpslag` te gebruiken (`bewaarDuurzaam`, `gezond()`, `diagnose()`).
 
-## 2. Cache-identiteit
+## 2. Cache-identiteit (bovenop E2)
 
 - **Sleutel:** `huisplanCache_` + de eerste 32 hexadecimale tekens van
   `SHA-256("huisplan-cache\n" + database-URL zonder slotslash + "\n" + plannersleutel + "\n" + opslaggeneratie)`.
-  De plannersleutel staat dus niet leesbaar in de naam. Opslaggeneratie 1 is de Firebase-planner
-  vóór 1.5. De SHA-256 is getest tegen de standaard.
-- **Record:** `{format: 2, gen, id, app, data, base, t}`, plus `legacy: 'te-verwerken'` zolang er een
-  oude cache bestaat. Wordt E2 (NW-03) geïntegreerd, dan komen `localGen` en `confirmedGen` erbij
-  (ontwerp 3.1).
-- **Oude cache** (`plannerCache_<plannersleutel>`, van vóór 1.4.2): blijft leesbaar als generatie 1 en
-  wordt bij opstarten gebruikt als er nog geen nieuwe cache is. Hij wordt pas verwijderd na een verse
-  serverlezing zonder lokale wijzigingen, en alleen als zijn eigen wijzigingen ten opzichte van zijn
-  basis niets meer toevoegen aan de serverstand. Mislukt het verwijderen, dan is dat onschadelijk;
-  het staat in de diagnose.
+  Opslaggeneratie 1 is de Firebase-planner vóór 1.5. De SHA-256 is getest tegen de standaard.
+- **Record:** `{format: 2, gen, id, app, data, base, t, localGen, confirmedGen}` plus de E2-velden
+  `inst`/`seq` (welk venster schreef hoe vaak), `db` en `jkey`/`jrev` (spiegel van welke
+  journaalrevisie). Een niet-bevestigde generatie (`localGen > confirmedGen`) blijft na herladen
+  niet-bevestigd, ook bij een lege of onbekende serverstand.
+- **E2 blijft leidend.** De cache wordt alleen geschreven via `writeCacheRaw` (teruglezen, fencing,
+  eerst het journaalrecord en dan de cache als spiegel). Lokaal bewaard is nooit "op de server". E3
+  heeft geen eigen schrijfpad naar de server: ook "direct synchroniseren" gaat via `push()`
+  (voorwaardelijk, met journaal). E3 verwijdert of overschrijft nooit journaalrecords.
 - **Een andere planner, database of generatie** heeft een andere sleutel en wordt nooit gelezen of
   samengevoegd. Staat er onder de eigen sleutel een record van een andere generatie of in een onbekend
-  formaat, dan wordt dat behandeld als een beschadigde cache (zie 3).
+  formaat, dan wordt dat eerst duurzaam apart bewaard (zie 3).
+- **Koppeling:** database en planner staan samen in één record (`huisplanKoppeling`), zodat er nooit
+  een database van de ene en een planner van de andere koppeling kan ontstaan. De losse sleutels
+  `plannerDbUrl`/`plannerKey` worden alleen voor de live-versie bijgehouden; lukt daar maar één van de
+  twee, dan wordt het paar teruggezet of weggehaald.
+
+### 2.1 Oude cache (`plannerCache_<plannersleutel>`)
+
+- **Herkomst:** een oude cache telt alleen als hij zelf een database noemt (`db`, sinds E2) die gelijk
+  is aan de huidige. De live-versie schrijft geen `db`: zo'n cache wordt **nooit** gebruikt,
+  samengevoegd of geüpload, want dezelfde plannersleutel kan in een andere database bestaan.
+- **Eigen oude cache zonder nieuwe cache:** eerst duurzaam als nieuwe cache geschreven, daarna een
+  duurzame markering `huisplanOudeCacheVerwerkt_<id>` met de hash van precies die inhoud. Dezelfde
+  inhoud wordt daarna nooit opnieuw gebruikt (niets kan herrijzen).
+- **Alle andere gevallen** met mogelijk niet-opgeslagen inhoud (geen of andere herkomst, of naast een
+  bestaande nieuwe cache, of onleesbaar, of een twijfelachtige vorm zoals een lijst met gaten of een
+  object met numerieke sleutels, P1-11): niet gebruikt, niet samengevoegd, niet verwijderd. De app
+  meldt het één keer per sessie en biedt aan de herstelgegevens als bestand te bewaren.
+- **Nooit verwijderd.** `localStorage` heeft geen atomisch "verwijder als nog hetzelfde"; de
+  live-versie kan de oude cache intussen opnieuw schrijven. Opruimen wacht op een veilig protocol.
 
 ## 3. Gedrag per foutsituatie
 
 | Situatie | Gedrag | Test |
 | --- | --- | --- |
-| Cache schrijven mislukt (bijv. vol), met wijzigingen die nog niet op de server staan | Statusregel: "Je wijzigingen zijn nog niet veilig bewaard". Direct synchroniseren, zonder de wachttijd van 400 ms. "Opgeslagen" pas na bevestiging door de server. | T7a |
-| Cache schrijven mislukt, zonder openstaande wijzigingen | Geen melding; wel in de diagnose. | T7a (na bevestiging) |
-| Netwerk én opslag weg | Statusregel "Niet bewaard — … Houd de app open; we blijven het proberen". De wijziging blijft in het geheugen. Waarschuwing bij sluiten (`beforeunload`). Nooit "Opgeslagen" of "wordt bewaard". Herstel zodra er weer verbinding is. | T7b |
-| Cache lezen gooit een fout | De cache geldt als "onbekend", niet als "leeg": hij wordt deze sessie niet overschreven. Melding; de app laadt van de server en slaat daar op. | T7c |
-| Cache onleesbaar (kapotte JSON, onbekend formaat, andere generatie) | Eerst duurzaam apart bewaard (`huisplanCacheApart_<id>_<tijd>`), met een melding. Daarna mag de sleutel opnieuw gebruikt worden. | T7d, T8 |
-| Onleesbare cache die niet apart bewaard kan worden | Blijft onaangeroerd; deze sessie wordt geen cache geschreven. | T7e |
-| Verwijderen mislukt | Onschadelijk; diagnose. Geen foutmelding aan de gebruiker. | T7f |
-| Koppeling (`plannerDbUrl`/`plannerKey`) niet op te slaan | De sessie werkt verder via de link, met de melding dat dit toestel de koppeling niet kan onthouden. | T7g |
-| Veiligheidskopie vóór de ledenmigratie (1.4.1) niet duurzaam te bewaren | De migratie start niet. Er komt een melding, en de vragen komen deze sessie niet terug. | T6d |
-| Hervatten na een fout | Een niet-opgeslagen wijziging in de cache wordt na heropenen samengevoegd en opgeslagen. | T6a, T6b, T6c |
-
-Ook aangepast: na een export meldt de app niet meer "Back-up gedownload ✓". Of het bestand echt
-bewaard is, kan de app niet zien; de bevestiging hoort bij E1 (herstelkopie).
+| Cache schrijven mislukt (bijv. vol), met wijzigingen die nog niet op de server staan | Het journaalrecord (E2) houdt de nieuwste stand duurzaam vast; de statusregel zegt "Lokaal bewaren mislukt" (of "Niet bewaard" zonder verbinding); nooit "Opgeslagen"; waarschuwing bij sluiten. Zonder wachttijd naar de server, via het journaal. **E2:** na een geslaagde PUT wordt pas weer verstuurd als de afgehandelde toestand ook in de cache staat (zie 5). | T7a, E2-contract |
+| Netwerk én opslag weg | "Niet bewaard — … Houd de app open"; waarschuwing bij sluiten; herstel zodra beide weer werken. | T7b |
+| Lege of onbekende serverstand + wijziging alleen in het geheugen | Telt als niet opgeslagen (niet-bevestigde generatie); waarschuwing en eerlijke status. | B3 |
+| Cache lezen gooit een fout | Onbekend, niet leeg: niet overschrijven; bij elke poging opnieuw gekeken (een tijdelijke fout blokkeert het E2-herstel niet). | T7c |
+| Cache onleesbaar of onbekend formaat | Eerst duurzaam apart bewaard (`huisplanCacheApart_<id>_<tijd>_<willekeurig>`, nooit over een bestaande kopie heen); lukt dat niet, dan onaangeroerd en deze sessie geen cache. | T7d, T7e, T8, quarantaine |
+| Koppeling niet (volledig) op te slaan | Sessie werkt via de link; melding; nooit een gemengd paar. | T7g, koppeling |
+| Veiligheidskopie vóór de ledenmigratie niet duurzaam te bewaren | Migratie start niet; melding. Een back-up telt alleen met de `scope` van deze planner; een vreemde back-up blijft staan en de eigen komt onder `…_<scope>`. | T6d, ledenback-up |
+| Diagnose | Alleen vaste sleutelnamen leesbaar; van alle andere alleen het deel vóór de eerste `_`. | diagnose |
 
 ## 4. Wat later naar productie moet (niet in deze stap)
 
-De livegang gaat via een aparte PR, na akkoord, en het liefst samen met E2 (NW-03). Over te nemen in
-`index.html`:
-
-1. de opslagmodule (`bewaar`, `leesOpslag`, `bewaarDuurzaam`, diagnose, `sha256Hex`) en het
-   omzetten van alle `localStorage`-toegang;
-2. de cache per database, planner en generatie, met het overnemen en veilig opruimen van de oude
-   cache;
-3. de statusregel en de waarschuwing bij sluiten (`cacheRisk`, `showSyncStatus`);
-4. het vangnet bij de ledenmigratie (`bewaarDuurzaam` vóór de migratie).
-
-Bij het samenvoegen met E2 (PR #15) verandert de cache-opbouw. `writeCache` en `readCache` raken
-beide; `localGen` en `confirmedGen` horen dan in het cacherecord.
+De livegang gaat via een aparte PR, na akkoord, samen met E2: de opslagmodule, de cache per
+database/planner/generatie met de oude-cache-regels, de koppeling als één record, de statusregel en de
+waarschuwing bij sluiten, en het vangnet bij de ledenmigratie.
 
 ## 5. Bekende risico's en open punten
 
-- **Test- en live-versie delen op hetzelfde toestel `localStorage`** (zelfde origin). De testversie
-  ruimt de oude cache alleen op als alles daaruit op de server staat. Gebruikt iemand daarna weer de
-  live-versie, dan schrijft die opnieuw `plannerCache_…`; de testversie neemt dat bij de volgende
-  opening veilig opnieuw mee. Dat is onschadelijk, maar wel dubbel werk.
-- **De oude cache bevat geen database-URL.** Hij wordt aan de planner gekoppeld via de sleutel in de
-  naam. Een planner met dezelfde sleutel in een andere database is in theorie mogelijk (een
-  willekeurige sleutel van 32 tekens), maar niet uitgesloten.
-- **Ledenvragen vóór het vangnet.** Bij een volle opslag stelt de app eerst de ledenvragen en merkt
-  daarna pas dat de veiligheidskopie niet lukt; de antwoorden worden dan niet gebruikt. Een
-  opslagcontrole vóór de vragen (`gezond()`) zou dat voorkomen. Dat is niet gebouwd: het is een
-  UX-keuze, en de schakelaar voor deze migratie staat alleen op toestellen van de producteigenaar.
-- **Een geslaagde opslagproef zegt niets over grote records.** Een migratie moet daarom
-  `bewaarDuurzaam` gebruiken op de echte herstelkopie zelf, niet alleen `gezond()`.
-- **Open data-veiligheidspunt P1-11** (een lijst met gaten wordt door `normalizeData` leeg
-  teruggeschreven; zie PR #15) valt buiten E3. Het is hier niet opgelost.
+- **Cache onbruikbaar = na één PUT niets meer versturen (E2-contract).** Mislukt het vastleggen in de
+  cache, dan houdt E2 verdere verzending tegen tot `settle()` lukt. De wijzigingen staan dan duurzaam in
+  het journaalrecord en de status zegt het eerlijk, maar ze gaan niet naar de server. Bij een blijvend
+  onleesbare cache blokkeert de herstelpoort na herladen. Veilig, maar niet functioneel. Een
+  versoepeling (verzenden toestaan zolang het journaalrecord lukt) lijkt veilig sinds het record de
+  waarheid is (vierde Codex-review), maar is een E2-wijziging en vraagt een eigen besluit en review.
+- **Oude caches worden niet opgeruimd** (zie 2.1); ze kosten opslagruimte.
+- **De journaalsleutel bevat de plannersleutel** (`plannerJournal_<sleutel>_<id>`, E2); die staat
+  sowieso leesbaar in `plannerKey`. Aanpassen is een E2-wijziging.
+- **Quarantainekopieën worden niet opgeruimd** en niet begrensd.
+- **Wijzigingen uit de live-versie** (oude cache zonder herkomst) komen niet automatisch in de
+  testversie; alleen via het bewaarde bestand.
+- **Open data-veiligheidspunt P1-11** valt buiten E3 en is hier niet opgelost; E3 laat zulke vormen
+  alleen onaangeroerd.

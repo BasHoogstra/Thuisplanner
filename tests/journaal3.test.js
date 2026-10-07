@@ -8,7 +8,8 @@ const H = require('./schrijfhulp');
 const { wait, boodTexts, syncText, addBood, afvinken, refresh, until, bewaker, open, rustig, vraagZichtbaar, vraagBeantwoord, volgStatus, statussen, VEILIG } = H;
 
 const JPRE = 'plannerJournal_' + PLANNER_KEY;
-const CKEY = 'plannerCache_' + PLANNER_KEY;
+// Cachesleutel sinds E3: hash van database, planner en opslaggeneratie (docs/e3-lokale-opslag.md).
+const CKEY = 'huisplanCache_' + require('crypto').createHash('sha256').update('huisplan-cache\n' + DB_URL.replace(/\/+$/, '') + '\n' + PLANNER_KEY + '\n1').digest('hex').slice(0, 32);
 const journalen = page => page.evaluate(p => {
   const o = {};
   for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith(p)) o[k] = localStorage.getItem(k); }
@@ -78,7 +79,8 @@ function geldigRecord(extra) {
   sent.boodschappen.push({ id: 'jr-x', text: 'Uit journaal', done: false });
   return Object.assign({ v: 2, ctx: { db: DB_URL, planner: PLANNER_KEY, gen: 1 }, id: 'i0123456789abcdef', owner: null, hb: 0, state: 'unknown', sent: JSON.stringify(sent), oldBase: '', cacheInst: null, cacheSeq: 0, cacheOk: false }, extra || {});
 }
-const CACHE_ZAAD = JSON.stringify({ data: { boodschappen: [{ id: 'c-1', text: 'Alleen in cache' }] }, base: '', t: 1 });
+// Een geldige cache in het E3-formaat (format/gen/id), zoals de testversie die sinds E3 schrijft.
+const CACHE_ZAAD = JSON.stringify({ format: 2, gen: 1, id: CKEY.slice('huisplanCache_'.length), app: '1.4.1', data: { boodschappen: [{ id: 'c-1', text: 'Alleen in cache' }] }, base: '', t: 1 });
 
 // Een onzekere uitkomst opbouwen: PUT verloren (commit: verwerkt; anders: verbinding weg vóór de
 // server), herstellezing ziet een wijziging van een ander toestel (anders), zodat de vraag komt.
@@ -200,7 +202,7 @@ module.exports = {
     });
     const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest });
     await rustig(o);
-    await storing(o.page, [{ op: 'set', key: '^plannerCache_', n: -1 }]);
+    await storing(o.page, [{ op: 'set', key: '^huisplanCache_', n: -1 }]);
     await volgStatus(o.page);
     fase = 1;
     await addBood(o.page, 'Alleen verzonden');
@@ -223,7 +225,7 @@ module.exports = {
     const bw = bewaker();
     const o = await open(ctx, { data: readFixture('huishouden.json'), onRequest: bw.onRequest });
     await rustig(o);
-    await storing(o.page, [{ op: 'set', key: '^plannerCache_', n: -1 }]);
+    await storing(o.page, [{ op: 'set', key: '^huisplanCache_', n: -1 }]);
     await volgStatus(o.page);
     await addBood(o.page, 'Lokaal mislukt');
     await until(async () => boodTexts(o.state.db).includes('Lokaal mislukt'), 4000, 'verstuurd');
@@ -253,7 +255,7 @@ module.exports = {
     const stappen = [
       ['zonder storing', null],
       ['record → afgehandeld mislukt', [{ op: 'set', key: '^plannerJournal_', val: '"state":"settled"', n: -1 }]],
-      ['cache mislukt', [{ op: 'set', key: '^plannerCache_', n: -1 }]],
+      ['cache mislukt', [{ op: 'set', key: '^huisplanCache_', n: -1 }]],
       ['record opruimen mislukt', [{ op: 'remove', key: '^plannerJournal_', n: -1 }]]
     ];
     stappen.forEach(([naam, regels]) => {
@@ -542,8 +544,8 @@ module.exports = {
     const out = {};
     const varianten = [
       ['geen storing bij herstel', null],
-      ['cache niet te lezen bij herstel', [{ op: 'get', key: '^plannerCache_', n: 3 }]],
-      ['cache niet te schrijven bij herstel', [{ op: 'set', key: '^plannerCache_', n: -1 }]],
+      ['cache niet te lezen bij herstel', [{ op: 'get', key: '^huisplanCache_', n: 3 }]],
+      ['cache niet te schrijven bij herstel', [{ op: 'set', key: '^huisplanCache_', n: -1 }]],
       ['record niet te schrijven bij herstel', [{ op: 'set', key: '^plannerJournal_', n: -1 }]]
     ];
     varianten.forEach(([naam, bijHerstel]) => {
@@ -557,7 +559,7 @@ module.exports = {
         await wait(600);
         let rec = await eenRecord(o.page);
         assert(rec && rec.state === 'settled' && rec.local.includes('X B1'), 'Testopzet: record niet blijven staan na mislukt opruimen');
-        await storing(o.page, [{ op: 'remove', key: '^plannerJournal_', n: -1 }, { op: 'set', key: '^plannerCache_', n: -1 }]);
+        await storing(o.page, [{ op: 'remove', key: '^plannerJournal_', n: -1 }, { op: 'set', key: '^huisplanCache_', n: -1 }]);
         const p0 = bw.puts;
         await addBood(o.page, 'Z B1');
         await wait(1200);
@@ -603,7 +605,7 @@ module.exports = {
     const grenzen = [
       ['record → afgehandeld', { op: 'pauze-set', key: '^plannerJournal_', val: '"state":"settled"', n: 1, ms: 8000 }, 'sending'],
       // De cache-schrijfactie in settle(): de enige waarvan de basis al X bevat.
-      ['cache-schrijven', { op: 'pauze-set', key: '^plannerCache_', val: '\\\\"Race R5\\\\"', n: 1, ms: 8000 }, 'settled'],
+      ['cache-schrijven', { op: 'pauze-set', key: '^huisplanCache_', val: '\\\\"Race R5\\\\"', n: 1, ms: 8000 }, 'settled'],
       ['opruimen van het record', { op: 'pauze-remove', key: '^plannerJournal_', n: 1, ms: 8000 }, 'settled']
     ];
     grenzen.forEach(([naam, regel, toestand]) => {

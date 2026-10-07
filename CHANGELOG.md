@@ -495,3 +495,17 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   bestaande tests herkennen beide cachesleutels. Niet live; `index.html` ongewijzigd. Zie
   `docs/e3-lokale-opslag.md`.
 
+## 1.4.2-voorbereiding: NW-04 (E3) hersteld na de Codex-review, bovenop E2 (testversie)
+- Geïntegreerd met de gemergde E2 (PR #15); E2 is leidend. De cache (`huisplanCache_<hash>`) wordt
+  alleen via het E2-pad geschreven (teruglezen, fencing, journaal eerst) en bevat ook `localGen` en
+  `confirmedGen`. Geen eigen schrijfpad naar de server.
+- Oude cache (`plannerCache_<sleutel>`): alleen met bewezen herkomst (`db` = huidige database) en
+  zonder nieuwe cache overgenomen, met een duurzame markering van precies die inhoud. Zonder herkomst,
+  naast een nieuwe cache, onleesbaar of met een twijfelachtige vorm (lijst met gaten, numerieke
+  sleutels): nooit gebruikt, samengevoegd, geüpload of verwijderd; melding en herstelbestand.
+- Verlieswaarschuwing en eerlijke status ook bij een lege of onbekende serverstand.
+- Koppeling als één record (`huisplanKoppeling`); nooit een gemengd paar.
+- Ledenback-up alleen geldig met de scope van deze planner; vreemde back-ups blijven staan.
+- Diagnose toont alleen vaste sleutelnamen; quarantainekopieën kunnen elkaar niet overschrijven; een
+  tijdelijke leesfout op de cache blokkeert het E2-herstel niet.
+- Tests: `tests/opslag.test.js` (26).
