@@ -87,6 +87,161 @@ const zetFout2 = (page, regels) => page.evaluate(r => sessionStorage.setItem('__
 const apartKopieen = async page => { const ks = (await lsKeys(page)).filter(k => k.startsWith('huisplanCacheApart_')); return Promise.all(ks.map(k => lsRaw(page, k))); };
 
 module.exports = {
+  // ── Vierde Codex-review #16 ───────────────────────────────────────────────────────────────────
+  // B1: een vastgesteld herstelconflict mag niet alleen in het geheugen bestaan. Na herladen (zonder
+  // journaal) mag de gewone load() geen winnaar kiezen; X (cache) en Y (server) blijven allebei.
+  ...(() => {
+    const out = {};
+    const H = (t, d) => ({ text: t, norm: t.toLowerCase(), date: d });
+    const gevallen = [
+      ['geschiedenis zonder id aan beide kanten', d => d.boodschappenHistory.push(H('X r4', '2026-10-01')), d => d.boodschappenHistory.push(H('Y r4', '2026-10-01'))],
+      ['zelfde item verschillend gewijzigd', d => { d.boodschappen.find(b => b.id === 'b-melk').text = 'X r4'; }, d => { d.boodschappen.find(b => b.id === 'b-melk').text = 'Y r4'; }]
+    ];
+    const opzet = (lokaal, server, basis) => {
+      basis = basis || fx(); const cdata = JSON.parse(JSON.stringify(basis)), sdata = JSON.parse(JSON.stringify(basis));
+      lokaal(cdata); server(sdata);
+      return { sdata, cache: JSON.stringify({ format: 2, gen: 1, id: cacheId(DB_URL, KEY, 1), app: '1.4.1', data: cdata, base: canon(basis), t: 1, localGen: 1, confirmedGen: 0 }) };
+    };
+    const journaalSleutels = async page => (await lsKeys(page)).filter(k => k.startsWith('plannerJournal_'));
+    // Na elke (her)start: melding, cache met X onaangeroerd, Y op de server en X niet, nooit "opgeslagen".
+    async function controleer(o, cache, naam, metJournaal) {
+      if (!metJournaal) {
+        assert(await o.page.isVisible('#confirmOverlay.open') && /niet zonder verlies/.test(await o.page.textContent('#confirmTitle')), naam + ': geen herstelmelding (' + (await o.page.isVisible('#confirmOverlay.open') ? await o.page.textContent('#confirmTitle') : 'geen venster') + '), status: ' + await syncText(o.page));
+      }
+      if (await o.page.isVisible('#confirmOverlay.open')) await o.page.click('#confirmCancelBtn');
+      const db = JSON.stringify(o.state.db);
+      assert(db.includes('Y r4'), naam + ': Y van de server verdwenen');
+      assert(!db.includes('X r4'), naam + ': automatisch een winnaar gekozen (X op de server)');
+      const raw = await lsRaw(o.page, NIEUW);
+      assert(raw === cache || (await apartKopieen(o.page)).includes(cache), naam + ': X (cache) verdwenen');
+      if (!metJournaal) assert(raw === cache, naam + ': cache met X overschreven');
+      const st = await statussen(o.page);
+      assert(!st.some(t => OPGESLAGEN.test(t)), naam + ': "opgeslagen" terwijl het conflict open is: ' + st.join(' | '));
+    }
+    const volgVanafStart = `window.addEventListener('DOMContentLoaded',()=>{window.__statussen=[];const el=document.getElementById('syncText');if(!el)return;new MutationObserver(()=>window.__statussen.push(el.textContent)).observe(el,{childList:true,characterData:true,subtree:true});});`;
+    gevallen.forEach(([naam, lokaal, server]) => {
+      out['R4-B1: herstelconflict, offline vóór de PUT, géén journaal; herladen online + twee keer — ' + naam + ': X en Y blijven, geen winnaar, nooit "opgeslagen"'] = async ctx => {
+        const { sdata, cache } = opzet(lokaal, server);
+        // De verbinding valt weg vóór de eerste PUT: de browser meldt offline zodra de serverstand binnen
+        // is (navigator.onLine), daarna gaat ook het netwerk echt dicht. Zo ontstaat er geen journaal.
+        // (De vlag wordt bij het laden van de pagina gelezen: een pagina blijft offline tot ze herlaadt.)
+        const nietOnline = `(function(){var on=sessionStorage.getItem('__nietOnline')==='0';Object.defineProperty(Navigator.prototype,'onLine',{configurable:true,get(){return on;}});})();`;
+        const o = await open(ctx, { data: sdata, localStorage: { [NIEUW]: cache }, opslagFout: { lezen: '^huisplanCache_' }, initScript: volgVanafStart + nietOnline });
+        await wait(1200);
+        await zetOpslagFout(o.page, {});
+        await o.ctx.route(DB_URL + '/**', blokkeer); await o.ctx.setOffline(true);
+        await addBood(o.page, 'Z r4'); await wait(2500);
+        assert(!(await journaalSleutels(o.page)).length, naam + ': testopzet: toch een journaal');
+        await controleer(o, cache, naam + ', eerste sessie', false);
+        await o.page.evaluate(() => sessionStorage.setItem('__nietOnline', '0'));
+        await o.ctx.unroute(DB_URL + '/**', blokkeer); await o.ctx.setOffline(false);
+        await wait(1000);
+        assert(!(await journaalSleutels(o.page)).length, naam + ': testopzet: journaal vóór herladen');
+        for (let i = 0; i < 3; i++) {
+          await o.page.reload(); await wait(2500);
+          await controleer(o, cache, naam + ', herladen ' + (i + 1), false);
+          assert(!(await journaalSleutels(o.page)).length, naam + ', herladen ' + (i + 1) + ': testopzet: toch een journaal');
+        }
+        await o.ctx.close();
+      };
+      out['R4-B1: hervatte cache in een gewone start (geen leesfout, geen journaal) — ' + naam + ': geblokkeerd, ook na twee keer herladen'] = async ctx => {
+        const { sdata, cache } = opzet(lokaal, server);
+        const o = await open(ctx, { data: sdata, localStorage: { [NIEUW]: cache }, initScript: volgVanafStart });
+        await wait(2500);
+        await controleer(o, cache, naam + ', eerste start', false);
+        for (let i = 0; i < 2; i++) {
+          await o.page.reload(); await wait(2500);
+          await controleer(o, cache, naam + ', herladen ' + (i + 1), false);
+        }
+        await o.ctx.close();
+      };
+      out['R4-B1: herstelconflict mét journaal (PUT onderweg afgebroken) — ' + naam + ': X en Y blijven over drie keer herladen'] = async ctx => {
+        const { sdata, cache } = opzet(lokaal, server);
+        const o = await open(ctx, { data: sdata, localStorage: { [NIEUW]: cache }, opslagFout: { lezen: '^huisplanCache_' }, initScript: volgVanafStart });
+        await wait(1200);
+        await zetOpslagFout(o.page, {});
+        await o.ctx.route(DB_URL + '/**', blokkeer); // online, maar het verzoek valt weg: uitkomst onbekend
+        await addBood(o.page, 'Z r4'); await wait(3000);
+        assert((await journaalSleutels(o.page)).length, naam + ': testopzet: geen journaal');
+        await controleer(o, cache, naam + ', eerste sessie', true);
+        await o.ctx.unroute(DB_URL + '/**', blokkeer);
+        for (let i = 0; i < 3; i++) {
+          await o.page.reload(); await wait(2500);
+          await controleer(o, cache, naam + ', herladen ' + (i + 1), true);
+        }
+        await o.ctx.close();
+      };
+    });
+    // Controle: onafhankelijke wijzigingen na herladen worden nog gewoon (verliesvrij) samengevoegd.
+    out['R4-B1 (controle): hervatte cache met onafhankelijke toevoeging — verliesvrij samengevoegd en opgeslagen'] = async ctx => {
+      const { sdata, cache } = opzet(d => d.boodschappen.push({ id: 'x-r4c', text: 'X r4c', done: false }), d => d.boodschappen.push({ id: 'y-r4c', text: 'Y r4c', done: false }));
+      const o = await open(ctx, { data: sdata, localStorage: { [NIEUW]: cache } });
+      await until(async () => ['X r4c', 'Y r4c'].every(t => boodTexts(o.state.db).includes(t)) && OPGESLAGEN.test(await syncText(o.page)), 6000, 'X en Y samengevoegd en opgeslagen');
+      assert(!(await o.page.isVisible('#confirmOverlay.open')), 'Onterechte herstelmelding');
+      await o.ctx.close();
+    };
+    return out;
+  })(),
+
+  // B2: een markering die er staat maar niet te herkennen is, is geen afwezige markering.
+  ...(() => {
+    const out = {};
+    const oud = JSON.stringify({ data: metItem(fx(), 'x-r4m', 'X r4m'), base: canon(fx()), t: 1, db: DB_URL });
+    const hash = crypto.createHash('sha256').update(oud).digest('hex').slice(0, 32);
+    const varianten = [
+      ['onbekende toestand', JSON.stringify({ h: hash, s: 'future-state' })],
+      ['kapotte JSON', '{"h":"' + hash + '","s":'],
+      ['verkeerde structuur (lijst)', JSON.stringify([hash, 'klaar'])],
+      ['ontbrekende hash', JSON.stringify({ s: 'klaar' })],
+      ['ontbrekende toestand', JSON.stringify({ h: hash })],
+      ['hash geen tekst', JSON.stringify({ h: 123, s: 'klaar' })]
+    ];
+    const nietIngelezen = async (o, w) => {
+      assert(!boodTexts(o.state.db).includes('X r4m') && !(await appToont(o.page, 'X r4m')), w + ': X ingelezen');
+      assert(!String(await lsRaw(o.page, NIEUW)).includes('X r4m'), w + ': X in de nieuwe cache');
+      assert((await lsRaw(o.page, OUD)) === oud, w + ': oude cache gewijzigd of verwijderd');
+    };
+    out['R4-B2: markering aanwezig maar onbekend/kapot/verkeerde vorm — nooit importeren, niets aanraken, gemeld over twee keer herladen'] = async ctx => {
+      for (const [naam, mark] of varianten) {
+        const o = await open(ctx, { data: fx(), localStorage: { [OUD]: oud, [MARK]: mark } });
+        for (let i = 0; i < 3; i++) {
+          if (i) await o.page.reload();
+          const w = naam + (i ? ', herladen ' + i : ', eerste start');
+          assert(await vraagLegacy(o.page, 4000) && /verwerkingsmarkering/.test(await o.page.textContent('#confirmTitle')), w + ': geen (juiste) melding');
+          await o.page.click('#confirmCancelBtn');
+          await addBood(o.page, 'Ander r4 ' + i); await wait(1500);
+          await nietIngelezen(o, w);
+          assert((await lsRaw(o.page, MARK)) === mark, w + ': markering gewijzigd');
+          const exp = JSON.parse(await o.page.evaluate(() => window.huisplanOpslag.herstelgegevens()));
+          assert(exp.items[OUD] === oud && exp.items[MARK] === mark, w + ': herstelgegevens zonder oude cache of markering');
+        }
+        await o.ctx.close();
+      }
+    };
+    out['R4-B2: markering tijdelijk niet te lezen — niet importeren, niets aanraken; daarna alleen bij aantoonbare afwezigheid'] = async ctx => {
+      // Markering afwezig, maar de eerste sessie kan hem niet lezen: dan is "afwezig" niet bewezen.
+      const o = await open(ctx, { data: fx(), localStorage: { [OUD]: oud }, opslagFout: { lezen: '^huisplanOudeCacheVerwerkt_' } });
+      assert(await vraagLegacy(o.page, 4000), 'Leesfout markering: geen melding');
+      await o.page.click('#confirmCancelBtn'); await wait(1500);
+      await nietIngelezen(o, 'leesfout markering');
+      assert((await lsRaw(o.page, MARK)) === null, 'Leesfout markering: toch een markering geschreven');
+      // Een geldige markering 'klaar' die even niet te lezen is: ook niet importeren.
+      await o.ctx.close();
+      const o2 = await open(ctx, { data: fx(), localStorage: { [OUD]: oud, [MARK]: JSON.stringify({ h: hash, s: 'klaar' }) }, opslagFout: { lezen: '^huisplanOudeCacheVerwerkt_' } });
+      await wait(2000);
+      if (await o2.page.isVisible('#confirmOverlay.open')) await o2.page.click('#confirmCancelBtn');
+      await nietIngelezen(o2, 'leesfout bij "klaar"');
+      await zetOpslagFout(o2.page, {});
+      for (let i = 0; i < 2; i++) {
+        await o2.page.reload(); await wait(2000);
+        if (await o2.page.isVisible('#confirmOverlay.open')) await o2.page.click('#confirmCancelBtn');
+        await nietIngelezen(o2, '"klaar", herladen ' + (i + 1));
+      }
+      await o2.ctx.close();
+    };
+    return out;
+  })(),
+
   // ── Derde Codex-review #16 ────────────────────────────────────────────────────────────────────
   // Cache (onbevestigd) even onleesbaar bij opstarten; intussen verandert de server; daarna weer leesbaar.
   // Opnemen alleen als de E2-controle (losslessMerge) het verliesvrij vindt; anders blokkeren.

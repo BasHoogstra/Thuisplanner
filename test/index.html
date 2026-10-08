@@ -2843,6 +2843,20 @@ function createFirebaseStore(opts){
   //    bewijs (duurzame kopie) niet lukt: blokkeren. De cache blijft dan onaangeroerd, er komt een
   //    melding met de herstelgegevens, en "opgeslagen" verschijnt niet.
   var herstelGepland=false,herstelBewaard=false;
+  // Vierde Codex-review #16, B1: een vastgesteld herstelconflict mag nooit alleen in het geheugen
+  // bestaan. Daarom geldt de controle niet alleen na een leesfout, maar bij ELKE hervatting: is de
+  // stand uit een cache met onbevestigde inhoud hervat (resumeCache), dan gaat de eerste geslaagde
+  // lezing (load) door dezelfde E2-verliesvrijheidscontrole (losslessMerge) i.p.v. mergeData een
+  // winnaar te laten kiezen. Het duurzame bewijs is de cache zelf: die wordt bij een conflict nooit
+  // overschreven (cacheBlocked 'herstel'), dus na elke herstart volgt dezelfde controle en dezelfde
+  // blokkade, met of zonder journaal.
+  var hervatControle=false;
+  // Ruwe cache-inhoud één keer apart bewaren (geen nieuwe kopie als precies deze inhoud al apart staat).
+  function bewaarApart(raw){
+    var pre='huisplanCacheApart_'+cacheId()+'_';
+    try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf(pre)===0&&localStorage.getItem(k)===raw)return true;}}catch(e){return false;}
+    return quarantine(raw);
+  }
   function planHerstel(){
     if(herstelGepland)return;
     herstelGepland=true;
@@ -2856,7 +2870,7 @@ function createFirebaseStore(opts){
   function herstelOpnemen(){
     if(!herstelKandidaat||cacheBlocked==='herstel')return;
     var raw=herstelKandidaat,c=null;try{c=JSON.parse(raw);}catch(e){}
-    if(!herstelBewaard){if(!quarantine(raw)){blokkeerHerstel('apart bewaren mislukt');return;}herstelBewaard=true;}
+    if(!herstelBewaard){if(!bewaarApart(raw)){blokkeerHerstel('apart bewaren mislukt');return;}herstelBewaard=true;}
     if(!validCache(c)||heeftGaten(c.data)||normalizeLoses(c.data)){blokkeerHerstel('vorm');return;}
     var B,L,R,M;
     try{
@@ -2972,16 +2986,24 @@ function createFirebaseStore(opts){
     var m=leesOpslag(legacyMarkKey());
     if(!m.ok)return {state:'onbekend'}; // markering niet te lezen: niet gebruiken
     var mk=leesMarkering(m.waarde);
+    // Vierde Codex-review #16, B2: een markering die er staat maar niet te herkennen is (onbekende
+    // toestand, kapotte JSON, verkeerde vorm, ontbrekende velden) is GEEN afwezige markering. Dan
+    // nooit (opnieuw) inlezen en niets aanraken, wel elke sessie melden met de herstelgegevens.
+    if(mk.s==='onbekend')return {state:'markering-onbekend',hash:hash};
     // 'klaar': volledig overgenomen, nooit meer iets mee doen. 'gereserveerd' (of een markering zonder
     // toestand van een eerdere versie): de overname is begonnen maar niet aantoonbaar afgerond; nooit
     // opnieuw inlezen (dat zou een latere verwijdering kunnen terugdraaien), maar wel elke sessie melden
     // met de herstelgegevens, ook als er inmiddels een nieuwe cache is.
-    if(mk&&mk.h===hash)return {state:mk.s==='klaar'?'verwerkt':'onvolledig',hash:hash};
+    if(mk.s!=='afwezig'&&mk.h===hash)return {state:mk.s==='klaar'?'verwerkt':'onvolledig',hash:hash};
     var c=null;try{c=JSON.parse(raw);}catch(e){}
     if(!isPlainObj(c)||!isPlainObj(c.data)||typeof c.base!=='string'||(c.base&&!parseObj(c.base,false)))return {state:'onleesbaar',hash:hash};
     var twijfel=heeftGaten(c.data)||normalizeLoses(c.data)||(c.base?normalizeLoses(JSON.parse(c.base)):false);
     var eigen=typeof c.db==='string'&&c.db===normDb(dbUrl);
-    return {state:eigen?'eigen':'herkomst-onbekend',c:c,hash:hash,twijfel:twijfel,unsaved:twijfel||cacheUnsaved(c)};
+    // Alleen een aantoonbaar afwezige markering mag de overname (het markeringsprotocol) starten. Een
+    // geldige markering van andere inhoud (de oude cache is na een eerdere verwerking vervangen) telt
+    // niet als afwezig: melden, nooit automatisch inlezen.
+    var st=!eigen?'herkomst-onbekend':mk.s==='afwezig'?'eigen':'vervangen';
+    return {state:st,c:c,hash:hash,twijfel:twijfel,unsaved:twijfel||cacheUnsaved(c)};
   }
   // Een lijst met lege plekken (null) of een object met numerieke sleutels waar een lijst hoort, is
   // precies de vorm van P1-11: niet raden wat erbij hoort, dus als twijfelachtig behandelen.
@@ -2998,12 +3020,16 @@ function createFirebaseStore(opts){
     setTimeout(function(){emit({type:'legacy-kept',state:lg.state});},0);
   }
   // Markering: {h: hash van de inhoud, s: 'gereserveerd' | 'klaar'}. Een losse hash (vorige versie) telt
-  // als 'gereserveerd'.
+  // als 'gereserveerd'. Uitkomst altijd één van: {s:'afwezig'} (er staat niets), {h,s:'gereserveerd'},
+  // {h,s:'klaar'} of {s:'onbekend'} (er staat iets wat niet te herkennen is). Alleen 'afwezig' is
+  // afwezig; een leesfout handelt de aanroeper af (ook onbekend, nooit afwezig).
   function leesMarkering(w){
-    if(typeof w!=='string'||!w)return null;
+    if(w===null)return {s:'afwezig'};
+    if(typeof w!=='string')return {s:'onbekend'};
     if(/^[0-9a-f]{32}$/.test(w))return {h:w,s:'gereserveerd'};
-    try{var m=JSON.parse(w);if(m&&typeof m.h==='string'&&(m.s==='gereserveerd'||m.s==='klaar'))return m;}catch(e){}
-    return null;
+    var m=null;try{m=JSON.parse(w);}catch(e){}
+    if(isPlainObj(m)&&typeof m.h==='string'&&/^[0-9a-f]{32}$/.test(m.h)&&(m.s==='gereserveerd'||m.s==='klaar'))return {h:m.h,s:m.s};
+    return {s:'onbekend'};
   }
   // Eigen oude cache zonder nieuwe cache, in drie duurzame stappen (elk geschreven én teruggelezen):
   //  1. markering 'gereserveerd' (lukt dat niet: niet overnemen);
@@ -3290,6 +3316,16 @@ function createFirebaseStore(opts){
     resumeCache(true);
     load({initial:true});
   }
+  // Is samenvoegen van de hervatte cache-stand met deze serverstand aantoonbaar verliesvrij? Dezelfde
+  // E2-controle als na een onbekende uitkomst en als herstelOpnemen; een twijfelachtige vorm telt als nee.
+  function hervatVerliesvrij(local,inc,raw){
+    try{
+      if(heeftGaten(local)||normalizeLoses(raw))return false;
+      var B=normalizeData(clone(baseObj())),L=normalizeData(clone(local)),R=normalizeData(clone(inc));
+      var M=mergeData(clone(B),clone(L),clone(R));
+      return losslessMerge(vergelijkbaar(B),vergelijkbaar(L),vergelijkbaar(R),vergelijkbaar(M));
+    }catch(e){return false;}
+  }
   // Heeft deze cache wijzigingen die niet op de server staan (ten opzichte van haar eigen basis)?
   function cacheUnsaved(c){
     try{return canon(normalizeData(clone(c.data)))!==canon(normalizeData(c.base?JSON.parse(c.base):{}));}catch(e){return true;}
@@ -3324,7 +3360,7 @@ function createFirebaseStore(opts){
     gateClear();
     // Ook in deze (E2-)herstelroute de oude cache bekijken, maar alleen om te melden: nooit inlezen
     // (het journaalrecord is hier de waarheid).
-    (function(){var lg=inspectLegacy();if(lg&&(lg.state==='onvolledig'||lg.state==='onbekend'||lg.state==='onleesbaar'||lg.unsaved))legacyKept(lg);})();
+    (function(){var lg=inspectLegacy();if(lg&&(lg.state==='onvolledig'||lg.state==='onbekend'||lg.state==='markering-onbekend'||lg.state==='onleesbaar'||lg.unsaved))legacyKept(lg);})();
     localGen=Math.max(localGen,1);
     emit({type:'data',data:d,render:true});
     if(rec.state==='settled'){settle();load({initial:true});return;}
@@ -3346,11 +3382,12 @@ function createFirebaseStore(opts){
       legacyKept(lg); // overname niet afgerond: altijd melden, nooit opnieuw inlezen
     } else if(lg){
       if(!c&&cr.ok&&lg.state==='eigen'&&takeOverLegacy(lg)){var cr2=readCacheRaw();c=cr2.ok?cr2.c:null;}
-      else if(lg.state==='onbekend'||lg.state==='onleesbaar'||lg.unsaved)legacyKept(lg);
+      else if(lg.state==='onbekend'||lg.state==='markering-onbekend'||lg.state==='onleesbaar'||lg.unsaved)legacyKept(lg);
     }
     if(!c)return false;
     try{
       var d=normalizeData(c.data);base=c.base;
+      hervatControle=cacheOnbevestigd(c);
       // Een niet-bevestigde generatie uit de vorige sessie blijft niet-bevestigd (ook bij een lege of
       // onbekende serverstand), tot een geslaagde lezing of opslag het tegendeel aantoont.
       if(typeof c.localGen==='number'&&typeof c.confirmedGen==='number'&&c.localGen>c.confirmedGen)localGen=Math.max(localGen,confirmedGen+1);
@@ -3367,7 +3404,7 @@ function createFirebaseStore(opts){
   function recoveryExport(){
     var out={app:'huisplan',t:new Date().toISOString(),planner:plannerKey,items:{}};
     try{
-      for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k===cacheKey()||k===legacyKey()||k.indexOf(jPrefix())===0||k.indexOf('huisplanCacheApart_'+cacheId()+'_')===0)out.items[k]=localStorage.getItem(k);}
+      for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k===cacheKey()||k===legacyKey()||k===legacyMarkKey()||k.indexOf(jPrefix())===0||k.indexOf('huisplanCacheApart_'+cacheId()+'_')===0)out.items[k]=localStorage.getItem(k);}
     }catch(e){out.fout=String(e);}
     return JSON.stringify(out);
   }
@@ -3457,7 +3494,20 @@ function createFirebaseStore(opts){
       var hadChanges=hasLocalChanges();
       // Lokaal was al gelijk aan de server: tot en met genAtRead is er niets meer te bevestigen.
       if(!hadChanges&&confirmedGen<genAtRead)confirmedGen=genAtRead;
-      if(hadChanges){
+      var controle=hervatControle;hervatControle=false;
+      if(hadChanges&&controle&&!hervatVerliesvrij(local,inc,rem.raw)){
+        // Hervatte cache niet verliesvrij samen te voegen met de server (vierde Codex-review #16, B1):
+        // geen winnaar kiezen, niets van de cache-stand versturen, de cache niet overschrijven. Verder
+        // werken gebeurt op de serverstand; de cache blijft het duurzame bewijs (na herladen: opnieuw).
+        cacheBlocked='herstel';setLocalFail(true);
+        confirmedGen=localGen; // de stand in het geheugen is nu precies de serverstand
+        var cr=leesOpslag(cacheKey());
+        if(!(cr.ok&&typeof cr.waarde==='string'&&bewaarApart(cr.waarde)))opslagDiagnose('apart bewaren mislukt',cacheKey(),'conflict');
+        opslagDiagnose('cache niet opgenomen',cacheKey(),'conflict na hervatten');
+        base=s;
+        emit({type:'data',data:inc,render:true,reminders:true});
+        setTimeout(function(){emit({type:'cache-herstel',reden:'conflict'});},0);
+      } else if(hadChanges){
         // Lokale wijzigingen die nog niet op de server staan (offline gemaakt, of de app
         // werd gesloten tijdens het opslaan): samenvoegen met de serverversie en opslaan.
         if(s!==base)emit({type:'incoming',local:local,remote:inc});
@@ -3837,7 +3887,7 @@ store.subscribe(function(ev){
   } else if(ev.type==='cache-herstel'){
     // De lokale kopie bevat wijzigingen die niet zonder verlies samen te voegen zijn met de huidige stand
     // (of niet veilig apart te bewaren). Niets wordt overschreven; de gebruiker kan alles als bestand bewaren.
-    var t='De lokale kopie op dit toestel was even niet te lezen en bevat wijzigingen die nog niet op de server staan. Ze zijn niet zonder verlies samen te voegen met wat er nu staat, dus Huisplan kiest niet zelf en overschrijft niets. Bewaar de herstelgegevens als bestand.';
+    var t='De lokale kopie op dit toestel bevat wijzigingen die nog niet op de server staan. Ze zijn niet zonder verlies samen te voegen met wat er nu staat, dus Huisplan kiest niet zelf en overschrijft niets: je ziet nu de stand van de server, de lokale kopie blijft op dit toestel bewaard (ook na herladen). Bewaar de herstelgegevens als bestand.';
     if(document.getElementById('confirmOverlay').classList.contains('open'))showToast('Lokale kopie bewaard, niet samengevoegd.');
     else customConfirm(t,downloadHerstel,{okText:'Bewaar als bestand',cancelText:'Later'});
   } else if(ev.type==='guard'){
@@ -3888,7 +3938,9 @@ function downloadHerstel(){
   }catch(e){showToast('Bewaren lukte niet');}
 }
 function showLegacyKept(state){
-  var tekst=state==='onvolledig'
+  var tekst=state==='markering-onbekend'
+    ?'Op dit toestel staat een oudere lokale kopie van Huisplan met een verwerkingsmarkering die niet te herkennen is. Of hij al is overgenomen, is daardoor niet vast te stellen, dus Huisplan neemt hem niet automatisch over en verandert niets. Hij blijft op dit toestel bewaard; bewaar hem als bestand om hem te controleren.'
+    :state==='onvolledig'
     ?'Het overnemen van een oudere lokale kopie van Huisplan is eerder niet afgerond. Om niets terug te zetten wat intussen is verwijderd, neemt Huisplan hem niet automatisch opnieuw over. Hij blijft op dit toestel bewaard; bewaar hem als bestand om hem te controleren.'
     :'Op dit toestel staat een oudere lokale kopie van Huisplan'+(state==='onbekend'||state==='onleesbaar'?' die niet te lezen is':' met mogelijk niet-opgeslagen wijzigingen')+
     '. Niet vast te stellen is dat die bij deze planner en database hoort, dus Huisplan gebruikt hem niet en voegt niets samen. Hij blijft op dit toestel bewaard.';
@@ -3913,6 +3965,7 @@ document.getElementById('journalGateExport').addEventListener('click',downloadHe
 window.huisplanOpslag={
   diagnose:function(){return (window.__huisplanOpslagDiag||[]).slice();},
   risico:function(){return store.isAtRisk();},
+  herstelgegevens:function(){return store.recoveryExport();},
   bewaarDuurzaam:function(k,v){return bewaarDuurzaam(k,v).ok;},
   gezond:function(){var k='huisplanOpslagProef',ok=bewaarDuurzaam(k,'proef-'+Date.now()).ok;bewaar(k,null,'voorkeur');return ok;},
   sha256:sha256Hex

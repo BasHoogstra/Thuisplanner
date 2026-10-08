@@ -529,3 +529,12 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   blijft elke sessie gemeld (ook na het E2-herstel) en wordt nooit opnieuw ingelezen.
 - Tests: `tests/opslag.test.js` (35).
 
+## 1.4.2-voorbereiding: NW-04 (E3) na de vierde Codex-review (testversie)
+- Herstelconflict overleeft herstarts: elke hervatting uit een cache met onbevestigde inhoud gaat bij de
+  eerste geslaagde lezing door de E2-controle `losslessMerge`; geen winnaar na herladen, de cache blijft
+  het duurzame bewijs, nooit "opgeslagen", met of zonder journaal.
+- Oude-cachemarkering vierwaardig (afwezig / gereserveerd / klaar / onbekend): alleen een aantoonbaar
+  afwezige markering start de overname; onbekend, kapot of onleesbaar = nooit importeren, niets
+  aanraken, elke sessie melden. Herstelgegevens bevatten ook de markering.
+- Tests: `tests/opslag.test.js` (44).
+
