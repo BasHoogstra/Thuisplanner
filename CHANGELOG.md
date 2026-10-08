@@ -549,3 +549,13 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   Overschreven levende vensters leggen hun stand alsnog vast via het `storage`-event.
 - Tests: `tests/opslag.test.js` (52).
 
+## 1.4.2-voorbereiding: NW-04 (E3) na de zesde Codex-review (testversie)
+- De gedeelde cache is nooit meer het enige exemplaar. Elke onbevestigde lokale stand komt eerst in
+  het eigen journaalrecord van het venster (nieuwe toestand 'lokaal'), en pas daarna in de cache.
+- Records worden alleen opgeruimd na bevestiging, na gelijkheid met de server of na een conflictbewijs.
+- Verweesde records worden bij een herstart (en daarna in rust, één voor één) verliesvrij samengevoegd
+  of als conflict bewaard; nooit een winnaar.
+- Status: een nieuw conflictbewijs of een onafgerond record van een ander venster trekt "Opgeslagen"
+  in.
+- Tests: `tests/opslag.test.js` (60).
+

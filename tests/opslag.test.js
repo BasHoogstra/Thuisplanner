@@ -89,6 +89,199 @@ const zetFout2 = (page, regels) => page.evaluate(r => sessionStorage.setItem('__
 const apartKopieen = async page => { const ks = (await lsKeys(page)).filter(k => k.startsWith('huisplanCacheApart_') || k.startsWith('huisplanCacheConflict_')); return Promise.all(ks.map(k => lsRaw(page, k))); };
 
 module.exports = {
+  // ── Zesde Codex-review #16: crashveiligheid van onbevestigde lokale wijzigingen ────────────────
+  // Elke onbevestigde lokale stand moet een eigen duurzaam exemplaar hebben (journaalrecord van het
+  // venster) vóór de gedeelde, overschrijfbare cache wordt bijgewerkt. Het storage-event is hooguit een
+  // extra melding: in deze tests wordt het onderschept.
+  ...(() => {
+    const out = {};
+    // Offline (navigator.onLine) via een vlag in localStorage, en storage-events die per venster uit te
+    // zetten zijn (window.__geenEvents): de luisteraars van de app worden vóór het laden omhuld.
+    const OFFLINE = `(function(){var off=false;try{off=localStorage.getItem('__testOffline')==='1';}catch(e){}if(off)Object.defineProperty(Navigator.prototype,'onLine',{configurable:true,get:function(){return false;}});
+      var ae=EventTarget.prototype.addEventListener;EventTarget.prototype.addEventListener=function(t,f,o){if(t==='storage'&&this===window&&typeof f==='function'){var g=function(e){if(window.__geenEvents)return;return f.call(this,e);};return ae.call(this,t,g,o);}return ae.call(this,t,f,o);};})();`;
+    const GEEN_LOCKS = "try{Object.defineProperty(Navigator.prototype,'locks',{get:function(){return undefined;},configurable:true});}catch(e){}";
+    // Alle duurzame bronnen samen: cache, journaalrecords, conflictbewijs, quarantaine en de server.
+    const bronnen = async (page, state) => {
+      const ks = (await lsKeys(page)).filter(k => k.startsWith('huisplanCache') || k.startsWith('plannerJournal_'));
+      return (await Promise.all(ks.map(k => lsRaw(page, k)))).join('\n') + '\n' + JSON.stringify(state.db);
+    };
+    const journaal = async page => (await lsKeys(page)).filter(k => k.startsWith('plannerJournal_'));
+    const sluitMelding = async page => { for (let i = 0; i < 3 && await page.isVisible('#confirmOverlay.open'); i++) { await page.click('#confirmCancelBtn'); await wait(150); } };
+    const geenEvents = page => page.evaluate(() => { window.__geenEvents = true; });
+    const onthoudCache = page => page.evaluate(k => { window.__oud = localStorage.getItem(k); }, NIEUW);
+    // Exacte interleaving: dit venster is zijn controle al voorbij voordat het andere venster schreef.
+    // Tot zijn eigen volgende cache-opslag ziet het daarom bij elke cachelezing nog de onthouden (oude)
+    // stand; zijn setItem overschrijft daarna wat er werkelijk staat. Daarna weer normaal.
+    const verouderdeLezing = page => page.evaluate(k => {
+      const P = Storage.prototype, g = P.getItem, z = P.setItem; let actief = true;
+      P.getItem = function (x) { if (actief && this === localStorage && x === k) return window.__oud; return g.call(this, x); };
+      P.setItem = function (x, v) { const r = z.call(this, x, v); if (this === localStorage && x === k) { actief = false; P.getItem = g; P.setItem = z; } return r; };
+    }, NIEUW);
+    async function tweeVensters(ctx, o = {}) {
+      const B = await open(ctx, Object.assign({ data: fx(), initScript: OFFLINE + (o.extra || '') }, o.open || {}));
+      await wait(500);
+      await B.page.evaluate(() => localStorage.setItem('__testOffline', '1'));
+      await B.page.reload(); await wait(1500);
+      const C = { page: await B.ctx.newPage() };
+      await C.page.goto(B.url); await wait(2000);
+      return { B, C };
+    }
+    async function herstarts(B, n, check, init) {
+      await B.page.evaluate(() => localStorage.removeItem('__testOffline')).catch(() => {});
+      const D = { page: await B.ctx.newPage() };
+      if (init) await D.page.addInitScript({ content: init });
+      await D.page.goto(B.url); await wait(3500); await sluitMelding(D.page);
+      await check(D.page, 1);
+      for (let i = 2; i <= n; i++) { await D.page.reload(); await wait(3500); await sluitMelding(D.page); await check(D.page, i); }
+      return D;
+    }
+    const opServer = (state, t) => boodTexts(state.db).includes(t);
+
+    out['R6-1: exacte interleaving — B voorbij de controle, C schrijft W, B overschrijft, géén event naar C, C crasht; drie herstarts: W en V nooit weg'] = async ctx => {
+      const { B, C } = await tweeVensters(ctx);
+      await onthoudCache(B.page);
+      await addBood(C.page, 'W r6'); await wait(1500);
+      assert(String(await lsRaw(C.page, NIEUW)).includes('W r6'), 'Testopzet: W niet in de cache');
+      await geenEvents(C.page);
+      await verouderdeLezing(B.page);
+      await addBood(B.page, 'V r6'); await wait(1500);
+      assert(!String(await lsRaw(C.page, NIEUW)).includes('W r6'), 'Testopzet: B heeft W in de cache niet overschreven');
+      await C.page.close(); // crash: geen afhandeling meer
+      assert((await bronnen(B.page, B.state)).includes('W r6'), 'Na de crash van C: W uit alle duurzame bronnen verdwenen');
+      await B.page.evaluate(() => localStorage.removeItem('__testOffline'));
+      await B.page.close();
+      const D = await herstarts(B, 3, async (p, i) => {
+        const alles = await bronnen(p, B.state);
+        assert(alles.includes('W r6'), 'Herstart ' + i + ': W uit alle duurzame bronnen verdwenen');
+        assert(alles.includes('V r6'), 'Herstart ' + i + ': V uit alle duurzame bronnen verdwenen');
+      });
+      await until(async () => opServer(B.state, 'W r6') && opServer(B.state, 'V r6'), 6000, 'W en V uiteindelijk op de server');
+      await D.page.close(); await B.ctx.close();
+    };
+
+    for (const volgorde of ['C eerst', 'B eerst']) {
+      out['R6-2: ' + volgorde + ', meerdere opeenvolgende offline wijzigingen met verouderde lezingen en zonder events; beide vensters crashen: niets verdwijnt'] = async ctx => {
+        const { B, C } = await tweeVensters(ctx);
+        await geenEvents(B.page); await geenEvents(C.page);
+        const [eerste, tweede] = volgorde === 'C eerst' ? [C, B] : [B, C];
+        const teksten = [];
+        for (let r = 0; r < 3; r++) {
+          await onthoudCache(tweede.page);
+          const a = 'E' + r + ' r6', b = 'T' + r + ' r6'; teksten.push(a, b);
+          await addBood(eerste.page, a); await wait(1200);
+          await verouderdeLezing(tweede.page);
+          await addBood(tweede.page, b); await wait(1200);
+          const alles = await bronnen(eerste.page, B.state);
+          for (const t of teksten) assert(alles.includes(t), 'Ronde ' + (r + 1) + ': ' + t + ' uit alle duurzame bronnen verdwenen');
+        }
+        await B.page.evaluate(() => localStorage.removeItem('__testOffline'));
+        await C.page.close(); await B.page.close();
+        const D = await herstarts(B, 3, async (p, i) => {
+          const alles = await bronnen(p, B.state);
+          for (const t of teksten) assert(alles.includes(t), 'Herstart ' + i + ': ' + t + ' verdwenen');
+        });
+        await until(async () => teksten.every(t => opServer(B.state, t)), 8000, 'alles uiteindelijk op de server');
+        await D.page.close(); await B.ctx.close();
+      };
+    }
+
+    out['R6-3: het herstelrecord kan niet worden geschreven (opslag vol) — geen valse opslagbevestiging, waarschuwing, niets kwijt zodra het weer lukt'] = async ctx => {
+      const { B, C } = await tweeVensters(ctx, { extra: VOLG_VANAF_START });
+      await zetOpslagFout(C.page, { schrijven: '^plannerJournal_' });
+      await C.page.evaluate(() => { window.__statussen = []; });
+      await addBood(C.page, 'W r6q'); await wait(1500);
+      assert(!(await statussen(C.page)).some(t => OPGESLAGEN.test(t)) && !OPGESLAGEN.test(await syncText(C.page)), 'Geruststellende status terwijl W nergens duurzaam staat');
+      assert(await waarschuwtBijSluiten(C.page), 'Geen waarschuwing bij sluiten terwijl W alleen in het geheugen staat');
+      assert(await appToont(C.page, 'W r6q'), 'W uit het geheugen verdwenen');
+      await zetOpslagFout(C.page, {});
+      await addBood(C.page, 'W2 r6q'); await wait(1500);
+      const recs = await Promise.all((await journaal(C.page)).map(k => lsRaw(C.page, k)));
+      assert(recs.some(r => r.includes('W r6q') && r.includes('W2 r6q')), 'Na herstel van de opslag: W niet in een eigen herstelrecord');
+      await B.ctx.close();
+    };
+
+    out['R6-4: herstart met meerdere onafgeronde records en conflicterende serverinhoud — geen winnaar, alles bewaard, nooit "opgeslagen"'] = async ctx => {
+      const H = t => ({ text: t, norm: t.toLowerCase(), date: '2026-10-01' });
+      const { B, C } = await tweeVensters(ctx);
+      await addBood(C.page, 'W r6k'); await wait(1000);
+      // C vinkt X af: dat wijzigt ook de geschiedenis (lijst zonder id), die de server intussen anders wijzigt.
+      await addBood(C.page, 'X r6k'); await wait(800);
+      await C.page.click('#boodschappenList [aria-label="Afvinken: X r6k"]'); await wait(1000);
+      assert(String(await lsRaw(C.page, NIEUW)).includes('"norm":"x r6k"'), 'Testopzet: X niet in de geschiedenis');
+      await addBood(B.page, 'V r6k'); await wait(1000);
+      serverWrite(B.state, db => { db.boodschappenHistory.push(H('Y r6k')); });
+      await B.page.evaluate(() => localStorage.removeItem('__testOffline'));
+      await C.page.close(); await B.page.close();
+      const D = await herstarts(B, 3, async (p, i) => {
+        const alles = await bronnen(p, B.state);
+        for (const t of ['W r6k', 'X r6k', 'V r6k', 'Y r6k']) assert(alles.includes(t), 'Herstart ' + i + ': ' + t + ' verdwenen');
+        assert(B.state.db.boodschappenHistory.some(h => h.text === 'Y r6k'), 'Herstart ' + i + ': Y van de server verdwenen');
+        assert(!B.state.db.boodschappenHistory.some(h => h.text === 'X r6k'), 'Herstart ' + i + ': X als winnaar gekozen');
+        assert(!OPGESLAGEN.test(await syncText(p)), 'Herstart ' + i + ': "opgeslagen" terwijl het conflict open is');
+      });
+      await D.page.close(); await B.ctx.close();
+    };
+
+    out['R6-5: nieuwe conflictsleutel van een ander venster — een al getoonde "Opgeslagen"-status wordt ingetrokken'] = async ctx => {
+      const H = t => ({ text: t, norm: t.toLowerCase(), date: '2026-10-01' });
+      const basis = fx(), sdata = JSON.parse(JSON.stringify(basis)), xdata = JSON.parse(JSON.stringify(basis));
+      sdata.boodschappenHistory.push(H('Y r6s')); xdata.boodschappenHistory.push(H('X r6s'));
+      const B = await open(ctx, { data: sdata });
+      await addBood(B.page, 'B r6s');
+      await until(async () => OPGESLAGEN.test(await syncText(B.page)), 6000, 'B toont "Opgeslagen"');
+      const cacheX = JSON.stringify({ format: 2, gen: 1, id: cacheId(DB_URL, KEY, 1), app: '1.4.1', data: xdata, base: canon(basis), t: 1, inst: 'i00000000000000d6', seq: 1, localGen: 1, confirmedGen: 0 });
+      await B.page.evaluate(([k, v]) => localStorage.setItem(k, v), [NIEUW, cacheX]);
+      const A = { page: await B.ctx.newPage() };
+      await A.page.goto(B.url); await wait(2500);
+      assert((await lsKeys(A.page)).some(k => k.startsWith('huisplanCacheConflict_')), 'Testopzet: A legde geen conflictbewijs vast');
+      await wait(1000);
+      assert(!OPGESLAGEN.test(await syncText(B.page)), 'B toont nog "' + await syncText(B.page) + '" terwijl er een open conflict is');
+      await B.page.reload(); await wait(2500); await sluitMelding(B.page);
+      assert(!OPGESLAGEN.test(await syncText(B.page)), 'Na herladen: B toont "opgeslagen" terwijl er een open conflict is');
+      await B.ctx.close();
+    };
+
+    out['R6-6: herstart met een tijdelijke leesfout op het journaal, en zonder Web Locks — niets kwijt, nooit "opgeslagen"'] = async ctx => {
+      for (const variant of ['leesfout', 'zonder Web Locks']) {
+        const { B, C } = await tweeVensters(ctx);
+        await addBood(C.page, 'W r6l'); await wait(1500);
+        await C.page.close();
+        await B.page.evaluate(() => localStorage.removeItem('__testOffline'));
+        await B.page.close();
+        const init = variant === 'leesfout' ? "sessionStorage.getItem('__opslagFout')||sessionStorage.setItem('__opslagFout',JSON.stringify({lezen:'^plannerJournal_'}));" : GEEN_LOCKS;
+        const D = await herstarts(B, 2, async (p, i) => {
+          assert((await bronnen(p, B.state)).includes('W r6l'), variant + ', herstart ' + i + ': W verdwenen');
+          assert(!OPGESLAGEN.test(await syncText(p)), variant + ', herstart ' + i + ': "opgeslagen" bij een onafgerond record');
+        }, init);
+        if (variant === 'leesfout') {
+          await zetOpslagFout(D.page, {});
+          await D.page.reload();
+          await until(async () => opServer(B.state, 'W r6l'), 8000, 'na de leesfout: W op de server');
+        }
+        await D.page.close(); await B.ctx.close();
+      }
+    };
+
+    out['R6-7: herstelrecord wordt niet opgeruimd zolang de inhoud niet bevestigd is (server onbereikbaar), wel daarna'] = async ctx => {
+      const { B, C } = await tweeVensters(ctx);
+      await addBood(C.page, 'W r6o'); await wait(1500);
+      await C.page.close();
+      B.state.onbereikbaar = true;
+      await B.page.evaluate(() => localStorage.removeItem('__testOffline'));
+      await B.page.close();
+      const D = await herstarts(B, 3, async (p, i) => {
+        const recs = await Promise.all((await journaal(p)).map(k => lsRaw(p, k)));
+        assert(recs.some(r => String(r).includes('W r6o')), 'Herstart ' + i + ' (server onbereikbaar): herstelrecord met W opgeruimd');
+      });
+      B.state.onbereikbaar = false;
+      await D.page.reload();
+      await until(async () => opServer(B.state, 'W r6o'), 8000, 'W op de server');
+      await until(async () => !(await Promise.all((await journaal(D.page)).map(k => lsRaw(D.page, k)))).some(r => String(r).includes('W r6o')), 6000, 'record na bevestiging opgeruimd');
+      await D.page.close(); await B.ctx.close();
+    };
+    return out;
+  })(),
+
   // ── Vijfde Codex-review #16 ───────────────────────────────────────────────────────────────────
   // B1: een verliesvrijheidsbewijs geldt alleen voor de serverversie waartegen het is berekend. Na een
   // 412 (de server veranderde tussen controle en PUT) opnieuw dezelfde controle; nooit een winnaar.
@@ -190,6 +383,7 @@ module.exports = {
             assert(await meldt(A.page), 'A: conflict niet gemeld');
             await sluitMelding(A.page);
             await controle('na ontdekken door A');
+            await sluitMelding(B.page); // B is (zesde review) via het storage-event ook gewaarschuwd
             await addBood(B.page, 'Z r5b'); await wait(2500);
           } else {
             await addBood(B.page, 'Z r5b'); await wait(2500);
@@ -234,7 +428,7 @@ module.exports = {
       // B's volgende cachelezing geeft nog de stand van vóór C's opslag (de race), daarna normaal.
       await B.page.evaluate(k => { const g = Storage.prototype.getItem; let een = true; Storage.prototype.getItem = function (x) { if (een && this === localStorage && x === k) { een = false; return window.__oud; } return g.call(this, x); }; }, NIEUW);
       await addBood(B.page, 'V r5c'); await wait(2000);
-      const alles = (await Promise.all((await lsKeys(C.page)).filter(k => k.startsWith('huisplanCache')).map(k => lsRaw(C.page, k)))).join('\n');
+      const alles = (await Promise.all((await lsKeys(C.page)).filter(k => k.startsWith('huisplanCache') || k.startsWith('plannerJournal_')).map(k => lsRaw(C.page, k)))).join('\n');
       assert(alles.includes('W r5c'), 'W (onbevestigd, van het levende venster C) uit alle duurzame opslag verdwenen');
       assert(alles.includes('V r5c'), 'V van B niet bewaard');
       await B.ctx.close();
@@ -275,7 +469,7 @@ module.exports = {
     }
     const volgVanafStart = `window.addEventListener('DOMContentLoaded',()=>{window.__statussen=[];const el=document.getElementById('syncText');if(!el)return;new MutationObserver(()=>window.__statussen.push(el.textContent)).observe(el,{childList:true,characterData:true,subtree:true});});`;
     gevallen.forEach(([naam, lokaal, server]) => {
-      out['R4-B1: herstelconflict, offline vóór de PUT, géén journaal; herladen online + twee keer — ' + naam + ': X en Y blijven, geen winnaar, nooit "opgeslagen"'] = async ctx => {
+      out['R4-B1: herstelconflict, offline vóór de PUT (geen verzonden PUT, alleen een eigen lokaal-record); herladen online + twee keer — ' + naam + ': X en Y blijven, geen winnaar, nooit "opgeslagen"'] = async ctx => {
         const { sdata, cache } = opzet(lokaal, server);
         // De verbinding valt weg vóór de eerste PUT: de browser meldt offline zodra de serverstand binnen
         // is (navigator.onLine), daarna gaat ook het netwerk echt dicht. Zo ontstaat er geen journaal.
@@ -286,16 +480,20 @@ module.exports = {
         await zetOpslagFout(o.page, {});
         await o.ctx.route(DB_URL + '/**', blokkeer); await o.ctx.setOffline(true);
         await addBood(o.page, 'Z r4'); await wait(2500);
-        assert(!(await journaalSleutels(o.page)).length, naam + ': testopzet: toch een journaal');
+        // Zesde review: de offline wijziging Z heeft een eigen duurzaam 'lokaal'-record; er is géén
+        // verzonden PUT (geen record 'sending'/'unknown').
+        { const recs = await Promise.all((await journaalSleutels(o.page)).map(k => lsRaw(o.page, k)));
+          assert(recs.every(r => JSON.parse(r).state === 'lokaal'), naam + ': testopzet: een PUT is verstuurd (' + recs.map(r => JSON.parse(r).state).join(',') + ')');
+          assert(recs.some(r => r.includes('Z r4')), naam + ': Z niet in een eigen herstelrecord'); }
         await controleer(o, cache, naam + ', eerste sessie', false);
         await o.page.evaluate(() => sessionStorage.setItem('__nietOnline', '0'));
         await o.ctx.unroute(DB_URL + '/**', blokkeer); await o.ctx.setOffline(false);
         await wait(1000);
-        assert(!(await journaalSleutels(o.page)).length, naam + ': testopzet: journaal vóór herladen');
+        assert((await Promise.all((await journaalSleutels(o.page)).map(k => lsRaw(o.page, k)))).every(r => JSON.parse(r).state === 'lokaal'), naam + ': testopzet: PUT vóór herladen');
         for (let i = 0; i < 3; i++) {
           await o.page.reload(); await wait(2500);
           await controleer(o, cache, naam + ', herladen ' + (i + 1), false);
-          assert(!(await journaalSleutels(o.page)).length, naam + ', herladen ' + (i + 1) + ': testopzet: toch een journaal');
+          assert((await Promise.all((await journaalSleutels(o.page)).map(k => lsRaw(o.page, k)))).every(r => !/"state":"(sending|unknown|uncertain)"/.test(r)), naam + ', herladen ' + (i + 1) + ': onafgeronde PUT blijft staan');
         }
         await o.ctx.close();
       };

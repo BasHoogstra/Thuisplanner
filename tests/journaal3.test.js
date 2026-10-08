@@ -565,7 +565,8 @@ module.exports = {
         await wait(1200);
         rec = await eenRecord(o.page);
         const c = await o.page.evaluate(k => JSON.parse(localStorage.getItem(k)), CKEY);
-        assert(rec.state === 'settled' && rec.local.includes('Z B1'), 'Z niet duurzaam in het record');
+        // (Zesde E3-review: een onbevestigde stand staat in het record als 'lokaal'; vóór E3 was dat 'settled'.)
+        assert((rec.state === 'settled' || rec.state === 'lokaal') && rec.local.includes('Z B1'), 'Z niet duurzaam in het record');
         assert(!JSON.stringify(c.data).includes('Z B1') && JSON.stringify(c.data).includes('X B1') && c.jrev < rec.rev, 'Testopzet: cache is niet de oudere stand X');
         assert(bw.puts === p0 && /Lokaal bewaren mislukt/.test(await syncText(o.page)), 'Verstuurd of geen eerlijke melding: ' + await syncText(o.page));
         await geenStoring(o.page);

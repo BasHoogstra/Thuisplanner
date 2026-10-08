@@ -2728,6 +2728,7 @@ function createFirebaseStore(opts){
       code=(code==='offline'||code==='save-failed'||code==='load-failed'||navigator.onLine===false)?'not-saved':'local-failed';
     // E3: zolang er een open conflict (conflictbewijs) is, in welk venster ook vastgesteld: nooit geruststellen.
     if((code==='saved'||code==='updated')&&conflictOpen())code='herstel-open';
+    else if((code==='saved'||code==='updated')&&andereOnafgerond())code='herstel-wacht';
     emit({type:'status',code:code});
   }
   function dataUrl(){return dbUrl.replace(/\/$/,'')+'/planners/'+plannerKey+'.json';}
@@ -2922,7 +2923,17 @@ function createFirebaseStore(opts){
     if(conflictBewijs(oud)){opslagDiagnose('eigen cache overschreven',cacheKey(),'bewijs');meldConflict('ander-venster');}
     else{opslagDiagnose('eigen cache overschreven',cacheKey(),'bewijs mislukt');setLocalFail(true);}
   }
-  if(typeof window!=='undefined')window.addEventListener('storage',function(e){if(e&&e.key&&plannerKey&&e.key===cacheKey())cacheOverschreven(e.oldValue,e.newValue);});
+  if(typeof window!=='undefined'){
+    window.addEventListener('storage',function(e){
+      if(!e||!plannerKey)return;
+      if(e.key===cacheKey())cacheOverschreven(e.oldValue,e.newValue);
+      // Zesde review: een nieuw conflictbewijs (of opgeruimd bewijs) van een ander venster: status opnieuw
+      // beoordelen, zodat een al getoonde "Opgeslagen" wordt ingetrokken.
+      if(e.key===null||String(e.key).indexOf(bewijsPrefix())===0){if(e.newValue!==null&&e.key)meldConflict('open');refreshStatus();}
+    });
+    // Aanvullend (een event kan uitblijven): bij terugkeren naar dit venster de status opnieuw beoordelen.
+    if(typeof document!=='undefined')document.addEventListener('visibilitychange',function(){if(!document.hidden&&plannerKey)refreshStatus();});
+  }
   // Bewijs van een lokale stand: de cache zelf als die precies deze stand (met deze basis) bevat, anders
   // een record in cacheformaat met deze stand en haar basis.
   function bewijsVan(local){
@@ -2936,10 +2947,13 @@ function createFirebaseStore(opts){
   function herstelConflict(local,inc,s,rem){
     var ok=conflictBewijs(bewijsVan(local));
     hervat=null;hervatControle=false;bekendCache=null;
-    if(!ok){cacheBlocked='herstel';setLocalFail(true);}
+    // Zonder bewijs blijven cache én eigen record precies zoals ze zijn (het enige bewijs); dit venster
+    // schrijft dan niets meer (geen cache, geen record, dus ook geen PUT).
+    if(!ok){cacheBlocked='herstel';recordVast=true;setLocalFail(true);}
     opslagDiagnose('cache niet opgenomen',cacheKey(),ok?'conflict':'conflict, bewijs mislukt');
     base=s;serverETag=rem.etag;confirmedGen=localGen;
     emit({type:'data',data:inc,render:true,reminders:true});
+    if(ok&&myRec)settle(inc); // de inhoud staat in het bewijs; het record heeft niets onbevestigds meer
     meldConflict('conflict');
     status('updated');
   }
@@ -3046,16 +3060,25 @@ function createFirebaseStore(opts){
   // cache als spiegel van die revisie. Lukt het record niet, dan ook de cache niet: de nieuwste stand
   // staat dan alleen in het geheugen (status "Lokaal bewaren mislukt"), nooit een oudere cache die
   // een nieuwer record zou kunnen vervangen. Afgehandeld record dat nog niet weg kon: via settle().
+  // Zesde Codex-review #16: elke onbevestigde lokale stand krijgt EERST een eigen duurzaam exemplaar
+  // (het journaalrecord van dit venster, toestand 'lokaal' of de lopende toestand), pas daarna de
+  // gedeelde, overschrijfbare cache. Lukt het record niet, dan ook de cache niet.
   function writeCache(d){
     if(!plannerKey)return true;
     if(startGate||fenced)return false;
-    if(pendingSettle||myRec&&myRec.state==='settled')return settle(d);
     d=d||getLocal();
+    if(pendingSettle||myRec&&(myRec.state==='settled'||myRec.state==='lokaal'))return settle(d);
     if(myRec){
       if(!putRecord({local:JSON.stringify(d)})){setLocalFail(true);return false;}
+      return writeCacheRaw(d,base);
     }
+    if(dbUrl&&onbevestigd(d))return settle(d); // maakt het 'lokaal'-record
     return writeCacheRaw(d,base);
   }
+  // Staat er lokaal iets wat niet in de laatst bekende serverstand zit? (save() verhoogt localGen pas na
+  // writeCache: nextGenHint telt dan mee.) Is de stand gelijk aan de serverstand, dan is er niets dat
+  // alleen lokaal staat, ook als de generatieboekhouding nog niet is bijgewerkt.
+  function onbevestigd(d){return nextGenHint||canon(d)!==base;}
   // {ok:false} = niet te lezen (onbekend, niet leeg); c:null = geen geldige cache (afwezig, of
   // beschadigd/onbekend formaat en dan al apart bewaard of geblokkeerd, zie cacheSlotReady).
   function readCacheRaw(){
@@ -3184,6 +3207,7 @@ function createFirebaseStore(opts){
   })();
   var myRec=null,recKey=null;  // het eigen (of overgenomen) record zoals het laatst duurzaam is geschreven
   var myRaw=null;              // precies de tekst die deze instantie het laatst in dat record schreef
+  var recordVast=false;        // conflict zonder conflictbewijs: het record is het enige bewijs en blijft zoals het is
   var revSeq=0;                // hoogste uitgegeven recordrevisie van deze instantie
   var fenced=false;            // overgenomen door een ander venster: deze instantie muteert niets meer
   var pendingSettle=false;     // afgehandelde toestand nog niet volledig vastgelegd (settle mislukt)
@@ -3205,8 +3229,11 @@ function createFirebaseStore(opts){
     if(typeof r.id!=='string'||!ID_RE.test(r.id)||key!==jPrefix()+'_'+r.id)return 'sleutel';
     if(!(r.owner===null||typeof r.owner==='string'&&ID_RE.test(r.owner)))return 'eigenaar';
     if(typeof r.hb!=='number'||!isFinite(r.hb))return 'hartslag';
-    if(['sending','unknown','uncertain','settled'].indexOf(r.state)<0)return 'toestand';
-    if(!parseObj(r.sent,false))return 'sent';
+    if(['sending','unknown','uncertain','settled','lokaal'].indexOf(r.state)<0)return 'toestand';
+    // 'lokaal' (zesde Codex-review #16): onbevestigde lokale stand, nog niet verstuurd; geen sent.
+    // Een 'settled' die uit 'lokaal' komt, heeft ook geen sent.
+    if(r.state==='lokaal'?r.sent!==undefined:(r.sent!==undefined||r.state!=='settled')&&!parseObj(r.sent,false))return 'sent';
+    if(r.state==='lokaal'&&!parseObj(r.local,false))return 'local';
     if(!parseObj(r.oldBase,true))return 'oldBase';
     if(!(r.cacheInst===null||typeof r.cacheInst==='string')||typeof r.cacheSeq!=='number'||Math.floor(r.cacheSeq)!==r.cacheSeq||r.cacheSeq<0||r.cacheOk!==undefined&&typeof r.cacheOk!=='boolean')return 'cache';
     if(r.state==='settled'&&(!parseObj(r.base,true)||!parseObj(r.local,false)))return 'settled';
@@ -3272,7 +3299,7 @@ function createFirebaseStore(opts){
   // Eigen record (bij)werken: altijd met eigenaarscontrole vooraf en teruglezen achteraf. Elke
   // geslaagde schrijfactie verhoogt rev. Mislukt het, dan blijft het vorige record staan.
   function putRecord(ch){
-    if(!plannerKey||fenced)return false;
+    if(!plannerKey||fenced||recordVast)return false;
     if(myRec&&!ownsRecord())return false;
     var key=recKey||jPrefix()+'_'+instId,r={},k;
     if(myRec)for(k in myRec)r[k]=myRec[k];
@@ -3298,9 +3325,23 @@ function createFirebaseStore(opts){
   //  3. pas dan het record weg, en controleren dat het weg is.
   // Mislukt een stap, dan blijft het record staan (een eerdere toestand of 'settled'), wordt er niets
   // meer verstuurd tot het lukt (pendingSettle) en toont de app nooit "opgeslagen".
+  // Zesde Codex-review #16: staat er daarna nog iets onbevestigds (lokale stand ≠ basis, of een
+  // generatie die de server niet bevestigde), dan wordt het record NIET opgeruimd maar 'lokaal': het
+  // eigen, duurzame exemplaar van die stand (zie onbevestigd en writeCache).
   function settle(d){
     if(fenced)return false;
     d=d||getLocal();
+    if(dbUrl&&onbevestigd(d)){
+      if(!putRecord({state:'lokaal',local:JSON.stringify(d),oldBase:base,sent:undefined,base:undefined,cacheInst:instId,cacheSeq:cacheSeq,cacheOk:undefined})){
+        // Geen eigen duurzaam exemplaar: niet als bewaard beschouwen, en ook de cache niet bijwerken.
+        if(myRec&&myRec.state!=='lokaal')pendingSettle=true;
+        setLocalFail(true);return false;
+      }
+      // Spiegel in de cache. E2-regel blijft: na een PUT pas weer versturen als ook de cache klopt
+      // (pendingSettle blijft dan staan); het record is wel al het duurzame exemplaar.
+      if(writeCacheRaw(d,base))pendingSettle=false;
+      return !pendingSettle;
+    }
     if(myRec&&!putRecord({state:'settled',base:base,local:JSON.stringify(d)})){pendingSettle=true;setLocalFail(true);return false;}
     if(!writeCacheRaw(d,base)){pendingSettle=true;return false;}
     if(!dropRecord()){pendingSettle=true;return false;}
@@ -3320,11 +3361,68 @@ function createFirebaseStore(opts){
     });
   })();
   // Welke instanties leven nog? Object met id's, null zonder Web Locks, 'fout' als het niet te bepalen is.
+  var laatsteLive=null; // de laatst opgevraagde levende instanties (voor de status)
   function liveOwners(){
     if(!locksOk)return Promise.resolve(null);
     return navigator.locks.query().then(function(q){
-      var s={};(q.held||[]).forEach(function(l){if(l&&typeof l.name==='string'&&l.name.indexOf(INST_LOCK)===0)s[l.name.slice(INST_LOCK.length)]=1;});return s;
-    },function(){return 'fout';});
+      var s={};(q.held||[]).forEach(function(l){if(l&&typeof l.name==='string'&&l.name.indexOf(INST_LOCK)===0)s[l.name.slice(INST_LOCK.length)]=1;});laatsteLive=s;return s;
+    },function(){laatsteLive=null;return 'fout';});
+  }
+  // ── Overige verweesde 'lokaal'-records (zesde Codex-review #16)
+  // Bij het opstarten neemt de poort één record over. Liggen er meer (bv. twee vensters die offline
+  // werkten en daarna crashten), dan neemt dit venster ze in rust één voor één over, alleen met Web
+  // Locks en alleen als de eigenaar aantoonbaar weg is, en voegt de inhoud SAMEN met de huidige stand
+  // (dezelfde E2-controle losslessMerge; de huidige stand telt als "server", dus ook wijzigingen die de
+  // gebruiker intussen maakte blijven). Niet verliesvrij: conflictbewijs, nooit een winnaar; lukt het
+  // bewijs niet, dan blijft het record precies staan. Andere toestanden (onderweg, onbekend) wachten op
+  // een herstart (E2-herstel); de status zegt dat eerlijk (zie andereOnafgerond).
+  var volgendBezig=false;
+  function volgendRecord(){
+    if(volgendBezig||fenced||startGate||!locksOk||!loadedOnce||inflight||saveTimer||recon||uncertain||recordVast||myRec)return;
+    var insp=inspectJournals();if(insp.status!=='valid')return;
+    volgendBezig=true;
+    liveOwners().then(function(live){
+      var dood=insp.records.filter(function(x){return x.rec.owner!==instId&&x.rec.state==='lokaal'&&!isLive(x.rec,live);});
+      if(!dood.length||myRec||fenced||startGate){volgendBezig=false;refreshStatus();return;}
+      return claim(dood[0].key,true).then(function(res){
+        volgendBezig=false;
+        if(res==='ok')neemSamen();
+        refreshStatus();
+      });
+    }).then(null,function(){volgendBezig=false;});
+  }
+  function neemSamen(){
+    var rec=myRec,L,B,R,M;
+    try{
+      L=normalizeData(clone(JSON.parse(rec.local)));B=normalizeData(clone(rec.oldBase?JSON.parse(rec.oldBase):{}));R=normalizeData(clone(getLocal()));
+      M=mergeData(clone(B),clone(L),clone(R));
+    }catch(e){geefTerug();return;}
+    if(!heeftGaten(L)&&losslessMerge(vergelijkbaar(B),vergelijkbaar(L),vergelijkbaar(R),vergelijkbaar(M))){
+      opslagDiagnose('verweesd record samengevoegd',recKey,'verliesvrij');
+      if(!hervat)hervat={gen:null}; // tot de server het bevestigt, elke samenvoeging opnieuw controleren
+      emit({type:'data',data:M,render:true});
+      save(); // record (dit overgenomen record) eerst bijgewerkt, dan cache, dan PUT; opgeruimd na bevestiging
+      return;
+    }
+    var bewijs=JSON.stringify({format:CACHE_FORMAT,gen:STORAGE_GEN,id:cacheId(),app:opts.appVersion,data:L,base:rec.oldBase||'',t:Date.now(),inst:rec.id,seq:-1,db:normDb(dbUrl),localGen:1,confirmedGen:0,bewijs:'record'});
+    if(conflictBewijs(bewijs)){opslagDiagnose('verweesd record niet samengevoegd',recKey,'conflict');dropRecord();meldConflict('conflict');}
+    else{opslagDiagnose('verweesd record niet samengevoegd',recKey,'bewijs mislukt');geefTerug();}
+  }
+  // Overgenomen record niet verwerkt: precies laten staan (eigenaar blijft dit venster, dus het wordt na
+  // het sluiten van dit venster opnieuw gevonden) en niet meer beheren.
+  function geefTerug(){
+    myRec=null;recKey=null;myRaw=null;
+    if(claimRelease){claimRelease();claimRelease=null;}
+    recordNietVerwerkt=true;refreshStatus();
+  }
+  var recordNietVerwerkt=false;
+  // Liggen er onafgeronde records van andere (niet levende) vensters? Dan nooit "opgeslagen".
+  function andereOnafgerond(){
+    if(recordNietVerwerkt)return true;
+    if(!plannerKey||!locksOk||!laatsteLive)return false;
+    var insp=inspectJournals();
+    if(insp.status==='unknown-invalid')return true;
+    return insp.records.some(function(x){return x.key!==recKey&&!laatsteLive[x.rec.owner];});
   }
   // Leeft de eigenaar van dit record nog? Alleen met Web Locks is "nee" aantoonbaar; zonder Web
   // Locks of als het niet te bepalen is, geldt het record altijd als levend (nooit overnemen).
@@ -3340,7 +3438,7 @@ function createFirebaseStore(opts){
   // Een verweesd record overnemen: onder het claim-lock opnieuw lezen, valideren, controleren dat de
   // eigenaar echt weg is en pas dan de eigenaar op deze instantie zetten (teruggelezen).
   // Met Web Locks blijft het claim-lock van dat record vast tot het record is opgeruimd.
-  function claim(key){
+  function claim(key,alleenZonderEigen){
     function lees(){
       var raw;try{raw=localStorage.getItem(key);}catch(e){return 'invalid';}
       if(raw===null)return 'gone';
@@ -3350,6 +3448,7 @@ function createFirebaseStore(opts){
     // Overnemen = nieuwe eigenaar + nieuwe epoch (eigendomsgeneratie). Alleen als het record nog exact
     // is wat we net lazen; daarna is elke schrijfactie van de vorige eigenaar stale (zie ownsRecord).
     function neem(x){
+      if(alleenZonderEigen&&myRec)return 'busy'; // tijdens het wachten een eigen record gekregen: niet overnemen
       var n={},k;for(k in x.r)n[k]=x.r[k];
       n.owner=instId;n.hb=Date.now();n.epoch=(x.r.epoch||0)+1;n.rev=(x.r.rev||0)+1;
       var s=JSON.stringify(n);
@@ -3394,12 +3493,15 @@ function createFirebaseStore(opts){
       if(insp.status==='unknown-invalid'){gateBlock('journal-invalid');return;}
       var mine=insp.records.filter(function(x){return x.rec.owner===instId;})[0];
       if(mine){myRec=mine.rec;recKey=mine.key;myRaw=mine.raw;adopt();return;}
-      if(!insp.records.length){gateOpen();return;}
+      // Zesde review: een 'lokaal'-record van een aantoonbaar LEVEND ander venster (Web Locks) is dat
+      // venster zijn eigen, duurzame exemplaar; daar is niets mee te doen en het blokkeert niet.
+      var andere=insp.records.filter(function(x){return !(locksOk&&x.rec.state==='lokaal'&&live&&live!=='fout'&&live[x.rec.owner]);});
+      if(!andere.length){gateOpen();return;}
       // Zonder Web Locks: een record van een ander venster wordt nooit overgenomen. Alles blijft
       // staan; zodra dat venster zelf klaar is (record weg), gaat dit venster vanzelf verder.
       if(!locksOk){gateBlock('no-locks');return;}
-      if(insp.records.some(function(x){return isLive(x.rec,live);})){gateBlock('other-window');return;}
-      return claim(insp.records[0].key).then(function(res){
+      if(andere.some(function(x){return isLive(x.rec,live);})){gateBlock('other-window');return;}
+      return claim(andere[0].key).then(function(res){
         if(!startGate)return;
         if(res==='ok'){adopt();return;}
         if(res==='gone'){runGate();return;}
@@ -3456,9 +3558,11 @@ function createFirebaseStore(opts){
       var spiegel=c.jkey===recKey&&typeof c.jrev==='number'&&c.jrev<=rec.rev;
       var ouder=c.inst===rec.cacheInst&&typeof c.seq==='number'&&c.seq<=rec.cacheSeq;
       var vanMij=c.inst===instId; // zelf geschreven tijdens een eerdere poging van deze instantie
-      if(!(spiegel||ouder||vanMij)&&cacheUnsaved(c)){gateBlock('cache-mismatch');return;}
+      // Zesde review: een cache die de spiegel is van een ANDER bestaand record, staat daar duurzaam.
+      var anderRecord=!(spiegel||ouder||vanMij)&&inJournaal(c);
+      if(!(spiegel||ouder||vanMij||anderRecord)&&cacheUnsaved(c)){gateBlock('cache-mismatch');return;}
       herstelKandidaat=null; // gedekt door dit record (of zonder eigen inhoud): het record is de waarheid
-      bekendCache={inst:c.inst,seq:c.seq};
+      if(!anderRecord)bekendCache={inst:c.inst,seq:c.seq};
     }
     var d=normalizeData(clone(JSON.parse(typeof rec.local==='string'?rec.local:rec.sent)));
     base=recBase;
@@ -3472,6 +3576,9 @@ function createFirebaseStore(opts){
     localGen=Math.max(localGen,1);
     emit({type:'data',data:d,render:true});
     if(rec.state==='settled'){settle();load({initial:true});return;}
+    // Onbevestigde lokale stand (nooit verstuurd): hervatten als onbevestigd herstel; de eerste lezing
+    // gaat door de verliesvrijheidscontrole (zie herstelOpen).
+    if(rec.state==='lokaal'){hervatControle=true;load({initial:true});return;}
     if(rec.state==='uncertain')uncertain={sent:rec.sent,oldBase:rec.oldBase};
     else recon={kind:'unknown',gen:localGen,sent:rec.sent,oldBase:rec.oldBase,restored:true};
     load({initial:true});
@@ -3624,6 +3731,7 @@ function createFirebaseStore(opts){
       }
       if(!hadChanges)ruimBewijsOp(inc);
       emit({type:'loaded',first:!wasLoaded});
+      setTimeout(volgendRecord,0);
       if(!pending())status('updated');
       else if(!serverETag)status('unsafe');
       emit({type:'connected'});
@@ -3704,6 +3812,7 @@ function createFirebaseStore(opts){
     failures=0;
     if(!serverETag){recon={kind:'read'};reconcile();return;}
     if(pending()){if(!saveTimer&&!retryTimer)push();return;}
+    setTimeout(volgendRecord,0);
     status('saved');
   }
   function scheduleRetry(){
@@ -3973,6 +4082,7 @@ var SYNC_STATUS={
   'no-locks':['err','Opslaan gepauzeerd: een ander venster heeft hier een onafgeronde opslag, en deze browser kan niet veilig vaststellen of dat venster nog open is.'],
   'taken-over':['err','Dit venster is overgenomen door een ander venster met Huisplan en slaat niets meer op. Laad dit venster opnieuw.'],
   'not-saved':['err','Niet bewaard — geen verbinding en lokaal bewaren lukt niet. Houd de app open; we blijven het proberen.'],
+  'herstel-wacht':['busy','Nog een onafgeronde lokale stand op dit toestel; die wordt verwerkt (zo nodig na herladen).'],
   'herstel-open':['err','Lokale kopie niet samengevoegd — Huisplan kiest niet zelf; bewaar de herstelgegevens (zie melding).'],
   'local-failed':['err','Lokaal bewaren mislukt — houd dit venster open; er wordt opnieuw geprobeerd en niets verstuurd tot het lukt.'],
   'uncertain-blocked':['err','Je keuze kon niet zonder verlies worden toegepast (er is intussen ook iets anders veranderd). Er is niets opgeslagen; je wijzigingen blijven bewaard en de vraag komt later terug.'],
