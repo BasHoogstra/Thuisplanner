@@ -50,6 +50,8 @@ const vraagLegacy = async (page, ms) => {
   return /oudere lokale kopie/.test(await page.textContent('#confirmTitle'));
 };
 const fx = () => readFixture('huishouden.json');
+// Statusregel volgen vanaf het laden van de pagina (ook na herladen).
+const VOLG_VANAF_START = `window.addEventListener('DOMContentLoaded',()=>{window.__statussen=[];const el=document.getElementById('syncText');if(!el)return;new MutationObserver(()=>window.__statussen.push(el.textContent)).observe(el,{childList:true,characterData:true,subtree:true});});`;
 function metItem(d, id, text) { d = JSON.parse(JSON.stringify(d)); d.boodschappen.push({ id, text, addedBy: 'Bas', done: false }); return d; }
 // canon zoals de app (gesorteerde sleutels, lege waarden weg), voor een basis in een oude cache.
 function canon(v) {
@@ -84,9 +86,162 @@ const FOUT2_SRC = `(function(){
   P.removeItem = function (k) { if (raak(this, 'remove', k)) throw new DOMException('fout2', 'SecurityError'); return oR.call(this, k); };
 })();`;
 const zetFout2 = (page, regels) => page.evaluate(r => sessionStorage.setItem('__fout2', JSON.stringify(r)), regels);
-const apartKopieen = async page => { const ks = (await lsKeys(page)).filter(k => k.startsWith('huisplanCacheApart_')); return Promise.all(ks.map(k => lsRaw(page, k))); };
+const apartKopieen = async page => { const ks = (await lsKeys(page)).filter(k => k.startsWith('huisplanCacheApart_') || k.startsWith('huisplanCacheConflict_')); return Promise.all(ks.map(k => lsRaw(page, k))); };
 
 module.exports = {
+  // ── Vijfde Codex-review #16 ───────────────────────────────────────────────────────────────────
+  // B1: een verliesvrijheidsbewijs geldt alleen voor de serverversie waartegen het is berekend. Na een
+  // 412 (de server veranderde tussen controle en PUT) opnieuw dezelfde controle; nooit een winnaar.
+  ...(() => {
+    const out = {};
+    const H = (t, d) => ({ text: t, norm: t.toLowerCase(), date: d });
+    const histX = d => d.boodschappenHistory.push(H('X r5', '2026-10-01'));
+    const histY = d => d.boodschappenHistory.push(H('Y r5', '2026-10-01'));
+    const item = (id, t) => d => d.boodschappen.push({ id, text: t, done: false });
+    const cacheVan = (basis, lokaal) => {
+      const cdata = JSON.parse(JSON.stringify(basis)); lokaal.forEach(f => f(cdata));
+      return JSON.stringify({ format: 2, gen: 1, id: cacheId(DB_URL, KEY, 1), app: '1.4.1', data: cdata, base: canon(basis), t: 1, inst: 'i00000000000000c5', seq: 1, localGen: 1, confirmedGen: 0 });
+    };
+    const journaal = async page => (await lsKeys(page)).filter(k => k.startsWith('plannerJournal_'));
+    // Elke PUT n (1, 2, ...) krijgt vlak vóór verwerking de serverwijziging wijzigingen[n-1] (dus een 412).
+    const metWijzigingen = wijzigingen => { let n = 0; return ({ method, state }) => { if (method === 'PUT' && n < wijzigingen.length) serverWrite(state, wijzigingen[n++]); return null; }; };
+    // X duurzaam: de oorspronkelijke cache, of een bewijs/kopie met precies dat geschiedenisitem.
+    const bewaardX = async (page, cache) => (await lsRaw(page, NIEUW)) === cache || (await apartKopieen(page)).some(b => { try { return JSON.parse(b).data.boodschappenHistory.some(h => h.text === 'X r5'); } catch (e) { return false; } });
+    out['R5-B1: verliesvrij bij opstarten, daarna 412 door een conflicterende wijziging tussen controle en PUT — geen winnaar, X en Y bewaard, nooit "opgeslagen", ook na herladen'] = async ctx => {
+      const basis = fx(), cache = cacheVan(basis, [histX]);
+      const o = await open(ctx, { data: basis, localStorage: { [NIEUW]: cache }, onRequest: metWijzigingen([histY]), initScript: VOLG_VANAF_START });
+      await wait(3000);
+      const db = () => JSON.stringify(o.state.db);
+      assert(o.state.conflicts >= 1, 'Testopzet: geen 412');
+      assert(db().includes('Y r5'), 'Y (wijziging tussen controle en PUT) van de server verdwenen');
+      assert(!db().includes('X r5'), 'Na de 412 toch een winnaar gekozen (X op de server)');
+      assert(await bewaardX(o.page, cache), 'X nergens meer duurzaam bewaard');
+      assert(await o.page.isVisible('#confirmOverlay.open') && /niet zonder verlies/.test(await o.page.textContent('#confirmTitle')), 'Geen herstelmelding na het conflict');
+      await o.page.click('#confirmCancelBtn');
+      assert(!(await statussen(o.page)).some(t => OPGESLAGEN.test(t)), '"Opgeslagen" terwijl het conflict open is: ' + (await statussen(o.page)).join(' | '));
+      assert(!(await journaal(o.page)).length, 'Journaal blijft staan na een afgehandelde 412');
+      for (let i = 0; i < 2; i++) {
+        await o.page.reload(); await wait(2500);
+        const w = 'herladen ' + (i + 1);
+        assert(await o.page.isVisible('#confirmOverlay.open') && /niet zonder verlies/.test(await o.page.textContent('#confirmTitle')), w + ': conflict niet meer gemeld');
+        await o.page.click('#confirmCancelBtn');
+        await addBood(o.page, 'Nieuw r5 ' + i); await wait(2000);
+        assert(db().includes('Y r5') && !db().includes('X r5'), w + ': Y verdwenen of X als winnaar');
+        assert(boodTexts(o.state.db).includes('Nieuw r5 ' + i), w + ': nieuwe wijziging niet opgeslagen');
+        assert(await bewaardX(o.page, cache), w + ': X verdwenen');
+        assert(!(await statussen(o.page)).some(t => OPGESLAGEN.test(t)), w + ': "opgeslagen" terwijl het conflict open is');
+      }
+      await o.ctx.close();
+    };
+    out['R5-B1: herhaalde 412 met onafhankelijke wijzigingen tijdens de herpogingen — alles samengevoegd, daarna pas "opgeslagen"'] = async ctx => {
+      const basis = fx(), cache = cacheVan(basis, [item('x-r5', 'X r5')]);
+      const o = await open(ctx, { data: basis, localStorage: { [NIEUW]: cache }, onRequest: metWijzigingen([item('y-r5', 'Y r5'), item('w-r5', 'W r5')]) });
+      await until(async () => ['X r5', 'Y r5', 'W r5'].every(t => boodTexts(o.state.db).includes(t)) && OPGESLAGEN.test(await syncText(o.page)), 8000, 'X, Y en W samengevoegd en opgeslagen');
+      assert(o.state.conflicts >= 2, 'Testopzet: geen twee 412-antwoorden');
+      assert(!(await o.page.isVisible('#confirmOverlay.open')), 'Onterechte herstelmelding');
+      assert(!(await lsKeys(o.page)).some(k => k.startsWith('huisplanCacheConflict_')), 'Onterecht conflictbewijs');
+      await o.ctx.close();
+    };
+    out['R5-B1: eerste 412 onafhankelijk, tweede 412 conflicterend — geblokkeerd bij de tweede, X en beide serverwijzigingen bewaard'] = async ctx => {
+      const basis = fx(), cache = cacheVan(basis, [item('x-r5', 'X r5'), histX]);
+      const o = await open(ctx, { data: basis, localStorage: { [NIEUW]: cache }, onRequest: metWijzigingen([item('y-r5', 'Y r5'), histY]), initScript: VOLG_VANAF_START });
+      await wait(4000);
+      const db = JSON.stringify(o.state.db);
+      assert(o.state.conflicts >= 2, 'Testopzet: geen twee 412-antwoorden');
+      assert(boodTexts(o.state.db).includes('Y r5') && db.includes('"Y r5"'), 'Serverwijzigingen verdwenen');
+      assert(o.state.db.boodschappenHistory.some(h => h.text === 'Y r5') && !o.state.db.boodschappenHistory.some(h => h.text === 'X r5'), 'Geschiedenis: winnaar gekozen');
+      const bewijs = (await apartKopieen(o.page)).concat([await lsRaw(o.page, NIEUW)]).filter(Boolean);
+      assert(bewijs.some(b => b.includes('X r5') && b.includes('x-r5')), 'X (cache-inhoud) nergens duurzaam bewaard');
+      assert(!(await statussen(o.page)).some(t => OPGESLAGEN.test(t)), '"Opgeslagen" terwijl het conflict open is');
+      await o.ctx.close();
+    };
+    return out;
+  })(),
+
+  // B2: bescherming tegen overschrijven van conflictbewijs geldt over alle vensters (gedeelde opslag).
+  ...(() => {
+    const out = {};
+    const H = (t, d) => ({ text: t, norm: t.toLowerCase(), date: d });
+    const pageUrl = o => o.url;
+    const bewijzen = async page => (await lsKeys(page)).filter(k => k.startsWith('huisplanCacheConflict_') || k.startsWith('huisplanCacheApart_'));
+    const xBewaard = async (page, cacheX) => (await lsRaw(page, NIEUW)) === cacheX || (await Promise.all((await bewijzen(page)).map(k => lsRaw(page, k)))).includes(cacheX);
+    const poortOpen = page => page.evaluate(() => { const g = document.getElementById('journalGateOverlay'); return !!g && !g.hidden; });
+    const sluitMelding = async page => { if (await page.isVisible('#confirmOverlay.open')) await page.click('#confirmCancelBtn'); };
+    const meldt = async page => (await page.isVisible('#confirmOverlay.open') && /niet zonder verlies/.test(await page.textContent('#confirmTitle'))) || await poortOpen(page);
+    for (const kopie of ['lukt', 'mislukt']) {
+      for (const volgorde of ['A ontdekt eerst', 'B schrijft eerst']) {
+        out['R5-B2: tweede venster en conflictcache — herstelkopie ' + kopie + ', ' + volgorde + ': X nooit uit alle opslag, melding blijft na herladen, nooit "opgeslagen"'] = async ctx => {
+          const basis = fx(), sdata = JSON.parse(JSON.stringify(basis)), xdata = JSON.parse(JSON.stringify(basis));
+          sdata.boodschappenHistory.push(H('Y r5b', '2026-10-01')); xdata.boodschappenHistory.push(H('X r5b', '2026-10-01'));
+          const cacheX = JSON.stringify({ format: 2, gen: 1, id: cacheId(DB_URL, KEY, 1), app: '1.4.1', data: xdata, base: canon(basis), t: 1, inst: 'i00000000000000b5', seq: 3, localGen: 1, confirmedGen: 0 });
+          const fout = kopie === 'mislukt' ? { schrijven: '^huisplanCache(Conflict|Apart)_' } : null;
+          // Venster B staat al open op [oud, Y]; daarna komt in de gedeelde cache de onbevestigde [oud, X].
+          const B = await open(ctx, { data: sdata, opslagFout: fout, initScript: VOLG_VANAF_START });
+          await B.page.evaluate(([k, v]) => localStorage.setItem(k, v), [NIEUW, cacheX]);
+          const A = { page: await B.ctx.newPage() };
+          const openA = async () => { await A.page.goto(pageUrl(B)); await wait(2500); };
+          const db = () => JSON.stringify(B.state.db);
+          const controle = async w => {
+            assert(await xBewaard(B.page, cacheX), w + ': X uit alle duurzame opslag verdwenen');
+            assert(db().includes('Y r5b') && !db().includes('X r5b'), w + ': Y verdwenen of X als winnaar');
+          };
+          if (volgorde === 'A ontdekt eerst') {
+            await openA();
+            assert(await meldt(A.page), 'A: conflict niet gemeld');
+            await sluitMelding(A.page);
+            await controle('na ontdekken door A');
+            await addBood(B.page, 'Z r5b'); await wait(2500);
+          } else {
+            await addBood(B.page, 'Z r5b'); await wait(2500);
+            await controle('na Z van B');
+            await openA();
+            assert(await meldt(A.page), 'A: conflict niet gemeld (B schreef eerst)');
+            await sluitMelding(A.page);
+          }
+          await sluitMelding(B.page);
+          await controle('na Z van B en ontdekken door A');
+          const zErgens = async () => boodTexts(B.state.db).includes('Z r5b') || (await lsKeys(B.page)).some(k => k.startsWith('plannerJournal_')) && (await Promise.all((await lsKeys(B.page)).filter(k => k.startsWith('plannerJournal_')).map(k => lsRaw(B.page, k)))).some(j => String(j).includes('Z r5b'));
+          assert(await zErgens(), 'Z van B nergens bewaard');
+          for (const p of [A.page, B.page]) assert(!OPGESLAGEN.test(await syncText(p)), '"Opgeslagen" terwijl het conflict open is: ' + await syncText(p));
+          // Herladen (beide vensters, wisselend) met nieuwe wijzigingen.
+          for (let i = 0; i < 2; i++) {
+            for (const [naam, p] of i % 2 ? [['B', B.page], ['A', A.page]] : [['A', A.page], ['B', B.page]]) {
+              await p.reload(); await wait(2500);
+              const w = naam + ', herladen ' + (i + 1);
+              assert(await meldt(p), w + ': conflict niet meer gemeld');
+              await sluitMelding(p);
+              if (!(await poortOpen(p))) { await addBood(p, 'Nieuw ' + naam + i); await wait(2000); await sluitMelding(p); }
+              await controle(w);
+              assert(!OPGESLAGEN.test(await syncText(p)), w + ': "opgeslagen" terwijl het conflict open is');
+            }
+          }
+          await B.ctx.close();
+        };
+      }
+    }
+    // Race: B leest de cache vóórdat C schrijft en overschrijft daarna C's onbevestigde stand. C merkt
+    // dat via het storage-event (oldValue) en legt zijn eigen stand duurzaam vast.
+    out['R5-B2: check-then-write-race tussen twee vensters — de overschreven stand van het levende venster wordt alsnog duurzaam bewaard'] = async ctx => {
+      // Beide vensters melden "offline" (navigator.onLine): wijzigingen blijven onbevestigd en alleen in de
+      // cache (geen journaal), precies de stand die bij overschrijven verloren zou gaan.
+      const offline = `Object.defineProperty(Navigator.prototype,'onLine',{configurable:true,get(){return false;}});`;
+      const B = await open(ctx, { data: fx(), initScript: offline });
+      const C = { page: await B.ctx.newPage() };
+      await C.page.goto(B.url); await wait(2000);
+      await B.page.evaluate(k => { window.__oud = localStorage.getItem(k); }, NIEUW);
+      await addBood(C.page, 'W r5c'); await wait(1500);
+      assert(String(await lsRaw(C.page, NIEUW)).includes('W r5c'), 'Testopzet: W niet in de cache');
+      // B's volgende cachelezing geeft nog de stand van vóór C's opslag (de race), daarna normaal.
+      await B.page.evaluate(k => { const g = Storage.prototype.getItem; let een = true; Storage.prototype.getItem = function (x) { if (een && this === localStorage && x === k) { een = false; return window.__oud; } return g.call(this, x); }; }, NIEUW);
+      await addBood(B.page, 'V r5c'); await wait(2000);
+      const alles = (await Promise.all((await lsKeys(C.page)).filter(k => k.startsWith('huisplanCache')).map(k => lsRaw(C.page, k)))).join('\n');
+      assert(alles.includes('W r5c'), 'W (onbevestigd, van het levende venster C) uit alle duurzame opslag verdwenen');
+      assert(alles.includes('V r5c'), 'V van B niet bewaard');
+      await B.ctx.close();
+    };
+    return out;
+  })(),
+
   // ── Vierde Codex-review #16 ───────────────────────────────────────────────────────────────────
   // B1: een vastgesteld herstelconflict mag niet alleen in het geheugen bestaan. Na herladen (zonder
   // journaal) mag de gewone load() geen winnaar kiezen; X (cache) en Y (server) blijven allebei.
@@ -114,7 +269,7 @@ module.exports = {
       assert(!db.includes('X r4'), naam + ': automatisch een winnaar gekozen (X op de server)');
       const raw = await lsRaw(o.page, NIEUW);
       assert(raw === cache || (await apartKopieen(o.page)).includes(cache), naam + ': X (cache) verdwenen');
-      if (!metJournaal) assert(raw === cache, naam + ': cache met X overschreven');
+      // (Vijfde review: het duurzame bewijs is de cache zelf óf een write-once conflictkopie van precies die cache.)
       const st = await statussen(o.page);
       assert(!st.some(t => OPGESLAGEN.test(t)), naam + ': "opgeslagen" terwijl het conflict open is: ' + st.join(' | '));
     }
@@ -266,7 +421,7 @@ module.exports = {
         await addBood(o.page, 'Z r3');
         await wait(2500);
         const st = await statussen(o.page);
-        const heeftX = async () => { const raw = await lsRaw(o.page, NIEUW); return String(raw).includes('X r3') || JSON.stringify(o.state.db).includes('X r3'); };
+        const heeftX = async () => { const raw = await lsRaw(o.page, NIEUW); return String(raw).includes('X r3') || JSON.stringify(o.state.db).includes('X r3') || (await apartKopieen(o.page)).some(a => a.includes('X r3')); };
         if (verliesvrij) {
           await until(async () => ['X r3', 'Y r3', 'Z r3'].every(t => boodTexts(o.state.db).includes(t)) && OPGESLAGEN.test(await syncText(o.page)), 6000, naam + ': X, Y en Z op de server');
         } else {
@@ -274,7 +429,7 @@ module.exports = {
             assert(/niet zonder verlies/.test(await o.page.textContent('#confirmTitle')), naam + ': melding: ' + await o.page.textContent('#confirmTitle'));
             await o.page.click('#confirmCancelBtn');
           }
-          assert((await lsRaw(o.page, NIEUW)) === cache, naam + ': cache met X overschreven');
+          assert((await lsRaw(o.page, NIEUW)) === cache || (await apartKopieen(o.page)).includes(cache), naam + ': cache met X overschreven zonder bewijs');
           assert(!st.slice(1).some(t => OPGESLAGEN.test(t)), naam + ': "opgeslagen" terwijl X alleen lokaal/apart staat: ' + st.join(' | '));
           assert(JSON.stringify(o.state.db).includes('Y r3') && !JSON.stringify(o.state.db).includes('X r3'), naam + ': automatisch een winnaar gekozen');
           assert((await apartKopieen(o.page)).includes(cache), naam + ': herstelgegevens niet apart bewaard');

@@ -83,6 +83,74 @@ migratie kan stoppen als hersteldata niet duurzaam bewaard kan worden. Hij is vi
 - **Nooit verwijderd.** `localStorage` heeft geen atomisch "verwijder als nog hetzelfde"; de
   live-versie kan de oude cache intussen opnieuw schrijven. Opruimen wacht op een veilig protocol.
 
+### 2.2 Herstelbewijs en het concurrency-contract (vijfde Codex-review)
+
+**Gedeelde oorzaak.** De blockers uit de vierde en vijfde review hadden één oorzaak. Een
+veiligheidsbesluit ("verliesvrij" of "geblokkeerd") bestond alleen in het geheugen van één venster. Het
+gold daarna stilzwijgend ook voor een latere serverversie, of voor een ander venster dat er niets van
+wist.
+
+**De regels.**
+1. **Bewijs per serverversie.**
+   - Inhoud uit een hervatte of herstelde cache die misschien niet op de server staat, blijft
+     *onbevestigd herstel*. Dat duurt tot de server de generatie met die inhoud bevestigt.
+   - Zolang dat zo is, gaat **elke** samenvoeging met een serverstand door dezelfde E2-controle
+     `losslessMerge`, tegen precies die serverstand. Dat geldt voor de eerste lezing, na elke `412` en
+     na een lezing zonder ETag.
+   - Is de samenvoeging niet verliesvrij: geen winnaar, niets ervan versturen, conflictbewijs en een
+     melding. Daarna werkt de app verder op de serverstand.
+   - Journaal-first, de voorwaardelijke PUT, generaties/ACK en de afhandeling van een onbekende
+     uitkomst zijn ongewijzigd. De onbekende uitkomst had al haar eigen verliesvrije controle.
+2. **Conflictbewijs als gedeeld, duurzaam feit.**
+   - Elk bewijs krijgt een **nieuwe, unieke** sleutel:
+     `huisplanCacheConflict_<id>_<tijd>_<willekeurig>`.
+   - Die sleutel wordt alleen geschreven als hij nog niet bestaat. Hij wordt teruggelezen en **nooit
+     overschreven**. Er is dus geen gedeelde, veranderlijke plek waarop twee vensters kunnen botsen.
+   - Elk venster ziet de sleutel. Zolang er één is, verschijnt bij elke start een melding en wordt
+     "Opgeslagen"/"Bijgewerkt" in elk venster "Lokale kopie niet samengevoegd".
+   - Een bewijs verdwijnt alleen als een verse serverstand aantoonbaar alles bevat wat erin staat
+     (dezelfde controle). Nooit door een keuze, een herstart of een ander venster.
+   - Lukt het bewijs niet, dan schrijft dit venster geen cache meer.
+3. **Bewaakte cache (`bewaakCache`).**
+   - Vóór **elke** cache-opslag leest een venster de huidige cache. Het vervangt die alleen als één van
+     deze dingen geldt:
+     - de cache-stand is van dit venster zelf, of in zijn stand opgenomen;
+     - de cache-stand heeft geen onbevestigde inhoud;
+     - de inhoud staat in een bestaand journaalrecord;
+     - de inhoud zit volgens `losslessMerge` in de nieuwe stand;
+     - er bestaat een conflictbewijs van precies die inhoud.
+   - Anders wordt eerst zo'n bewijs gemaakt. Lukt dat niet, dan wordt er niet geschreven (status
+     "Lokaal bewaren mislukt"). De gegevens blijven dan in de cache, het journaal en het geheugen.
+4. **Race tussen lezen en schrijven.**
+   - `localStorage` kent geen atomische vergelijk-en-schrijf. Tussen de controle (3) en het schrijven
+     kan een ander venster de cache nog wijzigen.
+   - Daarom luistert elk venster naar het `storage`-event van de cache. Wordt zijn eigen laatste
+     opslag vervangen door een stand die zijn onbevestigde inhoud niet bevat (en die inhoud staat niet in
+     zijn journaal), dan legt het die oude waarde (`oldValue`) alsnog als conflictbewijs vast.
+
+**Garanties die wél gelden.**
+- **Inhoud zonder levend venster** (bijvoorbeeld X uit een eerdere sessie) wordt door geen enkel
+  venster overschreven zonder eerst een duurzaam bewijs. Elke schrijver moet zelf zo'n bewijs hebben
+  van wat hij las; dat hangt niet af van een vlag die een ander venster kan missen.
+- **Mislukt het bewijs overal** (bijvoorbeeld een volle opslag), dan blijft de oorspronkelijke cache
+  staan. Andere vensters schrijven dan geen cache, maar wel via het journaal naar de server, en tonen
+  nooit "Opgeslagen".
+- **Een conflictbewijs kan door niemand worden overschreven.** Het wordt alleen opgeruimd als het
+  aantoonbaar overbodig is.
+- **Er is geen afhankelijkheid van Web Locks.** De bestaande no-Web-Locks-regel blijft: nooit een
+  ander venster overnemen.
+
+**Garanties die níet gelden.**
+- **Venster C crasht in het race-venster.** C schrijft onbevestigde inhoud W die alleen in de cache
+  staat (geen journaal, bijvoorbeeld offline). Venster B overschrijft die precies tussen zijn controle
+  en zijn schrijfactie. Crasht of sluit C vóórdat het `storage`-event is verwerkt, dan is W weg.
+- **Dat venster duurt milliseconden** en vraagt twee vensters van dezelfde planner die tegelijk offline
+  bewerken. Exclusief schrijven (bijvoorbeeld onder Web Locks) zou een asynchrone cache vragen. Dat is
+  een E2-wijziging en valt buiten deze stap.
+- **Twee vensters die tegelijk bewerken**, waarvan één net een `412` kreeg, kunnen een onnodig
+  conflictbewijs maken: veilig, maar met een melding. Dat bewijs verdwijnt zodra de server de inhoud
+  bevat.
+
 ## 3. Gedrag per foutsituatie
 
 | Situatie | Gedrag | Test |
@@ -91,6 +159,8 @@ migratie kan stoppen als hersteldata niet duurzaam bewaard kan worden. Hij is vi
 | Netwerk én opslag weg | "Niet bewaard — … Houd de app open"; waarschuwing bij sluiten; herstel zodra beide weer werken. | T7b |
 | Lege of onbekende serverstand + wijziging alleen in het geheugen | Telt als niet opgeslagen (niet-bevestigde generatie); waarschuwing en eerlijke status. | B3 |
 | Cache lezen gooit een fout | Onbekend, niet leeg: niet overschrijven; bij elke poging opnieuw gekeken (een tijdelijke fout blokkeert het E2-herstel niet). Wordt hij later weer leesbaar en bevat hij iets wat (misschien) niet op de server staat, dan is dat **geen** toestemming om te overschrijven: zolang die kandidaat er is, weigert elke cache-schrijfactie. Opnemen gebeurt alleen synchroon aan het begin van `save()`, tegen de actuele stand (nooit een eerder berekende stand na een asynchrone grens): eerst duurzaam apart bewaard, dan samengevoegd, en alleen als de E2-controle `losslessMerge` de samenvoeging aantoonbaar verliesvrij vindt. Anders (conflict, lijst zonder id aan beide kanten veranderd, twijfelachtige vorm, apart bewaren mislukt): blokkeren, niets overschrijven, melding met herstelgegevens, nooit "opgeslagen". Dekt een journaalrecord hem (E2-herstel), dan is het record de waarheid. | T7c, R2-B1, R3-B1, R3-B2 |
+| 412 terwijl er onbevestigd herstel is (de server veranderde tussen controle en PUT), ook herhaald | Opnieuw lezen en opnieuw dezelfde controle tegen die serverstand; onafhankelijk = samenvoegen en opnieuw proberen; conflict = conflictbewijs, geen winnaar, melding, nooit "opgeslagen" (ook niet na herladen). | R5-B1 |
+| Tweede venster schrijft terwijl de gedeelde cache onbevestigde inhoud van een ander bevat | Eerst conflictbewijs (write-once), dan pas overschrijven; lukt dat niet, niet overschrijven. Melding in elk venster en na elke herstart; nooit "opgeslagen". Race tussen lezen en schrijven: het overschreven levende venster legt zijn stand alsnog vast. | R5-B2 |
 | Hervatten uit een cache met onbevestigde inhoud (elke start, ook na een eerder vastgesteld herstelconflict, met of zonder journaal) | Een vastgesteld conflict bestaat nooit alleen in het geheugen (vierde Codex-review, B1). Zonder journaal gaat de eerste geslaagde lezing na het hervatten door dezelfde E2-controle `losslessMerge` in plaats van dat `mergeData` een winnaar kiest. Niet verliesvrij: niets van de cache-stand toegepast of verstuurd, de cache blijft onaangeroerd (dat is het duurzame bewijs, plus één aparte kopie), melding met herstelgegevens, verder werken op de serverstand, nooit "opgeslagen". Na elke herstart volgt dezelfde controle en dezelfde blokkade. Met journaal beslist de E2-poort (cache van een ander venster met eigen wijzigingen: "Twee onafgeronde standen"). Onafhankelijke wijzigingen worden gewoon samengevoegd. | R4-B1 |
 | De allereerste opslagactie faalt (vóór de rest van het script) | Geen crash: de opslaghulpjes gebruiken geen variabelen die pas later een waarde krijgen. | R2 |
 | Cache onleesbaar of onbekend formaat | Eerst duurzaam apart bewaard (`huisplanCacheApart_<id>_<tijd>_<willekeurig>`, nooit over een bestaande kopie heen); lukt dat niet, dan onaangeroerd en deze sessie geen cache. | T7d, T7e, T8, quarantaine |
@@ -117,6 +187,9 @@ waarschuwing bij sluiten, en het vangnet bij de ledenmigratie.
   sowieso leesbaar in `plannerKey`. Aanpassen is een E2-wijziging.
 - **Quarantainekopieën worden niet opgeruimd** en niet begrensd (wel: geen nieuwe kopie als precies
   dezelfde inhoud al apart staat).
+- **Conflictbewijs blijft tot de server het bevat.** Er is nog geen knop om bewust één stand te kiezen
+  of een bewijs los te laten (productbesluit). Tot dan meldt elke start het conflict en toont de
+  statusregel "Lokale kopie niet samengevoegd".
 - **Herstelconflict na hervatten blokkeert tot de gebruiker ingrijpt.** Zolang de cache-stand niet
   verliesvrij samen te voegen is, komt de melding bij elke start terug en schrijft deze sessie geen
   cache (status "Lokaal bewaren mislukt"). Er is nog geen knop om bewust één stand te kiezen of de

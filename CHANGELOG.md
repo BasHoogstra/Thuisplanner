@@ -538,3 +538,14 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   aanraken, elke sessie melden. Herstelgegevens bevatten ook de markering.
 - Tests: `tests/opslag.test.js` (44).
 
+## 1.4.2-voorbereiding: NW-04 (E3) na de vijfde Codex-review (testversie)
+- Gedeelde oorzaak: een veiligheidsbesluit gold alleen in het geheugen van één venster en voor één
+  serverversie.
+- Onbevestigd herstel blijft gecontroleerd tot de server het bevestigt. Na elke 412 opnieuw lezen en
+  opnieuw `losslessMerge` tegen die serverstand. Bij een conflict: geen winnaar en nooit "opgeslagen".
+- Conflictbewijs onder unieke write-once sleutels (`huisplanCacheConflict_…`), zichtbaar voor elk
+  venster en na elke herstart. Het wordt alleen opgeruimd als de server alles bevat.
+- Bewaakte cache: geen venster overschrijft onbevestigde inhoud van een ander zonder bewijs.
+  Overschreven levende vensters leggen hun stand alsnog vast via het `storage`-event.
+- Tests: `tests/opslag.test.js` (52).
+
