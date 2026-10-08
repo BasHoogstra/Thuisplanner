@@ -521,3 +521,11 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - De opslaghulpjes werken ook bij een fout op de allereerste opslagactie.
 - Tests: `tests/opslag.test.js` (30).
 
+## 1.4.2-voorbereiding: NW-04 (E3) na de derde Codex-review (testversie)
+- Weer leesbare cache: alleen opgenomen als de E2-controle `losslessMerge` het verliesvrij vindt, en
+  synchroon in `save()` tegen de actuele stand (geen uitgestelde toepassing meer). Anders blokkeren:
+  niets overschreven, herstelgegevens bewaard, nooit "opgeslagen".
+- Oude cache: markering 'gereserveerd' vóór en 'klaar' na de overname; een niet afgeronde overname
+  blijft elke sessie gemeld (ook na het E2-herstel) en wordt nooit opnieuw ingelezen.
+- Tests: `tests/opslag.test.js` (35).
+

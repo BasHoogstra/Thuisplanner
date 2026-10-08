@@ -87,6 +87,105 @@ const zetFout2 = (page, regels) => page.evaluate(r => sessionStorage.setItem('__
 const apartKopieen = async page => { const ks = (await lsKeys(page)).filter(k => k.startsWith('huisplanCacheApart_')); return Promise.all(ks.map(k => lsRaw(page, k))); };
 
 module.exports = {
+  // ── Derde Codex-review #16 ────────────────────────────────────────────────────────────────────
+  // Cache (onbevestigd) even onleesbaar bij opstarten; intussen verandert de server; daarna weer leesbaar.
+  // Opnemen alleen als de E2-controle (losslessMerge) het verliesvrij vindt; anders blokkeren.
+  ...(() => {
+    const out = {};
+    const H = (t, d) => ({ text: t, norm: t.toLowerCase(), date: d });
+    const gevallen = [
+      // [naam, cache-wijziging, server-wijziging, verliesvrij?]
+      ['onafhankelijke toevoegingen (lijst met id)', d => d.boodschappen.push({ id: 'x-r3', text: 'X r3', done: false }), d => d.boodschappen.push({ id: 'y-r3', text: 'Y r3', done: false }), true],
+      ['geschiedenis zonder id aan beide kanten', d => d.boodschappenHistory.push(H('X r3', '2026-10-01')), d => d.boodschappenHistory.push(H('Y r3', '2026-10-01')), false],
+      ['zelfde item verschillend gewijzigd', d => { d.boodschappen.find(b => b.id === 'b-melk').text = 'X r3'; }, d => { d.boodschappen.find(b => b.id === 'b-melk').text = 'Y r3'; }, false]
+    ];
+    gevallen.forEach(([naam, lokaal, server, verliesvrij]) => {
+      out['R3-B1: weer leesbare cache, ' + naam + ' — ' + (verliesvrij ? 'beide behouden' : 'geblokkeerd, niets verloren, nooit "opgeslagen"')] = async ctx => {
+        const basis = fx(), cdata = JSON.parse(JSON.stringify(basis)), sdata = JSON.parse(JSON.stringify(basis));
+        lokaal(cdata); server(sdata);
+        const cache = JSON.stringify({ format: 2, gen: 1, id: cacheId(DB_URL, KEY, 1), app: '1.4.1', data: cdata, base: canon(basis), t: 1, localGen: 1, confirmedGen: 0 });
+        const o = await open(ctx, { data: sdata, localStorage: { [NIEUW]: cache }, opslagFout: { lezen: '^huisplanCache_' } });
+        await wait(1200);
+        await zetOpslagFout(o.page, {});
+        await volgStatus(o.page);
+        await addBood(o.page, 'Z r3');
+        await wait(2500);
+        const st = await statussen(o.page);
+        const heeftX = async () => { const raw = await lsRaw(o.page, NIEUW); return String(raw).includes('X r3') || JSON.stringify(o.state.db).includes('X r3'); };
+        if (verliesvrij) {
+          await until(async () => ['X r3', 'Y r3', 'Z r3'].every(t => boodTexts(o.state.db).includes(t)) && OPGESLAGEN.test(await syncText(o.page)), 6000, naam + ': X, Y en Z op de server');
+        } else {
+          if (await o.page.isVisible('#confirmOverlay.open')) {
+            assert(/niet zonder verlies/.test(await o.page.textContent('#confirmTitle')), naam + ': melding: ' + await o.page.textContent('#confirmTitle'));
+            await o.page.click('#confirmCancelBtn');
+          }
+          assert((await lsRaw(o.page, NIEUW)) === cache, naam + ': cache met X overschreven');
+          assert(!st.slice(1).some(t => OPGESLAGEN.test(t)), naam + ': "opgeslagen" terwijl X alleen lokaal/apart staat: ' + st.join(' | '));
+          assert(JSON.stringify(o.state.db).includes('Y r3') && !JSON.stringify(o.state.db).includes('X r3'), naam + ': automatisch een winnaar gekozen');
+          assert((await apartKopieen(o.page)).includes(cache), naam + ': herstelgegevens niet apart bewaard');
+        }
+        for (let i = 0; i < 2; i++) {
+          await o.page.reload(); await wait(2500);
+          if (await o.page.isVisible('#confirmOverlay.open')) await o.page.click('#confirmCancelBtn');
+          assert(await heeftX(), naam + ', herladen ' + (i + 1) + ': X verloren');
+          assert(JSON.stringify(o.state.db).includes('Y r3'), naam + ', herladen ' + (i + 1) + ': Y verloren');
+          if (!verliesvrij) assert(!OPGESLAGEN.test(await syncText(o.page)), naam + ', herladen ' + (i + 1) + ': "opgeslagen" terwijl X niet is opgenomen');
+        }
+        await o.ctx.close();
+      };
+    });
+    return out;
+  })(),
+
+  async 'R3-B2: onderbreking tussen herstel en toepassen — nieuwe wijziging van de gebruiker blijft (geheugen, cache, journaal, server)'(ctx) {
+    const basis = fx(), cdata = metItem(basis, 'x-r3b', 'X r3b');
+    const cache = JSON.stringify({ format: 2, gen: 1, id: cacheId(DB_URL, KEY, 1), app: '1.4.1', data: cdata, base: canon(basis), t: 1, localGen: 1, confirmedGen: 0 });
+    const o = await open(ctx, { data: basis, localStorage: { [NIEUW]: cache }, opslagFout: { lezen: '^huisplanCache_' } });
+    await wait(1200);
+    await zetOpslagFout(o.page, {});
+    await o.page.click('[data-view="boodschappenView"]');
+    // In één synchrone stap: de eerste toevoeging zet het herstel in gang; de tweede komt vóórdat een
+    // eventuele uitgestelde toepassing (setTimeout) kan draaien.
+    await o.page.evaluate(() => {
+      const voeg = t => { const i = document.getElementById('boodschapInput'); i.value = t; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); };
+      voeg('Y1 r3b'); voeg('Y2 r3b');
+    });
+    await until(async () => ['X r3b', 'Y1 r3b', 'Y2 r3b'].every(t => boodTexts(o.state.db).includes(t)), 8000, 'X, Y1 en Y2 op de server');
+    await wait(1500);
+    for (const t of ['X r3b', 'Y1 r3b', 'Y2 r3b']) {
+      assert(await appToont(o.page, t), 'Geheugen: ' + t + ' verloren');
+      assert(String(await lsRaw(o.page, NIEUW)).includes(t), 'Cache: ' + t + ' verloren');
+    }
+    const journaal = await o.page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('plannerJournal_')).map(k => localStorage.getItem(k)));
+    assert(journaal.every(j => ['Y2 r3b'].every(t => j.includes(t))), 'Journaal bevat een verouderde stand zonder Y2');
+    await o.page.reload(); await wait(2500);
+    for (const t of ['X r3b', 'Y1 r3b', 'Y2 r3b']) assert(boodTexts(o.state.db).includes(t) && await appToont(o.page, t), 'Na herladen: ' + t + ' verloren');
+    await o.ctx.close();
+  },
+
+  async 'R3: overname van een oude cache gereserveerd maar niet afgerond — blijft gemeld over meerdere herladingen, nooit opnieuw ingelezen'(ctx) {
+    const oud = JSON.stringify({ data: metItem(fx(), 'x-r3l', 'X r3l'), base: canon(fx()), t: 1, db: DB_URL });
+    const hash = crypto.createHash('sha256').update(oud).digest('hex').slice(0, 32);
+    // Eerste sessie: de markering lukt, de nieuwe cache (de eigenlijke overname) niet.
+    const o = await open(ctx, { data: fx(), localStorage: { [OUD]: oud }, opslagFout: { schrijven: '^huisplanCache_' } });
+    await wait(2500);
+    if (await o.page.isVisible('#confirmOverlay.open')) await o.page.click('#confirmCancelBtn');
+    assert(JSON.parse(await lsRaw(o.page, MARK)).s === 'gereserveerd' && JSON.parse(await lsRaw(o.page, MARK)).h === hash, 'Markering niet "gereserveerd": ' + await lsRaw(o.page, MARK));
+    assert(!boodTexts(o.state.db).includes('X r3l'), 'Toch ingelezen');
+    // Een ander toestel verwijdert intussen iets; opslag werkt weer; meerdere herladingen.
+    await zetOpslagFout(o.page, {});
+    for (let i = 0; i < 3; i++) {
+      await o.page.reload();
+      assert(await vraagLegacy(o.page, 4000) && /niet afgerond/.test(await o.page.textContent('#confirmTitle')), 'Herladen ' + (i + 1) + ': geen melding van de onafgeronde overname');
+      await o.page.click('#confirmCancelBtn');
+      await addBood(o.page, 'Ander ' + i); await wait(1500);
+      assert(!boodTexts(o.state.db).includes('X r3l') && !(await appToont(o.page, 'X r3l')), 'Herladen ' + (i + 1) + ': opnieuw ingelezen');
+    }
+    assert((await leesCache(o.page)) && !String(await lsRaw(o.page, NIEUW)).includes('X r3l'), 'Testopzet: nieuwe cache zonder X bestaat niet');
+    assert((await lsRaw(o.page, OUD)) === oud, 'Oude cache gewijzigd of verwijderd');
+    await o.ctx.close();
+  },
+
   // ── Tweede Codex-review #16 ───────────────────────────────────────────────────────────────────
   async 'R2-B1: cache bij opstarten even niet te lezen, daarna wel — onbevestigde X wordt nooit overschreven en overleeft herladen'(ctx) {
     for (const apartLukt of [true, false]) {
@@ -423,7 +522,7 @@ module.exports = {
     const oud = JSON.stringify({ data: metItem(fx(), 'eigen-oud', 'Eigen oud'), base: canon(fx()), t: 1, db: DB_URL, inst: 'i0000000000000000', seq: 3 });
     const o = await open(ctx, { data: fx(), localStorage: { [OUD]: oud } });
     await until(async () => boodTexts(o.state.db).includes('Eigen oud'), 6000, 'eigen oude cache overgenomen en opgeslagen');
-    assert((await lsRaw(o.page, MARK)) === crypto.createHash('sha256').update(oud).digest('hex').slice(0, 32), 'Geen duurzame markering van de verwerkte oude cache');
+    assert((await lsRaw(o.page, MARK)) === JSON.stringify({ h: crypto.createHash('sha256').update(oud).digest('hex').slice(0, 32), s: 'klaar' }), 'Geen duurzame markering "klaar" van de verwerkte oude cache: ' + await lsRaw(o.page, MARK));
     assert((await lsRaw(o.page, OUD)) === oud, 'Oude cache verwijderd (hoort te blijven staan)');
     await o.ctx.close();
   },
