@@ -567,3 +567,9 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   generatie niet.
 - Tests: `tests/opslag.test.js` (62).
 
+## 1.4.2-voorbereiding: NW-04 (E3) na de achtste Codex-review (testversie)
+- De E2-stopvoorwaarde na een PUT met een falende cache staat nu duurzaam in het eigen record
+  (`cacheWacht`). Ze overleeft dus herladen, en wordt pas opgeheven na een teruggelezen cache-spiegel.
+- R7-1 gebruikt expliciete synchronisatiebarrières in plaats van alleen wachttijden.
+- Tests: `tests/opslag.test.js` (63).
+

@@ -189,6 +189,19 @@ bijgewerkt.
   terwijl er al een nieuwere generatie is), en mislukt dan de cache, dan geldt de E2-stopvoorwaarde:
   `pendingSettle`, de volgende generatie vertrekt niet, en de status zegt "Lokaal bewaren mislukt".
   Een gewone lokale wijziging zonder eerdere PUT blokkeert het versturen niet, zoals in E2.
+- **Die stopvoorwaarde is duurzaam (achtste review):** ze staat in het eigen record als
+  `cacheWacht: true`.
+  - Het veld wordt gezet in dezelfde schrijfactie die het `lokaal`-record vastlegt, dus vóór de
+    cachepoging.
+  - Het wordt pas weggehaald nadat de cache-spiegel geschreven en teruggelezen is. Dat wissen is
+    zelf ook een teruggelezen recordschrijfactie; mislukt die, dan blijft de barrière staan.
+  - `adopt()` (na herladen of overnemen) en de rustroute (`neemSamen()` → `settle()`) nemen het veld
+    over. Er wordt dus niets verstuurd tot de cache aantoonbaar klopt, ook niet na herhaald herladen
+    tijdens dezelfde opslagstoring. De status zegt dan "Lokaal bewaren mislukt", met een
+    waarschuwing bij sluiten.
+  - Zodra de cache weer werkt, wordt de barrière opgeheven en gaat de stand één keer, voorwaardelijk,
+    via het journaal naar de server.
+  - Een record dat verstuurd wordt (`sending`), draagt het veld nooit.
 - **Conflict zonder bewijs:** het record en de cache blijven precies staan. Dit venster schrijft dan
   geen record, cache of PUT meer.
 - **Het `storage`-event** is alleen nog een extra melding (status intrekken, conflict melden). Het is
@@ -234,6 +247,7 @@ bijgewerkt.
 | Twee vensters offline; B voorbij de controle, C schrijft W, B overschrijft, géén event, C crasht | W staat in C's eigen 'lokaal'-record; bij de volgende start overgenomen en (verliesvrij of met conflictbewijs) verwerkt; meerdere verweesde records één voor één. | R6-1, R6-2, R6-4 |
 | Verweesd 'lokaal'-record wordt tijdens de wachttijd door een ander venster overgenomen en verstuurd (unknown), server verwijdert W | Niet opnieuw versturen; record blijft 'unknown'; bij herstart de E2-vraag; nooit "Opgeslagen". | R7-1 |
 | Vertraagde ACK van generatie 1, generatie 2 intussen, cache faalt | Generatie 2 vertrekt niet (pendingSettle), "Lokaal bewaren mislukt", waarschuwing; na herstel van de cache alsnog verstuurd. | R7-2 |
+| Vertraagde ACK, G2 intussen, cachestoring blijft, herladen (herhaald) | Geen extra PUT zolang de storing duurt (cacheWacht in het record), G2 blijft in het record en in de app, eerlijke status; na herstel G2 precies één keer. | R8-1 |
 | Herstelrecord niet te schrijven (opslag vol) | Geen cache-opslag, geen "Opgeslagen", waarschuwing bij sluiten; zodra het weer lukt, staat alles in het record. | R6-3 |
 | Nieuw conflictbewijs in een ander venster | Elk venster trekt een getoonde "Opgeslagen" in (storage-event, terugkeer naar het venster, herladen). | R6-5 |
 | Herstart met tijdelijke leesfout op het journaal, of zonder Web Locks | Blokkeren, niets verwijderen, nooit "Opgeslagen"; na de leesfout gewoon verder. Record blijft staan tot de inhoud bevestigd is. | R6-6, R6-7 |

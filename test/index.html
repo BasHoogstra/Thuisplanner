@@ -3235,7 +3235,7 @@ function createFirebaseStore(opts){
     if(r.state==='lokaal'?r.sent!==undefined:(r.sent!==undefined||r.state!=='settled')&&!parseObj(r.sent,false))return 'sent';
     if(r.state==='lokaal'&&!parseObj(r.local,false))return 'local';
     if(!parseObj(r.oldBase,true))return 'oldBase';
-    if(!(r.cacheInst===null||typeof r.cacheInst==='string')||typeof r.cacheSeq!=='number'||Math.floor(r.cacheSeq)!==r.cacheSeq||r.cacheSeq<0||r.cacheOk!==undefined&&typeof r.cacheOk!=='boolean')return 'cache';
+    if(!(r.cacheInst===null||typeof r.cacheInst==='string')||typeof r.cacheSeq!=='number'||Math.floor(r.cacheSeq)!==r.cacheSeq||r.cacheSeq<0||r.cacheOk!==undefined&&typeof r.cacheOk!=='boolean'||r.cacheWacht!==undefined&&r.cacheWacht!==true)return 'cache';
     if(r.state==='settled'&&(!parseObj(r.base,true)||!parseObj(r.local,false)))return 'settled';
     if(r.local!==undefined&&!parseObj(r.local,false))return 'local';
     var geheel=function(x){return x===undefined||typeof x==='number'&&Math.floor(x)===x&&x>=0;};
@@ -3339,16 +3339,23 @@ function createFirebaseStore(opts){
       // onbekend, onzeker of afgehandeld), dan blijft de E2-stopvoorwaarde gelden: mislukt de cache, dan
       // pendingSettle en niets meer versturen tot het lukt. Een gewone lokale wijziging zonder eerdere
       // PUT blokkeert het versturen niet (zoals in E2).
+      // Achtste review: deze stopvoorwaarde staat ook DUURZAAM in het record (cacheWacht: true), zodat
+      // ze een herlaadactie overleeft (adopt). Ze wordt in het record gezet vóór de cachepoging en pas
+      // weggehaald na een geslaagde, teruggelezen cache-spiegel. Een record dat de barrière al heeft
+      // (bv. na herladen of overnemen), houdt haar tot dat moment.
       var naPut=!!myRec&&myRec.state!=='lokaal';
-      if(!putRecord({state:'lokaal',local:JSON.stringify(d),oldBase:base,sent:undefined,base:undefined,cacheInst:instId,cacheSeq:cacheSeq,cacheOk:undefined})){
+      var wacht=naPut||pendingSettle||!!(myRec&&myRec.cacheWacht);
+      if(!putRecord({state:'lokaal',local:JSON.stringify(d),oldBase:base,sent:undefined,base:undefined,cacheInst:instId,cacheSeq:cacheSeq,cacheOk:undefined,cacheWacht:wacht?true:undefined})){
         // Geen eigen duurzaam exemplaar: niet als bewaard beschouwen, en ook de cache niet bijwerken.
-        if(myRec&&myRec.state!=='lokaal')pendingSettle=true;
+        if(wacht)pendingSettle=true;
         setLocalFail(true);return false;
       }
       // Spiegel in de cache. E2-regel blijft: na een PUT pas weer versturen als ook de cache klopt
       // (pendingSettle blijft dan staan); het record is wel al het duurzame exemplaar.
-      if(writeCacheRaw(d,base))pendingSettle=false;
-      else if(naPut)pendingSettle=true;
+      if(writeCacheRaw(d,base)){
+        if(wacht&&!putRecord({cacheWacht:undefined})){pendingSettle=true;return false;} // barrière blijft in het record
+        pendingSettle=false;
+      } else if(wacht)pendingSettle=true;
       return !pendingSettle;
     }
     if(myRec&&!putRecord({state:'settled',base:base,local:JSON.stringify(d)})){pendingSettle=true;setLocalFail(true);return false;}
@@ -3396,6 +3403,7 @@ function createFirebaseStore(opts){
       return claim(dood[0].key,true,'lokaal').then(function(res){
         volgendBezig=false;
         if(res==='ok')neemSamen();
+        else opslagDiagnose('verweesd record niet overgenomen',dood[0].key,res);
         refreshStatus();
       });
     }).then(null,function(){volgendBezig=false;});
@@ -3588,7 +3596,13 @@ function createFirebaseStore(opts){
     var d=normalizeData(clone(JSON.parse(typeof rec.local==='string'?rec.local:rec.sent)));
     base=recBase;
     if(!putRecord({local:JSON.stringify(d),cacheInst:instId,cacheSeq:cacheSeq})){gateBlock('journal-invalid');return;}
-    writeCacheRaw(d,base); // spiegel van de nieuwe revisie; mislukt dit, dan blijft het record de waarheid
+    var cacheGoed=writeCacheRaw(d,base); // spiegel van de nieuwe revisie; mislukt dit, dan blijft het record de waarheid
+    // Achtste review: openstaande cache-afhandeling van een eerdere PUT (cacheWacht in het record)
+    // overleeft het herladen: niets versturen tot de cache-spiegel aantoonbaar staat.
+    if(myRec&&myRec.cacheWacht){
+      if(cacheGoed&&putRecord({cacheWacht:undefined}))pendingSettle=false;
+      else{pendingSettle=true;setLocalFail(true);}
+    }
     gateClear();
     // Ook in deze (E2-)herstelroute de oude cache bekijken, maar alleen om te melden: nooit inlezen
     // (het journaalrecord is hier de waarheid).
@@ -3871,7 +3885,7 @@ function createFirebaseStore(opts){
     // Eerst het eigen journaalrecord met wat er onderweg gaat (local = sent, nieuwe revisie); lukt dat
     // niet, dan niet versturen. Daarna de cache als spiegel van die revisie. Lukt alleen de cache niet,
     // dan wel versturen: het record is de lokale waarheid, een oudere cache telt nooit (B1, blocker 6).
-    if(!putRecord({state:'sending',sent:body,local:body,oldBase:oldBase,cacheInst:instId,cacheSeq:cacheSeq,cacheOk:undefined,base:undefined})){
+    if(!putRecord({state:'sending',sent:body,local:body,oldBase:oldBase,cacheInst:instId,cacheSeq:cacheSeq,cacheOk:undefined,cacheWacht:undefined,base:undefined})){
       status(fenced?'taken-over':'journal-failed');
       return Promise.resolve();
     }

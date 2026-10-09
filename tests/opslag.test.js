@@ -89,6 +89,53 @@ const zetFout2 = (page, regels) => page.evaluate(r => sessionStorage.setItem('__
 const apartKopieen = async page => { const ks = (await lsKeys(page)).filter(k => k.startsWith('huisplanCacheApart_') || k.startsWith('huisplanCacheConflict_')); return Promise.all(ks.map(k => lsRaw(page, k))); };
 
 module.exports = {
+  // ── Achtste Codex-review #16 ──────────────────────────────────────────────────────────────────
+  // R8-1: de E2-stopvoorwaarde na een vertraagde ACK (cache faalt) moet herladen overleven: G2 staat
+  // duurzaam in het record, maar vertrekt niet zolang de cache-afhandeling openstaat.
+  async 'R8-1: vertraagde ACK G1, G2 intussen, blijvende cachestoring, drie keer herladen — geen extra PUT; na herstel G2 precies één keer'(ctx) {
+    const st = { klaar: false, eerste: true };
+    const onRequest = ({ method }) => { if (method === 'PUT' && st.klaar && st.eerste) { st.eerste = false; return { delay: 2000, commitFirst: true }; } return null; };
+    const o = await open(ctx, { data: fx(), onRequest });
+    await wait(1000);
+    st.klaar = true;
+    const p0 = o.state.puts;
+    const recs = async () => Promise.all((await lsKeys(o.page)).filter(k => k.startsWith('plannerJournal_')).map(async k => JSON.parse(await lsRaw(o.page, k))));
+    await addBood(o.page, 'G1 r8');
+    await until(async () => o.state.puts === p0 + 1, 4000, 'PUT van G1 verwerkt (antwoord vertraagd)');
+    await addBood(o.page, 'G2 r8');
+    await until(async () => (await recs()).some(r => r.local.includes('G2 r8')), 3000, 'G2 in het record');
+    await zetOpslagFout(o.page, { schrijven: '^huisplanCache_' }); // blijft over herladen heen
+    // Barrière (gedrag, geen interne vlag): de ACK van G1 is verwerkt (record niet meer 'sending') en de
+    // app meldt dat er niets vertrekt.
+    await until(async () => (await recs()).some(r => r.state === 'lokaal' && r.local.includes('G2 r8')) && /Lokaal bewaren mislukt/.test(await syncText(o.page)), 6000, 'ACK verwerkt, G2 lokaal, eerlijke status');
+    await wait(1500);
+    assert(o.state.puts === p0 + 1 && !boodTexts(o.state.db).includes('G2 r8'), 'G2 verstuurd vóór herladen');
+    for (let i = 1; i <= 3; i++) {
+      await o.page.reload();
+      // Barrière: de app is door de poort en heeft het record overgenomen (status zegt dat niets vertrekt).
+      await until(async () => /Lokaal bewaren mislukt|Niet bewaard/.test(await syncText(o.page)), 8000, 'herladen ' + i + ': status na overnemen');
+      await wait(1500); // ruimte voor een eventuele (foute) PUT
+      const w = 'herladen ' + i;
+      assert(o.state.puts === p0 + 1, w + ': extra PUT verstuurd tijdens de opslagstoring (' + (o.state.puts - p0) + ')');
+      assert(!boodTexts(o.state.db).includes('G2 r8'), w + ': G2 op de server tijdens de opslagstoring');
+      const r = await recs();
+      assert(r.length === 1 && r[0].local.includes('G2 r8'), w + ': G2 uit het record verdwenen');
+      assert(await appToont(o.page, 'G2 r8'), w + ': G2 niet in de app');
+      assert(!OPGESLAGEN.test(await syncText(o.page)), w + ': status "' + await syncText(o.page) + '"');
+      assert(await waarschuwtBijSluiten(o.page), w + ': geen waarschuwing bij sluiten');
+      assert(r[0].cacheWacht === true, w + ': duurzame stopvoorwaarde uit het record verdwenen');
+    }
+    // Opslag hersteld: G2 gaat gecontroleerd en precies één keer.
+    await zetOpslagFout(o.page, {});
+    await o.page.reload();
+    await until(async () => boodTexts(o.state.db).includes('G2 r8') && OPGESLAGEN.test(await syncText(o.page)), 8000, 'G2 na herstel opgeslagen');
+    await until(async () => !(await recs()).length, 4000, 'record opgeruimd na bevestiging');
+    assert(boodTexts(o.state.db).filter(t => t === 'G2 r8').length === 1 && boodTexts(o.state.db).filter(t => t === 'G1 r8').length === 1, 'G1/G2 niet precies één keer');
+    assert(o.state.puts === p0 + 2, 'Na herstel niet precies één extra PUT (' + (o.state.puts - p0) + ')');
+    assert(String(await lsRaw(o.page, NIEUW)).includes('G2 r8'), 'Cache-spiegel zonder G2 na herstel');
+    await o.ctx.close();
+  },
+
   // ── Zevende Codex-review #16 ──────────────────────────────────────────────────────────────────
   // R7-1: tussen selectie (volgendRecord) en claim neemt een ander venster het 'lokaal'-record over,
   // verstuurt het (verwerkt, antwoord kwijt: 'unknown') en een ander toestel verwijdert W. Het eerste
@@ -102,7 +149,7 @@ module.exports = {
     };
     // navigator.onLine per venster te sturen; locks.query per venster te pauzeren (window.__pauze).
     const init = `Object.defineProperty(Navigator.prototype,'onLine',{configurable:true,get:function(){return !window.__offline;}});
-      if(window.LockManager){var q=LockManager.prototype.query;LockManager.prototype.query=function(){var s=this,a=arguments;return (window.__pauze||Promise.resolve()).then(function(){return q.apply(s,a);});};}`;
+      if(window.LockManager){var q=LockManager.prototype.query;window.__echteQuery=function(){return q.call(navigator.locks);};LockManager.prototype.query=function(){var s=this,a=arguments;if(window.__pauze)window.__gepauzeerd=(window.__gepauzeerd||0)+1;return (window.__pauze||Promise.resolve()).then(function(){return q.apply(s,a);});};}`;
     const C = await open(ctx, { data: fx(), onRequest, initScript: init, timeouts: { get: 3000 } });
     const D = { page: await C.ctx.newPage() };
     await D.page.goto(C.url); await wait(2500);
@@ -116,8 +163,10 @@ module.exports = {
     assert(!boodTexts(C.state.db).includes('W r7') && !(await appToont(D.page, 'W r7')), 'Testopzet: W al op de server of in D');
     await C.page.close();
     // 2. D selecteert het record (volgendRecord na een lezing) en wacht in liveOwners().
-    await D.page.evaluate(() => { window.__pauze = new Promise(r => { window.__ga = r; }); });
-    await refresh(D.page); await wait(1500);
+    await D.page.evaluate(() => { window.__gepauzeerd = 0; window.__pauze = new Promise(r => { window.__ga = r; }); });
+    await refresh(D.page);
+    // Barrière: D staat aantoonbaar stil in liveOwners() van volgendRecord (niet alleen "even gewacht").
+    await until(async () => (await D.page.evaluate(() => window.__gepauzeerd)) >= 1, 6000, 'D gepauzeerd in liveOwners');
     // 3. B neemt hetzelfde record over (opstarten), verstuurt W: verwerkt, antwoord kwijt → 'unknown'.
     fase.naam = 'verlies';
     const B = { page: await C.ctx.newPage() };
@@ -127,12 +176,20 @@ module.exports = {
     // 4. Een ander toestel verwijdert W; B's herstellezing hangt; B sluit.
     serverWrite(C.state, db => { db.boodschappen = db.boodschappen.filter(b => b.text !== 'W r7'); });
     await B.page.close();
+    // Barrière: B is aantoonbaar weg (geen instantie- of claimlock meer behalve die van D zelf), zodat D's
+    // claim het record onder het lock werkelijk opnieuw leest in plaats van op een nog vastgehouden lock
+    // te stuiten.
+    await until(async () => D.page.evaluate(async () => { const h = (await window.__echteQuery()).held || []; return h.filter(l => l.name.indexOf('huisplan-instantie-') === 0).length === 1 && !h.some(l => l.name.indexOf('huisplan-claim-') === 0); }), 8000, 'locks van B vrijgegeven');
     recs = await records(D.page);
     assert(!boodTexts(C.state.db).includes('W r7') && recs.length === 1 && recs[0].state === 'unknown', 'Vóór hervatten: server zonder W en record unknown');
     // 5. D hervat.
     fase.naam = 'normaal';
+    const p0 = C.state.puts;
     await D.page.evaluate(() => { window.__pauze = null; window.__ga(); });
-    await wait(3000);
+    // Barrière: D heeft de claim afgerond (en geweigerd: het record is niet meer 'lokaal').
+    await until(async () => (await D.page.evaluate(() => window.huisplanOpslag.diagnose())).some(x => x.soort === 'verweesd record niet overgenomen' && x.fout === 'toestand'), 6000, 'D weigert de overname op toestand');
+    await wait(1000); // ruimte voor een eventuele (foute) PUT
+    assert(C.state.puts === p0, 'Na hervatten: extra PUT verstuurd');
     recs = await records(D.page);
     assert(!boodTexts(C.state.db).includes('W r7'), 'Na hervatten: W opnieuw op de server gezet (unknown behandeld als onverstuurd)');
     assert(recs.length === 1 && recs[0].state === 'unknown' && recs[0].sent.includes('W r7'), 'Na hervatten: unknown-record verdwenen of veranderd (' + recs.map(r => r.state).join(',') + ')');
