@@ -175,6 +175,20 @@ bijgewerkt.
   - of nadat een conflictbewijs met precies die inhoud is geschreven en teruggelezen.
 
   Na een `412`, een weigering of een mislukte PUT blijft het record `lokaal` (niet opgeruimd).
+- **Toestand opnieuw gecontroleerd onder het claim-lock (zevende review):** de selectie van een
+  verweesd record gebeurt vóór een wachttijd. In die tijd kan een ander venster het overnemen en
+  versturen (`lokaal` → `unknown`). Daarom neemt de rustroute een record alleen over als het **onder
+  het claim-lock opnieuw gelezen** record nog `lokaal` is. `neemSamen()` controleert dat nog eens.
+  Elke andere toestand blijft precies staan voor het E2-herstel bij een herstart (met de bestaande
+  vraag bij een onbekende uitkomst). De status toont dan "Nog een onafgeronde lokale stand".
+- **Twee betekenissen van "afgehandeld" (zevende review):**
+  - *duurzaam lokaal vastgelegd*: het record `lokaal` is geschreven en teruggelezen;
+  - *afhandeling van een eerdere PUT afgerond*: record én cache-spiegel staan.
+
+  Komt de overgang naar `lokaal` uit de afhandeling van een PUT (bijvoorbeeld een vertraagde ACK
+  terwijl er al een nieuwere generatie is), en mislukt dan de cache, dan geldt de E2-stopvoorwaarde:
+  `pendingSettle`, de volgende generatie vertrekt niet, en de status zegt "Lokaal bewaren mislukt".
+  Een gewone lokale wijziging zonder eerdere PUT blokkeert het versturen niet, zoals in E2.
 - **Conflict zonder bewijs:** het record en de cache blijven precies staan. Dit venster schrijft dan
   geen record, cache of PUT meer.
 - **Het `storage`-event** is alleen nog een extra melding (status intrekken, conflict melden). Het is
@@ -218,6 +232,8 @@ bijgewerkt.
 | Cache lezen gooit een fout | Onbekend, niet leeg: niet overschrijven; bij elke poging opnieuw gekeken (een tijdelijke fout blokkeert het E2-herstel niet). Wordt hij later weer leesbaar en bevat hij iets wat (misschien) niet op de server staat, dan is dat **geen** toestemming om te overschrijven: zolang die kandidaat er is, weigert elke cache-schrijfactie. Opnemen gebeurt alleen synchroon aan het begin van `save()`, tegen de actuele stand (nooit een eerder berekende stand na een asynchrone grens): eerst duurzaam apart bewaard, dan samengevoegd, en alleen als de E2-controle `losslessMerge` de samenvoeging aantoonbaar verliesvrij vindt. Anders (conflict, lijst zonder id aan beide kanten veranderd, twijfelachtige vorm, apart bewaren mislukt): blokkeren, niets overschrijven, melding met herstelgegevens, nooit "opgeslagen". Dekt een journaalrecord hem (E2-herstel), dan is het record de waarheid. | T7c, R2-B1, R3-B1, R3-B2 |
 | 412 terwijl er onbevestigd herstel is (de server veranderde tussen controle en PUT), ook herhaald | Opnieuw lezen en opnieuw dezelfde controle tegen die serverstand; onafhankelijk = samenvoegen en opnieuw proberen; conflict = conflictbewijs, geen winnaar, melding, nooit "opgeslagen" (ook niet na herladen). | R5-B1 |
 | Twee vensters offline; B voorbij de controle, C schrijft W, B overschrijft, géén event, C crasht | W staat in C's eigen 'lokaal'-record; bij de volgende start overgenomen en (verliesvrij of met conflictbewijs) verwerkt; meerdere verweesde records één voor één. | R6-1, R6-2, R6-4 |
+| Verweesd 'lokaal'-record wordt tijdens de wachttijd door een ander venster overgenomen en verstuurd (unknown), server verwijdert W | Niet opnieuw versturen; record blijft 'unknown'; bij herstart de E2-vraag; nooit "Opgeslagen". | R7-1 |
+| Vertraagde ACK van generatie 1, generatie 2 intussen, cache faalt | Generatie 2 vertrekt niet (pendingSettle), "Lokaal bewaren mislukt", waarschuwing; na herstel van de cache alsnog verstuurd. | R7-2 |
 | Herstelrecord niet te schrijven (opslag vol) | Geen cache-opslag, geen "Opgeslagen", waarschuwing bij sluiten; zodra het weer lukt, staat alles in het record. | R6-3 |
 | Nieuw conflictbewijs in een ander venster | Elk venster trekt een getoonde "Opgeslagen" in (storage-event, terugkeer naar het venster, herladen). | R6-5 |
 | Herstart met tijdelijke leesfout op het journaal, of zonder Web Locks | Blokkeren, niets verwijderen, nooit "Opgeslagen"; na de leesfout gewoon verder. Record blijft staan tot de inhoud bevestigd is. | R6-6, R6-7 |

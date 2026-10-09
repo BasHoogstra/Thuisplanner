@@ -559,3 +559,11 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   in.
 - Tests: `tests/opslag.test.js` (60).
 
+## 1.4.2-voorbereiding: NW-04 (E3) na de zevende Codex-review (testversie)
+- Een verweesd record wordt in rust alleen samengevoegd als het onder het claim-lock opnieuw gelezen
+  record nog 'lokaal' is. Een ander venster kan het intussen hebben verstuurd ('unknown'); dat blijft
+  voor het E2-herstel.
+- E2-stopvoorwaarde hersteld: mislukt na een (vertraagde) ACK de cache, dan vertrekt de volgende
+  generatie niet.
+- Tests: `tests/opslag.test.js` (62).
+

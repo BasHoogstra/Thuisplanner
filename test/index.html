@@ -3332,6 +3332,14 @@ function createFirebaseStore(opts){
     if(fenced)return false;
     d=d||getLocal();
     if(dbUrl&&onbevestigd(d)){
+      // Zevende review: twee verschillende dingen.
+      //  - duurzaam lokaal vastgelegd: het record 'lokaal' is geschreven en teruggelezen;
+      //  - afhandeling van een eerdere PUT afgerond: dat record EN de cache-spiegel staan.
+      // Komt deze aanroep uit de afhandeling van een PUT (het record was nog niet 'lokaal': onderweg,
+      // onbekend, onzeker of afgehandeld), dan blijft de E2-stopvoorwaarde gelden: mislukt de cache, dan
+      // pendingSettle en niets meer versturen tot het lukt. Een gewone lokale wijziging zonder eerdere
+      // PUT blokkeert het versturen niet (zoals in E2).
+      var naPut=!!myRec&&myRec.state!=='lokaal';
       if(!putRecord({state:'lokaal',local:JSON.stringify(d),oldBase:base,sent:undefined,base:undefined,cacheInst:instId,cacheSeq:cacheSeq,cacheOk:undefined})){
         // Geen eigen duurzaam exemplaar: niet als bewaard beschouwen, en ook de cache niet bijwerken.
         if(myRec&&myRec.state!=='lokaal')pendingSettle=true;
@@ -3340,6 +3348,7 @@ function createFirebaseStore(opts){
       // Spiegel in de cache. E2-regel blijft: na een PUT pas weer versturen als ook de cache klopt
       // (pendingSettle blijft dan staan); het record is wel al het duurzame exemplaar.
       if(writeCacheRaw(d,base))pendingSettle=false;
+      else if(naPut)pendingSettle=true;
       return !pendingSettle;
     }
     if(myRec&&!putRecord({state:'settled',base:base,local:JSON.stringify(d)})){pendingSettle=true;setLocalFail(true);return false;}
@@ -3384,7 +3393,7 @@ function createFirebaseStore(opts){
     liveOwners().then(function(live){
       var dood=insp.records.filter(function(x){return x.rec.owner!==instId&&x.rec.state==='lokaal'&&!isLive(x.rec,live);});
       if(!dood.length||myRec||fenced||startGate){volgendBezig=false;refreshStatus();return;}
-      return claim(dood[0].key,true).then(function(res){
+      return claim(dood[0].key,true,'lokaal').then(function(res){
         volgendBezig=false;
         if(res==='ok')neemSamen();
         refreshStatus();
@@ -3393,6 +3402,10 @@ function createFirebaseStore(opts){
   }
   function neemSamen(){
     var rec=myRec,L,B,R,M;
+    // Defensief (zevende review): alleen een record dat zeker nooit is verstuurd ('lokaal'). Elke andere
+    // toestand (onderweg, onbekend, onzeker, afgehandeld) is voor het E2-herstel bij een herstart; niet
+    // als nieuwe lokale wijziging behandelen. Het record blijft precies staan.
+    if(!rec||rec.state!=='lokaal'){opslagDiagnose('overgenomen record niet samengevoegd',recKey,rec?rec.state:'weg');geefTerug();return;}
     try{
       L=normalizeData(clone(JSON.parse(rec.local)));B=normalizeData(clone(rec.oldBase?JSON.parse(rec.oldBase):{}));R=normalizeData(clone(getLocal()));
       M=mergeData(clone(B),clone(L),clone(R));
@@ -3419,10 +3432,13 @@ function createFirebaseStore(opts){
   // Liggen er onafgeronde records van andere (niet levende) vensters? Dan nooit "opgeslagen".
   function andereOnafgerond(){
     if(recordNietVerwerkt)return true;
-    if(!plannerKey||!locksOk||!laatsteLive)return false;
+    if(!plannerKey)return false;
     var insp=inspectJournals();
     if(insp.status==='unknown-invalid')return true;
-    return insp.records.some(function(x){return x.key!==recKey&&!laatsteLive[x.rec.owner];});
+    // Een record van een ander venster dat al verstuurd is of werd (onderweg, onbekend, onzeker,
+    // afgehandeld) telt altijd: de momentopname van levende vensters kan verouderd zijn (zevende review).
+    // Een 'lokaal'-record van een aantoonbaar levend venster is alleen diens eigen, nog niet verstuurde stand.
+    return insp.records.some(function(x){return x.key!==recKey&&x.rec.owner!==instId&&(x.rec.state!=='lokaal'||!laatsteLive||!laatsteLive[x.rec.owner]);});
   }
   // Leeft de eigenaar van dit record nog? Alleen met Web Locks is "nee" aantoonbaar; zonder Web
   // Locks of als het niet te bepalen is, geldt het record altijd als levend (nooit overnemen).
@@ -3438,7 +3454,11 @@ function createFirebaseStore(opts){
   // Een verweesd record overnemen: onder het claim-lock opnieuw lezen, valideren, controleren dat de
   // eigenaar echt weg is en pas dan de eigenaar op deze instantie zetten (teruggelezen).
   // Met Web Locks blijft het claim-lock van dat record vast tot het record is opgeruimd.
-  function claim(key,alleenZonderEigen){
+  // alleenZonderEigen: niet overnemen als dit venster intussen zelf een record heeft.
+  // alleenToestand: alleen overnemen als het ONDER HET CLAIM-LOCK opnieuw gelezen record (nog) deze
+  // toestand heeft (zevende Codex-review #16: tussen selectie en claim kan een ander venster het record
+  // al hebben overgenomen en verstuurd, bv. 'lokaal' → 'unknown').
+  function claim(key,alleenZonderEigen,alleenToestand){
     function lees(){
       var raw;try{raw=localStorage.getItem(key);}catch(e){return 'invalid';}
       if(raw===null)return 'gone';
@@ -3468,6 +3488,7 @@ function createFirebaseStore(opts){
           return liveOwners().then(function(live){
             var r=lees();if(typeof r==='string'){klaar(r);return;}
             if(isLive(r.r,live)){klaar('busy');return;}
+            if(alleenToestand&&r.r.state!==alleenToestand){klaar('toestand');return;}
             var res=neem(r);klaar(res);
             if(res==='ok')return new Promise(function(los){claimRelease=los;});
           });

@@ -89,6 +89,91 @@ const zetFout2 = (page, regels) => page.evaluate(r => sessionStorage.setItem('__
 const apartKopieen = async page => { const ks = (await lsKeys(page)).filter(k => k.startsWith('huisplanCacheApart_') || k.startsWith('huisplanCacheConflict_')); return Promise.all(ks.map(k => lsRaw(page, k))); };
 
 module.exports = {
+  // ── Zevende Codex-review #16 ──────────────────────────────────────────────────────────────────
+  // R7-1: tussen selectie (volgendRecord) en claim neemt een ander venster het 'lokaal'-record over,
+  // verstuurt het (verwerkt, antwoord kwijt: 'unknown') en een ander toestel verwijdert W. Het eerste
+  // venster mag dat record daarna NIET als onverstuurde lokale wijziging samenvoegen en opnieuw sturen.
+  async 'R7-1: lokaal-record wordt tijdens de wachttijd van volgendRecord "unknown" (lokaal → unknown, server verwijdert W) — niet opnieuw versturen, E2-herstel blijft'(ctx) {
+    const fase = { naam: 'normaal' };
+    const onRequest = ({ method }) => {
+      if (fase.naam === 'verlies' && method === 'PUT') { fase.naam = 'hang'; return 'lost'; } // verwerkt, antwoord weg
+      if (fase.naam === 'hang' && method === 'GET') return 'hang';
+      return null;
+    };
+    // navigator.onLine per venster te sturen; locks.query per venster te pauzeren (window.__pauze).
+    const init = `Object.defineProperty(Navigator.prototype,'onLine',{configurable:true,get:function(){return !window.__offline;}});
+      if(window.LockManager){var q=LockManager.prototype.query;LockManager.prototype.query=function(){var s=this,a=arguments;return (window.__pauze||Promise.resolve()).then(function(){return q.apply(s,a);});};}`;
+    const C = await open(ctx, { data: fx(), onRequest, initScript: init, timeouts: { get: 3000 } });
+    const D = { page: await C.ctx.newPage() };
+    await D.page.goto(C.url); await wait(2500);
+    const records = async p => Promise.all((await lsKeys(p)).filter(k => k.startsWith('plannerJournal_')).map(async k => JSON.parse(await lsRaw(p, k))));
+    assert(!(await records(D.page)).length, 'Testopzet: er is al een record');
+    // 1. C bewaart offline W in een 'lokaal'-record en sluit.
+    await C.page.evaluate(() => { window.__offline = true; });
+    await addBood(C.page, 'W r7'); await wait(1200);
+    let recs = await records(D.page);
+    assert(recs.length === 1 && recs[0].state === 'lokaal' && recs[0].local.includes('W r7'), 'Testopzet: geen lokaal-record met W');
+    assert(!boodTexts(C.state.db).includes('W r7') && !(await appToont(D.page, 'W r7')), 'Testopzet: W al op de server of in D');
+    await C.page.close();
+    // 2. D selecteert het record (volgendRecord na een lezing) en wacht in liveOwners().
+    await D.page.evaluate(() => { window.__pauze = new Promise(r => { window.__ga = r; }); });
+    await refresh(D.page); await wait(1500);
+    // 3. B neemt hetzelfde record over (opstarten), verstuurt W: verwerkt, antwoord kwijt → 'unknown'.
+    fase.naam = 'verlies';
+    const B = { page: await C.ctx.newPage() };
+    await B.page.goto(C.url);
+    await until(async () => (await records(D.page)).some(r => r.state === 'unknown'), 8000, 'record unknown na verloren antwoord');
+    assert(boodTexts(C.state.db).includes('W r7'), 'Testopzet: server verwerkte W niet');
+    // 4. Een ander toestel verwijdert W; B's herstellezing hangt; B sluit.
+    serverWrite(C.state, db => { db.boodschappen = db.boodschappen.filter(b => b.text !== 'W r7'); });
+    await B.page.close();
+    recs = await records(D.page);
+    assert(!boodTexts(C.state.db).includes('W r7') && recs.length === 1 && recs[0].state === 'unknown', 'Vóór hervatten: server zonder W en record unknown');
+    // 5. D hervat.
+    fase.naam = 'normaal';
+    await D.page.evaluate(() => { window.__pauze = null; window.__ga(); });
+    await wait(3000);
+    recs = await records(D.page);
+    assert(!boodTexts(C.state.db).includes('W r7'), 'Na hervatten: W opnieuw op de server gezet (unknown behandeld als onverstuurd)');
+    assert(recs.length === 1 && recs[0].state === 'unknown' && recs[0].sent.includes('W r7'), 'Na hervatten: unknown-record verdwenen of veranderd (' + recs.map(r => r.state).join(',') + ')');
+    assert(!OPGESLAGEN.test(await syncText(D.page)), 'Na hervatten: "' + await syncText(D.page) + '" terwijl er een onafgerond record is');
+    // 6. Herstart: het E2-herstel voor een onbekende uitkomst (niet stil opnieuw versturen).
+    await D.page.reload(); await wait(3500);
+    assert(!boodTexts(C.state.db).includes('W r7'), 'Na herstart: W stil opnieuw verstuurd');
+    const vraag = await D.page.isVisible('#confirmOverlay.open') && /niet zeker/.test(await D.page.textContent('#confirmTitle'));
+    assert(vraag, 'Na herstart: geen E2-vraag bij de onbekende uitkomst');
+    recs = await records(D.page);
+    assert(recs.length === 1 && recs[0].local.includes('W r7'), 'Na herstart: record met W verdwenen');
+    await C.ctx.close();
+  },
+
+  // R7-2: E2-stopvoorwaarde. PUT van generatie 1 verwerkt, antwoord vertraagd; intussen generatie 2;
+  // daarna faalt de cache. Na het antwoord mag generatie 2 niet vertrekken zolang de cache niet klopt.
+  async 'R7-2: vertraagde ACK van generatie 1, generatie 2 intussen, cache faalt — generatie 2 vertrekt niet, eerlijke status; daarna herstel'(ctx) {
+    let eerste = true;
+    const onRequest = ({ method }) => { if (method === 'PUT' && eerste && window2.klaar) { eerste = false; return { delay: 2000, commitFirst: true }; } return null; };
+    const window2 = { klaar: false };
+    const o = await open(ctx, { data: fx(), onRequest });
+    await wait(1000);
+    window2.klaar = true;
+    const p0 = o.state.puts;
+    await addBood(o.page, 'G1 r7'); await wait(700); // PUT van generatie 1 onderweg (vertraagd)
+    assert(o.state.puts === p0 + 1 && boodTexts(o.state.db).includes('G1 r7'), 'Testopzet: generatie 1 niet verwerkt');
+    await addBood(o.page, 'G2 r7'); await wait(200);
+    await zetOpslagFout(o.page, { schrijven: '^huisplanCache_' });
+    await wait(3500); // het antwoord van generatie 1 komt binnen
+    assert(o.state.puts === p0 + 1 && !boodTexts(o.state.db).includes('G2 r7'), 'Generatie 2 verstuurd terwijl de cache na de ACK faalde');
+    assert(!OPGESLAGEN.test(await syncText(o.page)) && !/^Opslaan/.test(await syncText(o.page)), 'Status klopt niet met het verzendgedrag: ' + await syncText(o.page));
+    assert(await waarschuwtBijSluiten(o.page), 'Geen waarschuwing bij sluiten');
+    const recs = await Promise.all((await lsKeys(o.page)).filter(k => k.startsWith('plannerJournal_')).map(k => lsRaw(o.page, k)));
+    assert(recs.some(r => r.includes('G2 r7')), 'Generatie 2 niet duurzaam in het record');
+    // Cache weer bruikbaar: dan gaat generatie 2 alsnog, en pas dan "opgeslagen".
+    await zetOpslagFout(o.page, {});
+    await refresh(o.page);
+    await until(async () => boodTexts(o.state.db).includes('G2 r7') && OPGESLAGEN.test(await syncText(o.page)), 8000, 'generatie 2 na herstel opgeslagen');
+    await o.ctx.close();
+  },
+
   // ── Zesde Codex-review #16: crashveiligheid van onbevestigde lokale wijzigingen ────────────────
   // Elke onbevestigde lokale stand moet een eigen duurzaam exemplaar hebben (journaalrecord van het
   // venster) vóór de gedeelde, overschrijfbare cache wordt bijgewerkt. Het storage-event is hooguit een
