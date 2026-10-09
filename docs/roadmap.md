@@ -31,6 +31,9 @@ afwijking dan eerst.
   De status van 1.4.1 is bijgewerkt naar live. Daarna aangevuld met besluit 8 (herbruikbaar
   verhuisslot; 1.5 en 1.12 blijven afzonderlijke migraties) bij 1.4.2, 1.5 en 1.12, en met besluit 9
   (na de review van het 1.4.2-plan) bij 1.4.2. Stap 1.14 is gemarkeerd als follow-up.
+- **Bijgewerkt op 9 oktober 2026:** de voorlopige ontwikkelrichting KomtGoed (zie de sectie
+  "Ontwikkelrichting KomtGoed" hieronder en besluit 11). Waar die sectie afwijkt van fase 1, gaat
+  die sectie voor; de overige tekst van fase 1 is bewust niet herschreven.
 - **Status:** volgens `CHANGELOG.md`.
 
 **Legenda**
@@ -48,6 +51,78 @@ afwijking dan eerst.
 | 🔁 **Later herbeoordelen** | Bewust nog niet opgelost. Bij het genoemde moment opnieuw beoordelen. |
 | ✏️ **Aangepast** | Gewijzigd door een expliciete beslissing over het Productkompas. |
 | 📝 **Voorstel** | Nog niet besloten; geldt pas na een besluit van de producteigenaar. |
+
+## Ontwikkelrichting KomtGoed (voorlopig, besluit van 9 oktober 2026)
+
+De producteigenaar heeft op 9 oktober 2026 voorlopig gekozen voor een nieuwe ontwikkelrichting
+(besluit B1, optie b uit het KomtGoed MVP-bouwplan). De werknaam is **KomtGoed**; de definitieve
+merknaam is nog niet gekozen. Het besluit staat ook als addendum in
+`docs/productkompas-beslissingen.md` (besluit 11). Het Productkompas zelf verandert niet.
+
+**De richting:**
+- De nieuwe gezinsapp wordt **technisch gescheiden** van de bestaande Huisplan-app gebouwd, met
+  **Supabase** als backend.
+- Dezelfde GitHub-repository, maar een **eigen map `komtgoed/`** met een eigen Supabase-configuratie,
+  eigen migraties en eigen tests.
+- De bestaande Huisplan-app (`index.html`, `test/index.html`), de map `supabase/`, de bestaande
+  Supabase-projecten, Firebase en alle gebruikersgegevens blijven **ongewijzigd**.
+- PR #16, #17 en #18 blijven open. Ze worden niet gemerged en niet gesloten.
+
+**Wat er verandert in fase 1:**
+
+| Stap(pen) | Was | Wordt |
+| --- | --- | --- |
+| 1.4.2, 1.5, 1.6 | Firebase-spoor: voorbereiding, persoonsmigratie en ledenbeheer in de huidige data | **Gepauzeerd**, niet geschrapt. Er wordt niet aan verder gebouwd tot een nieuw besluit. PR #16 (1.4.2/E3), #17 en #18 blijven open. Of 1.5 vóór de import nog nodig is, of dat de import zelf namen naar leden vertaalt, is een open besluit (zie hieronder). |
+| 1.7–1.11 | Inloggen, huishouden, uitnodigen, synchronisatie en foto's op het bestaande schema in `supabase/` | **Vervangen** door de KomtGoed-fasen F1–F10 in `komtgoed/`, met een eigen schema. Het bestaande schema en de bestaande projecten worden niet gebruikt of gewijzigd. |
+| 1.12–1.15 | Import, overstap-wizard, bevriezen, uitrol | **Blijven het doel** voor bestaande planners, maar dan naar KomtGoed. Pas na een apart besluit en met alle gates hieronder. |
+| 1.1–1.4.1 | Afgerond of live | Ongewijzigd. Bewezen patronen uit `supabase/migrations` worden hergebruikt (gekopieerd, niet gewijzigd). |
+
+**KomtGoed-fasen** (uit het MVP-bouwplan; elke fase een eigen, kleine PR):
+
+| Fase | Inhoud | Status |
+| --- | --- | --- |
+| F0 | Besluiten en ontwerp (alleen documenten) | Deels: B1 voorlopig genomen (dit besluit); B2–B4 open |
+| F1 = **KG-1** | Fundament: accounts/profielen, huishoudens, leden, uitnodigingen, rollen en toegangsrechten; RLS met testmatrix; alleen lokaal | **Open PR** (`docs/komtgoed-fundament.md`) |
+| F2 | App-skelet en onboarding (op staging) | Gepland; wacht op B2, B3 en B4 |
+| F3 | Boodschappen | Gepland ⛔ (gate 9) |
+| F4 | Taken | Gepland ⛔ (gate 9) |
+| F5 | Agenda, met privacy gedeeld/bezet/privé | Gepland ⛔ (gate 9) |
+| F6 | Vandaag | Gepland |
+| F7 | Centrale invoer (tekst) | Gepland |
+| F8 | Vakantie | Gepland ⛔ (gate 9) |
+| F9 | Slimme aandachtspunten | Gepland |
+| F10 | Abonnement-voorbereiding en AVG-basis | Gepland |
+
+**Wat er verandert aan de gates, en wat niet:**
+
+| Gate (beslissing of architectuurbesluit) | Gevolg van de nieuwe richting |
+| --- | --- |
+| **Beslissing 9 (privacy):** RLS moet gedeelde en afgeschermde huishouddata veilig onderscheiden | **Blijft volledig.** Het moment verschuift: van "vóór 1.10 (`SupabaseStore`)" naar **"vóór de eerste KomtGoed-inhoudstabel met huishouddata"** (F3, en voor ieder volgend domein opnieuw voor de gegevens van dat domein). Privacy wordt nooit alleen door de UI afgedwongen. KG-1 legt het primitief (`private.can_read`) en bewijst het met tests; dat is nog geen ontwerp voor "bezet zonder details" (F5). |
+| **Architectuurbesluit 4 (classificatie van de data)** | **Blijft**, en geldt nu ook vóór de import van bestaande planners naar KomtGoed. |
+| **Architectuurbesluit 5 (1.4.2 afgerond vóór 1.5)** | Geldt ongewijzigd zolang 1.5 bestaat. Voor de import geldt minimaal: een herstelkopie buiten het toestel met hersteloefening, het beslislogboek waar nodig, en het bewezen mechanisme om oude schrijvers uit te sluiten. Welke onderdelen van E1–E6 precies vóór de import af moeten, wordt besloten bij het importbesluit. |
+| **Beslissing 6 (activiteit maakt niemand lid)** | **Blijft** voor de import: de import maakt alleen leden van echte huishoudleden uit het gecontroleerde register. In KomtGoed is lidmaatschap altijd een expliciete handeling (aanmaken of uitnodiging accepteren); KG-1 dwingt dat af. |
+| **Architectuurbesluit 7 (oude Firebase-schrijvers aantoonbaar uitgesloten; Firebase-configuratie alleen na apart akkoord)** | **Blijft volledig** vóór de migratie-schrijfactie van de import, inclusief het herbruikbare verhuisslot (besluit 8 uit `docs/identiteit-en-items.md`). |
+| **Beslissing 8 (ledenregister op de echte planner gecontroleerd)** | **Blijft** vóór de import. |
+| **Beslissing 2 (navigatie getoetst aan werkelijk gebruik)** | **Blijft**, nu vóór de keuze voor de definitieve navigatie van KomtGoed (uiterlijk vóór F6). |
+| "Nog uit te werken: Supabase-schema aangepast aan het contract" | Geldt nu voor het **KomtGoed-schema**. KG-1 volgt `docs/identiteit-en-items.md` 5.2 waar het van toepassing is. Het bestaande schema in `supabase/` krijgt geen nieuwe migratie. |
+
+**Wat blijft gelden, zonder uitzondering:**
+- Bestaande data gaat nooit verloren; elke import is versie-gebonden, met back-up, terug te draaien
+  en met een bewaartermijn voor de oude data.
+- Migraties worden nooit op de echte planner getest; alleen op synthetische data of een kopie.
+- Geen verbinding met of migraties naar bestaande Supabase-projecten, en geen deploy, zonder apart
+  besluit (B2).
+- Geen secrets in de repository.
+
+**Open besluiten voor KomtGoed** (blokkeren de genoemde fase, niet KG-1):
+
+| Besluit | Keuze | Nodig voor |
+| --- | --- | --- |
+| B2 | Omgevingen: nieuwe Supabase-projecten voor KomtGoed, of de bestaande (lege) projecten opnieuw inrichten. Advies: nieuwe projecten; de bestaande niet stil hergebruiken. | F2 (eerste deploy) |
+| B3 | Techniek van de app (build, framework, adres). | F2 |
+| B4 | Inlogmethode. Advies: e-mailcode; Apple/Google later. | F2 |
+| Import | Of Huisplan nog stap 1.5 doet, of de import naar KomtGoed namen zelf naar leden vertaalt; welke delen van 1.4.2 dan vóór de import af moeten; wat er met PR #16–#18 gebeurt. | Import (1.12–1.15) |
+| Merknaam | De definitieve naam; "komtgoed" is een werknaam en mag overal worden vervangen. | Vóór de eerste publieke release |
 
 ## Productkompas-toets (werkwijze vanaf nu)
 
@@ -84,7 +159,9 @@ De toets hoeft niet met terugwerkende kracht te worden ingevuld voor bestaande o
   - een eigen branch en commit, of een kleine reeks;
   - groene tests en een regel in de changelog;
   - eerst in de testversie (`test/index.html`).
-- **Supabase is de nieuwe backend.** De roadmap bouwt voort op het bestaande schema in `supabase/`.
+- **Supabase is de nieuwe backend.** ✏️ Sinds 9 oktober 2026 (voorlopig) bouwt de nieuwe app
+  KomtGoed op een eigen schema in `komtgoed/supabase/`. Het bestaande schema in `supabase/` blijft
+  ongewijzigd (zie "Ontwikkelrichting KomtGoed").
 - **Eerst leden, dan backend.** De lastigste datawijziging (van 'ik' en 'partner' naar member-ID's)
   gebeurt in de huidige data, los van de wissel naar Supabase. Zo veranderen er nooit twee dingen
   tegelijk.
@@ -166,6 +243,10 @@ De volgorde is bewust:
 3. pas dan de overstap van echte data (1.12–1.15).
 
 Tot en met 1.15 blijft de Firebase-versie werken.
+
+✏️ **Sinds 9 oktober 2026 (voorlopig):** 1.4.2–1.6 zijn gepauzeerd en 1.7–1.11 zijn vervangen door
+de KomtGoed-fasen. Zie "Ontwikkelrichting KomtGoed". De statussen in de tabel hieronder zijn daarom
+niet bijgewerkt; de sectie "Ontwikkelrichting KomtGoed" is leidend.
 
 | Stap | Titel | Doel | Afhankelijk van | Migratie | Status |
 | --- | --- | --- | --- | --- | --- |

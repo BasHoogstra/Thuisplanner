@@ -1,0 +1,14 @@
+KG-T05|drop policy households_select on public.households; create policy households_select on public.households for select to authenticated using (true);
+KG-T05|drop policy members_select on public.household_members; create policy members_select on public.household_members for select to authenticated using (true);
+KG-T05|alter table public.household_invites disable row level security;
+KG-T04|grant select on public.household_invites to authenticated;
+KG-T06|drop trigger members_guard on public.household_members; grant insert on public.household_members to authenticated; create policy members_insert on public.household_members for insert to authenticated with check (true);
+KG-T11|drop trigger members_guard on public.household_members; drop policy members_update on public.household_members; create policy members_update on public.household_members for update to authenticated using (true) with check (true);
+KG-T12|create or replace function private.has_role(p_household uuid, p_roles text[]) returns boolean language sql stable security definer set search_path = '' as $$ select exists (select 1 from public.household_members m where m.user_id = (select auth.uid()) and m.status = 'active' and m.role = any (p_roles)) $$;
+KG-T13|alter table public.household_invites drop constraint household_invites_member_fkey;
+KG-T15|create or replace function private.is_active_member(p_household uuid) returns boolean language sql stable security definer set search_path = '' as $$ select exists (select 1 from public.household_members m where m.household_id = p_household and m.user_id = (select auth.uid())) $$;
+KG-T16|create or replace function private.can_read(p_household uuid, p_visibility public.visibility, p_owner uuid, p_audience uuid[]) returns boolean language sql stable security definer set search_path = '' as $$ select private.is_active_member(p_household) $$;
+KG-T17|drop trigger members_ensure_owner on public.household_members;
+KG-T18|drop policy profiles_select on public.profiles; create policy profiles_select on public.profiles for select to authenticated using (true);
+KG-T20|grant select on public.households to anon;
+KG-T22|alter table public.household_members drop constraint household_members_child_no_account;

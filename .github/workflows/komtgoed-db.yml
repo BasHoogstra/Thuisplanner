@@ -1,0 +1,43 @@
+# KomtGoed KG-1: statische controles, RLS-testmatrix en tegenproeven op een tijdelijke, lokale
+# PostgreSQL op de runner. Geen secrets, geen verbinding met Supabase, geen deploy.
+name: KomtGoed database (KG-1)
+
+on:
+  pull_request:
+    paths:
+      - 'komtgoed/**'
+      - 'tests/komtgoed.test.js'
+      - '.github/workflows/komtgoed-db.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'komtgoed/**'
+      - 'tests/komtgoed.test.js'
+      - '.github/workflows/komtgoed-db.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # nodig voor de controle dat Huisplan-bestanden ongewijzigd blijven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Statische controles
+        run: node komtgoed/supabase/tests/statisch.js
+      - name: PostgreSQL 16 (lokaal op de runner)
+        run: |
+          if [ ! -x /usr/lib/postgresql/16/bin/initdb ]; then
+            sudo apt-get update && sudo apt-get install -y postgresql-16
+          fi
+          /usr/lib/postgresql/16/bin/postgres --version
+      - name: RLS-matrix en tegenproeven
+        env:
+          PGBIN: /usr/lib/postgresql/16/bin
+        run: bash komtgoed/supabase/tests/run.sh --tegenproef

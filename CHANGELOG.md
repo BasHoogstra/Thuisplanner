@@ -476,3 +476,13 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   B probeert over te nemen; A hervat) en "nooit overnemen zonder Web Locks" (open, gesloten,
   gecrasht). `tests/journaal3.test.js`: 28.
 
+## KomtGoed KG-1 — databasefundament (alleen lokaal, geen app-wijziging)
+- Voorlopige ontwikkelrichting KomtGoed vastgelegd in `docs/roadmap.md` (sectie "Ontwikkelrichting
+  KomtGoed") en als besluit 11 in `docs/productkompas-beslissingen.md`.
+- Nieuwe, gescheiden map `komtgoed/supabase/` met een eigen configuratie (niet gekoppeld) en
+  migratie `20261009120000_kg1_fundament.sql`: profielen, huishoudens, leden (ook kinderen zonder
+  account), uitnodigingen (token alleen als hash), rollen owner/admin/member, RLS en
+  rechtenfuncties. Eén account kan lid zijn van meerdere huishoudens.
+- Tests: RLS-matrix KG-T01 t/m KG-T22 (`komtgoed/supabase/tests/rls_tests.sql`), 14 tegenproeven,
+  statische controles en `tests/komtgoed.test.js`. CI: `.github/workflows/komtgoed-db.yml`.
+- `index.html`, `test/index.html`, `supabase/` en Firebase zijn niet gewijzigd.

@@ -10,6 +10,9 @@ wordt hier niet gewijzigd of aangevuld.
   verwijzing toegevoegd naar `docs/identiteit-en-items.md`. De architectuurbesluiten daarin (sectie
   7) zijn op 6 oktober 2026 door de producteigenaar genomen. Ze werken de beslissingen hieronder
   technisch uit, maar veranderen ze niet.
+- Op 9 oktober 2026 is besluit 11 toegevoegd (voorlopige ontwikkelrichting KomtGoed). De
+  beslissingen 1–10 zijn daarbij niet herschreven; besluit 11 legt alleen vast wanneer gate 9 nu
+  geldt en dat de importgates ongewijzigd blijven.
 - De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
@@ -138,3 +141,23 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 - **Productkompas:** principes 2, 6 en 9.
 - **Beslissing:** er wordt niets verwijderd op basis van alleen het Productkompas. Werkelijk gebruik
   bepaalt mede wat blijft, verandert of minder prominent wordt.
+
+### 11. Ontwikkelrichting KomtGoed (addendum, 9 oktober 2026, voorlopig)
+
+- **Besluit van de producteigenaar:** de nieuwe gezinsapp (werknaam KomtGoed; de merknaam is nog
+  niet gekozen) wordt technisch gescheiden van Huisplan gebouwd, op Supabase, in dezelfde repository
+  maar in een eigen map `komtgoed/`. Huisplan en alle gebruikersgegevens blijven ongewijzigd.
+  PR #16, #17 en #18 blijven open, niet gemerged en niet gesloten.
+- **Gevolgen voor de roadmap:** zie `docs/roadmap.md`, sectie "Ontwikkelrichting KomtGoed".
+  Kort: 1.4.2–1.6 gepauzeerd, 1.7–1.11 vervangen door de KomtGoed-fasen, de import (1.12–1.15)
+  blijft het doel voor bestaande planners.
+- **Gevolgen voor de gates:**
+  - Gate 9 (beslissing 9) blijft volledig. Ze geldt nu vóór de eerste KomtGoed-inhoudstabel met
+    huishouddata, en per domein opnieuw voor de gegevens van dat domein.
+  - De gates van beslissing 6 en 8 en de architectuurbesluiten 4, 5 en 7 (inclusief "Firebase-
+    configuratie alleen na apart, expliciet akkoord") blijven volledig van kracht vóór de import van
+    bestaande planners. Welke delen van 1.4.2 vóór die import af moeten, wordt besloten bij het
+    importbesluit.
+  - De navigatiegate (beslissing 2) blijft.
+- **Wat niet verandert:** het Productkompas, de beslissingen 1–10 en het uitgangspunt dat
+  bestaande data nooit verloren gaat.
