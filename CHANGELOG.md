@@ -476,3 +476,100 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   B probeert over te nemen; A hervat) en "nooit overnemen zonder Web Locks" (open, gesloten,
   gecrasht). `tests/journaal3.test.js`: 28.
 
+## 1.4.2-voorbereiding: cache en lokale opslag (NW-04, E3; testversie)
+- `test/index.html`: alle `localStorage`-toegang via `bewaar()`/`leesOpslag()`, met een niveau
+  (kritiek, belangrijk, voorkeur). Geen lege `catch` meer die een mislukte opslag verbergt; fouten
+  staan in een diagnose zonder inhoud of geheimen (`window.huisplanOpslag`).
+- Cache per database, planner en opslaggeneratie onder `huisplanCache_<SHA-256>`, zonder de
+  plannersleutel in de naam. De oude cache `plannerCache_<sleutel>` blijft leesbaar en wordt pas
+  opgeruimd als alles daaruit aantoonbaar op de server staat.
+- Een onleesbare cache wordt nooit overschreven: eerst apart bewaard, en lukt dat niet, dan blijft hij
+  onaangeroerd. Een leesfout geldt als "onbekend", niet als "leeg".
+- Lukt lokaal bewaren niet terwijl er wijzigingen openstaan, dan zegt de statusregel dat ("nog niet
+  veilig bewaard", of "Niet bewaard" zonder verbinding), wordt er direct gesynchroniseerd en volgt een
+  waarschuwing bij sluiten. "Opgeslagen" verschijnt alleen na bevestiging door de server.
+- De ledenmigratie (1.4.1) start alleen als de veiligheidskopie duurzaam bewaard is (schrijven en
+  teruglezen); anders een melding, en de vragen komen die sessie niet terug.
+- Na een export geen "Back-up gedownload ✓" meer; de app kan dat niet weten.
+- Tests: `tests/opslag.test.js` (T6–T8 en extra gevallen); `lib.js` kan opslagfouten nabootsen. De
+  bestaande tests herkennen beide cachesleutels. Niet live; `index.html` ongewijzigd. Zie
+  `docs/e3-lokale-opslag.md`.
+
+## 1.4.2-voorbereiding: NW-04 (E3) hersteld na de Codex-review, bovenop E2 (testversie)
+- Geïntegreerd met de gemergde E2 (PR #15); E2 is leidend. De cache (`huisplanCache_<hash>`) wordt
+  alleen via het E2-pad geschreven (teruglezen, fencing, journaal eerst) en bevat ook `localGen` en
+  `confirmedGen`. Geen eigen schrijfpad naar de server.
+- Oude cache (`plannerCache_<sleutel>`): alleen met bewezen herkomst (`db` = huidige database) en
+  zonder nieuwe cache overgenomen, met een duurzame markering van precies die inhoud. Zonder herkomst,
+  naast een nieuwe cache, onleesbaar of met een twijfelachtige vorm (lijst met gaten, numerieke
+  sleutels): nooit gebruikt, samengevoegd, geüpload of verwijderd; melding en herstelbestand.
+- Verlieswaarschuwing en eerlijke status ook bij een lege of onbekende serverstand.
+- Koppeling als één record (`huisplanKoppeling`); nooit een gemengd paar.
+- Ledenback-up alleen geldig met de scope van deze planner; vreemde back-ups blijven staan.
+- Diagnose toont alleen vaste sleutelnamen; quarantainekopieën kunnen elkaar niet overschrijven; een
+  tijdelijke leesfout op de cache blokkeert het E2-herstel niet.
+- Tests: `tests/opslag.test.js` (26).
+
+## 1.4.2-voorbereiding: NW-04 (E3) na de tweede Codex-review (testversie)
+- Cache die na een leesfout weer leesbaar wordt en onbevestigde inhoud heeft: nooit zomaar
+  overschreven; eerst apart bewaard, dan opgenomen in de huidige stand (of, als apart bewaren niet
+  lukt, deze sessie geen cache).
+- Oude cache: de verwerkt-markering wordt vóór het overnemen duurzaam geschreven; zonder markering
+  geen overname. Dezelfde inhoud wordt nooit twee keer ingelezen.
+- Koppeling: alleen het koppelrecord telt; de losse sleutels worden niet meer geschreven en alleen
+  met bewijs gelezen. Een gemengd paar kan niet meer ontstaan en wordt nooit gebruikt.
+- De opslaghulpjes werken ook bij een fout op de allereerste opslagactie.
+- Tests: `tests/opslag.test.js` (30).
+
+## 1.4.2-voorbereiding: NW-04 (E3) na de derde Codex-review (testversie)
+- Weer leesbare cache: alleen opgenomen als de E2-controle `losslessMerge` het verliesvrij vindt, en
+  synchroon in `save()` tegen de actuele stand (geen uitgestelde toepassing meer). Anders blokkeren:
+  niets overschreven, herstelgegevens bewaard, nooit "opgeslagen".
+- Oude cache: markering 'gereserveerd' vóór en 'klaar' na de overname; een niet afgeronde overname
+  blijft elke sessie gemeld (ook na het E2-herstel) en wordt nooit opnieuw ingelezen.
+- Tests: `tests/opslag.test.js` (35).
+
+## 1.4.2-voorbereiding: NW-04 (E3) na de vierde Codex-review (testversie)
+- Herstelconflict overleeft herstarts: elke hervatting uit een cache met onbevestigde inhoud gaat bij de
+  eerste geslaagde lezing door de E2-controle `losslessMerge`; geen winnaar na herladen, de cache blijft
+  het duurzame bewijs, nooit "opgeslagen", met of zonder journaal.
+- Oude-cachemarkering vierwaardig (afwezig / gereserveerd / klaar / onbekend): alleen een aantoonbaar
+  afwezige markering start de overname; onbekend, kapot of onleesbaar = nooit importeren, niets
+  aanraken, elke sessie melden. Herstelgegevens bevatten ook de markering.
+- Tests: `tests/opslag.test.js` (44).
+
+## 1.4.2-voorbereiding: NW-04 (E3) na de vijfde Codex-review (testversie)
+- Gedeelde oorzaak: een veiligheidsbesluit gold alleen in het geheugen van één venster en voor één
+  serverversie.
+- Onbevestigd herstel blijft gecontroleerd tot de server het bevestigt. Na elke 412 opnieuw lezen en
+  opnieuw `losslessMerge` tegen die serverstand. Bij een conflict: geen winnaar en nooit "opgeslagen".
+- Conflictbewijs onder unieke write-once sleutels (`huisplanCacheConflict_…`), zichtbaar voor elk
+  venster en na elke herstart. Het wordt alleen opgeruimd als de server alles bevat.
+- Bewaakte cache: geen venster overschrijft onbevestigde inhoud van een ander zonder bewijs.
+  Overschreven levende vensters leggen hun stand alsnog vast via het `storage`-event.
+- Tests: `tests/opslag.test.js` (52).
+
+## 1.4.2-voorbereiding: NW-04 (E3) na de zesde Codex-review (testversie)
+- De gedeelde cache is nooit meer het enige exemplaar. Elke onbevestigde lokale stand komt eerst in
+  het eigen journaalrecord van het venster (nieuwe toestand 'lokaal'), en pas daarna in de cache.
+- Records worden alleen opgeruimd na bevestiging, na gelijkheid met de server of na een conflictbewijs.
+- Verweesde records worden bij een herstart (en daarna in rust, één voor één) verliesvrij samengevoegd
+  of als conflict bewaard; nooit een winnaar.
+- Status: een nieuw conflictbewijs of een onafgerond record van een ander venster trekt "Opgeslagen"
+  in.
+- Tests: `tests/opslag.test.js` (60).
+
+## 1.4.2-voorbereiding: NW-04 (E3) na de zevende Codex-review (testversie)
+- Een verweesd record wordt in rust alleen samengevoegd als het onder het claim-lock opnieuw gelezen
+  record nog 'lokaal' is. Een ander venster kan het intussen hebben verstuurd ('unknown'); dat blijft
+  voor het E2-herstel.
+- E2-stopvoorwaarde hersteld: mislukt na een (vertraagde) ACK de cache, dan vertrekt de volgende
+  generatie niet.
+- Tests: `tests/opslag.test.js` (62).
+
+## 1.4.2-voorbereiding: NW-04 (E3) na de achtste Codex-review (testversie)
+- De E2-stopvoorwaarde na een PUT met een falende cache staat nu duurzaam in het eigen record
+  (`cacheWacht`). Ze overleeft dus herladen, en wordt pas opgeheven na een teruggelezen cache-spiegel.
+- R7-1 gebruikt expliciete synchronisatiebarrières in plaats van alleen wachttijden.
+- Tests: `tests/opslag.test.js` (63).
+
