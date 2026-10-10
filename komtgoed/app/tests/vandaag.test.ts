@@ -4,7 +4,7 @@ import type { Afspraak, Item, Taak } from '../src/lib/types';
 import {
   achterstand, binnenkort, isVoorbij, meedenker, openBoodschappen, samenvatting, straks, takenVandaag,
 } from '../src/lib/vandaag';
-import { splitsBoodschappen } from '../src/components/Toevoegen';
+import { splitsBoodschappen } from '../src/lib/boodschappen';
 
 const V = '2026-10-10';
 

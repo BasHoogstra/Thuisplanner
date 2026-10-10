@@ -1,6 +1,7 @@
-# KomtGoed: prototype Vandaag (KG-2)
+# KomtGoed: prototype (KG-2 en KG-3)
 
-Het eerste klikbare prototype van de nieuwe gezinsapp. KomtGoed is een werknaam. Alles draait in de
+Het klikbare prototype van de nieuwe gezinsapp. KG-2 bouwde het Vandaag-scherm; KG-3 maakte de
+agenda, taken en boodschappen echt bruikbaar (openen, aanpassen, verwijderen, weekweergave). KomtGoed is een werknaam. Alles draait in de
 browser, met een **verzonnen gezin** (Familie De Boer: Eva, Thomas, Lotte en Daan). Er is geen
 backend, geen account, geen Supabase en geen verbinding met de Huisplan-app of haar gegevens.
 
@@ -37,18 +38,18 @@ altijd rond "vandaag".
 
 | Onderdeel | Status |
 | --- | --- |
-| Vandaag: begroeting op tijdstip, datum, een samenvatting in één zin | Werkt |
-| Eén nadruk: de eerstvolgende afspraak ("Straks" of "Hierna"); voorbije afspraken worden lichter | Werkt (op de demo-klok) |
-| Agenda vandaag, Te doen (met "sinds gisteren"), Boodschappen in één regel, Binnenkort (lege dagen weggelaten) | Werkt |
-| Centrale toevoegknop: afspraak (dag, tijd, voor wie, privé), taak (dag of "ooit", wie pakt het op), boodschap (meerdere met komma's) | Werkt, alleen lokaal |
-| Afvinken van taken en boodschappen; ongedaan maken van de laatste stap | Werkt, alleen lokaal |
+| **Vandaag:** begroeting, datum, samenvatting in één zin, één nadruk op de eerstvolgende afspraak, agenda en taken van vandaag, boodschappen in één regel, Binnenkort | Werkt; elke wijziging elders staat er direct op |
+| Vandaag: taken die vandaag zijn afgevinkt staan ingeklapt ("2 afgerond vandaag") en zijn daar weer open te zetten | Werkt (KG-3) |
+| **Agenda:** weekweergave maandag t/m zondag met afspraken én taken per dag, vorige/volgende week, "Naar vandaag", een + per dag, taken zonder datum onderaan | Werkt (KG-3). Mobiel onder elkaar, desktop zeven kolommen |
+| **Afspraken** openen, aanpassen (titel, dag of andere datum, van/tot, plek, voor wie, privé) en verwijderen | Werkt (KG-3) |
+| **Taken** afvinken en weer openen, aanpassen (titel, dag of "ooit", wie pakt het op) en verwijderen | Werkt (KG-3) |
+| **Boodschappen** afvinken en terugzetten, naam aanpassen, verwijderen, meerdere tegelijk toevoegen; "Nog nodig" en "In het mandje" apart, mandje leegmaken | Werkt (KG-3). Dubbelingen worden herkend: wat al op de lijst staat komt er niet nog eens bij, wat in het mandje lag komt terug op "nog nodig" |
+| Ongedaan maken | Werkt voor de laatste wijziging met een melding (toevoegen, aanpassen, verwijderen, taak afvinken, mandje leegmaken) |
 | Meedenken: hooguit één rustig signaal ("Gymtas inpakken vanavond?"), alleen na jouw keuze op de lijst | Werkt, met een vaste regel op demodata; geen AI |
-| Privé: een privé-afspraak van een ander zie je alleen als "Bezet" | Werkt in de weergave. **Demo:** in de echte app moet de server dit afdwingen (gate 9). |
+| **Privé:** een privé-afspraak van een ander staat er als "Bezet"; openen toont alleen tijd en persoon, zonder iets te kunnen wijzigen. Alleen de eigenaar kan iets privé of gedeeld maken | Werkt in de weergave. **Demo:** in de echte app moet de server dit afdwingen (gate 9) |
 | Rustige dag | **Demo-schakelaar** onder Meer |
-| Agenda-scherm | Eenvoudige lijst van twee weken; **geen** volledige agenda |
-| Boodschappen-scherm | Lijst, snel toevoegen, afvinken, opruimen |
 | Meer | Leden (ook kinderen zonder account), demo-uitleg, scenario wisselen |
-| Inloggen, huishoudens, uitnodigen, synchroniseren, opslaan, meldingen, herhaling | **Niet gebouwd** |
+| Inloggen, huishoudens, uitnodigen, synchroniseren, opslaan, meldingen, herhaling, maandweergave | **Niet gebouwd** |
 
 Alles staat in het geheugen van het tabblad. Herladen zet de demo terug. Er gaat niets naar een server.
 De browsertests controleren dat er geen enkele externe aanvraag wordt gedaan.
@@ -63,9 +64,11 @@ komtgoed/app/
     lib/types.ts           prototypemodel: lid ≠ account, zichtbaarheid per item (volgt KG-1)
     lib/datum.ts           lokale datums, Nederlandse labels, begroeting
     lib/vandaag.ts         wat Vandaag toont (pure functies, los getest)
-    lib/store.ts           demo-staat (useReducer) met één stap ongedaan maken
+    lib/store.ts           demo-staat (useReducer): wijzigingen, melding en één stap ongedaan maken
+    lib/boodschappen.ts    boodschappen splitsen en toevoegen zonder dubbelingen
+    lib/rechten.ts         wie mag wat in de demo (privé-afspraak van een ander: alleen "bezet")
     data/demo.ts           het verzonnen gezin en de voorbeelddata
-    components/            navigatie, invoervenster, rijen, demobalk, iconen
+    components/            navigatie, venster, item-venster (nieuw en bewerken), rijen, demobalk, iconen
     screens/               Vandaag, Agenda, Boodschappen, Meer
     styles/app.css         tokens (licht en donker), mobiel eerst, zijbalk vanaf 960 px
   tests/                   Vitest: logica en component
@@ -82,8 +85,15 @@ runtime-afhankelijkheden (React en React DOM). Alle versies staan vast in `packa
 - De demo-staat verdwijnt bij herladen. Er is bewust geen opslag, ook niet in `localStorage`.
 - Het meedenk-signaal is één vaste regel (een voorbereiding de dag ervoor). Het is geen lerend of
   slim systeem.
-- Een afspraak bewerken of verwijderen kan nog niet; een taak afvinken en ongedaan maken wel.
+- "Ongedaan maken" geldt voor één stap: de laatste wijziging met een melding. Een boodschap afvinken
+  heeft bewust geen melding (dat doe je vaak achter elkaar) en is gewoon terug te vinken.
+- Herhalende afspraken en taken bestaan nog niet; de weekweergave toont losse items.
+- Taken staan in de weekagenda en op Vandaag; er is (bewust) geen apart Taken-scherm.
+- In de smalle weekkolommen op desktop worden lange samengestelde woorden afgebroken. Safari (Mac en
+  iOS) zet daar een afbreekstreepje; Chromium op Linux breekt zonder streepje.
+- De tijdvelden volgen de browser; in een Engelstalige browser kan "AM/PM" verschijnen.
 - De invoer is een formulier. Vrije tekst zoals "morgen 16:00 kapper" volgt pas in fase F7.
 - De lettertypen zijn systeemlettertypen, zodat de demo geen externe bronnen laadt. Daardoor oogt de
   demo per apparaat iets anders.
-- Getest in Chromium (Playwright). Safari en Firefox zijn niet automatisch getest.
+- Getest in Chromium (Playwright), ook met een breed systeemlettertype (zoals op de CI-runner).
+  Safari en Firefox zijn niet automatisch getest.

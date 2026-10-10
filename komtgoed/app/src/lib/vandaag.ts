@@ -33,6 +33,20 @@ export function takenVandaag(items: Item[], vandaag: Datum): Taak[] {
     .sort((a, b) => (a.datum ?? '').localeCompare(b.datum ?? ''));
 }
 
+/** Vandaag afgevinkte taken die bij vandaag (of eerder) hoorden: klein en ingeklapt op Vandaag. */
+export function afgerondVandaag(items: Item[], vandaag: Datum): Taak[] {
+  return items.filter(isTaak).filter(t => t.klaar && t.klaarOp === vandaag && t.datum !== null && t.datum <= vandaag);
+}
+
+/** Alle taken van één dag (open én afgerond), voor de weekweergave. */
+export function takenOp(items: Item[], datum: Datum): Taak[] {
+  return items.filter(isTaak).filter(t => t.datum === datum).sort((a, b) => Number(a.klaar) - Number(b.klaar));
+}
+
+export function takenZonderDatum(items: Item[]): Taak[] {
+  return items.filter(isTaak).filter(t => t.datum === null).sort((a, b) => Number(a.klaar) - Number(b.klaar));
+}
+
 export function openBoodschappen(items: Item[]): Boodschap[] {
   return items.filter(isBoodschap).filter(b => !b.afgevinkt);
 }

@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { useApp } from '../lib/context';
 import { begroeting, korteDag, dagLabel, langeDatum } from '../lib/datum';
 import {
-  achterstand, afsprakenOp, binnenkort, isVoorbij, meedenker, openBoodschappen, samenvatting, straks, takenVandaag,
+  achterstand, afgerondVandaag, afsprakenOp, binnenkort, isVoorbij, meedenker, openBoodschappen, samenvatting, straks, takenVandaag,
 } from '../lib/vandaag';
 import { AfspraakRij, TaakRij, Wie, tijdTekst } from '../components/Rijen';
 import { IcPijl } from '../components/Iconen';
@@ -15,10 +16,12 @@ export function Vandaag() {
   const eerst = straks(staat.items, vandaag, nu);
   const overig = afspraken.filter(a => a !== eerst);
   const taken = takenVandaag(staat.items, vandaag);
+  const klaar = afgerondVandaag(staat.items, vandaag);
+  const [toonKlaar, zetToonKlaar] = useState(false);
   const boodschappen = openBoodschappen(staat.items);
   const vooruit = binnenkort(staat.items, vandaag);
   const signaal = meedenker(staat.items, vandaag, staat.weggeklikt);
-  const rustig = !afspraken.length && !taken.length;
+  const rustig = !afspraken.length && !taken.length && !klaar.length;
 
   return (
     <div className="vandaag">
@@ -40,13 +43,16 @@ export function Vandaag() {
 
           {eerst && (
             <section className="straks" aria-label="Straks">
-              <p className="sectie-label">{afspraken.some(a => isVoorbij(a, nu)) ? 'Hierna' : 'Straks'}</p>
-              <p className="straks-tijd">{tijdTekst(eerst)}</p>
-              <p className="straks-titel">{eerst.titel ?? 'Bezet'}</p>
-              <p className="straks-sub">
-                <Wie ids={eerst.wie} />
-                {eerst.plek && <span className="plek">{eerst.plek}</span>}
-              </p>
+              <button type="button" className="straks-knop" onClick={() => app.openItem(eerst.id)}
+                aria-label={`${eerst.titel ?? 'Bezet'}, ${tijdTekst(eerst)}. Openen`}>
+                <span className="sectie-label">{afspraken.some(a => isVoorbij(a, nu)) ? 'Hierna' : 'Straks'}</span>
+                <span className="straks-tijd">{tijdTekst(eerst)}</span>
+                <span className="straks-titel">{eerst.titel ?? 'Bezet'}</span>
+                <span className="straks-sub">
+                  <Wie ids={eerst.wie} />
+                  {eerst.plek && <span className="plek">{eerst.plek}</span>}
+                </span>
+              </button>
             </section>
           )}
 
@@ -59,12 +65,29 @@ export function Vandaag() {
             </section>
           )}
 
-          {taken.length > 0 && (
+          {(taken.length > 0 || klaar.length > 0) && (
             <section aria-labelledby="h-taken">
               <h2 id="h-taken" className="sectie-kop">Te doen</h2>
-              <ul className="lijst">
-                {taken.map(t => <TaakRij key={t.id} t={t} extra={achterstand(t, vandaag)} />)}
-              </ul>
+              {taken.length > 0 ? (
+                <ul className="lijst">
+                  {taken.map(t => <TaakRij key={t.id} t={t} extra={achterstand(t, vandaag)} />)}
+                </ul>
+              ) : (
+                <p className="stil-tekst klaar-alles">Alles van vandaag is gedaan.</p>
+              )}
+              {klaar.length > 0 && (
+                <div className="afgerond">
+                  <button type="button" className="link afgerond-knop" aria-expanded={toonKlaar}
+                    onClick={() => zetToonKlaar(!toonKlaar)}>
+                    {klaar.length} afgerond vandaag {toonKlaar ? '· verbergen' : '· tonen'}
+                  </button>
+                  {toonKlaar && (
+                    <ul className="lijst" aria-label="Afgerond vandaag">
+                      {klaar.map(t => <TaakRij key={t.id} t={t} />)}
+                    </ul>
+                  )}
+                </div>
+              )}
             </section>
           )}
 
@@ -78,8 +101,7 @@ export function Vandaag() {
               <div className="meedenker-knoppen">
                 <button className="knop klein" onClick={() => {
                   app.toevoegen([{ id: nieuwId('t'), soort: 'taak', titel: signaal.voorstel, datum: vandaag,
-                    voor: huishouden.ik, klaar: false }]);
-                  app.meld('Op je lijst voor vandaag gezet', { ongedaan: true });
+                    voor: huishouden.ik, klaar: false }], 'Op je lijst voor vandaag gezet');
                 }}>Zet op mijn lijst</button>
                 <button className="knop klein stil" onClick={() => app.wegklikken(signaal.afspraak.id)}>Niet nodig</button>
               </div>

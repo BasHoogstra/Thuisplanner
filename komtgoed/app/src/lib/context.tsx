@@ -2,11 +2,7 @@ import { createContext, useContext } from 'react';
 import type { DemoActies, Staat } from './store';
 import type { Datum, Huishouden, Lid, LidId, Tijd } from './types';
 
-export interface Melding {
-  id: number;
-  tekst: string;
-  ongedaan?: boolean;
-}
+export type Soort = 'afspraak' | 'taak' | 'boodschap';
 
 export interface AppContext extends DemoActies {
   staat: Staat;
@@ -14,9 +10,11 @@ export interface AppContext extends DemoActies {
   vandaag: Datum;
   nu: Tijd;
   uur: number;
-  meld: (tekst: string, opties?: { ongedaan?: boolean }) => void;
   lid: (id: LidId) => Lid | undefined;
-  openToevoegen: (soort?: 'afspraak' | 'taak' | 'boodschap') => void;
+  /** Opent het centrale venster voor iets nieuws, eventueel al op een bepaalde dag. */
+  openToevoegen: (soort?: Soort, datum?: Datum) => void;
+  /** Opent een bestaand item om te bekijken, bewerken of verwijderen. */
+  openItem: (id: string) => void;
   gaNaar: (scherm: Scherm) => void;
 }
 

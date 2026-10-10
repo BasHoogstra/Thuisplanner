@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { useApp } from '../lib/context';
+import { boodschappenMelding, splitsBoodschappen, voegBoodschappenToe } from '../lib/boodschappen';
 import { isBoodschap } from '../lib/vandaag';
 import { nieuwId } from '../lib/store';
 import { BoodschapRij } from '../components/Rijen';
-import { splitsBoodschappen } from '../components/Toevoegen';
 
 export function Boodschappen() {
-  const { staat, toevoegen, verwijder, meld } = useApp();
+  const { staat, vervangAlles, verwijder } = useApp();
   const [tekst, zetTekst] = useState('');
   const alle = staat.items.filter(isBoodschap);
   const open = alle.filter(b => !b.afgevinkt);
@@ -16,7 +16,8 @@ export function Boodschappen() {
     e.preventDefault();
     const namen = splitsBoodschappen(tekst);
     if (!namen.length) return;
-    toevoegen(namen.map(naam => ({ id: nieuwId('b'), soort: 'boodschap' as const, naam, afgevinkt: false })));
+    const r = voegBoodschappenToe(staat.items, namen, () => nieuwId('b'));
+    vervangAlles(r.items, boodschappenMelding(r));
     zetTekst('');
   }
 
@@ -25,29 +26,36 @@ export function Boodschappen() {
       <header className="kop">
         <h1>Boodschappen</h1>
         <p className="kop-samenvatting">
-          {open.length ? `${open.length} ${open.length === 1 ? 'ding' : 'dingen'} op de lijst.` : 'Alles is in huis.'}
+          {open.length ? `${open.length} ${open.length === 1 ? 'ding' : 'dingen'} nog nodig.` : 'Alles is in huis.'}
         </p>
       </header>
       <form className="snel" onSubmit={voegToe}>
-        <label className="sr-only" htmlFor="snel-boodschap">Boodschap toevoegen</label>
+        <label className="sr-only" htmlFor="snel-boodschap">Boodschappen toevoegen</label>
         <input id="snel-boodschap" value={tekst} onChange={e => zetTekst(e.target.value)}
-          placeholder="Toevoegen, bijv. kaas, appels" autoComplete="off" maxLength={120} />
+          placeholder="Bijv. kaas, appels" autoComplete="off" maxLength={200} />
         <button className="knop" type="submit">Toevoegen</button>
       </form>
-      {open.length > 0 && <ul className="lijst">{open.map(b => <BoodschapRij key={b.id} b={b} />)}</ul>}
+
+      <section aria-labelledby="h-nodig">
+        <h2 id="h-nodig" className="sectie-kop">Nog nodig <span className="teller">{open.length}</span></h2>
+        {open.length > 0
+          ? <ul className="lijst">{open.map(b => <BoodschapRij key={b.id} b={b} />)}</ul>
+          : <p className="stil-tekst">Niets meer nodig.</p>}
+      </section>
+
       {klaar.length > 0 && (
         <section aria-labelledby="h-klaar" className="afgevinkt">
           <div className="blok-kop">
-            <h2 id="h-klaar" className="sectie-kop">In het mandje</h2>
-            <button className="link" onClick={() => {
-              verwijder(klaar.map(b => b.id));
-              meld('Afgevinkte boodschappen opgeruimd', { ongedaan: true });
-            }}>Opruimen</button>
+            <h2 id="h-klaar" className="sectie-kop">In het mandje <span className="teller">{klaar.length}</span></h2>
+            <button type="button" className="link" onClick={() => verwijder(klaar.map(b => b.id), 'Mandje leeggemaakt')}>
+              Mandje leegmaken
+            </button>
           </div>
           <ul className="lijst">{klaar.map(b => <BoodschapRij key={b.id} b={b} />)}</ul>
         </section>
       )}
-      <p className="demo-noot">Demo: synchroniseren tussen telefoons en categorieën komen in een latere fase.</p>
+      <p className="demo-noot">Tik op het rondje om af te vinken, op de naam om aan te passen of te verwijderen.
+        Demo: synchroniseren tussen telefoons en winkelvolgorde komen in een latere fase.</p>
     </div>
   );
 }

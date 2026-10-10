@@ -59,7 +59,7 @@ test('afspraak toevoegen verschijnt op Vandaag en in de Agenda; ongedaan maken h
   await expect(venster(page)).toBeVisible();
   await expect(venster(page).getByLabel('Wat?')).toBeFocused();
   await venster(page).getByLabel('Wat?').fill('Kapper');
-  await venster(page).getByLabel(/Hoe laat/).fill('16:30');
+  await venster(page).getByLabel('Van', { exact: true }).fill('16:30');
   await venster(page).getByRole('button', { name: 'Eva' }).click();
   await geenHorizontaleScroll(page);
   await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
@@ -100,13 +100,13 @@ test('boodschappen: meerdere tegelijk via het invoervenster, afvinken en opruime
   await expect(page.getByRole('status')).toContainText('3 boodschappen toegevoegd');
   await expect(sectie(page, 'Boodschappen')).toContainText('en nog 4');
   await page.getByRole('navigation').getByRole('link', { name: 'Boodschappen' }).click();
-  await expect(page.getByText('8 dingen op de lijst.')).toBeVisible();
+  await expect(page.getByText('8 dingen nog nodig.')).toBeVisible();
   await page.getByRole('checkbox', { name: 'Kaas' }).click();
-  await expect(page.getByText('7 dingen op de lijst.')).toBeVisible();
-  await page.getByRole('button', { name: 'Opruimen' }).click();
+  await expect(page.getByText('7 dingen nog nodig.')).toBeVisible();
+  await page.getByRole('button', { name: 'Mandje leegmaken' }).click();
   await expect(page.getByRole('checkbox', { name: 'Kaas' })).toHaveCount(0);
-  await page.getByLabel('Boodschap toevoegen').fill('Koffie');
-  await page.getByLabel('Boodschap toevoegen').press('Enter');
+  await page.getByLabel('Boodschappen toevoegen').fill('Koffie');
+  await page.getByLabel('Boodschappen toevoegen').press('Enter');
   await expect(page.getByRole('checkbox', { name: 'Koffie' })).toBeVisible();
 });
 
@@ -128,7 +128,7 @@ test('privé: van een ander alleen "bezet"; eigen privé-afspraak met slotje', a
   await expect(agenda).toContainText('privé-afspraak');
   await plus(page).click();
   await venster(page).getByLabel('Wat?').fill('Huisarts');
-  await venster(page).getByLabel(/Hoe laat/).fill('17:00');
+  await venster(page).getByLabel('Van', { exact: true }).fill('17:00');
   await venster(page).getByLabel(/Privé/).check();
   await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
   await expect(agenda.locator('li', { hasText: 'Huisarts' })).toContainText('alleen voor jou');
@@ -179,6 +179,15 @@ test('screenshots @screenshot', async ({ page }, info) => {
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.goto(START);
   await page.screenshot({ path: pad('5-vandaag-donker') });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.getByRole('navigation').getByRole('link', { name: 'Agenda' }).click();
+  await page.screenshot({ path: pad('6-agenda-week'), fullPage: naam === 'desktop' });
+  await page.getByRole('button', { name: /^Zwemles, 09:15/ }).click();
+  await page.screenshot({ path: pad('7-afspraak-bewerken') });
+  await page.keyboard.press('Escape');
+  await page.getByRole('navigation').getByRole('link', { name: 'Boodschappen' }).click();
+  await page.getByRole('checkbox', { name: 'Melk' }).click();
+  await page.screenshot({ path: pad('8-boodschappen') });
 });
 
 test('los bestand (dist-los/komtgoed-demo.html) werkt zonder server', async ({ page }) => {

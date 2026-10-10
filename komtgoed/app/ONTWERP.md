@@ -1,4 +1,4 @@
-# KG-2: ontwerp en Productkompas-toets
+# KG-2 en KG-3: ontwerp en Productkompas-toets
 
 **Status:** prototype met fictieve gegevens, in een eigen PR. Niet gemerged en niet gedeployd.
 KG-2 hangt niet af van KG-1 (PR #19).
@@ -72,10 +72,53 @@ KG-2 hangt niet af van KG-1 (PR #19).
 9. **Fictieve gegevens:** Familie De Boer bestaat niet. Er staan geen echte namen, adressen of
    Huisplan-gegevens in.
 
-## 3. Wat nog moet gebeuren buiten deze PR
+## 3. KG-3: functioneler, zonder de rust te verliezen
 
-- **Roadmap:** in `docs/roadmap.md` een regel voor KG-2 toevoegen. Dat kan pas als de sectie
+**Productkompas-toets in het kort:** principe 2 (rust) blijft leidend.
+- **Vandaag:**
+  - toont nog steeds alleen wat vandaag relevant is;
+  - afgeronde taken staan ingeklapt in één regel;
+  - taken voor later en taken zonder datum staan niet op Vandaag.
+- **Fouten moeten goedkoop zijn:**
+  - verwijderen gebeurt direct, zonder bevestigingsvraag, maar met "Ongedaan maken";
+  - het venster heeft een aparte, rustige knop "Verwijderen".
+- **Privacy volgt de situatie:** een privé-afspraak van een ander blijft "Bezet". Openen toont alleen
+  tijd en persoon, en wijzigen kan niet.
+
+**Bewuste keuzes:**
+1. **Bewerken in hetzelfde venster als toevoegen:** één vorm om te leren.
+2. **Aparte knoppen voor afvinken en openen:** afvinken (het rondje) en openen (de naam) zijn twee
+   knoppen, zodat je niet per ongeluk afvinkt als je iets wilt aanpassen.
+3. **Rechten in de demo:**
+   - gedeelde afspraken en taken mag ieder lid aanpassen en verwijderen;
+   - een privé-afspraak alleen de eigenaar;
+   - alleen de eigenaar kan iets privé of weer gedeeld maken.
+   Dit is een **productvoorstel** dat in de echte app server-side moet worden afgedwongen (KG-1 en
+   gate 9). Het is een redelijk uitgangspunt voor een gezin, maar nog geen besluit. Bijvoorbeeld: mag
+   een kind straks gedeelde afspraken wijzigen?
+4. **Week van maandag tot en met zondag**, met ISO-weeknummers zoals in Nederlandse agenda's.
+   - Mobiel: onder elkaar; lege dagen zijn één regel.
+   - Desktop: zeven kolommen.
+5. **Taken in de weekagenda:**
+   - geen apart Taken-scherm; de navigatie blijft vier bestemmingen plus +;
+   - taken zonder datum staan onderaan de agenda.
+6. **Boodschappen zonder dubbelingen:**
+   - hetzelfde artikel komt er niet twee keer op;
+   - een artikel uit het mandje komt terug naar "nog nodig";
+   - de melding zegt eerlijk wat er gebeurde.
+7. **"Ongedaan maken" hoort altijd bij de melding ernaast.** Een latere wijziging zonder melding
+   (bijvoorbeeld een boodschap afvinken) haalt de oude knop weg, zodat hij nooit iets anders
+   terugdraait.
+
+**CI-fix uit KG-2:** op de Ubuntu-runner viel "Boodschappen" in de tabbalk op 360 px net buiten de
+ruimte, door een breder systeemlettertype. De kolom voor Boodschappen is nu iets breder. Een test met
+een breed lettertype bewaakt dit; de tegenproef met de oude indeling faalt zoals verwacht.
+
+## 4. Wat nog moet gebeuren buiten deze PR
+
+- **Roadmap:** in `docs/roadmap.md` regels voor KG-2 en KG-3 toevoegen. Dat kan pas als de sectie
   "Ontwikkelrichting KomtGoed" uit PR #19 op `main` staat; nu toevoegen zou een conflict met #19
   geven.
-- **CHANGELOG:** de regel voor KG-2 volgt om dezelfde reden samen met de roadmapregel.
+- **CHANGELOG:** de regels voor KG-2 en KG-3 volgen om dezelfde reden samen met de roadmapregel.
+- **Productbesluit:** wie welke gedeelde items mag wijzigen (zie keuze 3 in sectie 3).
 - **Open besluiten:** B2 (omgevingen), B3 (techniek; zie het voorstel hierboven) en B4 (inloggen).

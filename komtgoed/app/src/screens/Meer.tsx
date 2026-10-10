@@ -2,11 +2,10 @@ import { useApp } from '../lib/context';
 import type { Scenario } from '../data/demo';
 
 export function Meer() {
-  const { huishouden, staat, kiesScenario, meld, gaNaar } = useApp();
+  const { huishouden, staat, kiesScenario, gaNaar } = useApp();
 
   const kies = (s: Scenario) => {
-    kiesScenario(s);
-    meld(s === 'rustig' ? 'Demo: rustige dag' : 'Demo: gewone dag');
+    kiesScenario(s, s === 'rustig' ? 'Demo: rustige dag' : 'Demo: gewone dag');
     gaNaar('vandaag');
   };
 
@@ -48,10 +47,10 @@ export function Meer() {
       <section aria-labelledby="h-wat" className="blok">
         <h2 id="h-wat" className="sectie-kop">Wat werkt er in deze demo?</h2>
         <ul className="uitleg">
-          <li><strong>Werkt:</strong> afspraken, taken en boodschappen toevoegen; taken en boodschappen afvinken; ongedaan maken; het meedenk-signaal accepteren of wegklikken.</li>
+          <li><strong>Werkt:</strong> afspraken, taken en boodschappen toevoegen, openen, aanpassen en verwijderen; taken en boodschappen afvinken en weer openzetten; een weekagenda met vorige en volgende week; ongedaan maken van de laatste wijziging; het meedenk-signaal accepteren of wegklikken.</li>
           <li><strong>Alleen in deze demo:</strong> alles staat in het geheugen van dit tabblad. Er is geen account, geen server en niets wordt opgeslagen of gedeeld.</li>
-          <li><strong>Privé:</strong> een privé-afspraak van een ander zie je alleen als "bezet". In de echte app regelt de server dat, niet het scherm.</li>
-          <li><strong>Nog niet:</strong> inloggen, uitnodigen, synchroniseren, een volledige agenda, herhaling, meldingen.</li>
+          <li><strong>Privé:</strong> een privé-afspraak van een ander zie je alleen als "bezet", zonder details, en je kunt hem niet wijzigen. In de echte app regelt de server dat, niet het scherm.</li>
+          <li><strong>Nog niet:</strong> inloggen, uitnodigen, synchroniseren, herhaling, een maandweergave, meldingen.</li>
         </ul>
         <p className="stil-tekst">Het gezin De Boer is verzonnen. KomtGoed is een werknaam.</p>
       </section>

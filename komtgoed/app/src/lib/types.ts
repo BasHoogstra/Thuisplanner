@@ -52,6 +52,8 @@ export interface Taak {
   datum: Datum | null;
   voor: LidId | null;
   klaar: boolean;
+  /** Wanneer de taak is afgevinkt; zo kan Vandaag "afgerond vandaag" tonen en weer openzetten. */
+  klaarOp?: Datum | null;
 }
 
 export interface Boodschap {

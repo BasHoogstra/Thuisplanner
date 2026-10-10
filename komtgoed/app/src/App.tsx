@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { huishouden } from './data/demo';
 import { naarDatum, naarTijd } from './lib/datum';
-import { Ctx, type AppContext, type Melding, type Scherm } from './lib/context';
+import { Ctx, type AppContext, type Scherm } from './lib/context';
 import { useDemoStaat } from './lib/store';
 import { Navigatie } from './components/Navigatie';
-import { Toevoegen } from './components/Toevoegen';
+import { ItemVenster, type VensterOpdracht } from './components/ItemVenster';
 import { DemoBalk } from './components/DemoBalk';
 import { Vandaag } from './screens/Vandaag';
 import { Agenda } from './screens/Agenda';
@@ -43,9 +43,7 @@ export function App() {
   const vandaag = naarDatum(klok);
   const demo = useDemoStaat(vandaag);
   const [scherm, zetScherm] = useState<Scherm>(schermUitHash);
-  const [toevoegen, zetToevoegen] = useState<null | 'afspraak' | 'taak' | 'boodschap'>(null);
-  const [melding, zetMelding] = useState<Melding | null>(null);
-  const meldTimer = useRef<number>(undefined);
+  const [venster, zetVenster] = useState<VensterOpdracht | null>(null);
   const hoofd = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -63,11 +61,16 @@ export function App() {
     hoofd.current?.focus({ preventScroll: true });
   }, []);
 
-  const meld = useCallback((tekst: string, opties?: { ongedaan?: boolean }) => {
-    window.clearTimeout(meldTimer.current);
-    zetMelding({ id: Date.now(), tekst, ongedaan: opties?.ongedaan });
-    meldTimer.current = window.setTimeout(() => zetMelding(null), 5000);
-  }, []);
+  // De melding staat in de demo-staat (zie store.ts); hier verdwijnt hij vanzelf na een paar seconden.
+  const melding = demo.staat.melding;
+  const { meldingWeg } = demo;
+  useEffect(() => {
+    if (!melding) return;
+    const t = window.setTimeout(() => meldingWeg(melding.id), melding.ongedaan ? 6000 : 3500);
+    return () => window.clearTimeout(t);
+  }, [melding, meldingWeg]);
+
+  const sluitVenster = useCallback(() => zetVenster(null), []);
 
   const ctx: AppContext = {
     ...demo,
@@ -75,9 +78,9 @@ export function App() {
     vandaag,
     nu: naarTijd(klok),
     uur: klok.getHours(),
-    meld,
     lid: id => huishouden.leden.find(l => l.id === id),
-    openToevoegen: soort => zetToevoegen(soort ?? 'afspraak'),
+    openToevoegen: (soort, datum) => zetVenster({ type: 'nieuw', soort: soort ?? 'afspraak', datum }),
+    openItem: id => zetVenster({ type: 'bewerk', id }),
     gaNaar,
   };
 
@@ -92,13 +95,13 @@ export function App() {
           {scherm === 'boodschappen' && <Boodschappen />}
           {scherm === 'meer' && <Meer />}
         </main>
-        {toevoegen && <Toevoegen beginSoort={toevoegen} sluit={() => zetToevoegen(null)} />}
+        {venster && <ItemVenster opdracht={venster} sluit={sluitVenster} />}
         <div className="melding-plek" aria-live="polite">
           {melding && (
             <div className="melding" key={melding.id} role="status">
               <span>{melding.tekst}</span>
               {melding.ongedaan && (
-                <button className="melding-knop" onClick={() => { demo.ongedaan(); zetMelding(null); }}>
+                <button className="melding-knop" onClick={demo.ongedaan}>
                   Ongedaan maken
                 </button>
               )}

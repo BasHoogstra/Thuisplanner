@@ -59,3 +59,40 @@ export function begroeting(uur: number): string {
   if (uur < 18) return 'Goedemiddag';
   return 'Goedenavond';
 }
+
+/** De maandag van de week waarin deze datum valt (weken beginnen in Nederland op maandag). */
+export function maandagVan(s: Datum): Datum {
+  const dag = vanDatum(s).getDay(); // 0 = zondag
+  return plusDagen(s, dag === 0 ? -6 : 1 - dag);
+}
+
+/** ISO-weeknummer (zoals in Nederlandse agenda's). */
+export function weekNummer(s: Datum): number {
+  const d = vanDatum(s);
+  const donderdag = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const jan4 = new Date(donderdag.getFullYear(), 0, 4);
+  return 1 + Math.round(((donderdag.getTime() - jan4.getTime()) / 86400000 - 3 + ((jan4.getDay() + 6) % 7)) / 7);
+}
+
+/** "5 – 11 oktober" of "29 september – 5 oktober". */
+export function weekBereik(maandag: Datum): string {
+  const a = vanDatum(maandag), b = vanDatum(plusDagen(maandag, 6));
+  return a.getMonth() === b.getMonth()
+    ? `${a.getDate()} – ${b.getDate()} ${MAANDEN[b.getMonth()]}`
+    : `${a.getDate()} ${MAANDEN[a.getMonth()]} – ${b.getDate()} ${MAANDEN[b.getMonth()]}`;
+}
+
+/** "Zaterdag 10 oktober" met hoofdletter. */
+export function langeDatumHoofdletter(s: Datum): string {
+  const l = langeDatum(s);
+  return l.charAt(0).toUpperCase() + l.slice(1);
+}
+
+/** Korte weekdagnaam: "ma", "di", ... */
+export function weekdagKort(s: Datum): string {
+  return DAGEN[vanDatum(s).getDay()].slice(0, 2);
+}
+
+export function isGeldigeDatum(s: string): s is Datum {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && naarDatum(vanDatum(s)) === s;
+}

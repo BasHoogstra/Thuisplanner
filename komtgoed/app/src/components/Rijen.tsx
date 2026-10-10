@@ -1,6 +1,7 @@
 import { useApp } from '../lib/context';
+import { isBezetVanAnder } from '../lib/rechten';
 import type { Afspraak, Boodschap, LidId, Taak } from '../lib/types';
-import { IcSlot, IcVink } from './Iconen';
+import { IcPijl, IcSlot, IcVink } from './Iconen';
 
 export function Wie({ ids, klein }: { ids: LidId[]; klein?: boolean }) {
   const { lid } = useApp();
@@ -24,30 +25,34 @@ export function tijdTekst(a: Afspraak): string {
   return a.eind ? `${a.start} – ${a.eind}` : a.start;
 }
 
-export function AfspraakRij({ a, voorbij }: { a: Afspraak; voorbij?: boolean }) {
-  const { lid } = useApp();
-  const bezet = a.titel === undefined;
+/** Een afspraak als rij. De hele rij opent de afspraak; een privé-afspraak van een ander toont alleen "Bezet". */
+export function AfspraakRij({ a, voorbij, compact }: { a: Afspraak; voorbij?: boolean; compact?: boolean }) {
+  const { lid, huishouden, openItem } = useApp();
+  const bezet = isBezetVanAnder(a, huishouden.ik);
   const kleur = a.wie.length === 1 ? lid(a.wie[0])?.kleur : undefined;
+  const naam = bezet ? `Bezet, ${tijdTekst(a)}` : `${a.titel}, ${tijdTekst(a)}`;
   return (
-    <li className={'rij afspraak' + (voorbij ? ' voorbij' : '')}>
-      <span className="rij-tijd">
-        {a.start ?? 'Hele dag'}
-        {a.eind && <small aria-label={`tot ${a.eind}`}>{a.eind}</small>}
-      </span>
-      <span className="rij-streep" style={{ background: kleur ?? 'var(--lijn-sterk)' }} aria-hidden="true" />
-      <span className="rij-inhoud">
-        {bezet ? (
-          <span className="rij-titel bezet"><IcSlot /> Bezet</span>
-        ) : (
-          <span className="rij-titel">{a.titel}</span>
-        )}
-        <span className="rij-sub">
-          <Wie ids={a.wie} klein />
-          {a.plek && <span className="plek">{a.plek}</span>}
-          {bezet && <span className="plek">privé-afspraak</span>}
-          {!bezet && a.zichtbaarheid === 'prive' && <span className="plek prive"><IcSlot /> alleen voor jou</span>}
+    <li className={'rij afspraak' + (voorbij ? ' voorbij' : '') + (compact ? ' compact' : '')}>
+      <button type="button" className="rij-knop" onClick={() => openItem(a.id)} aria-label={`${naam}. Openen`}>
+        <span className="rij-tijd">
+          {a.start ?? 'Hele dag'}
+          {a.eind && <small aria-hidden="true">{a.eind}</small>}
         </span>
-      </span>
+        <span className="rij-streep" style={{ background: kleur ?? 'var(--lijn-sterk)' }} aria-hidden="true" />
+        <span className="rij-inhoud">
+          {bezet ? (
+            <span className="rij-titel bezet"><IcSlot /> Bezet</span>
+          ) : (
+            <span className="rij-titel">{a.titel}</span>
+          )}
+          <span className="rij-sub">
+            <Wie ids={a.wie} klein />
+            {a.plek && !bezet && !compact && <span className="plek">{a.plek}</span>}
+            {bezet && <span className="plek">privé-afspraak</span>}
+            {!bezet && a.zichtbaarheid === 'prive' && <span className="plek prive"><IcSlot /> alleen voor jou</span>}
+          </span>
+        </span>
+      </button>
     </li>
   );
 }
@@ -56,13 +61,16 @@ export function Vinkje({ aan }: { aan: boolean }) {
   return <span className={'vinkje' + (aan ? ' aan' : '')} aria-hidden="true">{aan && <IcVink />}</span>;
 }
 
+/** Afvinken en openen zijn twee aparte knoppen, zodat je niet per ongeluk afvinkt als je wilt aanpassen. */
 export function TaakRij({ t, extra }: { t: Taak; extra?: string }) {
-  const { wissel, meld } = useApp();
+  const { wissel, openItem } = useApp();
   return (
     <li className={'rij taak' + (t.klaar ? ' klaar' : '')}>
-      <button className="rij-knop" role="checkbox" aria-checked={t.klaar}
-        onClick={() => { wissel(t.id); meld(t.klaar ? 'Weer open gezet' : 'Afgerond', { ongedaan: true }); }}>
+      <button type="button" className="vink-knop" role="checkbox" aria-checked={t.klaar}
+        aria-label={t.titel} onClick={() => wissel(t.id, t.klaar ? `${t.titel} weer open` : `${t.titel} afgerond`)}>
         <Vinkje aan={t.klaar} />
+      </button>
+      <button type="button" className="rij-open" onClick={() => openItem(t.id)} aria-label={`${t.titel} openen`}>
         <span className="rij-inhoud">
           <span className="rij-titel">{t.titel}</span>
           {(t.voor || extra) && (
@@ -72,18 +80,23 @@ export function TaakRij({ t, extra }: { t: Taak; extra?: string }) {
             </span>
           )}
         </span>
+        <IcPijl className="rij-pijl" />
       </button>
     </li>
   );
 }
 
 export function BoodschapRij({ b }: { b: Boodschap }) {
-  const { wissel } = useApp();
+  const { wissel, openItem } = useApp();
   return (
     <li className={'rij boodschap' + (b.afgevinkt ? ' klaar' : '')}>
-      <button className="rij-knop" role="checkbox" aria-checked={b.afgevinkt} onClick={() => wissel(b.id)}>
+      <button type="button" className="vink-knop" role="checkbox" aria-checked={b.afgevinkt} aria-label={b.naam}
+        onClick={() => wissel(b.id)}>
         <Vinkje aan={b.afgevinkt} />
+      </button>
+      <button type="button" className="rij-open" onClick={() => openItem(b.id)} aria-label={`${b.naam} aanpassen`}>
         <span className="rij-inhoud"><span className="rij-titel">{b.naam}</span></span>
+        <IcPijl className="rij-pijl" />
       </button>
     </li>
   );
