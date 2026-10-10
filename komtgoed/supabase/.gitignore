@@ -1,0 +1,3 @@
+# Lokale toestand van de Supabase CLI (supabase start); nooit committen.
+.branches/
+.temp/

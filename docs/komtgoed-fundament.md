@@ -1,6 +1,8 @@
 # KomtGoed KG-1: databasefundament
 
-**Status:** gebouwd en lokaal getest, in een eigen PR; niet gemerged, niet gedeployd.
+**Status:** gebouwd en lokaal getest, in een eigen PR; niet gemerged, niet gedeployd. Verstevigd in
+KG-5B (stap 1 van het bouwplan `docs/komtgoed-bouwplan.md`): zie sectie 7. Getest op een nabootsing
+(PostgreSQL 16) én op een echte lokale Supabase-stack (PostgreSQL 17.6, `supabase start`).
 
 - **Wat het is:** accounts/profielen, huishoudens, leden, uitnodigingen, rollen en toegangsrechten
   voor de nieuwe app (werknaam KomtGoed).
@@ -100,8 +102,8 @@ testtransactie bestaat (KG-T16).
    mogelijk.
 3. **Verlaten ontkoppelt het account; het lid blijft bestaan.** Archiveren is een aparte keuze van de
    beheerders. Zo verdwijnt een persoon niet stil uit de geschiedenis van het huishouden.
-4. **Niets verwijderen via de API.** Leden worden gearchiveerd. Het verwijderen van een huishouden
-   (met de AVG-gevolgen) is een latere, aparte stap.
+4. **Niets verwijderen via de API.** Leden worden gearchiveerd. *Sinds KG-5B:* een eigenaar kan het
+   hele huishouden verwijderen (`delete_household`), en een account verwijderen werkt (sectie 7).
 5. **De uitnodigingstoken staat alleen als hash in de database** en is via de API ook als hash niet
    leesbaar (kolomrechten).
 6. **Het zichtbaarheidsprimitief is een functie met parameters**, nog zonder publiektabel. Het
@@ -141,8 +143,13 @@ testtransactie bestaat (KG-T16).
 | KG-T20 | anon heeft op niets rechten |
 | KG-T21 | Catalogus: RLS overal, geen definer in `public`, vast `search_path`, geen anon- of insert-rechten |
 | KG-T22 | Een kind krijgt geen account, ook niet buiten de functies om |
+| KG-T23 | (KG-5B) Account-ID's (`user_id`, `created_by`, `accepted_by`) niet leesbaar, ook niet via `select *` of een filter; `has_account` en `my_memberships()` wel |
+| KG-T24 | (KG-5B) Hoogstens 10 huishoudens als eigenaar per account |
+| KG-T25 | (KG-5B) Huishouden verwijderen: alleen een actieve eigenaar; leden en uitnodigingen gaan mee; andere huishoudens blijven |
+| KG-T26 | (KG-5B) Account verwijderen (AVG): lid en beheerder lukt (lid blijft zonder account); enige eigenaar met andere accounts geweigerd; anders gaat het huishouden mee |
+| KG-T27 | (KG-5B) Realtime: geen tabel uit `public` in een publicatie |
 
-**Tegenproeven** (`tegenproeven.txt`): 14 sabotages. Elke sabotage moet het genoemde scenario laten
+**Tegenproeven** (`tegenproeven.txt`): 22 sabotages (14 uit KG-1, 8 uit KG-5B). Elke sabotage moet het genoemde scenario laten
 falen. Voorbeelden:
 - RLS openzetten;
 - de tokenhash leesbaar maken;
@@ -155,9 +162,41 @@ falen. Voorbeelden:
 ## 6. Niet in KG-1 (bewust)
 
 - **Geen app en geen deploy:** geen app-schermen, geen deploy, geen koppeling met een Supabase-project.
-- **Geen inhoud:** geen inhoudstabellen (agenda, taken, boodschappen, vakantie), geen realtime, geen
-  opslag.
+- **Geen inhoud:** geen inhoudstabellen (agenda, taken, boodschappen, vakantie), geen realtime-berichten,
+  geen opslag.
 - **Nog niet gebouwd:**
-  - kindaccounts, gast/oppas, huishouden verwijderen, accountverwijdering/AVG-export;
+  - kindaccounts, gast/oppas, AVG-export, schermen voor account of huishouden verwijderen;
   - abonnementen (het plan per huishouden volgt in F10);
   - import van bestaande Huisplan-planners.
+
+## 7. KG-5B: verstevigd (bouwplan stap 1)
+
+Migratie `komtgoed/supabase/migrations/20261010120000_kg5b_verstevigen.sql`. Geen nieuwe tabellen en
+geen nieuwe app-functies; alleen beveiliging en privacy van het fundament. Bevindingen uit
+`docs/komtgoed-bouwplan.md` ("Beoordeling PR #19"):
+
+| Bevinding | Wat er is gedaan |
+| --- | --- |
+| 2. Alleen getest op een nabootsing | `run.sh --db <url>` draait matrix en tegenproeven ook op een echte lokale Supabase (`supabase start`, PostgreSQL 17.6, zoals `config.toml`). Nieuwe integratietest met supabase-js (`tests/integratie/`) tegen de echte API, Auth en Realtime. Nieuwe CI-job `supabase-lokaal`. Tegenproeven lopen nu in een teruggedraaide transactie, zodat ze op beide doelen werken. |
+| 3. Account verwijderen | **Bleek erger:** het verwijderen van *elk* gekoppeld account faalde (`household_members_linked_check`). Nu ontkoppelt een trigger op `auth.users` het account eerst: het lid blijft bestaan als lid zonder account en zonder beheerrol. Is het account de enige eigenaar van een huishouden waarin nog iemand anders een account heeft, dan weigert de database met een duidelijke melding (eerst eigendom overdragen of het huishouden verwijderen). Heeft verder niemand een account, dan gaat het huishouden mee (met kinderen en leden zonder account). Profiel en uitnodigingsverwijzingen gaan via de bestaande FK's. |
+| 4. `user_id` zichtbaar voor alle leden | Kolomrechten: `user_id` (leden) en `created_by`/`accepted_by` (uitnodigingen) zijn niet meer leesbaar via de API. Nieuw: `has_account` (gegenereerde kolom) en `my_memberships()` (je eigen lidmaatschappen: huishouden, lid, rol). Ook realtime volgt de kolomrechten (gecontroleerd in de integratietest). |
+| 5. Hulpfunctie per rij in RLS | Lees-RLS van huishoudens en leden en de bijwerk-RLS van leden gebruiken `private.my_household_ids()` / `my_memberships()`, één keer per query. |
+| 6. Onbeperkt huishoudens aanmaken | Hoogstens 10 als eigenaar per account. (Het token in het URL-fragment hoort bij de uitnodigingslink in stap 7.) |
+| 7. Realtime | Lokaal aan, alleen om te bewijzen dat er niets uitlekt: geen tabel in een publicatie (KG-T27 en integratietest, met tegenproef), private kanalen `household:<id>` dicht voor iedereen (er is nog geen beleid op `realtime.messages`). |
+| Nieuw | `delete_household(id)`: een eigenaar verwijdert het hele huishouden. |
+
+**Gevolgen voor de app (later):** `select *` op `household_members` of `household_invites` faalt nu
+via de API; de app moet kolommen expliciet noemen. "Ben ik dit lid?" gaat via `my_memberships()`.
+
+**Integratietest** (`komtgoed/supabase/tests/integratie/`, alleen tegen een lokale stack; weigert andere
+adressen):
+- `anon` krijgt geen rijen en mag geen functies aanroepen;
+- een buitenstaander ziet geen huishouden, leden of uitnodigingen;
+- `user_id`, `token_hash`, `created_by` en `accepted_by` zijn niet selecteerbaar of filterbaar via PostgREST;
+- schema `private` is niet bereikbaar via de API;
+- `postgres_changes` levert lid en buitenstaander niets op. Tegenproef: met de tabel tijdelijk in de
+  publicatie ontvangt het lid wél berichten (dus de test meet echt iets), zonder `user_id`, en de
+  buitenstaander nog steeds niets;
+- private kanalen `household:<id>` zijn dicht voor buitenstaander én lid;
+- account verwijderen via de Auth-admin-API (zoals een AVG-verzoek): lid lukt, enige eigenaar met
+  anderen geweigerd, daarna beheerder en eigenaar lukt en het huishouden verdwijnt.

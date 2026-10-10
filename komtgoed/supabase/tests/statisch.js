@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// KomtGoed KG-1: statische controles op komtgoed/supabase, zonder database, browser of netwerk.
+// KomtGoed KG-1/KG-5B: statische controles op komtgoed/supabase, zonder database, browser of netwerk.
 //   node komtgoed/supabase/tests/statisch.js
 // Ook gebruikt door tests/komtgoed.test.js en de GitHub Actions-workflow.
 'use strict';
@@ -80,7 +80,7 @@ const checks = {
     assert(/rollback;\s*$/i.test(sql), 'rls_tests.sql moet met rollback; eindigen');
     assert(!/\bcommit\b/i.test(sql), 'rls_tests.sql mag geen commit bevatten');
     const nummers = [...new Set([...sql.matchAll(/pg_temp\.ok\('(KG-T\d\d)'\)/g)].map(m => m[1]))];
-    assert(nummers.length === 22, 'Verwacht 22 genummerde scenario\'s, gevonden ' + nummers.length);
+    assert(nummers.length === 27, 'Verwacht 27 genummerde scenario\'s, gevonden ' + nummers.length);
   },
 
   'tegenproeven: elke regel noemt een bestaand scenario'() {
@@ -97,7 +97,8 @@ const checks = {
   'configuratie: eigen project, niet gekoppeld aan een bestaand Supabase-project'() {
     const toml = fs.readFileSync(path.join(KG, 'config.toml'), 'utf8');
     assert(/^project_id = "komtgoed"$/m.test(toml), 'project_id moet "komtgoed" zijn');
-    assert(!fs.existsSync(path.join(KG, '.temp')), 'komtgoed/supabase/.temp bestaat (gekoppeld project?)');
+    // supabase start maakt .temp aan (genegeerd); een project-ref erin betekent dat er gekoppeld is.
+    assert(!fs.existsSync(path.join(KG, '.temp', 'project-ref')), 'komtgoed/supabase/.temp/project-ref bestaat (gekoppeld project?)');
     const alles = execSync('git ls-files -co --exclude-standard komtgoed', { cwd: ROOT }).toString();
     assert(!/project-ref|\.temp\//.test(alles), 'Koppelbestand van de Supabase CLI in komtgoed/');
     // De refs van de bestaande Huisplan-projecten mogen in komtgoed/ niet voorkomen.

@@ -1,5 +1,7 @@
-# KomtGoed KG-1: statische controles, RLS-testmatrix en tegenproeven op een tijdelijke, lokale
-# PostgreSQL op de runner. Geen secrets, geen verbinding met Supabase, geen deploy.
+# KomtGoed KG-1/KG-5B: statische controles, RLS-testmatrix en tegenproeven op een tijdelijke, lokale
+# PostgreSQL op de runner, en dezelfde tests plus een integratietest (API, Auth, Realtime) op een
+# lokale Supabase-stack in Docker op de runner (supabase start). Geen secrets, geen verbinding met
+# een online Supabase-project, geen deploy.
 name: KomtGoed database (KG-1)
 
 on:
@@ -41,3 +43,30 @@ jobs:
         env:
           PGBIN: /usr/lib/postgresql/16/bin
         run: bash komtgoed/supabase/tests/run.sh --tegenproef
+
+  supabase-lokaal:
+    # Echte Supabase-componenten (PostgreSQL 17, PostgREST, GoTrue, Realtime) in Docker op de runner.
+    # De sleutels zijn de vaste lokale demosleutels uit `supabase status`; niets online.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SUPABASE: npx --yes supabase@2.117.0
+      DB_URL: postgresql://postgres:postgres@127.0.0.1:55322/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Lokale Supabase starten
+        working-directory: komtgoed
+        run: $SUPABASE start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,postgres-meta
+      - name: RLS-matrix en tegenproeven op de echte stack
+        run: bash komtgoed/supabase/tests/run.sh --db "$DB_URL" --tegenproef
+      - name: Integratietest (API, Auth, Realtime)
+        run: |
+          (cd komtgoed/supabase/tests/integratie && npm ci --no-audit --no-fund)
+          bash komtgoed/supabase/tests/integratie/run.sh
+      - name: Lokale Supabase stoppen
+        if: always()
+        working-directory: komtgoed
+        run: $SUPABASE stop --no-backup

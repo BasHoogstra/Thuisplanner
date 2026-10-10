@@ -82,7 +82,7 @@ merknaam is nog niet gekozen. Het besluit staat ook als addendum in
 | Fase | Inhoud | Status |
 | --- | --- | --- |
 | F0 | Besluiten en ontwerp (alleen documenten) | Deels: B1 voorlopig genomen (dit besluit); B2–B4 open |
-| F1 = **KG-1** | Fundament: accounts/profielen, huishoudens, leden, uitnodigingen, rollen en toegangsrechten; RLS met testmatrix; alleen lokaal | **Open PR** (`docs/komtgoed-fundament.md`) |
+| F1 = **KG-1** | Fundament: accounts/profielen, huishoudens, leden, uitnodigingen, rollen en toegangsrechten; RLS met testmatrix; alleen lokaal | **Open PR**, verstevigd in KG-5B (`docs/komtgoed-fundament.md`) |
 | F2 | App-skelet en onboarding (op staging) | Gepland; wacht op B2, B3 en B4 |
 | F3 | Boodschappen | Gepland ⛔ (gate 9) |
 | F4 | Taken | Gepland ⛔ (gate 9) |
@@ -92,6 +92,18 @@ merknaam is nog niet gekozen. Het besluit staat ook als addendum in
 | F8 | Vakantie | Gepland ⛔ (gate 9) |
 | F9 | Slimme aandachtspunten | Gepland |
 | F10 | Abonnement-voorbereiding en AVG-basis | Gepland |
+
+**Technisch bouwplan KG-5A (10 oktober 2026):** `docs/komtgoed-bouwplan.md` werkt de techniek voor
+deze fasen uit in negen kleine bouwstappen (KG-5B t/m KG-5J): eerst het fundament verstevigen en op een
+echte lokale Supabase testen, dan de inhoudstabellen (privé-afspraken als aparte detailtabel, gate 9),
+realtime op de server, en pas daarna de koppeling van de app. Productbeslissingen van 10 oktober 2026:
+gedeelde afspraken, taken en boodschappen mag ieder actief lid wijzigen; privé-afspraken van anderen
+verschijnen alleen als "Bezet"; taken en boodschappen zijn voorlopig alleen gedeeld.
+
+| Bouwstap | Inhoud | Status |
+| --- | --- | --- |
+| KG-5B (stap 1) | PR #19 verstevigen: tests op echte lokale Supabase, account-ID's afgeschermd, account en huishouden verwijderen, limiet | **Gebouwd** als vervolgcommits op PR #19; wacht op review |
+| KG-5C t/m KG-5J (stap 2–9) | Inhoudsschema, realtime, frontend herindelen, lezen, schrijven, inloggen, realtime in de app, staging | Gepland; staging wacht op B2 |
 
 **Wat er verandert aan de gates, en wat niet:**
 

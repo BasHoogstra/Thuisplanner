@@ -486,3 +486,15 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: RLS-matrix KG-T01 t/m KG-T22 (`komtgoed/supabase/tests/rls_tests.sql`), 14 tegenproeven,
   statische controles en `tests/komtgoed.test.js`. CI: `.github/workflows/komtgoed-db.yml`.
 - `index.html`, `test/index.html`, `supabase/` en Firebase zijn niet gewijzigd.
+
+## KomtGoed KG-5B — fundament verstevigd (bouwplan stap 1; alleen lokaal, geen app-wijziging)
+- Technisch bouwplan KG-5A vastgelegd in `docs/komtgoed-bouwplan.md`, met de productbeslissingen van
+  10 oktober 2026 (gedeelde items door ieder lid te wijzigen; privé van anderen alleen als "Bezet";
+  taken en boodschappen voorlopig alleen gedeeld).
+- Migratie `20261010120000_kg5b_verstevigen.sql`: account verwijderen werkt (trigger op `auth.users`;
+  enige eigenaar met andere accounts wordt geweigerd), `delete_household`, account-ID's niet meer
+  leesbaar (`has_account`, `my_memberships()`), RLS via `my_household_ids()`, hoogstens 10 huishoudens
+  als eigenaar.
+- Tests: matrix KG-T01 t/m KG-T27, 22 tegenproeven, nu ook op een echte lokale Supabase
+  (`run.sh --db`); integratietest met supabase-js (API, Auth, Realtime). CI-job `supabase-lokaal`.
+

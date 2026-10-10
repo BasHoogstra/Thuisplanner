@@ -13,7 +13,7 @@ for (const [naam, fn] of Object.entries(statisch)) {
   out['statisch: ' + naam] = async () => { const r = fn(); if (r) console.log('    (' + r + ')'); };
 }
 
-out['RLS-matrix (22 scenario\'s) en tegenproeven, lokaal (alleen als PostgreSQL aanwezig is)'] = async () => {
+out['RLS-matrix (27 scenario\'s) en tegenproeven, lokaal (alleen als PostgreSQL aanwezig is)'] = async () => {
   const bin = process.env.PGBIN || '/usr/lib/postgresql/16/bin';
   if (!fs.existsSync(path.join(bin, 'initdb'))) { console.log('    (overgeslagen: geen PostgreSQL in ' + bin + ')'); return; }
   let uit;
@@ -22,7 +22,7 @@ out['RLS-matrix (22 scenario\'s) en tegenproeven, lokaal (alleen als PostgreSQL 
   } catch (e) {
     throw new Error('KomtGoed-databasetests faalden:\n' + String(e.stdout || e.message).split('\n').filter(l => /ERROR|KG-T|TEGENPROEF|MISLUKT|migratie/.test(l)).join('\n'));
   }
-  assert(/KG-RLS-tests geslaagd: 22 van 22/.test(uit), 'Niet alle KG-1-scenario\'s geslaagd:\n' + uit.slice(-800));
+  assert(/KG-RLS-tests geslaagd: 27 van 27/.test(uit), 'Niet alle KG-1-scenario\'s geslaagd:\n' + uit.slice(-800));
   const m = /Tegenproeven gevangen: (\d+) van (\d+)/.exec(uit);
   assert(m && m[1] === m[2], 'Niet elke tegenproef is gevangen:\n' + uit.slice(-800));
 };

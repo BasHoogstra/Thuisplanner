@@ -27,8 +27,10 @@ enabled = true
 enabled = false
 
 [realtime]
-# Nog niet nodig in KG-1 (geen inhoudstabellen).
-enabled = false
+# Aan sinds KG-5B, alleen om te bewijzen dat er niets uitlekt: geen tabel staat in een publicatie
+# (dus postgres_changes stuurt niets) en private kanalen zijn dicht (geen policies op realtime.messages).
+# Wijzigingen worden later alleen als 'ping' via private kanalen gemeld (bouwplan stap 5).
+enabled = true
 
 [studio]
 enabled = true
