@@ -1,0 +1,55 @@
+# KomtGoed (werknaam): configuratie voor de Supabase CLI, alleen voor LOKALE ontwikkeling.
+# Staat bewust los van supabase/config.toml (Huisplan). Deze map is aan geen enkel Supabase-project
+# gekoppeld (geen `supabase link`); KG-1 wordt nergens gedeployd. Poorten wijken af van Huisplan,
+# zodat beide lokaal naast elkaar kunnen draaien. Niet genoemde instellingen: CLI-standaardwaarden.
+project_id = "komtgoed"
+
+[api]
+enabled = true
+port = 55321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 55322
+shadow_port = 55320
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+# Geen seed: KG-1 bevat geen (voorbeeld)data.
+enabled = false
+
+[realtime]
+# Aan sinds KG-5B, alleen om te bewijzen dat er niets uitlekt: geen tabel staat in een publicatie
+# (dus postgres_changes stuurt niets) en private kanalen zijn dicht (geen policies op realtime.messages).
+# Wijzigingen worden later alleen als 'ping' via private kanalen gemeld (bouwplan stap 5).
+enabled = true
+
+[studio]
+enabled = true
+port = 55323
+
+[local_smtp]
+enabled = true
+port = 55324
+
+[storage]
+# Nog niet nodig in KG-1 (geen bestanden).
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3100"
+additional_redirect_urls = ["http://127.0.0.1:3100"]
+jwt_expiry = 3600
+enable_signup = true
+
+[analytics]
+enabled = false

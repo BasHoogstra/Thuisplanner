@@ -1,0 +1,12 @@
+{
+  "name": "komtgoed-integratie",
+  "private": true,
+  "description": "KomtGoed KG-5B: integratietest tegen een lokale Supabase-stack (supabase start). Nooit tegen een online project.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit integratie.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.2"
+  }
+}

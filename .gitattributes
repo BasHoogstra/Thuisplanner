@@ -2,3 +2,5 @@
 # Postgres bewaart de tekst van functies inclusief regeleinden; met CRLF krijgt staging
 # een andere vingerafdruk dan productie. Zie supabase/README.md.
 *.sql text eol=lf
+# Shellscripts (o.a. komtgoed/supabase/tests/run.sh) altijd met LF, anders draaien ze niet op Linux/CI.
+*.sh text eol=lf

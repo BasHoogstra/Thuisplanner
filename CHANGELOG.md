@@ -476,3 +476,25 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   B probeert over te nemen; A hervat) en "nooit overnemen zonder Web Locks" (open, gesloten,
   gecrasht). `tests/journaal3.test.js`: 28.
 
+## KomtGoed KG-1 — databasefundament (alleen lokaal, geen app-wijziging)
+- Voorlopige ontwikkelrichting KomtGoed vastgelegd in `docs/roadmap.md` (sectie "Ontwikkelrichting
+  KomtGoed") en als besluit 11 in `docs/productkompas-beslissingen.md`.
+- Nieuwe, gescheiden map `komtgoed/supabase/` met een eigen configuratie (niet gekoppeld) en
+  migratie `20261009120000_kg1_fundament.sql`: profielen, huishoudens, leden (ook kinderen zonder
+  account), uitnodigingen (token alleen als hash), rollen owner/admin/member, RLS en
+  rechtenfuncties. Eén account kan lid zijn van meerdere huishoudens.
+- Tests: RLS-matrix KG-T01 t/m KG-T22 (`komtgoed/supabase/tests/rls_tests.sql`), 14 tegenproeven,
+  statische controles en `tests/komtgoed.test.js`. CI: `.github/workflows/komtgoed-db.yml`.
+- `index.html`, `test/index.html`, `supabase/` en Firebase zijn niet gewijzigd.
+
+## KomtGoed KG-5B — fundament verstevigd (bouwplan stap 1; alleen lokaal, geen app-wijziging)
+- Technisch bouwplan KG-5A vastgelegd in `docs/komtgoed-bouwplan.md`, met de productbeslissingen van
+  10 oktober 2026 (gedeelde items door ieder lid te wijzigen; privé van anderen alleen als "Bezet";
+  taken en boodschappen voorlopig alleen gedeeld).
+- Migratie `20261010120000_kg5b_verstevigen.sql`: account verwijderen werkt (trigger op `auth.users`;
+  enige eigenaar met andere accounts wordt geweigerd), `delete_household`, account-ID's niet meer
+  leesbaar (`has_account`, `my_memberships()`), RLS via `my_household_ids()`, hoogstens 10 huishoudens
+  als eigenaar.
+- Tests: matrix KG-T01 t/m KG-T27, 22 tegenproeven, nu ook op een echte lokale Supabase
+  (`run.sh --db`); integratietest met supabase-js (API, Auth, Realtime). CI-job `supabase-lokaal`.
+
