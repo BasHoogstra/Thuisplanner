@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useApp, type Soort } from '../lib/context';
-import { dagLabel, isGeldigeDatum, langeDatumHoofdletter, plusDagen } from '../lib/datum';
+import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen } from '../lib/datum';
+import {
+  FREQUENTIES, herhalingTekst, verwijderReeks, verwijderVoorkomen, vindAfspraak, wijzigVoorkomen,
+} from '../lib/herhaling';
 import { boodschappenMelding, splitsBoodschappen, voegBoodschappenToe } from '../lib/boodschappen';
 import { isBezetVanAnder, magZichtbaarheidKiezen } from '../lib/rechten';
 import { nieuwId } from '../lib/store';
-import type { Afspraak, Datum, Item, LidId } from '../lib/types';
+import type { Afspraak, Datum, Frequentie, Herhaling, Item, LidId } from '../lib/types';
 import { tijdTekst, Wie } from './Rijen';
-import { IcSlot } from './Iconen';
+import { IcHerhaal, IcSlot } from './Iconen';
 import { Venster } from './Venster';
 
 const SOORTEN: { id: Soort; label: string }[] = [
@@ -29,7 +32,8 @@ export type VensterOpdracht =
 export function ItemVenster({ opdracht, sluit }: { opdracht: VensterOpdracht; sluit: () => void }) {
   const { staat, huishouden } = useApp();
   if (opdracht.type === 'nieuw') return <Formulier soortBegin={opdracht.soort} datumBegin={opdracht.datum} sluit={sluit} />;
-  const item = staat.items.find(i => i.id === opdracht.id);
+  // Een voorkomen van een herhalende afspraak heeft een berekend id ("reeks@datum").
+  const item = staat.items.find(i => i.id === opdracht.id && i.soort !== 'afspraak') ?? vindAfspraak(staat.items, opdracht.id);
   if (!item) return null;
   if (item.soort === 'afspraak' && isBezetVanAnder(item, huishouden.ik)) return <BezetVenster a={item} sluit={sluit} />;
   return <Formulier bestaand={item} sluit={sluit} />;
@@ -69,7 +73,15 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
   const [wie, zetWie] = useState<LidId[]>(
     bestaand?.soort === 'afspraak' ? bestaand.wie : bestaand?.soort === 'taak' && bestaand.voor ? [bestaand.voor] : []);
   const [prive, zetPrive] = useState(bestaand?.soort === 'afspraak' && bestaand.zichtbaarheid === 'prive');
-  const [fout, zetFout] = useState<{ veld: 'titel' | 'tijd' | 'dag'; tekst: string } | null>(null);
+  // Herhaling. Bij een voorkomen van een reeks kies je eerst: alleen deze afspraak, of de hele reeks.
+  const voorkomen = bestaand?.soort === 'afspraak' ? bestaand : undefined;
+  const reeks = voorkomen?.voorkomenVan
+    ? staat.items.find((i): i is Afspraak => i.id === voorkomen.voorkomenVan && i.soort === 'afspraak') : undefined;
+  const losgemaakt = !!voorkomen?.reeksId;
+  const [bereik, zetBereik] = useState<'deze' | 'reeks'>('deze');
+  const [freq, zetFreq] = useState<Frequentie | 'geen'>(voorkomen?.herhaling?.freq ?? 'geen');
+  const [herhaalTot, zetHerhaalTot] = useState(voorkomen?.herhaling?.tot ?? '');
+  const [fout, zetFout] = useState<{ veld: 'titel' | 'tijd' | 'dag' | 'herhaling'; tekst: string } | null>(null);
   const veld = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (!bestaand) veld.current?.focus(); }, [soort, bestaand]);
@@ -79,6 +91,16 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
   const [toonDatum, zetToonDatum] = useState(andereDag);
   const kanPriveKiezen = soort === 'afspraak'
     && magZichtbaarheidKiezen(bestaand?.soort === 'afspraak' ? bestaand : null, huishouden.ik);
+  const toonHerhaling = soort === 'afspraak' && !losgemaakt && (!reeks || bereik === 'reeks');
+
+  function kiesBereik(b: 'deze' | 'reeks') {
+    if (!reeks || !voorkomen) return;
+    zetBereik(b);
+    zetFout(null);
+    // De hele reeks begint op de eerste keer; één voorkomen staat op zijn eigen dag.
+    zetDag(b === 'reeks' ? reeks.datum : voorkomen.datum);
+    zetToonDatum(false);
+  }
 
   function bewaar(e: FormEvent) {
     e.preventDefault();
@@ -99,17 +121,34 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
 
     if (soort === 'afspraak') {
       const datum = dag as Datum;
-      const vorig = bestaand?.soort === 'afspraak' ? bestaand : undefined;
+      if (toonHerhaling && freq !== 'geen' && herhaalTot && (!isGeldigeDatum(herhaalTot) || herhaalTot < datum)) {
+        zetFout({ veld: 'herhaling', tekst: 'De laatste keer ligt vóór de eerste keer.' });
+        return;
+      }
+      const vorig = voorkomen;
+      const herhaling: Herhaling | undefined = toonHerhaling && freq !== 'geen'
+        ? { freq, tot: herhaalTot || null, uitzonderingen: reeks && bereik === 'reeks' ? reeks.herhaling?.uitzonderingen : vorig?.herhaling?.uitzonderingen }
+        : undefined;
       const a: Afspraak = {
         id: vorig?.id ?? nieuwId('a'), soort: 'afspraak', titel: t, datum,
         start: start || undefined, eind: (start && eind) || undefined, plek: plek.trim() || undefined, wie,
         eigenaar: vorig?.eigenaar ?? huishouden.ik,
         zichtbaarheid: kanPriveKiezen ? (prive ? 'prive' : 'huishouden') : vorig?.zichtbaarheid ?? 'huishouden',
         voorbereiding: vorig?.voorbereiding,
+        herhaling,
+        reeksId: vorig?.reeksId, origineleDatum: vorig?.origineleDatum,
       };
       const wanneer = `${dagLabel(datum, vandaag).toLowerCase()}${a.start ? ' ' + a.start : ''}`;
-      if (vorig) app.bijwerken(a, `${t} aangepast (${wanneer})`);
-      else app.toevoegen([a], `${t} staat in de agenda (${wanneer})`);
+      if (reeks && vorig && bereik === 'deze') {
+        app.vervangAlles(wijzigVoorkomen(staat.items, reeks.id, vorig.datum, { ...a, id: nieuwId('a') }), `${t} aangepast (${wanneer})`);
+      } else if (reeks && bereik === 'reeks') {
+        app.bijwerken({ ...a, id: reeks.id }, herhaling ? `Hele reeks ${t} aangepast` : `${t} herhaalt niet meer`);
+      } else if (vorig) {
+        app.bijwerken(a, `${t} aangepast (${wanneer})`);
+      } else {
+        app.toevoegen([a], herhaling ? `${t} staat in de agenda (${herhalingTekst(datum, herhaling).toLowerCase()})`
+          : `${t} staat in de agenda (${wanneer})`);
+      }
     } else if (soort === 'taak') {
       const vorig = bestaand?.soort === 'taak' ? bestaand : undefined;
       const taak = {
@@ -130,7 +169,13 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
   function verwijder() {
     if (!bestaand) return;
     const naam = bestaand.soort === 'boodschap' ? bestaand.naam : bestaand.titel ?? 'Afspraak';
-    app.verwijder([bestaand.id], `${naam} verwijderd`);
+    if (reeks && voorkomen && bereik === 'deze') {
+      app.vervangAlles(verwijderVoorkomen(staat.items, reeks.id, voorkomen.datum), `${naam} op ${langeDatum(voorkomen.datum)} verwijderd`);
+    } else if (reeks) {
+      app.vervangAlles(verwijderReeks(staat.items, reeks.id), `Hele reeks ${naam} verwijderd`);
+    } else {
+      app.verwijder([bestaand.id], `${naam} verwijderd`);
+    }
     sluit();
   }
 
@@ -166,6 +211,20 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
       )}
 
       <form onSubmit={bewaar} noValidate>
+        {reeks?.herhaling && (
+          <div className="reeks-info">
+            <p className="reeks-regel"><IcHerhaal /> {herhalingTekst(reeks.datum, reeks.herhaling)}</p>
+            <div className="segment klein" role="radiogroup" aria-label="Wat wil je wijzigen?">
+              {(['deze', 'reeks'] as const).map(b => (
+                <button key={b} type="button" role="radio" aria-checked={bereik === b}
+                  className={'segment-knop' + (bereik === b ? ' aan' : '')} onClick={() => kiesBereik(b)}>
+                  {b === 'deze' ? 'Alleen deze' : 'Hele reeks'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {losgemaakt && <p className="reeks-regel stil-tekst"><IcHerhaal /> Losgemaakt uit een herhalende afspraak</p>}
         <label className="veld">
           <span className="veld-label">{soort === 'boodschap' ? (bestaand ? 'Naam' : 'Wat is er nodig?') : 'Wat?'}</span>
           <input ref={veld} id="item-titel" value={titel} onChange={e => { zetTitel(e.target.value); setFoutWeg(); }}
@@ -177,7 +236,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
 
         {soort !== 'boodschap' && (
           <div className="veld">
-            <span className="veld-label" id="wanneer-label">Wanneer?</span>
+            <span className="veld-label" id="wanneer-label">{reeks && bereik === 'reeks' ? 'Eerste keer' : 'Wanneer?'}</span>
             <div className="keuzes" role="group" aria-labelledby="wanneer-label">
               {snelDagen.map(d => (
                 <button type="button" key={d} className={'keuze' + (dag === d && !toonDatum ? ' aan' : '')}
@@ -225,6 +284,26 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
           </>
         )}
 
+        {toonHerhaling && (
+          <div className="veld">
+            <span className="veld-label" id="herhaal-label">Herhalen?</span>
+            <div className="keuzes" role="group" aria-labelledby="herhaal-label">
+              {[{ id: 'geen' as const, label: 'Niet' }, ...FREQUENTIES].map(f => (
+                <button type="button" key={f.id} className={'keuze' + (freq === f.id ? ' aan' : '')} aria-pressed={freq === f.id}
+                  onClick={() => { zetFreq(f.id); setFoutWeg(); }}>{f.label}</button>
+              ))}
+            </div>
+            {freq !== 'geen' && (
+              <label className="veld-sub tot-veld">
+                <span className="tijd-label">Tot en met <span className="optioneel">(leeg = zonder einde)</span></span>
+                <input type="date" id="item-herhaal-tot" value={herhaalTot} aria-label="Tot en met"
+                  onChange={e => { zetHerhaalTot(e.target.value); setFoutWeg(); }} aria-invalid={fout?.veld === 'herhaling'} />
+              </label>
+            )}
+            {fout?.veld === 'herhaling' && <span className="veld-fout">{fout.tekst}</span>}
+          </div>
+        )}
+
         {soort !== 'boodschap' && (
           <div className="veld">
             <span className="veld-label">{soort === 'afspraak' ? 'Voor wie?' : 'Wie pakt het op?'} <span className="optioneel">(optioneel)</span></span>
@@ -242,9 +321,13 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
           </label>
         )}
 
-        <button type="submit" className="knop breed">{bestaand ? 'Opslaan' : 'Toevoegen'}</button>
+        <button type="submit" className="knop breed">
+          {!bestaand ? 'Toevoegen' : reeks ? (bereik === 'reeks' ? 'Hele reeks opslaan' : 'Alleen deze opslaan') : 'Opslaan'}
+        </button>
         {bestaand && (
-          <button type="button" className="knop breed gevaar" onClick={verwijder}>Verwijderen</button>
+          <button type="button" className="knop breed gevaar" onClick={verwijder}>
+            {reeks ? (bereik === 'reeks' ? 'Hele reeks verwijderen' : 'Alleen deze verwijderen') : 'Verwijderen'}
+          </button>
         )}
       </form>
     </Venster>

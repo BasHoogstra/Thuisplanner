@@ -1,7 +1,7 @@
 import { useApp } from '../lib/context';
 import { isBezetVanAnder } from '../lib/rechten';
 import type { Afspraak, Boodschap, LidId, Taak } from '../lib/types';
-import { IcPijl, IcSlot, IcVink } from './Iconen';
+import { IcHerhaal, IcPijl, IcSlot, IcVink } from './Iconen';
 
 export function Wie({ ids, klein }: { ids: LidId[]; klein?: boolean }) {
   const { lid } = useApp();
@@ -50,6 +50,7 @@ export function AfspraakRij({ a, voorbij, compact }: { a: Afspraak; voorbij?: bo
             {a.plek && !bezet && !compact && <span className="plek">{a.plek}</span>}
             {bezet && <span className="plek">privé-afspraak</span>}
             {!bezet && a.zichtbaarheid === 'prive' && <span className="plek prive"><IcSlot /> alleen voor jou</span>}
+            {a.herhaling && <span className="plek herhaalt" title="Herhalende afspraak"><IcHerhaal /></span>}
           </span>
         </span>
       </button>

@@ -1,4 +1,4 @@
-# KG-2 en KG-3: ontwerp en Productkompas-toets
+# KG-2 t/m KG-4: ontwerp en Productkompas-toets
 
 **Status:** prototype met fictieve gegevens, in een eigen PR. Niet gemerged en niet gedeployd.
 KG-2 hangt niet af van KG-1 (PR #19).
@@ -114,11 +114,35 @@ KG-2 hangt niet af van KG-1 (PR #19).
 ruimte, door een breder systeemlettertype. De kolom voor Boodschappen is nu iets breder. Een test met
 een breed lettertype bewaakt dit; de tegenproef met de oude indeling faalt zoals verwacht.
 
-## 4. Wat nog moet gebeuren buiten deze PR
+## 4. KG-4: een volwaardige agenda
 
-- **Roadmap:** in `docs/roadmap.md` regels voor KG-2 en KG-3 toevoegen. Dat kan pas als de sectie
+- **Rust:**
+  - Vandaag verandert niet en blijft het hele gezin tonen;
+  - de maand toont alleen stippen (mobiel) of de eerste titels (desktop), geen volle cellen;
+  - details staan pas in het dagoverzicht.
+- **Herhaling zonder dubbelingen:**
+  - een reeks wordt één keer opgeslagen en voorkomens worden per periode berekend;
+  - "Alleen deze" maakt een uitzondering op de reeks plus één losse afspraak;
+  - verwijderen van één keer is ook een uitzondering;
+  - de hele reeks verwijderen haalt ook losgemaakte voorkomens weg.
+  - Een tegenproef bewijst dit: zet je de uitzonderingen uit, dan falen 4 tests.
+- **Privacy:**
+  - elk voorkomen van een privé-reeks van een ander is "Bezet", zonder titel of plek, en is niet te openen om te wijzigen;
+  - het gezinsfilter bepaalt alleen óf iets zichtbaar is, nooit hoeveel details.
+- **Filterkeuze (voorstel):**
+  - bij één lid zie je diens afspraken plus afspraken voor iedereen, en alleen taken die dat lid oppakt;
+  - taken zonder persoon horen bij "Iedereen".
+- **Open keuzes:**
+  - "deze en alle volgende" wijzigen;
+  - herhalende taken;
+  - wat een kind in de agenda van anderen mag zien;
+  - of een losgemaakt voorkomen wijzigingen van de reeks moet blijven volgen.
+
+## 5. Wat nog moet gebeuren buiten deze PR
+
+- **Roadmap:** in `docs/roadmap.md` regels voor KG-2 t/m KG-4 toevoegen. Dat kan pas als de sectie
   "Ontwikkelrichting KomtGoed" uit PR #19 op `main` staat; nu toevoegen zou een conflict met #19
   geven.
-- **CHANGELOG:** de regels voor KG-2 en KG-3 volgen om dezelfde reden samen met de roadmapregel.
+- **CHANGELOG:** de regels voor KG-2 t/m KG-4 volgen om dezelfde reden samen met de roadmapregel.
 - **Productbesluit:** wie welke gedeelde items mag wijzigen (zie keuze 3 in sectie 3).
 - **Open besluiten:** B2 (omgevingen), B3 (techniek; zie het voorstel hierboven) en B4 (inloggen).

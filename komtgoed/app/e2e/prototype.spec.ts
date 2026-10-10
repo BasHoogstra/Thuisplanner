@@ -188,6 +188,13 @@ test('screenshots @screenshot', async ({ page }, info) => {
   await page.getByRole('navigation').getByRole('link', { name: 'Boodschappen' }).click();
   await page.getByRole('checkbox', { name: 'Melk' }).click();
   await page.screenshot({ path: pad('8-boodschappen') });
+  await page.getByRole('navigation').getByRole('link', { name: 'Agenda' }).click();
+  await page.getByRole('tab', { name: 'Maand', exact: true }).click();
+  await page.screenshot({ path: pad('9-agenda-maand') });
+  await page.getByRole('gridcell').getByRole('button', { name: /^zaterdag 17 oktober/ }).click();
+  await page.screenshot({ path: pad('10-agenda-dag') });
+  await page.getByRole('button', { name: /^Zwemles/ }).first().click();
+  await page.screenshot({ path: pad('11-herhaling-bewerken') });
 });
 
 test('los bestand (dist-los/komtgoed-demo.html) werkt zonder server', async ({ page }) => {

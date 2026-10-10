@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { huishouden } from './data/demo';
 import { naarDatum, naarTijd } from './lib/datum';
-import { Ctx, type AppContext, type Scherm } from './lib/context';
+import { Ctx, type AgendaStand, type AppContext, type Scherm } from './lib/context';
 import { useDemoStaat } from './lib/store';
 import { Navigatie } from './components/Navigatie';
 import { ItemVenster, type VensterOpdracht } from './components/ItemVenster';
@@ -44,6 +44,8 @@ export function App() {
   const demo = useDemoStaat(vandaag);
   const [scherm, zetScherm] = useState<Scherm>(schermUitHash);
   const [venster, zetVenster] = useState<VensterOpdracht | null>(null);
+  const [agenda, zetAgendaStand] = useState<AgendaStand>({ weergave: 'week', datum: vandaag, filter: null });
+  const zetAgenda = useCallback((s: Partial<AgendaStand>) => zetAgendaStand(a => ({ ...a, ...s })), []);
   const hoofd = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -82,6 +84,8 @@ export function App() {
     openToevoegen: (soort, datum) => zetVenster({ type: 'nieuw', soort: soort ?? 'afspraak', datum }),
     openItem: id => zetVenster({ type: 'bewerk', id }),
     gaNaar,
+    agenda,
+    zetAgenda,
   };
 
   return (

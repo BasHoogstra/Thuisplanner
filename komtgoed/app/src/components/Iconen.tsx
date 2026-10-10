@@ -33,3 +33,9 @@ export const IcSlot = (p: SVGProps<SVGSVGElement>) => (
 export const IcPijl = (p: SVGProps<SVGSVGElement>) => (
   <svg {...basis({ width: 16, height: 16, ...p })}><path d="M9 6l6 6-6 6" /></svg>
 );
+export const IcHerhaal = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis({ width: 14, height: 14, ...p })}><path d="M4 11a8 8 0 0 1 13.7-5.6L20 7.7" /><path d="M20 3.5v4.2h-4.2" /><path d="M20 13a8 8 0 0 1-13.7 5.6L4 16.3" /><path d="M4 20.5v-4.2h4.2" /></svg>
+);
+export const IcLinks = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis({ width: 16, height: 16, ...p })}><path d="M15 6l-6 6 6 6" /></svg>
+);

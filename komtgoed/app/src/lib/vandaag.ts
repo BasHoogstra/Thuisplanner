@@ -1,5 +1,6 @@
 // Wat Vandaag laat zien. Pure functies, zodat de keuzes ("rust boven volledigheid") los te testen zijn.
 import { plusDagen, verschilInDagen } from './datum';
+import { afsprakenTussen } from './herhaling';
 import type { Afspraak, Boodschap, Datum, Item, Taak, Tijd } from './types';
 
 export const isAfspraak = (i: Item): i is Afspraak => i.soort === 'afspraak';
@@ -11,8 +12,9 @@ export function opTijd(a: Afspraak, b: Afspraak): number {
   return (a.start ?? '').localeCompare(b.start ?? '');
 }
 
+/** Alle afspraken op één dag, inclusief voorkomens van herhalende afspraken, op tijd gesorteerd. */
 export function afsprakenOp(items: Item[], datum: Datum): Afspraak[] {
-  return items.filter(isAfspraak).filter(a => a.datum === datum).sort(opTijd);
+  return afsprakenTussen(items, datum, datum).sort(opTijd);
 }
 
 /** Voorbij als de eindtijd (of anders de begintijd) al geweest is. Hele-dag-afspraken zijn nooit voorbij. */

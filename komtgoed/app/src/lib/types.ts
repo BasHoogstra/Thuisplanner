@@ -42,6 +42,23 @@ export interface Afspraak {
   plek?: string;
   /** Wat er de dag ervoor klaar moet staan; voedt het ene rustige meedenk-signaal. */
   voorbereiding?: string;
+  /** Alleen op de eerste afspraak van een reeks: hoe hij terugkomt. Voorkomens worden berekend, niet opgeslagen. */
+  herhaling?: Herhaling;
+  /** Bij één losgemaakt voorkomen van een reeks: de reeks en de datum waarop het oorspronkelijk viel. */
+  reeksId?: string;
+  origineleDatum?: Datum;
+  /** Alleen op een berekend voorkomen (nooit opgeslagen): het id van de reeks waar het uit komt. */
+  voorkomenVan?: string;
+}
+
+export type Frequentie = 'dagelijks' | 'wekelijks' | 'maandelijks' | 'jaarlijks';
+
+export interface Herhaling {
+  freq: Frequentie;
+  /** Laatste dag waarop de reeks nog mag voorkomen (inclusief). Leeg = zonder einde. */
+  tot?: Datum | null;
+  /** Datums waarop de reeks níet voorkomt: verwijderd of losgemaakt. */
+  uitzonderingen?: Datum[];
 }
 
 export interface Taak {

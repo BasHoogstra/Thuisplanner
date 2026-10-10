@@ -327,6 +327,50 @@ a { color: var(--accent); }
 .week-leeg { flex: 1 1 auto; min-width: 0; color: var(--inkt-3); font-size: 14px; }
 .rij.compact .rij-tijd { width: 3.2em; }
 
+/* ---------- KG-4: dag, maand, filter, herhaling ---------- */
+.agenda-kop h1 { margin-bottom: 12px; }
+.agenda-balk { display: flex; flex-direction: column; gap: 10px; }
+.segment.klein { max-width: 320px; }
+.segment.klein .segment-knop { min-height: 36px; font-size: 14px; }
+/* Filter: één regel die binnen zichzelf scrollt; de pagina scrollt nooit opzij. */
+.filter-rij { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px; }
+.filter-rij::-webkit-scrollbar { display: none; }
+.keuze.klein { flex: 0 0 auto; min-height: 34px; padding: 0 12px; font-size: 14px; }
+.dag-knop { display: flex; align-items: baseline; gap: 8px; padding: 4px 6px; margin: -4px -6px; border: 0; background: none; border-radius: 10px; color: inherit; font: inherit; }
+@media (hover: hover) { .dag-knop:hover { background: var(--vlak-2); } }
+.dag-weergave .sectie-kop:first-child { margin-top: 16px; }
+.dag-acties { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.dag-acties .knop { gap: 6px; }
+.herhaalt { display: inline-flex; align-items: center; }
+.reeks-info { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 4px; padding: 12px 14px; border-radius: var(--radius-klein); background: var(--vlak-2); }
+.reeks-regel { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--inkt-2); }
+.reeks-info .segment { background: var(--vlak); max-width: none; }
+.reeks-info .segment-knop.aan { background: var(--accent-zacht); }
+.tot-veld { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+
+.maand { margin-top: 12px; }
+.maand-koppen, .maand-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.maand-koppen span { text-align: center; font-size: 12px; font-weight: 700; color: var(--inkt-3); text-transform: uppercase; letter-spacing: .04em; padding-bottom: 6px; }
+.maand-raster { display: flex; flex-direction: column; gap: 4px; }
+.maand-dag { min-width: 0; }
+.maand-knop {
+  width: 100%; min-height: 54px; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 7px 2px 6px; border: 1px solid var(--lijn); border-radius: 12px; background: var(--vlak); color: inherit; font: inherit;
+}
+.maand-dag.buiten .maand-knop { background: transparent; border-color: transparent; color: var(--inkt-3); }
+.maand-dag.verleden:not(.vandaag) .maand-nr { color: var(--inkt-3); }
+.maand-dag.vandaag .maand-knop { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.maand-dag.vandaag .maand-nr { color: var(--accent); font-weight: 800; }
+@media (hover: hover) { .maand-knop:hover { border-color: var(--lijn-sterk); } }
+.maand-nr { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.maand-stippen { display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 6px; flex-wrap: wrap; }
+.maand-stip { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
+.maand-meer { font-size: 10px; color: var(--inkt-3); line-height: 1; }
+.maand-taak { display: inline-block; width: 8px; height: 2px; border-radius: 2px; background: var(--inkt-2); margin-left: 1px; }
+.maand-titels { display: none; }
+.maand-legenda { display: flex; gap: 16px; margin: 12px 2px 0; font-size: 13px; color: var(--inkt-3); }
+.maand-legenda > span { display: inline-flex; align-items: center; gap: 6px; }
+
 /* ---------- Melding ---------- */
 .melding-plek {
   position: fixed; left: 0; right: 0; bottom: calc(var(--nav-hoogte) + env(safe-area-inset-bottom) + 16px);
@@ -378,6 +422,17 @@ a { color: var(--accent); }
   .melding-plek { bottom: 28px; padding-left: 248px; }
   .scherm { max-width: 680px; }
   .scherm.scherm-breed { max-width: none; }
+  .agenda-balk { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 12px 20px; }
+  .filter-rij { margin: 0; padding: 2px 0; overflow: visible; flex-wrap: wrap; }
+  .dag-weergave { max-width: 680px; }
+  .maand-knop { min-height: 104px; align-items: stretch; padding: 8px; gap: 6px; }
+  .maand-nr { align-self: flex-start; }
+  .maand-stippen { justify-content: flex-start; }
+  .maand-stippen .maand-stip, .maand-stippen .maand-meer { display: none; }
+  .maand-titels { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; font-size: 12px; line-height: 1.3; }
+  .maand-titels span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .maand-dag.buiten .maand-titels { opacity: .6; }
+  .maand-legenda > span:first-child { display: none; }
   .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; align-items: start; }
   .week-dag, .week-dag.leeg { padding: 0; }
   .week-dag-kop { padding: 0 2px 8px; border-bottom: 2px solid var(--lijn); margin-bottom: 8px; }
