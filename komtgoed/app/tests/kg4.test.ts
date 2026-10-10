@@ -3,10 +3,12 @@ import { maandagVan, plusDagen } from '../src/lib/datum';
 import { afspraakPast, taakPast } from '../src/lib/filter';
 import {
   afsprakenTussen, herhalingTekst, leesVoorkomenId, verwijderReeks, verwijderVoorkomen, vindAfspraak,
-  voorkomenDatums, wijzigVoorkomen,
+  voorkomenDatums, wijzigVoorkomen, wordtDubbel,
 } from '../src/lib/herhaling';
 import { dagInhoud, maandRaster, plusMaanden } from '../src/lib/kalender';
-import { isBezetVanAnder } from '../src/lib/rechten';
+import { isBezetVanAnder, plekVoor, titelVoor, zichtbaarVoor } from '../src/lib/rechten';
+import { beginStaat } from '../src/lib/store';
+import { binnenkort, meedenker, straks } from '../src/lib/vandaag';
 import type { Afspraak, Item } from '../src/lib/types';
 
 const V = '2026-10-10'; // zaterdag
@@ -61,6 +63,22 @@ describe('herhaling', () => {
     expect(herhalingTekst(V, { freq: 'maandelijks' })).toBe('Elke maand op de 10e');
     expect(herhalingTekst(V, { freq: 'jaarlijks', tot: '2030-10-10' })).toBe('Elk jaar op 10 oktober · tot en met 10 oktober 2030');
   });
+  it('tekst zegt eerlijk wanneer een reeks overslaat', () => {
+    expect(herhalingTekst('2026-01-31', { freq: 'maandelijks' })).toBe('Elke maand op de 31e · niet in maanden zonder die dag');
+    expect(herhalingTekst('2026-01-28', { freq: 'maandelijks' })).toBe('Elke maand op de 28e');
+    expect(herhalingTekst('2028-02-29', { freq: 'jaarlijks' })).toBe('Elk jaar op 29 februari · alleen in schrikkeljaren');
+  });
+  it('maandelijks op de 30e en 29e rond februari, ook in een schrikkeljaar', () => {
+    expect(voorkomenDatums('2027-01-30', { freq: 'maandelijks' }, '2027-01-01', '2027-03-31')).toEqual(['2027-01-30', '2027-03-30']);
+    expect(voorkomenDatums('2028-01-29', { freq: 'maandelijks' }, '2028-01-01', '2028-03-31'))
+      .toEqual(['2028-01-29', '2028-02-29', '2028-03-29']);
+    expect(voorkomenDatums('2027-01-29', { freq: 'maandelijks' }, '2027-02-01', '2027-02-28')).toEqual([]);
+  });
+  it('jaarlijks over de jaargrens en vanaf een bereik midden in het jaar', () => {
+    expect(voorkomenDatums('2025-12-31', { freq: 'jaarlijks' }, '2026-06-01', '2027-12-31')).toEqual(['2026-12-31', '2027-12-31']);
+    expect(voorkomenDatums('2026-10-10', { freq: 'dagelijks' }, '2026-12-30', '2027-01-02'))
+      .toEqual(['2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02']);
+  });
 });
 
 describe('reeks wijzigen zonder dubbelingen', () => {
@@ -84,6 +102,15 @@ describe('reeks wijzigen zonder dubbelingen', () => {
     expect(op(xs, '2026-10-17')).toHaveLength(0);
     expect(op(xs, '2026-10-18')).toHaveLength(1);
     expect((xs.find(i => i.id === 'los2') as Afspraak).herhaling).toBeUndefined();
+  });
+  it('verplaatsen naar een dag waarop de reeks al staat telt als dubbel; naar een vrije dag niet', () => {
+    expect(wordtDubbel(items, 'r', '2026-10-17', '2026-10-24')).toBe(true);
+    expect(wordtDubbel(items, 'r', '2026-10-17', '2026-10-18')).toBe(false);
+    expect(wordtDubbel(items, 'r', '2026-10-17', '2026-10-17')).toBe(false); // tijd wijzigen op dezelfde dag
+    const xs = wijzigVoorkomen(items, 'r', '2026-10-17', { ...reeks, id: 'los4', datum: '2026-10-18' });
+    expect(wordtDubbel(xs, 'r', '2026-10-24', '2026-10-18')).toBe(true); // daar staat al een losgemaakt voorkomen
+    // Een verwijderd voorkomen maakt de dag weer vrij.
+    expect(wordtDubbel(verwijderVoorkomen(items, 'r', '2026-10-24'), 'r', '2026-10-17', '2026-10-24')).toBe(false);
   });
   it('hele reeks verwijderen haalt ook losgemaakte voorkomens weg', () => {
     const xs = wijzigVoorkomen(items, 'r', '2026-10-17', { ...reeks, id: 'los3', datum: '2026-10-17' });
@@ -119,6 +146,30 @@ describe('privacy en gezinsfilter', () => {
     expect(thomas.afspraken.map(a => a.titel ?? 'bezet')).toEqual(['bezet', 'Pizza bakken met de buren']);
     const iedereen = dagInhoud(items, V, null);
     expect(iedereen.afspraken).toHaveLength(4);
+  });
+
+  // Regressie: Vandaag (straks, binnenkort, meedenken) mocht nooit details van andermans privé-afspraak tonen,
+  // ook niet als die details in de gegevens zouden zitten.
+  const geheim: Afspraak = { id: 'g', soort: 'afspraak', titel: 'Geheim gesprek', plek: 'Geheime plek', datum: V,
+    start: '12:00', wie: ['m-thomas'], eigenaar: 'm-thomas', zichtbaarheid: 'prive', voorbereiding: 'Geheime voorbereiding' };
+
+  it('bij het laden verdwijnen titel, plek en voorbereiding van andermans privé-afspraak', () => {
+    const [uit] = zichtbaarVoor([geheim], ik) as Afspraak[];
+    expect(JSON.stringify(uit)).not.toMatch(/Geheim/);
+    expect(uit.start).toBe('12:00');
+    expect(zichtbaarVoor([geheim], 'm-thomas')[0]).toEqual(geheim); // de eigenaar ziet alles
+    for (const i of beginStaat(V).items) expect(i.soort === 'afspraak' && isBezetVanAnder(i, ik) && (i.titel || i.plek)).toBeFalsy();
+  });
+
+  it('ook met details in de gegevens toont het scherm alleen "Bezet"', () => {
+    expect(titelVoor(geheim, ik)).toBe('Bezet');
+    expect(plekVoor(geheim, ik)).toBeUndefined();
+    expect(titelVoor(geheim, 'm-thomas')).toBe('Geheim gesprek');
+    expect(straks([geheim], V, '11:00')?.id).toBe('g'); // de afspraak telt mee, maar...
+    const morgen = { ...geheim, datum: plusDagen(V, 1) };
+    expect(meedenker([morgen], V, new Set(), ik)).toBeUndefined(); // ...meedenken verraadt niets
+    expect(meedenker([morgen], V, new Set(), 'm-thomas')?.voorstel).toBe('Geheime voorbereiding');
+    expect(binnenkort([morgen], V)[0].afspraken.map(a => titelVoor(a, ik))).toEqual(['Bezet']);
   });
 
   it('filterregels', () => {

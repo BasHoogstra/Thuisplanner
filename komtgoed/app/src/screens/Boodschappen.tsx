@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { useApp } from '../lib/context';
 import { boodschappenMelding, splitsBoodschappen, voegBoodschappenToe } from '../lib/boodschappen';
 import { isBoodschap } from '../lib/vandaag';
@@ -12,7 +12,8 @@ export function Boodschappen() {
   const open = alle.filter(b => !b.afgevinkt);
   const klaar = alle.filter(b => b.afgevinkt);
 
-  function voegToe(e: FormEvent) {
+  // Zie ItemVenster: de knop handelt het af, zodat het ook werkt waar formulieren verzenden geblokkeerd is.
+  function voegToe(e: { preventDefault(): void }) {
     e.preventDefault();
     const namen = splitsBoodschappen(tekst);
     if (!namen.length) return;
@@ -33,7 +34,7 @@ export function Boodschappen() {
         <label className="sr-only" htmlFor="snel-boodschap">Boodschappen toevoegen</label>
         <input id="snel-boodschap" value={tekst} onChange={e => zetTekst(e.target.value)}
           placeholder="Bijv. kaas, appels" autoComplete="off" maxLength={200} />
-        <button className="knop" type="submit">Toevoegen</button>
+        <button className="knop" type="submit" onClick={voegToe}>Toevoegen</button>
       </form>
 
       <section aria-labelledby="h-nodig">

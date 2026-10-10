@@ -1,7 +1,8 @@
 // Wat Vandaag laat zien. Pure functies, zodat de keuzes ("rust boven volledigheid") los te testen zijn.
 import { plusDagen, verschilInDagen } from './datum';
 import { afsprakenTussen } from './herhaling';
-import type { Afspraak, Boodschap, Datum, Item, Taak, Tijd } from './types';
+import { isBezetVanAnder } from './rechten';
+import type { Afspraak, Boodschap, Datum, Item, LidId, Taak, Tijd } from './types';
 
 export const isAfspraak = (i: Item): i is Afspraak => i.soort === 'afspraak';
 export const isTaak = (i: Item): i is Taak => i.soort === 'taak';
@@ -78,11 +79,12 @@ export interface Meedenker {
  * Hooguit één rustig signaal: iets wat morgen vroeg klaar moet staan en nog nergens als taak staat.
  * Een vaste, uitlegbare regel (geen AI). De gebruiker beslist; er wordt niets vanzelf toegevoegd.
  */
-export function meedenker(items: Item[], vandaag: Datum, weggeklikt: ReadonlySet<string>): Meedenker | undefined {
+export function meedenker(items: Item[], vandaag: Datum, weggeklikt: ReadonlySet<string>, ik: LidId): Meedenker | undefined {
   const morgen = plusDagen(vandaag, 1);
   const taken = items.filter(isTaak).map(t => t.titel.toLowerCase());
   for (const a of afsprakenOp(items, morgen)) {
-    if (!a.voorbereiding || weggeklikt.has(a.id)) continue;
+    // Nooit meedenken over andermans privé-afspraak: dat zou details verraden.
+    if (!a.voorbereiding || weggeklikt.has(a.id) || isBezetVanAnder(a, ik)) continue;
     if (taken.includes(a.voorbereiding.toLowerCase())) continue;
     return { afspraak: a, voorstel: a.voorbereiding };
   }

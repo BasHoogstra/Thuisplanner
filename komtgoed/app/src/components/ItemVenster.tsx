@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApp, type Soort } from '../lib/context';
 import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen } from '../lib/datum';
 import {
-  FREQUENTIES, herhalingTekst, verwijderReeks, verwijderVoorkomen, vindAfspraak, wijzigVoorkomen,
+  FREQUENTIES, herhalingTekst, verwijderReeks, verwijderVoorkomen, vindAfspraak, wijzigVoorkomen, wordtDubbel,
 } from '../lib/herhaling';
 import { boodschappenMelding, splitsBoodschappen, voegBoodschappenToe } from '../lib/boodschappen';
 import { isBezetVanAnder, magZichtbaarheidKiezen } from '../lib/rechten';
@@ -102,7 +102,9 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
     zetToonDatum(false);
   }
 
-  function bewaar(e: FormEvent) {
+  // Via de klik op de knop (ook Enter in een veld "klikt" die knop), niet via het verzenden van het formulier:
+  // zo werkt het ook in een afgeschermd frame waar formulieren verzenden niet mag.
+  function bewaar(e: { preventDefault(): void }) {
     e.preventDefault();
     const t = titel.trim().replace(/\s+/g, ' ');
     if (!t) {
@@ -126,6 +128,10 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
         return;
       }
       const vorig = voorkomen;
+      if (reeks && vorig && bereik === 'deze' && wordtDubbel(staat.items, reeks.id, vorig.datum, datum)) {
+        zetFout({ veld: 'dag', tekst: 'Op die dag staat deze herhalende afspraak al. Kies een andere dag.' });
+        return;
+      }
       const herhaling: Herhaling | undefined = toonHerhaling && freq !== 'geen'
         ? { freq, tot: herhaalTot || null, uitzonderingen: reeks && bereik === 'reeks' ? reeks.herhaling?.uitzonderingen : vorig?.herhaling?.uitzonderingen }
         : undefined;
@@ -321,7 +327,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
           </label>
         )}
 
-        <button type="submit" className="knop breed">
+        <button type="submit" className="knop breed" onClick={bewaar}>
           {!bestaand ? 'Toevoegen' : reeks ? (bereik === 'reeks' ? 'Hele reeks opslaan' : 'Alleen deze opslaan') : 'Opslaan'}
         </button>
         {bestaand && (

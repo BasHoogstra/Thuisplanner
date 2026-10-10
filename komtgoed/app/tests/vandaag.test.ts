@@ -73,17 +73,17 @@ describe('meedenker', () => {
   const items = demoItems(V, 'gewoon');
 
   it('hooguit één signaal, voor morgen, met de voorbereiding', () => {
-    const m = meedenker(items, V, new Set());
+    const m = meedenker(items, V, new Set(), 'm-eva');
     expect(m?.afspraak.id).toBe('a-gym');
     expect(m?.voorstel).toBe('Gymtas inpakken');
   });
   it('zwijgt als het al als taak bestaat of is weggeklikt', () => {
     const metTaak: Item[] = [...items, { id: 'g', soort: 'taak', titel: 'gymtas inpakken', datum: V, voor: null, klaar: false }];
-    expect(meedenker(metTaak, V, new Set())).toBeUndefined();
-    expect(meedenker(items, V, new Set(['a-gym']))).toBeUndefined();
+    expect(meedenker(metTaak, V, new Set(), 'm-eva')).toBeUndefined();
+    expect(meedenker(items, V, new Set(['a-gym']), 'm-eva')).toBeUndefined();
   });
   it('zwijgt over afspraken verder weg dan morgen', () => {
-    expect(meedenker(items, '2026-10-08', new Set())).toBeUndefined();
+    expect(meedenker(items, '2026-10-08', new Set(), 'm-eva')).toBeUndefined();
   });
 });
 

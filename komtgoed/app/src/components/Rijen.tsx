@@ -30,7 +30,7 @@ export function AfspraakRij({ a, voorbij, compact }: { a: Afspraak; voorbij?: bo
   const { lid, huishouden, openItem } = useApp();
   const bezet = isBezetVanAnder(a, huishouden.ik);
   const kleur = a.wie.length === 1 ? lid(a.wie[0])?.kleur : undefined;
-  const naam = bezet ? `Bezet, ${tijdTekst(a)}` : `${a.titel}, ${tijdTekst(a)}`;
+  const naam = (bezet ? `Bezet, ${tijdTekst(a)}` : `${a.titel}, ${tijdTekst(a)}`) + (a.herhaling ? ', herhaalt' : '');
   return (
     <li className={'rij afspraak' + (voorbij ? ' voorbij' : '') + (compact ? ' compact' : '')}>
       <button type="button" className="rij-knop" onClick={() => openItem(a.id)} aria-label={`${naam}. Openen`}>

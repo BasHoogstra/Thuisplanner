@@ -117,6 +117,18 @@ export function wijzigVoorkomen(items: Item[], reeksId: string, datum: Datum, lo
   return [...zonder, losgemaakt];
 }
 
+/**
+ * Zou één voorkomen naar `naar` verplaatsen een dubbele afspraak opleveren? Dat is zo als de reeks
+ * op die dag al voorkomt, of als er al een ander losgemaakt voorkomen van dezelfde reeks staat.
+ */
+export function wordtDubbel(items: Item[], reeksId: string, van: Datum, naar: Datum): boolean {
+  if (naar === van) return false;
+  const reeks = items.find(i => i.id === reeksId);
+  if (reeks?.soort !== 'afspraak' || !reeks.herhaling) return false;
+  if (voorkomenDatums(reeks.datum, reeks.herhaling, naar, naar).length) return true;
+  return items.some(i => i.soort === 'afspraak' && i.reeksId === reeksId && i.datum === naar);
+}
+
 /** De hele reeks verwijderen, inclusief losgemaakte voorkomens. */
 export function verwijderReeks(items: Item[], reeksId: string): Item[] {
   return items.filter(i => i.id !== reeksId && !(i.soort === 'afspraak' && i.reeksId === reeksId));
@@ -129,8 +141,11 @@ export function herhalingTekst(start: Datum, h: Herhaling): string {
     : h.freq === 'wekelijks' ? `Elke week op ${DAGEN[d.getDay()]}`
       : h.freq === 'maandelijks' ? `Elke maand op de ${d.getDate()}e`
         : `Elk jaar op ${d.getDate()} ${MAANDEN[d.getMonth()]}`;
-  if (!h.tot) return basis;
+  // Zeg eerlijk wanneer een reeks een keer overslaat (zie voorkomenDatums).
+  const let_op = h.freq === 'maandelijks' && d.getDate() > 28 ? ' · niet in maanden zonder die dag'
+    : h.freq === 'jaarlijks' && d.getMonth() === 1 && d.getDate() === 29 ? ' · alleen in schrikkeljaren' : '';
+  if (!h.tot) return basis + let_op;
   const t = vanDatum(h.tot);
-  return `${basis} · tot en met ${t.getDate()} ${MAANDEN[t.getMonth()]} ${t.getFullYear()}`;
+  return `${basis}${let_op} · tot en met ${t.getDate()} ${MAANDEN[t.getMonth()]} ${t.getFullYear()}`;
 }
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../lib/context';
+import { plekVoor, titelVoor } from '../lib/rechten';
 import { begroeting, korteDag, dagLabel, langeDatum } from '../lib/datum';
 import {
   achterstand, afgerondVandaag, afsprakenOp, binnenkort, isVoorbij, meedenker, openBoodschappen, samenvatting, straks, takenVandaag,
@@ -20,7 +21,7 @@ export function Vandaag() {
   const [toonKlaar, zetToonKlaar] = useState(false);
   const boodschappen = openBoodschappen(staat.items);
   const vooruit = binnenkort(staat.items, vandaag);
-  const signaal = meedenker(staat.items, vandaag, staat.weggeklikt);
+  const signaal = meedenker(staat.items, vandaag, staat.weggeklikt, huishouden.ik);
   const rustig = !afspraken.length && !taken.length && !klaar.length;
 
   return (
@@ -44,13 +45,13 @@ export function Vandaag() {
           {eerst && (
             <section className="straks" aria-label="Straks">
               <button type="button" className="straks-knop" onClick={() => app.openItem(eerst.id)}
-                aria-label={`${eerst.titel ?? 'Bezet'}, ${tijdTekst(eerst)}. Openen`}>
+                aria-label={`${titelVoor(eerst, huishouden.ik)}, ${tijdTekst(eerst)}. Openen`}>
                 <span className="sectie-label">{afspraken.some(a => isVoorbij(a, nu)) ? 'Hierna' : 'Straks'}</span>
                 <span className="straks-tijd">{tijdTekst(eerst)}</span>
-                <span className="straks-titel">{eerst.titel ?? 'Bezet'}</span>
+                <span className="straks-titel">{titelVoor(eerst, huishouden.ik)}</span>
                 <span className="straks-sub">
                   <Wie ids={eerst.wie} />
-                  {eerst.plek && <span className="plek">{eerst.plek}</span>}
+                  {plekVoor(eerst, huishouden.ik) && <span className="plek">{plekVoor(eerst, huishouden.ik)}</span>}
                 </span>
               </button>
             </section>
@@ -138,7 +139,7 @@ export function Vandaag() {
                     </span>
                     <span className="vooruit-wat">
                       {d.afspraken.slice(0, 2).map(a => (
-                        <span key={a.id}>{a.start ? `${a.start} ` : ''}{a.titel ?? 'Bezet'}</span>
+                        <span key={a.id}>{a.start ? `${a.start} ` : ''}{titelVoor(a, huishouden.ik)}</span>
                       ))}
                       {d.afspraken.length > 2 && <span className="nog">+{d.afspraken.length - 2}</span>}
                     </span>

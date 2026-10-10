@@ -4,7 +4,7 @@ import {
 } from '../lib/datum';
 import { taakPast } from '../lib/filter';
 import { dagInhoud, maandBegin, maandRaster, plusMaanden } from '../lib/kalender';
-import { isBezetVanAnder } from '../lib/rechten';
+import { titelVoor } from '../lib/rechten';
 import { isVoorbij, takenZonderDatum } from '../lib/vandaag';
 import type { Datum } from '../lib/types';
 import { AfspraakRij, TaakRij } from '../components/Rijen';
@@ -178,10 +178,12 @@ function MaandWeergave() {
   const dagen = maandRaster(agenda.datum);
   return (
     <div className="maand">
-      <div className="maand-koppen" aria-hidden="true">
-        {['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'].map(d => <span key={d}>{d}</span>)}
-      </div>
-      <div className="maand-raster" role="grid" aria-label="Maandkalender">
+      <div className="maand-raster" role="table" aria-label="Maandkalender">
+        <div className="maand-koppen" role="row">
+          {['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag'].map(d => (
+            <span key={d} role="columnheader" aria-label={d}>{d.slice(0, 2)}</span>
+          ))}
+        </div>
         {Array.from({ length: dagen.length / 7 }, (_, w) => (
           <div key={w} role="row" className="maand-week">
             {dagen.slice(w * 7, w * 7 + 7).map(datum => {
@@ -193,7 +195,7 @@ function MaandWeergave() {
                 open.length ? `${open.length} ${open.length === 1 ? 'taak' : 'taken'}` : '',
               ].filter(Boolean).join(', ') || 'niets gepland';
               return (
-                <div key={datum} role="gridcell" className={'maand-dag' + (buiten ? ' buiten' : '') + (datum === vandaag ? ' vandaag' : '')
+                <div key={datum} role="cell" className={'maand-dag' + (buiten ? ' buiten' : '') + (datum === vandaag ? ' vandaag' : '')
                   + (datum < vandaag ? ' verleden' : '')}>
                   <button type="button" className="maand-knop" onClick={() => zetAgenda({ weergave: 'dag', datum })}
                     aria-label={`${langeDatum(datum)}${datum === vandaag ? ' (vandaag)' : ''}: ${beschrijving}`}>
@@ -208,7 +210,7 @@ function MaandWeergave() {
                     </span>
                     <span className="maand-titels" aria-hidden="true">
                       {afspraken.slice(0, 2).map(a => (
-                        <span key={a.id}>{isBezetVanAnder(a, huishouden.ik) ? 'Bezet' : a.titel}</span>
+                        <span key={a.id}>{titelVoor(a, huishouden.ik)}</span>
                       ))}
                       {afspraken.length > 2 && <span className="nog">+{afspraken.length - 2}</span>}
                     </span>

@@ -61,7 +61,7 @@ test.describe('Agenda: weekweergave', () => {
 test.describe('Afspraken openen, bewerken en verwijderen', () => {
   test('bewerken vanuit de agenda komt direct terug op Vandaag', async ({ page }) => {
     await nav(page, 'Agenda');
-    await page.getByRole('button', { name: /^Zwemles, 09:15 – 10:00\. Openen$/ }).click();
+    await page.getByRole('button', { name: /^Zwemles, 09:15 – 10:00, herhaalt\. Openen$/ }).click();
     await expect(venster(page).getByRole('heading', { name: 'Afspraak' })).toBeVisible();
     await expect(venster(page).getByLabel('Wat?')).toHaveValue('Zwemles');
     await venster(page).getByLabel('Wat?').fill('Zwemles diploma B');
@@ -105,7 +105,7 @@ test.describe('Afspraken openen, bewerken en verwijderen', () => {
   });
 
   test('privé van een ander: alleen "bezet", geen details en niets te wijzigen', async ({ page }) => {
-    await page.getByRole('button', { name: /^Bezet, 15:00 – 16:00\. Openen$/ }).click();
+    await page.getByRole('button', { name: /^Bezet, 15:00 – 16:00, herhaalt\. Openen$/ }).click();
     const v = venster(page);
     await expect(v.getByRole('heading', { name: 'Bezet' })).toBeVisible();
     await expect(v).toContainText('privé-afspraak van Thomas');

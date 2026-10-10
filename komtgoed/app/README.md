@@ -26,7 +26,7 @@ npm run dev         # open http://127.0.0.1:5180
 | `npm run dev` | Ontwikkelserver met automatisch herladen, op `http://127.0.0.1:5180`. |
 | `npm run build` | Typecontrole en productie-build in `dist/`. |
 | `npm run preview` | Toont de build op `http://127.0.0.1:5181`. |
-| `npm run losbestand` | Bouwt één los bestand `dist-los/komtgoed-demo.html`, met CSS en JS erin. Werkt door erop te dubbelklikken, ook offline. |
+| `npm run losbestand` | Bouwt één los bestand `dist-los/komtgoed-demo.html`, met CSS en JS erin. Werkt door erop te dubbelklikken, ook offline. Test: `KG_LOSBESTAND=1 npx playwright test -g "los bestand"` (ook in een afgeschermd frame). |
 | `npm test` | Unit- en componenttests (Vitest + Testing Library). |
 | `npm run e2e` | Browsertests (Playwright) op 360 px, 390 px en desktop (1280 px). |
 | `npm run screenshots` | Maakt de screenshots in `screenshots/` opnieuw. |
@@ -44,14 +44,14 @@ altijd rond "vandaag".
 | **Agenda:** weekweergave maandag t/m zondag met afspraken én taken per dag, vorige/volgende week, "Naar vandaag", een + per dag, taken zonder datum onderaan | Werkt (KG-3). Mobiel onder elkaar, desktop zeven kolommen |
 | **Agenda-weergaven (KG-4):** Dag, Week en Maand met één schakelaar; vorige/volgende en "Naar vandaag" per weergave. Maand toont per dag subtiele stippen (afspraken, in de kleur van het lid) en een streepje voor open taken; op desktop de eerste titels. Een dag aantikken opent het dagoverzicht | Werkt |
 | **Dagoverzicht (KG-4):** afspraken op tijdsvolgorde, taken van die dag, direct een afspraak of taak toevoegen op die datum | Werkt |
-| **Herhalende afspraken (KG-4):** elke dag, week, maand of jaar, optioneel tot en met een datum. Bij openen kies je "Alleen deze" of "Hele reeks" om te wijzigen of te verwijderen | Werkt. Een reeks staat één keer opgeslagen; voorkomens worden berekend, dus nooit dubbel |
+| **Herhalende afspraken (KG-4):** elke dag, week, maand of jaar, optioneel tot en met een datum. Bij openen kies je "Alleen deze" of "Hele reeks" om te wijzigen of te verwijderen | Werkt. Een reeks staat één keer opgeslagen; voorkomens worden berekend, dus nooit dubbel. Eén voorkomen verplaatsen naar een dag waarop de reeks al staat, wordt geweigerd |
 | **Gezinsfilter (KG-4):** Iedereen of één lid; geldt voor dag, week en maand en blijft staan als je wisselt van scherm. Vandaag blijft altijd het hele gezin | Werkt |
 | **Afspraken** openen, aanpassen (titel, dag of andere datum, van/tot, plek, voor wie, privé) en verwijderen | Werkt (KG-3) |
 | **Taken** afvinken en weer openen, aanpassen (titel, dag of "ooit", wie pakt het op) en verwijderen | Werkt (KG-3) |
 | **Boodschappen** afvinken en terugzetten, naam aanpassen, verwijderen, meerdere tegelijk toevoegen; "Nog nodig" en "In het mandje" apart, mandje leegmaken | Werkt (KG-3). Dubbelingen worden herkend: wat al op de lijst staat komt er niet nog eens bij, wat in het mandje lag komt terug op "nog nodig" |
 | Ongedaan maken | Werkt voor de laatste wijziging met een melding (toevoegen, aanpassen, verwijderen, taak afvinken, mandje leegmaken) |
 | Meedenken: hooguit één rustig signaal ("Gymtas inpakken vanavond?"), alleen na jouw keuze op de lijst | Werkt, met een vaste regel op demodata; geen AI |
-| **Privé:** een privé-afspraak van een ander staat er als "Bezet"; openen toont alleen tijd en persoon, zonder iets te kunnen wijzigen. Alleen de eigenaar kan iets privé of gedeeld maken | Werkt in de weergave. **Demo:** in de echte app moet de server dit afdwingen (gate 9) |
+| **Privé:** een privé-afspraak van een ander staat er als "Bezet" (ook elk voorkomen van een privé-reeks); openen toont alleen tijd en persoon, zonder iets te kunnen wijzigen. Alleen de eigenaar kan iets privé of gedeeld maken | Werkt. Bij het laden haalt de demo titel, plek en voorbereiding van andermans privé-afspraken weg (zoals de server later moet doen), en elk scherm toont daarnaast alleen "Bezet". **Demo:** de echte afdwinging hoort server-side (gate 9) |
 | Rustige dag | **Demo-schakelaar** onder Meer |
 | Meer | Leden (ook kinderen zonder account), demo-uitleg, scenario wisselen |
 | Inloggen, huishoudens, uitnodigen, synchroniseren, opslaan, meldingen, herhaling, maandweergave | **Niet gebouwd** |

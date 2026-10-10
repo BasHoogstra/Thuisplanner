@@ -1,7 +1,8 @@
 // Lokale demo-staat. Alles leeft alleen in het geheugen van dit tabblad: niets gaat naar een server
 // en niets wordt bewaard. Herladen zet de demo terug.
 import { useMemo, useReducer } from 'react';
-import { demoItems, type Scenario } from '../data/demo';
+import { demoItems, huishouden, type Scenario } from '../data/demo';
+import { zichtbaarVoor } from './rechten';
 import type { Datum, Item } from './types';
 
 export interface Melding {
@@ -77,7 +78,8 @@ export function reducer(s: Staat, a: Actie): Staat {
 }
 
 export function beginStaat(vandaag: Datum, scenario: Scenario = 'gewoon'): Staat {
-  return { scenario, items: demoItems(vandaag, scenario), weggeklikt: new Set(), vorige: null, melding: null };
+  // Zoals een server het zou teruggeven: privé-afspraken van anderen zonder details.
+  return { scenario, items: zichtbaarVoor(demoItems(vandaag, scenario), huishouden.ik), weggeklikt: new Set(), vorige: null, melding: null };
 }
 
 let teller = 0;

@@ -11,7 +11,7 @@ const filter = (p: Page, naam: string) => p.getByRole('group', { name: 'Wiens ag
 const titel = (p: Page) => p.locator('.week-titel');
 const dagLijst = (p: Page) => p.getByRole('region', { name: /^Dagoverzicht/ });
 const weekDag = (p: Page, label: RegExp) => p.locator('section.week-dag').and(p.getByRole('region', { name: label }));
-const maandDag = (p: Page, begin: string) => p.getByRole('gridcell').getByRole('button', { name: new RegExp('^' + begin) });
+const maandDag = (p: Page, begin: string) => p.getByRole('cell').getByRole('button', { name: new RegExp('^' + begin) });
 
 async function geenHorizontaleScroll(p: Page) {
   const { breed, scherm } = await p.evaluate(() => ({ breed: document.documentElement.scrollWidth, scherm: window.innerWidth }));
@@ -31,7 +31,7 @@ test.describe('Maandweergave', () => {
   test('toont de maand, per dag subtiel afspraken en taken, en bladert over maanden', async ({ page }) => {
     await weergave(page, 'Maand');
     await expect(titel(page)).toContainText('Oktober 2026');
-    await expect(page.getByRole('gridcell')).toHaveCount(35);
+    await expect(page.getByRole('cell')).toHaveCount(35);
     await expect(maandDag(page, 'zaterdag 10 oktober \\(vandaag\\): 4 afspraken, 2 taken')).toBeVisible();
     await expect(maandDag(page, 'maandag 12 oktober: 1 taak')).toBeVisible();
     await expect(maandDag(page, 'woensdag 7 oktober: niets gepland')).toBeVisible();
@@ -140,6 +140,37 @@ test.describe('Herhalende afspraken', () => {
     await expect(weekDag(page, /^zaterdag 24 oktober$/).getByRole('button', { name: /^Zwemles, 09:15/ })).toBeVisible();
     await nav(page, 'Vandaag');
     await expect(page.getByRole('button', { name: /^Zwemles, 09:15 – 10:00/ })).toBeVisible();
+  });
+
+  test('alleen deze verplaatsen naar een dag waarop de reeks al staat wordt geweigerd (geen dubbele afspraak)', async ({ page }) => {
+    await page.getByRole('button', { name: 'Volgende week' }).click();
+    await weekDag(page, /^zaterdag 17 oktober$/).getByRole('button', { name: /^Zwemles/ }).click();
+    await venster(page).getByLabel('Datum').fill('2026-10-24');
+    await venster(page).getByRole('button', { name: 'Alleen deze opslaan' }).click();
+    await expect(venster(page)).toContainText('Op die dag staat deze herhalende afspraak al.');
+    await venster(page).getByLabel('Datum').fill('2026-10-23');
+    await venster(page).getByRole('button', { name: 'Alleen deze opslaan' }).click();
+    await expect(venster(page)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Volgende week' }).click();
+    await expect(weekDag(page, /^vrijdag 23 oktober$/).getByRole('button', { name: /^Zwemles/ })).toHaveCount(1);
+    await expect(weekDag(page, /^zaterdag 24 oktober$/).getByRole('button', { name: /^Zwemles/ })).toHaveCount(1);
+    await page.getByRole('button', { name: 'Vorige week' }).click();
+    await expect(weekDag(page, /^zaterdag 17 oktober$/)).not.toContainText('Zwemles');
+  });
+
+  test('maandelijks op de 31e: de tekst zegt dat korte maanden worden overgeslagen, en november blijft leeg', async ({ page }) => {
+    await page.locator('.nav-plus').click();
+    await venster(page).getByLabel('Wat?').fill('Huur overmaken');
+    await venster(page).getByRole('button', { name: 'Andere dag' }).click();
+    await venster(page).getByLabel('Datum').fill('2026-10-31');
+    await venster(page).getByRole('button', { name: 'Elke maand' }).click();
+    await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
+    await expect(page.getByRole('status')).toContainText('elke maand op de 31e · niet in maanden zonder die dag');
+    await weergave(page, 'Maand');
+    await page.getByRole('button', { name: 'Volgende maand' }).click();
+    await expect(maandDag(page, 'maandag 30 november: niets gepland')).toBeVisible();
+    await page.getByRole('button', { name: 'Volgende maand' }).click();
+    await expect(maandDag(page, 'donderdag 31 december: 1 afspraak')).toBeVisible();
   });
 
   test('hele reeks wijzigen past elke week aan', async ({ page }) => {

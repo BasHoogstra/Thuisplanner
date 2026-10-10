@@ -191,7 +191,7 @@ test('screenshots @screenshot', async ({ page }, info) => {
   await page.getByRole('navigation').getByRole('link', { name: 'Agenda' }).click();
   await page.getByRole('tab', { name: 'Maand', exact: true }).click();
   await page.screenshot({ path: pad('9-agenda-maand') });
-  await page.getByRole('gridcell').getByRole('button', { name: /^zaterdag 17 oktober/ }).click();
+  await page.getByRole('cell').getByRole('button', { name: /^zaterdag 17 oktober/ }).click();
   await page.screenshot({ path: pad('10-agenda-dag') });
   await page.getByRole('button', { name: /^Zwemles/ }).first().click();
   await page.screenshot({ path: pad('11-herhaling-bewerken') });
@@ -207,3 +207,27 @@ test('los bestand (dist-los/komtgoed-demo.html) werkt zonder server', async ({ p
   await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
   await expect(page.getByRole('status')).toContainText('Kapper');
 });
+
+test('los bestand werkt ook in een streng afgeschermd frame (zoals de gedeelde demo)', async ({ page }) => {
+  test.skip(!process.env.KG_LOSBESTAND, 'alleen na npm run losbestand');
+  const { readFileSync } = await import('node:fs');
+  const fragment = readFileSync(new URL('../dist-los/komtgoed-demo.fragment.html', import.meta.url), 'utf8');
+  const doc = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>${fragment}</body></html>`;
+  await page.setContent('<iframe id="demo" sandbox="allow-scripts" style="border:0;width:100vw;height:100vh"></iframe>');
+  await page.locator('#demo').evaluate((f, html) => { (f as HTMLIFrameElement).srcdoc = html; }, doc);
+  const demo = page.frameLocator('#demo');
+  await expect(demo.getByRole('heading', { level: 1 })).toContainText('Eva');
+  await demo.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Agenda' }).click();
+  await demo.getByRole('tab', { name: 'Maand', exact: true }).click();
+  await expect(demo.getByRole('table', { name: 'Maandkalender' })).toBeVisible();
+  await demo.locator('.nav-plus').click();
+  await demo.getByRole('dialog').getByLabel('Wat?').fill('Kapper');
+  await demo.getByRole('dialog').getByRole('button', { name: 'Toevoegen' }).click();
+  await expect(demo.getByRole('status')).toContainText('Kapper');
+  // Enter in een veld werkt ook zonder toestemming om formulieren te verzenden.
+  await demo.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Boodschappen' }).click();
+  await demo.getByLabel('Boodschappen toevoegen').fill('Koffie');
+  await demo.getByLabel('Boodschappen toevoegen').press('Enter');
+  await expect(demo.getByRole('checkbox', { name: 'Koffie' })).toBeVisible();
+});
+
