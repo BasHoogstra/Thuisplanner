@@ -5,7 +5,7 @@
 De nieuwe app heet voortaan **Thuisplanner**. De technische map `komtgoed/` en de oude documentnamen blijven voorlopig staan.
 
 - **Wat het is:** afspraken, taken en boodschappen in de database, met de privacyregels van gate 9.
-- **Migratie:** `komtgoed/supabase/migrations/20261012120000_kg5c_inhoud.sql`.
+- **Migraties:** `komtgoed/supabase/migrations/20261012120000_kg5c_inhoud.sql`, en `20261013120000_kg5c_herstel1.sql` (herstelronde 1, sectie 9).
 - **Plan:** `docs/komtgoed-bouwplan.md`, stap 2. Het fundament (stap 1) staat in `docs/komtgoed-fundament.md`.
 
 ## 1. Productkompas-toets
@@ -84,7 +84,7 @@ De herhalingsregels van `private.occurs_on` zijn gelijk aan `herhaling.ts` in de
 
 ## 6. Verwijderen en AVG
 
-- **Account verwijderen:** de privé-afspraken van dat account verdwijnen echt (met details, deelnemers en voorkomens). Gedeelde afspraken, taken en boodschappen blijven bij het huishouden; het lid blijft bestaan zonder account.
+- **Account verwijderen of vertrekken:** de privé-afspraken van dat account in dat huishouden verdwijnen echt (met details, deelnemers en voorkomens). Gedeelde afspraken, taken en boodschappen blijven bij het huishouden; het lid blijft bestaan zonder account. Zie sectie 9.
 - **Huishouden verwijderen:** neemt alle inhoud mee.
 - **Gemarkeerd als verwijderd** (`deleted_at`) blijft voorlopig in de database. Echt opruimen volgt later met een serverjob (bouwplan).
 
@@ -102,8 +102,9 @@ De herhalingsregels van `private.occurs_on` zijn gelijk aan `herhaling.ts` in de
 | KG-T39 | Een gearchiveerd lid ziet en schrijft geen inhoud meer |
 | KG-T40 | Catalogus: geen delete-recht, afspraken alleen via functies, view met `security_invoker`, protocol in elke inhoudsfunctie |
 | KG-T41 | AVG: privé-afspraken van een verwijderd account weg, gedeelde inhoud blijft; huishouden verwijderen neemt alles mee |
+| KG-T42–T44 | Herstelronde 1: privé hoort bij het account; reeksverwijdering laat andermans privé-voorkomens staan; één actief voorkomen per reeksdag (sectie 9) |
 
-**Tegenproeven:** 13 nieuwe sabotages (totaal 39). Elk wordt door het bedoelde scenario gevangen, onder meer:
+**Tegenproeven:** 13 nieuwe sabotages in KG-5C (totaal toen 39; nu 43, zie sectie 9). Elk wordt door het bedoelde scenario gevangen, onder meer:
 
 - een open detailbeleid;
 - een view zonder `security_invoker`;
@@ -134,11 +135,34 @@ De herhalingsregels van `private.occurs_on` zijn gelijk aan `herhaling.ts` in de
 ## 8. Bekende grenzen en open punten
 
 - **"Voor wie" is zichtbaar bij andermans privé-afspraak.** Dat volgt het goedgekeurde advies; wil je het strenger, dan is dat een productkeuze.
-- **Losgemaakte voorkomens houden hun eigen zichtbaarheid.** Maakt de eigenaar later de reeks gedeeld (of privé), dan veranderen eerder losgemaakte voorkomens niet mee.
-- **Privé-afspraken na vertrek of archiveren.** Vertrekt een lid of wordt het gearchiveerd, dan blijven zijn privé-afspraken onleesbaar in het huishouden staan; alleen accountverwijdering ruimt ze op. Opruimen bij vertrek is een productvraag.
+- **Losgemaakte voorkomens houden hun eigen zichtbaarheid.** Maakt de eigenaar later de reeks gedeeld (of privé), dan veranderen eerder losgemaakte voorkomens niet mee. Een gedeelde reeks verwijderen laat andermans privé-voorkomens staan (sectie 9).
+- **Archiveren:** het account blijft aan het (gearchiveerde) profiel gekoppeld, dus de privé-afspraken blijven bestaan, maar niemand kan ze lezen. Ze verdwijnen bij accountverwijdering. Opruimen bij archiveren is een productvraag.
+- **Een gedeelde afspraak hoort bij het profiel.** Wordt een ander account aan dat profiel gekoppeld, dan mag dat account de gedeelde afspraak wijzigen en privé maken, net als ieder lid. De privé-inhoud hoort dan bij het nieuwe account.
+- **Gedeelde voorkomens van een privé-reeks gaan mee.** Wordt een privé-reeks echt verwijderd (accountverwijdering of vertrek van de eigenaar), dan gaan ook gedeelde losgemaakte voorkomens van die reeks mee, via de reeksverwijzing. Dat kan alleen als de reeks eerst gedeeld was, toen werd aangepast, en daarna weer privé werd gemaakt.
 - **Optimistische versiecontrole bij taken en boodschappen** werkt alleen als de app met `version` filtert (stap 6).
-- **Deadlock mogelijk.** Een directe API-wijziging kan tegelijk met een ledenwijziging in een deadlock komen. PostgreSQL breekt er dan één af (fail closed).
+- **Deadlock mogelijk.** Een directe API-wijziging kan tegelijk met een ledenwijziging in een deadlock komen. PostgreSQL breekt er dan één af (fail closed). Binnen afspraken is de volgorde altijd eerst de reeks, dan het voorkomen.
 - **Nog niet gebouwd:**
   - het wijzigen van de tijdzone;
   - "deze en alle volgende";
   - realtime-seintjes (stap 3).
+
+## 9. Herstelronde 1 (review van `700c3d9`)
+
+Migratie `20261013120000_kg5c_herstel1.sql`. Elke bevinding is eerst met een test gereproduceerd op `700c3d9` en daarna opgelost.
+
+| # | Bevinding | Oplossing | Test (faalt op `700c3d9`, slaagt nu) |
+| --- | --- | --- | --- |
+| 1 (hoog) | Na vertrek kon een ander account aan hetzelfde lidprofiel worden gekoppeld en las dan de oude privé-afspraken (eigenaar = profiel) | **a.** Privé-inhoud hoort bij het account: `events.owner_user_id`, niet leesbaar via de API. Details van een privé-afspraak zijn alleen leesbaar voor dát account via zijn actieve profiel (`private.event_details_visible`, ook gebruikt door realtime). Wijzigen, verwijderen en losmaken controleren hetzelfde. **b.** Komt een account los van een profiel (vertrek, accountverwijdering, elke route), dan verwijdert een trigger de privé-afspraken van dat profiel echt. | KG-T42: herkoppeling na vertrek; plus een privé-afspraak die nog aan het profiel hangt maar van het vorige account is: het nieuwe account ziet alleen "Bezet" en kan hem niet wijzigen of verwijderen; archiveren en daarna accountverwijdering |
+| 2 (middel) | Een gedeelde reeks verwijderen nam ook losgemaakte privé-voorkomens van een ander mee | `delete_event` markeert alleen voorkomens die de verwijderaar zelf mag wijzigen (gedeeld, of eigen privé). Andermans privé-voorkomens blijven staan, met hun eigen zichtbaarheid. | KG-T43 |
+| 3 (middel) | Twee losgemaakte voorkomens konden tegelijk naar dezelfde dag | Vaste vergrendelvolgorde: `save_event` vergrendelt bij een losgemaakt voorkomen eerst de reeks, dan het voorkomen (zoals `edit_occurrence` en `delete_event`). Daarnaast een unieke index (`series_id`, `start_date`) voor actieve voorkomens. | `gelijktijdig.test.mjs` (twee verplaatsingen tegelijk; op `700c3d9` "fout niet geblokkeerd") en KG-T44 (index) |
+
+**Geen nieuwe deadlock.** Een gelijktijdigheidstest verplaatst een voorkomen terwijl een ander de reeks verwijdert. De tweede transactie wacht op de reeks en gaat daarna verder, zonder deadlock (`40P01`).
+
+**Tegenproeven:** vier nieuwe (totaal 43):
+
+- trigger weg;
+- detailcontrole op profiel in plaats van account;
+- reeksverwijdering die alle voorkomens meeneemt;
+- index weg.
+
+**De vijf reparaties uit PR #19** (P1–P5, KG-T28–T31) blijven groen in dezelfde runs.

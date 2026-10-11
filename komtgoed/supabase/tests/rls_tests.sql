@@ -989,6 +989,115 @@ do $$ declare t text; h text := current_setting('test.hs'); begin
   perform pg_temp.ok('KG-T39');
 end $$;
 
+-- ============================== KG-5C herstelronde 1 (review van 700c3d9) ==============================
+-- KG-T42 (bevinding 1) Privé-inhoud hoort bij het account, niet bij het lidprofiel. Pim maakt een
+-- privé-afspraak en vertrekt; een ander account (Quinn) wordt aan Pims profiel gekoppeld en mag die
+-- afspraak nooit lezen. Bij vertrek verdwijnt hij; en ook een privé-afspraak die nog aan het profiel
+-- hangt (hier als postgres neergezet) blijft voor het nieuwe account "Bezet". Archiveren: niemand leest
+-- de privé-afspraak; accountverwijdering ruimt hem op.
+reset role;
+select set_config('test.pim',   gen_random_uuid()::text, true);
+select set_config('test.quinn', gen_random_uuid()::text, true);
+select set_config('test.rik',   gen_random_uuid()::text, true);
+select set_config('test.e_pim', gen_random_uuid()::text, true);
+select set_config('test.e_bind', gen_random_uuid()::text, true);
+select set_config('test.e_rik', gen_random_uuid()::text, true);
+insert into auth.users (id, email) values
+  (current_setting('test.pim')::uuid,   'pim@test.invalid'),
+  (current_setting('test.quinn')::uuid, 'quinn@test.invalid'),
+  (current_setting('test.rik')::uuid,   'rik@test.invalid');
+set local role authenticated;
+select pg_temp.als('sam');
+select set_config('test.tok_pim', public.create_invite(current_setting('test.hs')::uuid), true);
+select set_config('test.tok_rik', public.create_invite(current_setting('test.hs')::uuid), true);
+select pg_temp.als('pim');
+select public.accept_invite(current_setting('test.tok_pim'), 'Pim');
+select set_config('test.m_pim', (select member_id from public.my_memberships() where household_id = current_setting('test.hs')::uuid)::text, true);
+select pg_temp.bewaar(current_setting('test.hs'), current_setting('test.e_pim'), null, '2026-10-15', '09:00', '10:00', 'private', 'Pim-geheim', null, null, 'Pim-plek-geheim');
+select public.leave_household(current_setting('test.hs')::uuid);
+select pg_temp.als('sam');
+select set_config('test.tok_quinn', public.create_invite(current_setting('test.hs')::uuid, current_setting('test.m_pim')::uuid), true);
+select pg_temp.als('quinn');
+select public.accept_invite(current_setting('test.tok_quinn'), null);
+reset role;
+-- Een privé-afspraak die nog aan het profiel hangt maar van het vorige account is (bijv. een
+-- toekomstige route die niets opruimt): het nieuwe account mag hem niet lezen.
+insert into public.events (id, household_id, owner_member_id, owner_user_id, visibility, start_date)
+  values (current_setting('test.e_bind')::uuid, current_setting('test.hs')::uuid, current_setting('test.m_pim')::uuid,
+          current_setting('test.pim')::uuid, 'private', '2026-10-16');
+insert into public.event_details (event_id, household_id, title, notes)
+  values (current_setting('test.e_bind')::uuid, current_setting('test.hs')::uuid, 'Binding-geheim', 'Binding-notitie-geheim');
+set local role authenticated;
+do $$ declare r record; begin
+  perform pg_temp.als('quinn');
+  if (select member_id from public.my_memberships() where household_id = current_setting('test.hs')::uuid) <> current_setting('test.m_pim')::uuid then raise exception 'KG-T42: opzet: Quinn niet aan Pims profiel gekoppeld'; end if;
+  if pg_temp.aantal($q$ select 1 from public.event_details where title like '%Pim-geheim%' or location like '%geheim%' $q$) <> 0 then raise exception 'KG-T42: nieuw account leest privé-afspraak van het vorige account'; end if;
+  if pg_temp.aantal(format('select 1 from public.event_overview where id = %L', current_setting('test.e_pim'))) <> 0 then raise exception 'KG-T42: privé-afspraak bleef na vertrek bestaan'; end if;
+  if pg_temp.aantal(format('select 1 from public.event_details where event_id = %L', current_setting('test.e_bind'))) <> 0 then raise exception 'KG-T42: privé-inhoud volgt het profiel in plaats van het account'; end if;
+  select * into r from public.event_overview where id = current_setting('test.e_bind')::uuid;
+  if not r.is_busy or r.title is not null or r.notes is not null then raise exception 'KG-T42: view toont privé-inhoud van het vorige account'; end if;
+  if pg_temp.fout(format($q$ select pg_temp.bewaar(%L, %L, 1, '2026-10-16', null, null, 'household', 'Openbaar gemaakt', null) $q$, current_setting('test.hs'), current_setting('test.e_bind'))) <> 'P0002' then raise exception 'KG-T42: nieuw account kan privé-afspraak van het vorige account wijzigen of openbaar maken'; end if;
+  if pg_temp.fout(format($q$ select public.delete_event(%L, 1) $q$, current_setting('test.e_bind'))) <> 'P0002' then raise exception 'KG-T42: nieuw account kan privé-afspraak van het vorige account verwijderen'; end if;
+  -- Archiveren: Rik maakt een privé-afspraak en wordt gearchiveerd; niemand leest hem.
+  perform pg_temp.als('rik');
+  perform public.accept_invite(current_setting('test.tok_rik'), 'Rik');
+  perform pg_temp.bewaar(current_setting('test.hs'), current_setting('test.e_rik'), null, '2026-10-17', null, null, 'private', 'Rik-geheim', null);
+  perform pg_temp.als('sam');
+  perform public.archive_member(current_setting('test.hs')::uuid, (select id from public.household_members where household_id = current_setting('test.hs')::uuid and display_name = 'Rik'));
+  if pg_temp.aantal($q$ select 1 from public.event_details where title = 'Rik-geheim' $q$) <> 0 then raise exception 'KG-T42: privé-afspraak van gearchiveerd lid leesbaar'; end if;
+  perform pg_temp.als('rik');
+  if pg_temp.aantal('select 1 from public.event_details') <> 0 then raise exception 'KG-T42: gearchiveerd lid leest nog details'; end if;
+end $$;
+reset role;
+set constraints all immediate;
+do $$ begin
+  delete from auth.users where id = current_setting('test.rik')::uuid;
+  if exists (select 1 from public.events where id = current_setting('test.e_rik')::uuid) then raise exception 'KG-T42: privé-afspraak van verwijderd (gearchiveerd) account blijft'; end if;
+  -- Geen enkele kolom met een account-ID (ook owner_user_id niet) is leesbaar via de API.
+  if has_column_privilege('authenticated', 'public.events', 'owner_user_id', 'select') then raise exception 'KG-T42: owner_user_id leesbaar'; end if;
+  perform pg_temp.ok('KG-T42');
+end $$;
+set constraints all deferred;
+set local role authenticated;
+
+-- KG-T43 (bevinding 2) Een gedeelde reeks verwijderen laat andermans privé-voorkomens staan (eigen
+-- zichtbaarheid) en neemt de gedeelde en eigen voorkomens wel mee.
+select set_config('test.s2', gen_random_uuid()::text, true);
+select set_config('test.o5', gen_random_uuid()::text, true);
+select set_config('test.o6', gen_random_uuid()::text, true);
+select pg_temp.als('sam');
+select pg_temp.bewaar(current_setting('test.hs'), current_setting('test.s2'), null, '2026-11-07', '09:00', '10:00', 'private', 'Sam-reeks-geheim', null, 'weekly');
+select public.edit_occurrence(current_setting('test.s2')::uuid, '2026-11-14', current_setting('test.o5')::uuid, '2026-11-15', null, null, null, 'Sam-los-geheim', null, null, null, null);
+select pg_temp.bewaar(current_setting('test.hs'), current_setting('test.s2'), (select version from public.events where id = current_setting('test.s2')::uuid), '2026-11-07', '09:00', '10:00', 'household', 'Gedeelde reeks', null, 'weekly');
+select pg_temp.als('noa');
+select public.edit_occurrence(current_setting('test.s2')::uuid, '2026-11-21', current_setting('test.o6')::uuid, '2026-11-22', null, null, null, 'Gedeeld los', null, null, null, null);
+do $$ declare s text := current_setting('test.s2'); begin
+  perform pg_temp.als('noa');
+  if (select is_busy from public.event_overview where id = current_setting('test.o5')::uuid) is not true then raise exception 'KG-T43: opzet: Noa ziet Sams privé-voorkomen'; end if;
+  perform public.delete_event(s::uuid, (select version from public.events where id = s::uuid));
+  if pg_temp.aantal(format('select 1 from public.events where id = %L and deleted_at is null', current_setting('test.o5'))) <> 1 then raise exception 'KG-T43: privé-voorkomen van een ander verwijderd via de gedeelde reeks'; end if;
+  if pg_temp.aantal(format('select 1 from public.events where id in (%L, %L) and deleted_at is null', s, current_setting('test.o6'))) <> 0 then raise exception 'KG-T43: reeks of gedeeld voorkomen niet verwijderd'; end if;
+  if pg_temp.aantal(format('select 1 from public.event_details where event_id = %L', current_setting('test.o5'))) <> 0 then raise exception 'KG-T43: details van het privé-voorkomen zichtbaar'; end if;
+  perform pg_temp.als('sam');
+  if (select title from public.event_overview where id = current_setting('test.o5')::uuid) is distinct from 'Sam-los-geheim' then raise exception 'KG-T43: eigenaar ziet het privé-voorkomen niet meer'; end if;
+  perform pg_temp.ok('KG-T43');
+end $$;
+
+-- KG-T44 (bevinding 3) De database zelf weigert twee actieve voorkomens van dezelfde reeks op één dag,
+-- ook als de controle in de functie zou worden omzeild (de race staat in gelijktijdig.test.mjs).
+reset role;
+do $$ declare s text := current_setting('test.s1'); begin
+  -- Reeks s1 is verwijderd (KG-T36); gebruik een nieuwe reeks met twee losse voorkomens.
+  perform set_config('test.s3', gen_random_uuid()::text, true);
+  insert into public.events (id, household_id, owner_member_id, owner_user_id, start_date, recurrence_freq)
+    values (current_setting('test.s3')::uuid, current_setting('test.hs')::uuid, current_setting('test.m_sam')::uuid, current_setting('test.sam')::uuid, '2026-12-05', 'weekly');
+  insert into public.events (household_id, owner_member_id, start_date, series_id, original_date)
+    values (current_setting('test.hs')::uuid, current_setting('test.m_sam')::uuid, '2026-12-13', current_setting('test.s3')::uuid, '2026-12-12');
+  if not pg_temp.faalt(format($q$ insert into public.events (household_id, owner_member_id, start_date, series_id, original_date) values (%L, %L, '2026-12-13', %L, '2026-12-19') $q$, current_setting('test.hs'), current_setting('test.m_sam'), current_setting('test.s3'))) then raise exception 'KG-T44: twee actieve voorkomens van een reeks op één dag'; end if;
+  perform pg_temp.ok('KG-T44');
+end $$;
+set local role authenticated;
+
 -- KG-T40 Catalogus inhoud: geen delete-recht, afspraken alleen via functies, view met security_invoker,
 -- en elke inhoudsfunctie vergrendelt het huishouden vóór de lidmaatschapscontrole.
 reset role;
@@ -1038,6 +1147,6 @@ do $$ declare h text := current_setting('test.hs'); t text; begin
 end $$;
 set constraints all deferred;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 41' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 44' as resultaat;
 
 rollback;

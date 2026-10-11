@@ -516,3 +516,11 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   privé-afspraken op.
 - Tests: KG-T32 t/m KG-T41, 39 tegenproeven, gelijktijdigheids-, API- en realtime-tests.
 
+## Thuisplanner KG-5C herstelronde 1 — drie reviewbevindingen opgelost (alleen lokaal)
+- Migratie `20261013120000_kg5c_herstel1.sql`: privé-inhoud hoort bij het account (`owner_user_id`,
+  niet leesbaar via de API) en verdwijnt zodra een account van een profiel loskomt; een gedeelde reeks
+  verwijderen laat andermans privé-voorkomens staan; vaste vergrendelvolgorde (reeks → voorkomen) en
+  een unieke index op (reeks, dag).
+- Tests: KG-T42 t/m KG-T44 (falen op `700c3d9`), 43 tegenproeven, gelijktijdigheidstest voor twee
+  verplaatsingen tegelijk en een deadlockcontrole.
+

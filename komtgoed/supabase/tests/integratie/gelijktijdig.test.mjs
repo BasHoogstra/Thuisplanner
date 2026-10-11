@@ -292,3 +292,36 @@ test('KG-5C dezelfde boodschap tegelijk toevoegen: één boodschap op de lijst',
   toets('dubbele boodschap', n !== 1, uitkomst, { weigering: false });
 });
 
+
+// ============================== KG-5C herstelronde 1 ==============================
+// Twee losgemaakte voorkomens van dezelfde reeks: maak ze los en geef hun ids terug.
+async function reeksMetTweeVoorkomens(prefix) {
+  const { sam, noa, h } = await huishoudenMetLeden(prefix);
+  const reeks = randomUUID(), o1 = randomUUID(), o2 = randomUUID();
+  await afspraak(sam, h, reeks, null, '2026-10-03', 'Zwemles', 'household', 'weekly');
+  const los = `select public.edit_occurrence($1, $2, $3, $4, '09:00', null, '10:00', 'Los', null, null, null, null)`;
+  await alsDoe(sam, los, [reeks, '2026-10-10', o1, '2026-10-11']);
+  await alsDoe(sam, los, [reeks, '2026-10-17', o2, '2026-10-18']);
+  return { sam, noa, h, reeks, o1, o2 };
+}
+const verplaats = (c, h, id, dag) => c.query(afspraakSql.replace("'09:00', null, '10:00'", "null, null, null"), [h, id, 1, dag, 'household', 'Verplaatst', null]);
+
+test('KG-5C herstel: twee voorkomens tegelijk naar dezelfde dag verplaatsen: er komt er één', zonderTegenproef, async () => {
+  const { sam, noa, h, reeks, o1, o2 } = await reeksMetTweeVoorkomens('c6');
+  const uitkomst = await race(
+    async c1 => { await als(c1, sam); await verplaats(c1, h, o1, '2026-10-13'); },
+    async c2 => { await als(c2, noa); return volg(verplaats(c2, h, o2, '2026-10-13')); });
+  const n = Number((await db.query(`select count(*) from public.events where series_id = $1 and start_date = '2026-10-13' and deleted_at is null`, [reeks])).rows[0].count);
+  toets('dubbele dag', n !== 1, uitkomst);
+});
+
+test('KG-5C herstel: voorkomen verplaatsen terwijl de reeks wordt verwijderd: geen deadlock', zonderTegenproef, async () => {
+  const { sam, noa, h, reeks, o1 } = await reeksMetTweeVoorkomens('c7');
+  const versie = (await db.query('select version from public.events where id = $1', [reeks])).rows[0].version;
+  const uitkomst = await race(
+    async c1 => { await als(c1, sam); await verplaats(c1, h, o1, '2026-10-14'); },
+    async c2 => { await als(c2, noa); return volg(c2.query('select public.delete_event($1, $2)', [reeks, versie])); });
+  assert.notEqual(uitkomst.fout2?.code, '40P01', 'deadlock');
+  const open = Number((await db.query('select count(*) from public.events where (id = $1 or series_id = $1) and deleted_at is null', [reeks])).rows[0].count);
+  toets('verplaatsen en reeks verwijderen', open !== 0, uitkomst, { weigering: false });
+});
