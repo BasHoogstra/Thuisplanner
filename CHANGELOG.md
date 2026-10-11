@@ -506,3 +506,13 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: KG-T28 t/m KG-T31, 26 tegenproeven, gelijktijdigheidstests met aparte verbindingen (met
   tegenproef; reproduceren alle vijf problemen op `6da0f47`), strengere realtime-tests.
 
+## Thuisplanner KG-5C — inhoudsschema (bouwplan stap 2; alleen lokaal, geen app-wijziging)
+- De nieuwe app heet voortaan Thuisplanner (technische map `komtgoed/` blijft).
+- Migratie `20261012120000_kg5c_inhoud.sql`: `events`, `event_details` (strengere RLS: privé van een
+  ander = "Bezet"), `event_participants`, `event_exceptions`, `tasks`, `shopping_items`,
+  `households.timezone` en de view `event_overview` (security_invoker). Afspraken via functies
+  (`save_event`, `edit_occurrence`, `delete_occurrence`, `delete_event`) met versiecontrole (PT409 =
+  HTTP 409); taken en boodschappen via de API en `add_shopping_items`. Accountverwijdering ruimt
+  privé-afspraken op.
+- Tests: KG-T32 t/m KG-T41, 39 tegenproeven, gelijktijdigheids-, API- en realtime-tests.
+

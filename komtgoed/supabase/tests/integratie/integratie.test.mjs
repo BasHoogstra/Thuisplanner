@@ -250,6 +250,102 @@ test('realtime private kanalen: dicht voor buitenstaander én lid (met tegenproe
   }
 });
 
+// ============================== KG-5C: inhoud via de API ==============================
+const nieuweAfspraak = (naam, args) => accounts[naam].client.rpc('save_event', {
+  p_household: h1, p_id: args.id, p_version: args.versie ?? null, p_start_date: args.dag ?? '2026-10-13',
+  p_start_time: '10:00', p_end_date: null, p_end_time: '11:00', p_visibility: args.zicht ?? 'household',
+  p_title: args.titel, p_location: args.plek ?? null, p_notes: args.notitie ?? null, p_preparation: null,
+  p_participants: args.wie ?? null, p_recurrence_freq: null, p_recurrence_until: null });
+
+test('KG-5C privé-afspraak via de API: een ander lid ziet alleen "Bezet", de buitenstaander niets', async () => {
+  const prive = randomUUID(), gedeeld = randomUUID();
+  let r = await nieuweAfspraak('anna', { id: prive, zicht: 'private', titel: 'API-geheim', plek: 'Plek-geheim', notitie: 'Notitie-geheim' });
+  assert.ifError(r.error);
+  r = await nieuweAfspraak('anna', { id: gedeeld, titel: 'Gedeeld etentje' });
+  assert.ifError(r.error);
+  const m = accounts.mira.client;
+  const { data: rij, error } = await m.from('event_overview').select('id,is_busy,title,location,notes,preparation,start_date,start_time,owner_member_id').eq('id', prive).single();
+  assert.ifError(error);
+  assert.equal(rij.is_busy, true);
+  assert.deepEqual([rij.title, rij.location, rij.notes, rij.preparation], [null, null, null, null]);
+  assert.equal(rij.start_date, '2026-10-13');
+  assert.equal(rij.start_time, '10:00:00');
+  // Geen enkele leesweg geeft de privé-tekst: details, filters, zoeken in de view.
+  const { data: det } = await m.from('event_details').select('event_id,title');
+  assert.ok(det.every(d => d.event_id !== prive));
+  assert.ok(det.some(d => d.event_id === gedeeld), 'gedeelde details zouden zichtbaar moeten zijn');
+  for (const q of [m.from('event_details').select('event_id').ilike('title', '%geheim%'),
+                   m.from('event_overview').select('id').or('title.ilike.*geheim*,location.ilike.*geheim*,notes.ilike.*geheim*'),
+                   m.from('event_details').select('event_id').eq('event_id', prive)]) {
+    const { data, error: e } = await q;
+    assert.ifError(e);
+    assert.deepEqual(data, []);
+  }
+  // Wijzigen of verwijderen: "niet gevonden", zoals bij een onbekend id.
+  const w = await nieuweAfspraak('mira', { id: prive, versie: 1, zicht: 'private', titel: 'Overschreven' });
+  assert.equal(w.error?.code, 'P0002');
+  const v = await m.rpc('delete_event', { p_id: prive, p_version: 1 });
+  assert.equal(v.error?.code, 'P0002');
+  // Een verouderde versie geeft HTTP 409.
+  assert.ifError((await nieuweAfspraak('mira', { id: gedeeld, versie: 1, titel: 'Etentje (verzet)' })).error);
+  const oud = await nieuweAfspraak('anna', { id: gedeeld, versie: 1, titel: 'Etentje (oud)' });
+  assert.equal(oud.error?.code, 'PT409');
+  assert.equal(oud.status, 409);
+  // Buitenstaander en anon: niets.
+  for (const t of ['events', 'event_details', 'event_overview', 'tasks', 'shopping_items']) {
+    const { data, error: e } = await accounts.eve.client.from(t).select('id:household_id');
+    assert.ifError(e);
+    assert.equal(data.length, 0, 'Eve ziet ' + t);
+    const a = await anon.from(t).select('household_id');
+    assert.ok(a.error || a.data.length === 0, 'anon ziet ' + t);
+  }
+  const { error: ea } = await anon.rpc('save_event', { p_household: h1, p_id: randomUUID(), p_version: null, p_start_date: '2026-10-13',
+    p_start_time: null, p_end_date: null, p_end_time: null, p_visibility: 'household', p_title: 'anon', p_location: null, p_notes: null,
+    p_preparation: null, p_participants: null, p_recurrence_freq: null, p_recurrence_until: null });
+  assert.ok(ea, 'anon mag save_event aanroepen');
+});
+
+test('KG-5C realtime: zelfs met event_details in een publicatie krijgt een ander lid geen privédetails (met tegenproef)', { timeout: 300000 }, async () => {
+  await wachtOpRealtime(accounts.anna.client);
+  await wachtOpRealtime(accounts.mira.client);
+  const ontvangen = [];
+  const luister = async (naam) => {
+    const echo = [];
+    const k = accounts[naam].client.channel('kg-det-' + naam + '-' + randomUUID(), { config: { broadcast: { self: true, ack: true } } })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_details' }, p => ontvangen.push({ naam, rij: p.new }))
+      .on('broadcast', { event: 'kg-echo' }, m => echo.push(m.payload.id));
+    const r = await abonneer(k);
+    assert.equal(r.status, 'SUBSCRIBED', `${naam}: abonnement niet actief (${r.status})`);
+    return { k, echo };
+  };
+  sql('alter publication supabase_realtime add table public.event_details');
+  try {
+    let controle = false;
+    const geheimen = [];
+    for (let i = 0; i < 45 && !controle; i++) {
+      const anna = await luister('anna'), mira = await luister('mira');
+      await wacht(500);
+      const tekst = 'RT-geheim-' + i;
+      geheimen.push(tekst);
+      assert.ifError((await nieuweAfspraak('anna', { id: randomUUID(), zicht: 'private', titel: tekst, notitie: tekst })).error);
+      assert.ifError((await nieuweAfspraak('anna', { id: randomUUID(), titel: 'RT-gedeeld-' + i })).error);
+      await wacht(3000);
+      // Tegenproef: Mira ontvangt de gedeelde details wél; dan is haar abonnement echt actief.
+      controle = ontvangen.some(o => o.naam === 'mira' && o.rij?.title?.startsWith('RT-gedeeld-'));
+      if (controle) { await bewijsLive(anna.k, anna.echo); await bewijsLive(mira.k, mira.echo); }
+      await accounts.anna.client.removeChannel(anna.k);
+      await accounts.mira.client.removeChannel(mira.k);
+    }
+    assert.ok(controle, 'tegenproef: Mira ontving ook de gedeelde details niet; de test meet niets');
+    assert.ok(ontvangen.some(o => o.naam === 'anna' && geheimen.includes(o.rij?.title)), 'eigenaar ontving haar eigen privédetails niet');
+    const lek = ontvangen.filter(o => o.naam === 'mira' && JSON.stringify(o.rij).includes('geheim'));
+    assert.deepEqual(lek, [], 'privédetails bij een ander lid via realtime');
+  } finally {
+    sql('alter publication supabase_realtime drop table public.event_details');
+  }
+  assert.equal(sql(`select count(*) from pg_publication_tables where schemaname = 'public'`), '0');
+});
+
 test('account verwijderen via Auth (AVG): lid lukt, enige eigenaar met anderen geweigerd, anders gaat het huishouden mee', async () => {
   // Tweede huishouden: Ouder (eigenaar) + Helper (beheerder) + een kind.
   await account('ouder'); await account('helper');
