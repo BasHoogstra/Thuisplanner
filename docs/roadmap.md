@@ -102,7 +102,7 @@ verschijnen alleen als "Bezet"; taken en boodschappen zijn voorlopig alleen gede
 
 | Bouwstap | Inhoud | Status |
 | --- | --- | --- |
-| KG-5B (stap 1) | PR #19 verstevigen: tests op echte lokale Supabase, account-ID's afgeschermd, account en huishouden verwijderen, limiet | **Gebouwd** als vervolgcommits op PR #19; wacht op review |
+| KG-5B (stap 1) | PR #19 verstevigen: tests op echte lokale Supabase, account-ID's afgeschermd, account en huishouden verwijderen, limiet | **Gebouwd** als vervolgcommits op PR #19; herstelronde 1 (vijf reviewbevindingen) gedaan; wacht op review |
 | KG-5C t/m KG-5J (stap 2–9) | Inhoudsschema, realtime, frontend herindelen, lezen, schrijven, inloggen, realtime in de app, staging | Gepland; staging wacht op B2 |
 
 **Wat er verandert aan de gates, en wat niet:**

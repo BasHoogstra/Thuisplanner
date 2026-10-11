@@ -101,6 +101,16 @@ test('account-ID\'s en tokenhash zijn niet leesbaar via de API', async () => {
     const { error } = await accounts.anna.client.from('household_invites').select(sel);
     assert.ok(error, 'household_invites.select(' + sel + ') lukt');
   }
+  // households.created_by (account-ID van de maker) is ook niet leesbaar of filterbaar (herstel P2).
+  for (const sel of ['created_by', '*', 'id,created_by']) {
+    const { error } = await c.from('households').select(sel);
+    assert.ok(error, 'households.select(' + sel + ') lukt');
+  }
+  const { error: eh } = await c.from('households').select('id').eq('created_by', accounts.anna.id);
+  assert.ok(eh, 'filteren op households.created_by lukt');
+  const { data: hh, error: eh2 } = await c.from('households').select('id,name,created_at,updated_at');
+  assert.ifError(eh2);
+  assert.equal(hh.length, 1);
   const { data, error } = await c.from('household_members').select('id,display_name,has_account,role').eq('household_id', h1).order('display_name');
   assert.ifError(error);
   assert.deepEqual(data.map(m => [m.display_name, m.has_account]), [['Anna', true], ['Lynn', false], ['Mira', true]]);
@@ -138,14 +148,29 @@ async function wachtOpRealtime(client) {
   throw new Error('Realtime werd niet gereed');
 }
 
+// Een kanaal telt alleen mee als het aantoonbaar live is: status SUBSCRIBED én een eigen
+// broadcast-bericht komt via de server terug (echo). Een time-out of foutstatus is nooit 'geslaagd'.
+async function bewijsLive(kanaal, ontvangen) {
+  const id = randomUUID();
+  const r = await kanaal.send({ type: 'broadcast', event: 'kg-echo', payload: { id } });
+  assert.equal(r, 'ok', 'echo niet verstuurd: ' + r);
+  for (let i = 0; i < 40 && !ontvangen.includes(id); i++) await wacht(100);
+  assert.ok(ontvangen.includes(id), 'kanaal is niet live (geen echo binnen 4 s)');
+}
+
 test('realtime postgres_changes: wijzigingen lekken niet uit (met tegenproef)', { timeout: 300000 }, async () => {
   await wachtOpRealtime(accounts.mira.client);
+  await wachtOpRealtime(accounts.eve.client);
   const gebeurtenissen = [];
+  // Abonneert op alle wijzigingen in public plus een echo; het abonnement moet actief zijn.
   const luister = async (naam) => {
-    const k = accounts[naam].client.channel('kg-pg-' + naam + '-' + randomUUID())
-      .on('postgres_changes', { event: '*', schema: 'public' }, p => gebeurtenissen.push({ naam, tabel: p.table, rij: p.new }));
+    const echo = [];
+    const k = accounts[naam].client.channel('kg-pg-' + naam + '-' + randomUUID(), { config: { broadcast: { self: true, ack: true } } })
+      .on('postgres_changes', { event: '*', schema: 'public' }, p => gebeurtenissen.push({ naam, tabel: p.table, rij: p.new }))
+      .on('broadcast', { event: 'kg-echo' }, m => echo.push(m.payload.id));
     const r = await abonneer(k);
-    return { k, r };
+    assert.equal(r.status, 'SUBSCRIBED', `${naam}: postgres_changes-abonnement niet actief (${r.status} ${r.err?.message || ''}); een afwezig bericht bewijst dan niets`);
+    return { k, echo };
   };
   let teller = 0;
   const wijzig = async () => {
@@ -154,14 +179,15 @@ test('realtime postgres_changes: wijzigingen lekken niet uit (met tegenproef)', 
     assert.ifError(error);
   };
 
-  // 1. Zoals het is: geen tabel in een publicatie. Mira (lid) en Eve (buitenstaander) krijgen niets.
+  // 1. Zoals het is: geen tabel in een publicatie. Mira (lid) en Eve (buitenstaander) krijgen niets,
+  //    terwijl hun abonnementen aantoonbaar live zijn (echo vóór en ná het meetvenster).
   assert.equal(sql(`select count(*) from pg_publication_tables where schemaname = 'public'`), '0');
   const kanalen = [await luister('mira'), await luister('eve')];
-  kanalen.forEach(({ r }) => assert.ok(['SUBSCRIBED', 'CHANNEL_ERROR'].includes(r.status), 'onverwachte status: ' + r.status));
-  await wacht(1000);
+  for (const { k, echo } of kanalen) await bewijsLive(k, echo);
   await wijzig();
   await accounts.anna.client.rpc('create_invite', { p_household: h1 });
   await wacht(5000);
+  for (const { k, echo } of kanalen) await bewijsLive(k, echo);
   assert.deepEqual(gebeurtenissen, [], 'postgres_changes leverde gebeurtenissen');
   for (const { k } of kanalen) await k.unsubscribe();
 
@@ -171,14 +197,16 @@ test('realtime postgres_changes: wijzigingen lekken niet uit (met tegenproef)', 
   //    (hooguit ±3 min; op een verse stack duurt het soms meer dan een minuut). Daarna weer eruit.
   sql('alter publication supabase_realtime add table public.household_members');
   try {
-    // Eve abonneert telkens mee, zodat haar abonnement net zo 'actief' is als dat van Mira.
-    for (let i = 0; i < 45 && !gebeurtenissen.some(g => g.naam === 'mira'); i++) {
-      const { k, r } = await luister('mira');
-      const { k: kEve } = await luister('eve');
-      if (r.status === 'SUBSCRIBED') { await wacht(500); await wijzig(); await wacht(3000); }
-      else await wacht(3000);
-      await accounts.mira.client.removeChannel(k);
-      await accounts.eve.client.removeChannel(kEve);
+    // Eve abonneert telkens mee; in de ronde waarin Mira iets ontvangt, moeten beide live zijn.
+    let raak = false;
+    for (let i = 0; i < 45 && !raak; i++) {
+      const mira = await luister('mira');
+      const eve = await luister('eve');
+      await wacht(500); await wijzig(); await wacht(3000);
+      raak = gebeurtenissen.some(g => g.naam === 'mira');
+      if (raak) { await bewijsLive(mira.k, mira.echo); await bewijsLive(eve.k, eve.echo); }
+      await accounts.mira.client.removeChannel(mira.k);
+      await accounts.eve.client.removeChannel(eve.k);
     }
     const vanMira = gebeurtenissen.filter(g => g.naam === 'mira' && g.tabel === 'household_members');
     assert.ok(vanMira.length > 0, 'tegenproef: zelfs met de tabel in de publicatie kwam er niets binnen; de test meet niets');
@@ -192,14 +220,33 @@ test('realtime postgres_changes: wijzigingen lekken niet uit (met tegenproef)', 
   assert.equal(sql(`select count(*) from pg_publication_tables where schemaname = 'public'`), '0');
 });
 
-test('realtime private kanalen: dicht voor buitenstaander én lid (nog geen toegangsregels)', async () => {
+test('realtime private kanalen: dicht voor buitenstaander én lid (met tegenproef)', { timeout: 120000 }, async () => {
+  for (const naam of ['eve', 'mira']) await wachtOpRealtime(accounts[naam].client);
+  // Een weigering telt alleen als de server expliciet 'geen toegang' antwoordt; een time-out of een
+  // andere fout is geen bewijs.
   for (const naam of ['eve', 'mira']) {
     const c = accounts[naam].client;
     await c.realtime.setAuth();
     const k = c.channel('household:' + h1, { config: { private: true } });
     const r = await abonneer(k);
-    assert.notEqual(r.status, 'SUBSCRIBED', naam + ' kan het private kanaal van H1 openen');
     await c.removeChannel(k);
+    assert.equal(r.status, 'CHANNEL_ERROR', `${naam}: verwacht een expliciete weigering, kreeg ${r.status}`);
+    assert.match(String(r.err?.message || r.err), /Unauthorized|permission/i, `${naam}: weigering zonder autorisatiereden: ${r.err?.message || r.err}`);
+  }
+  // Tegenproef: met een tijdelijk toegangsbeleid voor één testkanaal gaat een privékanaal wél open
+  // en is het live. Zo is aangetoond dat de weigering hierboven door het ontbrekende beleid komt.
+  const topic = 'kg-controle-' + run;
+  sql(`create policy kg_controle_${run} on realtime.messages for select to authenticated using ((select realtime.topic()) = '${topic}')`);
+  try {
+    const c = accounts.mira.client;
+    const echo = [];
+    const k = c.channel(topic, { config: { private: true, broadcast: { self: true, ack: true } } })
+      .on('broadcast', { event: 'kg-echo' }, m => echo.push(m.payload.id));
+    const r = await abonneer(k);
+    assert.equal(r.status, 'SUBSCRIBED', `tegenproef: privékanaal met beleid niet open (${r.status} ${r.err?.message || ''})`);
+    await c.removeChannel(k);
+  } finally {
+    sql(`drop policy kg_controle_${run} on realtime.messages`);
   }
 });
 

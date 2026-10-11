@@ -8,6 +8,8 @@
 #   komtgoed/supabase/tests/run.sh                          # matrix op de nabootsing (verwacht: 27 van 27)
 #   komtgoed/supabase/tests/run.sh --tegenproef             # daarna: elke sabotage moet het juiste scenario laten falen
 #   komtgoed/supabase/tests/run.sh --db postgresql://postgres:postgres@127.0.0.1:55322/postgres [--tegenproef]
+#   ... --gelijktijdig   daarna ook de gelijktijdigheidstests (tests/integratie/gelijktijdig.test.mjs, met
+#                        aparte verbindingen) en hun tegenproef; vraagt node en npm ci in tests/integratie.
 #
 # Matrix en tegenproeven lopen elk in één transactie die wordt teruggedraaid: er blijft niets achter.
 # Omgeving: PGBIN (map met initdb/pg_ctl/psql), standaard /usr/lib/postgresql/16/bin.
@@ -15,13 +17,14 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 KG="$(cd "$HERE/.." && pwd)"
 PGBIN="${PGBIN:-/usr/lib/postgresql/16/bin}"
-VERWACHT="KG-RLS-tests geslaagd: 27 van 27"
+VERWACHT="KG-RLS-tests geslaagd: 31 van 31"
 
-DB_URL=""; TEGENPROEF=0
+DB_URL=""; TEGENPROEF=0; GELIJKTIJDIG=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --db) DB_URL="$2"; shift 2 ;;
     --tegenproef) TEGENPROEF=1; shift ;;
+    --gelijktijdig) GELIJKTIJDIG=1; shift ;;
     *) echo "onbekende optie: $1"; exit 2 ;;
   esac
 done
@@ -89,4 +92,12 @@ if [ "$TEGENPROEF" = "1" ]; then
   uit="$(matrix)"; echo "$uit" | grep -q "$VERWACHT" || { echo "MATRIX NA TEGENPROEVEN MISLUKT"; exit 1; }
   echo "Tegenproeven gevangen: $((n-fouten)) van $n"
   [ "$fouten" -eq 0 ] || exit 1
+fi
+
+if [ "$GELIJKTIJDIG" = "1" ]; then
+  INT="$HERE/integratie"
+  [ -d "$INT/node_modules" ] || (cd "$INT" && npm ci --no-audit --no-fund)
+  if [ -n "$DB_URL" ]; then doel=(env DB_URL="$DB_URL"); else doel=(env -u DB_URL PGHOST="$WORK" PGPORT="$PORT" PGUSER=postgres PGDATABASE=kg_basis); fi
+  (cd "$INT" && "${doel[@]}" node --test --test-concurrency=1 --test-force-exit gelijktijdig.test.mjs)
+  (cd "$INT" && "${doel[@]}" KG_TEGENPROEF=1 node --test --test-concurrency=1 --test-force-exit gelijktijdig.test.mjs)
 fi

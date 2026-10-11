@@ -1,4 +1,4 @@
--- KomtGoed KG-1 + KG-5B: RLS- en rechtentestmatrix. Alles in één transactie die aan het eind wordt
+-- KomtGoed KG-1 + KG-5B (+ herstelronde 1): RLS- en rechtentestmatrix. Alles in één transactie die aan het eind wordt
 -- teruggedraaid: er blijft niets achter. Alleen lokaal (komtgoed/supabase/tests/run.sh); nooit op
 -- een gedeelde of productiedatabase draaien. Synthetische accounts op @test.invalid.
 --
@@ -617,6 +617,119 @@ do $$ begin
   perform pg_temp.ok('KG-T27');
 end $$;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 27' as resultaat;
+-- ============================== KG-5B herstelronde 1 (review van 6da0f47) ==============================
+-- De gelijktijdigheidsproblemen (P1, P3, P5 gelijktijdig) staan in tests/integratie/gelijktijdig.test.mjs:
+-- die vragen echte, aparte databaseverbindingen.
+reset role;
+select set_config('test.oud',   gen_random_uuid()::text, true);
+select set_config('test.nieuw', gen_random_uuid()::text, true);
+select set_config('test.gast',  gen_random_uuid()::text, true);
+select set_config('test.tien',  gen_random_uuid()::text, true);
+insert into auth.users (id, email) values
+  (current_setting('test.oud')::uuid,   'oud@test.invalid'),
+  (current_setting('test.nieuw')::uuid, 'nieuw@test.invalid'),
+  (current_setting('test.gast')::uuid,  'gast@test.invalid'),
+  (current_setting('test.tien')::uuid,  'tien@test.invalid');
+set local role authenticated;
+
+-- KG-T28 (P2) Een uitnodiging is alleen geldig zolang de maker haar nog mag geven. Oud maakt als
+-- eigenaar een beheerdersuitnodiging en een gewone uitnodiging, draagt het eigendom over en wordt
+-- daarna gearchiveerd: geen van beide oude uitnodigingen werkt nog (ook niet voor Oud zelf). Een
+-- nieuwe uitnodiging van de huidige eigenaar werkt wel.
+select pg_temp.als('oud');
+select set_config('test.h28', public.create_household('Overdracht', 'Oud')::text, true);
+select set_config('test.tok_oud_admin', public.create_invite(current_setting('test.h28')::uuid, null, 'admin'), true);
+select set_config('test.tok_oud_admin2', public.create_invite(current_setting('test.h28')::uuid, null, 'admin'), true);
+select set_config('test.tok_oud_lid', public.create_invite(current_setting('test.h28')::uuid, null, 'member'), true);
+select set_config('test.tok_nieuw', public.create_invite(current_setting('test.h28')::uuid, null, 'admin'), true);
+select pg_temp.als('nieuw');
+select public.accept_invite(current_setting('test.tok_nieuw'), 'Nieuw');
+select pg_temp.als('oud');
+select set_config('test.m_nieuw', (select id from public.household_members where household_id = current_setting('test.h28')::uuid and display_name = 'Nieuw')::text, true);
+select set_config('test.m_oud', (select member_id from public.my_memberships() where household_id = current_setting('test.h28')::uuid)::text, true);
+select public.transfer_ownership(current_setting('test.h28')::uuid, current_setting('test.m_nieuw')::uuid);
+do $$ declare h text := current_setting('test.h28'); begin
+  -- Oud is nu beheerder: de beheerdersuitnodigingen van Oud zijn ongeldig, de gewone nog niet.
+  perform pg_temp.als('gast');
+  if not pg_temp.faalt(format($q$ select public.accept_invite(%L, 'Gast') $q$, current_setting('test.tok_oud_admin'))) then raise exception 'KG-T28: beheerdersuitnodiging van een oud-eigenaar nog bruikbaar'; end if;
+  perform pg_temp.als('nieuw');
+  perform public.archive_member(h::uuid, current_setting('test.m_oud')::uuid);
+  perform pg_temp.als('oud');
+  if pg_temp.aantal('select 1 from public.households') <> 0 then raise exception 'KG-T28: gearchiveerde oud-eigenaar ziet het huishouden nog'; end if;
+  -- Oud probeert met de eigen oude tokens terug te komen.
+  if not pg_temp.faalt(format($q$ select public.accept_invite(%L, 'Oud') $q$, current_setting('test.tok_oud_admin2'))) then raise exception 'KG-T28: oud-eigenaar weer beheerder via eigen oude uitnodiging'; end if;
+  if not pg_temp.faalt(format($q$ select public.accept_invite(%L, 'Oud') $q$, current_setting('test.tok_oud_lid'))) then raise exception 'KG-T28: gearchiveerde maker: gewone uitnodiging nog bruikbaar'; end if;
+  if pg_temp.aantal('select 1 from public.households') <> 0 then raise exception 'KG-T28: oud-eigenaar kreeg toegang'; end if;
+  -- De ongeldige uitnodigingen staan ook als ingetrokken (zichtbaar voor beheer).
+  perform pg_temp.als('nieuw');
+  if pg_temp.aantal('select 1 from public.household_invites where accepted_at is null and revoked_at is null') <> 0 then raise exception 'KG-T28: ongeldige uitnodigingen staan nog open'; end if;
+  -- Een nieuwe, geautoriseerde uitnodiging werkt wel, met alleen de rechten die erin staan.
+  perform set_config('test.tok_terug', public.create_invite(h::uuid, null, 'member'), true);
+  perform pg_temp.als('oud');
+  perform public.accept_invite(current_setting('test.tok_terug'), 'Oud weer');
+  if (select role from public.my_memberships() where household_id = h::uuid) <> 'member' then raise exception 'KG-T28: nieuwe uitnodiging gaf verkeerde rol'; end if;
+  perform pg_temp.ok('KG-T28');
+end $$;
+
+-- KG-T29 (P4) Geen enkele kolom die naar een account verwijst, is via de API leesbaar (behalve je
+-- eigen profiel). Ook households.created_by niet.
+do $$ declare r record; begin
+  perform pg_temp.als('nieuw');
+  if not pg_temp.faalt('select created_by from public.households') then raise exception 'KG-T29: households.created_by leesbaar'; end if;
+  if not pg_temp.faalt('select * from public.households') then raise exception 'KG-T29: select * op households lukt (met created_by)'; end if;
+  if not pg_temp.faalt(format($q$ select id from public.households where created_by = %L $q$, current_setting('test.oud'))) then raise exception 'KG-T29: filteren op created_by lukt'; end if;
+  if pg_temp.aantal('select id, name, created_at, updated_at from public.households') <> 1 then raise exception 'KG-T29: gewone kolommen niet leesbaar'; end if;
+  for r in
+    select c.conrelid::regclass::text as tabel, a.attname as kolom
+    from pg_constraint c join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
+    where c.contype = 'f' and c.confrelid = 'auth.users'::regclass
+      and c.connamespace = 'public'::regnamespace and c.conrelid <> 'public.profiles'::regclass
+  loop
+    if has_column_privilege('authenticated', r.tabel, r.kolom, 'select') then raise exception 'KG-T29: %.% (account-ID) leesbaar', r.tabel, r.kolom; end if;
+  end loop;
+  perform pg_temp.ok('KG-T29');
+end $$;
+
+-- KG-T30 (P5) De limiet van 10 eigen huishoudens geldt ook bij eigendomsoverdracht.
+select pg_temp.als('tien');
+select public.create_household('Tien ' || g, 'Tien') from generate_series(1, 10) g;
+select pg_temp.als('nieuw');
+select set_config('test.tok_tien', public.create_invite(current_setting('test.h28')::uuid, null, 'admin'), true);
+select pg_temp.als('tien');
+select public.accept_invite(current_setting('test.tok_tien'), 'Tien');
+do $$ declare h text := current_setting('test.h28'); begin
+  perform pg_temp.als('nieuw');
+  if not pg_temp.faalt(format($q$ select public.transfer_ownership(%L, (select id from public.household_members where household_id = %L and display_name = 'Tien')) $q$, h, h)) then raise exception 'KG-T30: elfde huishouden via overdracht'; end if;
+  if (select role from public.my_memberships() where household_id = h::uuid) <> 'owner' then raise exception 'KG-T30: eigendom toch verschoven'; end if;
+  perform pg_temp.als('tien');
+  if (select count(*) from public.my_memberships() where role = 'owner') <> 10 then raise exception 'KG-T30: Tien heeft geen 10 eigen huishoudens meer'; end if;
+  perform pg_temp.ok('KG-T30');
+end $$;
+
+-- KG-T31 Vergrendelingsprotocol: elke functie die lidmaatschap, rollen, uitnodigingen of het
+-- huishouden wijzigt, vergrendelt eerst het huishouden (of het account, bij aanmaken).
+reset role;
+do $$ declare f text; def text; begin
+  foreach f in array array['add_member', 'create_invite', 'revoke_invite', 'accept_invite', 'set_member_role',
+    'archive_member', 'transfer_ownership', 'leave_household', 'delete_household', 'before_account_delete',
+    'ensure_owner', 'guard_member', 'guard_household'] loop
+    select pg_get_functiondef(p.oid) into def from pg_proc p where p.pronamespace = 'private'::regnamespace and p.proname = f;
+    if def is null or position('private.lock_household(' in def) = 0 then raise exception 'KG-T31: private.% vergrendelt het huishouden niet', f; end if;
+    -- Vergrendelen vóór de eerste autorisatiecontrole.
+    if position('has_role(' in def) > 0 and position('has_role(' in def) < position('private.lock_household(' in def) then
+      raise exception 'KG-T31: private.% controleert rechten vóór de vergrendeling', f;
+    end if;
+  end loop;
+  foreach f in array array['create_household', 'transfer_ownership'] loop
+    select pg_get_functiondef(p.oid) into def from pg_proc p where p.pronamespace = 'private'::regnamespace and p.proname = f;
+    if position('private.lock_owner_count(' in def) = 0 or position('private.lock_owner_count(' in def) > position('private.owned_household_count(' in def) then
+      raise exception 'KG-T31: private.% telt eigen huishoudens zonder accountvergrendeling', f;
+    end if;
+  end loop;
+  if not exists (select 1 from pg_trigger where tgname = 'households_guard' and tgrelid = 'public.households'::regclass) then raise exception 'KG-T31: trigger households_guard ontbreekt'; end if;
+  perform pg_temp.ok('KG-T31');
+end $$;
+
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 31' as resultaat;
 
 rollback;

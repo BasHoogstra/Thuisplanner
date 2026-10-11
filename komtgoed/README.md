@@ -13,11 +13,11 @@ De nieuwe gezinsapp, technisch gescheiden van Huisplan. De definitieve merknaam 
 | Pad | Inhoud |
 | --- | --- |
 | `supabase/config.toml` | Supabase CLI-configuratie, alleen voor lokale ontwikkeling. Niet gekoppeld aan een project. |
-| `supabase/migrations/` | Het databaseschema van KomtGoed. KG-1: profielen, huishoudens, leden, uitnodigingen, rollen, toegangsrechten. KG-5B: account-ID's afgeschermd, account en huishouden verwijderen, limiet op huishoudens. |
-| `supabase/tests/rls_tests.sql` | De RLS- en rechtentestmatrix (KG-T01 t/m KG-T27), in één transactie die wordt teruggedraaid. |
+| `supabase/migrations/` | Het databaseschema van KomtGoed. KG-1: profielen, huishoudens, leden, uitnodigingen, rollen, toegangsrechten. KG-5B: account-ID's afgeschermd, account en huishouden verwijderen, limiet op huishoudens; herstelronde 1: vergrendelingsprotocol tegen races. |
+| `supabase/tests/rls_tests.sql` | De RLS- en rechtentestmatrix (KG-T01 t/m KG-T31), in één transactie die wordt teruggedraaid. |
 | `supabase/tests/tegenproeven.txt` | Sabotages: elke regel schakelt één beveiliging uit; de matrix moet dan op het genoemde scenario falen. |
 | `supabase/tests/run.sh` | Bouwt een tijdelijke, lege PostgreSQL op, voert de migraties uit en draait de matrix (en met `--tegenproef` de tegenproeven). Met `--db <url>` op een draaiende lokale Supabase. |
-| `supabase/tests/integratie/` | Integratietest met supabase-js tegen een lokale Supabase: API, Auth (account verwijderen) en Realtime (niets lekt uit). |
+| `supabase/tests/integratie/` | Integratietest met supabase-js tegen een lokale Supabase: API, Auth (account verwijderen) en Realtime (niets lekt uit). Plus `gelijktijdig.test.mjs`: races met aparte databaseverbindingen (node-postgres), met tegenproef. |
 | `supabase/tests/statisch.js` | Statische controles zonder database (naamgeving, RLS op elke tabel, security invoker in `public`, geen secrets, geen koppeling, Huisplan-bestanden ongewijzigd). |
 | `supabase/tests/supabase_stub.sql` | Kopie van de Huisplan-nabootsing van de Supabase-onderdelen (auth, rollen, extensies), zodat deze map los staat. |
 
@@ -25,8 +25,9 @@ De nieuwe gezinsapp, technisch gescheiden van Huisplan. De definitieve merknaam 
 
 ```sh
 node komtgoed/supabase/tests/statisch.js                 # zonder database
-komtgoed/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "27 van 27"
-komtgoed/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "22 van 22"
+komtgoed/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "31 van 31"
+komtgoed/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "26 van 26"
+komtgoed/supabase/tests/run.sh --tegenproef --gelijktijdig  # + gelijktijdigheidstests (node, aparte verbindingen)
 node tests/run.js komtgoed                               # via de bestaande testrunner
 ```
 

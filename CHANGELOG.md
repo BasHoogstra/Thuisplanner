@@ -498,3 +498,11 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: matrix KG-T01 t/m KG-T27, 22 tegenproeven, nu ook op een echte lokale Supabase
   (`run.sh --db`); integratietest met supabase-js (API, Auth, Realtime). CI-job `supabase-lokaal`.
 
+## KomtGoed KG-5B herstelronde 1 — vijf reviewbevindingen opgelost (alleen lokaal)
+- Migratie `20261011120000_kg5b_herstel1.sql`: één vergrendelingsprotocol (eerst het huishouden, dan de
+  rechtencontrole, dan rijen, dan het account) in alle muterende functies, `ensure_owner` en de
+  API-triggers; uitnodigingen alleen geldig zolang de maker ze nog mag geven; `households.created_by`
+  niet leesbaar; limiet van 10 eigen huishoudens ook bij overdracht en gelijktijdig.
+- Tests: KG-T28 t/m KG-T31, 26 tegenproeven, gelijktijdigheidstests met aparte verbindingen (met
+  tegenproef; reproduceren alle vijf problemen op `6da0f47`), strengere realtime-tests.
+

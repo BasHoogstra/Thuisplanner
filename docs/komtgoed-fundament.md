@@ -1,7 +1,8 @@
 # KomtGoed KG-1: databasefundament
 
 **Status:** gebouwd en lokaal getest, in een eigen PR; niet gemerged, niet gedeployd. Verstevigd in
-KG-5B (stap 1 van het bouwplan `docs/komtgoed-bouwplan.md`): zie sectie 7. Getest op een nabootsing
+KG-5B (stap 1 van het bouwplan `docs/komtgoed-bouwplan.md`): zie sectie 7, en herstelronde 1 na de
+onafhankelijke review: zie sectie 8. Getest op een nabootsing
 (PostgreSQL 16) én op een echte lokale Supabase-stack (PostgreSQL 17.6, `supabase start`).
 
 - **Wat het is:** accounts/profielen, huishoudens, leden, uitnodigingen, rollen en toegangsrechten
@@ -148,8 +149,12 @@ testtransactie bestaat (KG-T16).
 | KG-T25 | (KG-5B) Huishouden verwijderen: alleen een actieve eigenaar; leden en uitnodigingen gaan mee; andere huishoudens blijven |
 | KG-T26 | (KG-5B) Account verwijderen (AVG): lid en beheerder lukt (lid blijft zonder account); enige eigenaar met andere accounts geweigerd; anders gaat het huishouden mee |
 | KG-T27 | (KG-5B) Realtime: geen tabel uit `public` in een publicatie |
+| KG-T28 | (herstel P2) Uitnodiging alleen geldig zolang de maker haar nog mag geven: oud-eigenaar kan niet via een eigen oude token terugkomen; nieuwe, geautoriseerde uitnodiging werkt wel |
+| KG-T29 | (herstel P4) Geen kolom die naar een account verwijst leesbaar via de API (ook `households.created_by`), behalve je eigen profiel |
+| KG-T30 | (herstel P5) Limiet van 10 eigen huishoudens ook bij eigendomsoverdracht |
+| KG-T31 | (herstel P1) Protocol: elke muterende functie vergrendelt eerst het huishouden (of het account), vóór de rechtencontrole |
 
-**Tegenproeven** (`tegenproeven.txt`): 22 sabotages (14 uit KG-1, 8 uit KG-5B). Elke sabotage moet het genoemde scenario laten
+**Tegenproeven** (`tegenproeven.txt`): 26 sabotages (14 uit KG-1, 8 uit KG-5B, 4 uit herstelronde 1). Elke sabotage moet het genoemde scenario laten
 falen. Voorbeelden:
 - RLS openzetten;
 - de tokenhash leesbaar maken;
@@ -200,3 +205,71 @@ adressen):
 - private kanalen `household:<id>` zijn dicht voor buitenstaander én lid;
 - account verwijderen via de Auth-admin-API (zoals een AVG-verzoek): lid lukt, enige eigenaar met
   anderen geweigerd, daarna beheerder en eigenaar lukt en het huishouden verdwijnt.
+
+## 8. KG-5B herstelronde 1 (review van `6da0f47`)
+
+Migratie `komtgoed/supabase/migrations/20261011120000_kg5b_herstel1.sql`. Een onafhankelijke review vond
+vijf beveiligingsproblemen; alle vijf zijn eerst met een test gereproduceerd op `6da0f47` en daarna
+opgelost.
+
+| # | Probleem | Oplossing | Test |
+| --- | --- | --- | --- |
+| P1 | Race: een autorisatie die op een oude momentopname was gecontroleerd, kon na intrekking van de toegang alsnog een mutatie uitvoeren (`delete_household`, `set_member_role`, …) | Vergrendelingsprotocol (hieronder) in alle muterende functies en in de triggers voor directe API-wijzigingen | `gelijktijdig.test.mjs` (P1 ×2), KG-T31 |
+| P2 | Een oud-eigenaar kon via een eigen, eerder uitgegeven beheerdersuitnodiging weer beheerder worden | Een uitnodiging is alleen geldig zolang de maker haar nu nog mag geven (beheerdersuitnodiging: actieve eigenaar; gewone: actieve eigenaar of beheerder). `accept_invite` controleert dat; bij elke rol-, archiverings-, vertrek- of accountwijziging vervallen zulke uitnodigingen ook direct. Een nieuwe uitnodiging van de huidige eigenaar werkt gewoon | KG-T28 |
+| P3 | Twee eigenaars die tegelijk vertrekken, konden samen de laatste eigenaar laten verdwijnen | `leave_household` en de uitgestelde controle `ensure_owner` vergrendelen het huishouden en tellen daarna opnieuw | `gelijktijdig.test.mjs` (P3) |
+| P4 | `households.created_by` (account-ID) leesbaar via de API | Kolomrechten: alleen `id`, `name`, `created_at`, `updated_at` | KG-T29, integratietest |
+| P5 | Limiet van 10 eigen huishoudens gold niet bij overdracht en niet bij gelijktijdige transacties | Limiet ook in `transfer_ownership`; tellen gebeurt pas na een accountvergrendeling (`create_household` en `transfer_ownership`) | KG-T30, `gelijktijdig.test.mjs` (P5 ×2) |
+
+### Vergrendelingsprotocol
+
+Geldt voor elke wijziging van lidmaatschap, rollen, uitnodigingen of het huishouden zelf:
+
+1. **Eerst het huishouden vergrendelen:** `private.lock_household(h)` zet een rijvergrendeling
+   (`FOR NO KEY UPDATE`) op de rij van het huishouden. Alle mutaties binnen één huishouden lopen daardoor
+   na elkaar. Raakt een mutatie meerdere huishoudens (account verwijderen), dan vergrendelt ze die in
+   oplopende volgorde van id.
+2. **Pas daarna de autorisatie** (`has_role`, `is_active_member`, …) en alle andere controles. In read
+   committed krijgt elke opdracht na het wachten een verse momentopname, dus een rol die intussen is
+   ingetrokken, wordt gezien. `lock_household` weigert andere isolatieniveaus (fail closed): daar zou
+   een oude momentopname blijven gelden.
+3. **Dan de rijen** van leden en uitnodigingen (`FOR UPDATE`), en als laatste, alleen waar een account
+   eigenaar wordt, de **accountvergrendeling** `private.lock_owner_count(user)` (advisory lock op het
+   account). Zo klopt de telling van eigen huishoudens over huishoudens heen.
+
+Vaste volgorde: huishouden(s) → rijen → account. Ook de uitgestelde controle "minstens één eigenaar"
+vergrendelt het huishouden en telt daarna opnieuw. Directe API-wijzigingen (naam van het huishouden,
+weergavegegevens van een lid) controleren de rol opnieuw ná de vergrendeling, in een trigger
+(`households_guard`, `guard_member`).
+
+### Gelijktijdigheidstests
+
+Bestand: `komtgoed/supabase/tests/integratie/gelijktijdig.test.mjs`, met node-postgres en drie aparte
+verbindingen. De test draait op de nabootsing (`run.sh --gelijktijdig`) en op de echte lokale stack.
+
+- **Opzet per scenario:** verbinding 1 voert een geautoriseerde wijziging uit en houdt haar transactie
+  open. Verbinding 2 start de concurrerende wijziging. Een derde verbinding stelt via `pg_stat_activity`
+  vast dat verbinding 2 echt op een vergrendeling wacht. Daarna COMMIT 1, dan 2, en de eindtoestand
+  wordt ná COMMIT gecontroleerd.
+- **Is verbinding 2 meteen klaar** (geen vergrendeling, zoals vóór de fix), dan laat de test haar
+  uitgestelde controles nog vóór COMMIT 1 lopen. Dat is precies wat gebeurt als beide tegelijk
+  committen.
+- **Tegenproef** (`KG_TEGENPROEF=1`): de vergrendelfuncties worden tijdelijk vervangen door een lege
+  functie; dan moet elke race weer optreden. Daarna worden de originele definities teruggezet.
+- **Op `6da0f47` (vóór de fix):** alle vijf scenario's falen ("fout niet geblokkeerd"), en KG-T28 t/m
+  KG-T31 falen met de verwachte melding.
+
+### Realtime-tests aangescherpt
+
+- **Kanaal moet live zijn:** een abonnement telt alleen als het SUBSCRIBED is én een eigen
+  broadcast-echo via de server terugkomt, vóór en ná het meetvenster. Een time-out of foutstatus geldt
+  nooit als geslaagde controle.
+- **Weigering moet expliciet zijn:** een private-kanaalweigering moet een CHANNEL_ERROR met
+  autorisatiereden zijn.
+- **Tegenproef voor private kanalen:** met een tijdelijk toegangsbeleid voor één testkanaal gaat een
+  privékanaal wél open.
+
+### Bekende grenzen
+
+- Een directe API-wijziging van een lid kan tegelijk met een functie in een deadlock komen. Het
+  rijslot komt dan vóór het huishoudslot; PostgreSQL breekt één van beide af (fail closed).
+- Mutaties vragen read committed. Dat is de standaard van PostgREST en Auth.

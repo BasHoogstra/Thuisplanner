@@ -186,6 +186,7 @@ Negen stappen, elk een eigen kleine PR die lokaal of in CI getest wordt. Tot en 
 1. **KG-5B · PR #19 verstevigen.** Bevindingen 2, 4, 5 en 6 oplossen; CI-job met `supabase start`; PostgreSQL-versie gelijktrekken. Geen nieuwe tabellen.
    - Klaar als: de bestaande matrix (22 scenario's) en 14 tegenproeven slagen tegen de echte lokale Supabase.
    - Uitkomst KG-5B: 27 scenario's en 22 tegenproeven slagen op de stub (PostgreSQL 16) én op de echte lokale stack (PostgreSQL 17.6), plus een integratietest met supabase-js. Bevinding 3 (account verwijderen) is ook opgelost. Zie `docs/komtgoed-fundament.md`.
+   - Herstelronde 1 na onafhankelijke review: vijf beveiligingsproblemen (races, oude uitnodigingen, gelijktijdig vertrek, `created_by`, limiet bij overdracht) opgelost met één vergrendelingsprotocol; 31 scenario's, 26 tegenproeven en gelijktijdigheidstests met aparte verbindingen. Zie `docs/komtgoed-fundament.md` §8.
 2. **KG-5C · Inhoudsschema.** Zes inhoudstabellen, de view voor afspraken, de functies voor herhaling en boodschappen, en de RLS.
    - Klaar als: de matrix voor privé, herhaling en dubbelingen slaagt met tegenproeven (gate 9 technisch gehaald).
 3. **KG-5D · Realtime op de server.** Trigger naar `household:<id>` en het beleid op `realtime.messages`.

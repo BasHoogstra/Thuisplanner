@@ -39,10 +39,10 @@ jobs:
             sudo apt-get update && sudo apt-get install -y postgresql-16
           fi
           /usr/lib/postgresql/16/bin/postgres --version
-      - name: RLS-matrix en tegenproeven
+      - name: RLS-matrix, tegenproeven en gelijktijdigheid
         env:
           PGBIN: /usr/lib/postgresql/16/bin
-        run: bash komtgoed/supabase/tests/run.sh --tegenproef
+        run: bash komtgoed/supabase/tests/run.sh --tegenproef --gelijktijdig
 
   supabase-lokaal:
     # Echte Supabase-componenten (PostgreSQL 17, PostgREST, GoTrue, Realtime) in Docker op de runner.
@@ -62,7 +62,7 @@ jobs:
         run: $SUPABASE start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,postgres-meta
       - name: RLS-matrix en tegenproeven op de echte stack
         run: bash komtgoed/supabase/tests/run.sh --db "$DB_URL" --tegenproef
-      - name: Integratietest (API, Auth, Realtime)
+      - name: Integratie (API, Auth, Realtime) en gelijktijdigheid
         run: |
           (cd komtgoed/supabase/tests/integratie && npm ci --no-audit --no-fund)
           bash komtgoed/supabase/tests/integratie/run.sh
