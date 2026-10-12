@@ -964,7 +964,8 @@ do $$ declare h text := current_setting('test.hs'); u uuid[] := array[gen_random
   select string_agg(name || ':' || outcome, ',' order by name) into uitkomst from public.add_shopping_items(h::uuid, v, array['MELK', 'Eieren']);
   if uitkomst <> 'Eieren:nieuw,Melk:terug' then raise exception 'KG-T38: tweede toevoeging gaf %', uitkomst; end if;
   select string_agg(name || ':' || outcome, ',' order by name) into uitkomst from public.add_shopping_items(h::uuid, v, array['MELK', 'Eieren']);
-  if uitkomst <> 'Eieren:al_op_lijst,Melk:al_op_lijst' then raise exception 'KG-T38: herhaalde opdracht gaf %', uitkomst; end if;
+  -- Herhaalde opdracht (zelfde ID's): de oorspronkelijke uitkomst, zonder nieuwe bijwerking (herstelronde 3).
+  if uitkomst <> 'Eieren:nieuw,Melk:terug' then raise exception 'KG-T38: herhaalde opdracht gaf %', uitkomst; end if;
   if not pg_temp.faalt(format($q$ insert into public.shopping_items (household_id, name) values (%L, 'brood') $q$, h)) then raise exception 'KG-T38: directe dubbeling toegestaan'; end if;
   perform pg_temp.geraakt($q$ update public.shopping_items set deleted_at = now() where name = 'Brood' $q$);
   select string_agg(name || ':' || outcome, ',') into uitkomst from public.add_shopping_items(h::uuid, array[gen_random_uuid()], array['Brood']);
@@ -1336,6 +1337,58 @@ do $$ declare h text := current_setting('test.hs'); nu text := current_setting('
   perform pg_temp.ok('KG-T49');
 end $$;
 
+-- ============================== KG-5D herstelronde 3 (review van 89e58c5) ==============================
+-- KG-T50 (fout 2) Een herhaalde boodschappenopdracht (zelfde opdracht-ID) heeft nooit een tweede
+-- bijwerking: ze geeft de oorspronkelijke uitkomst terug, ook als iemand de boodschap intussen afvinkte.
+-- Een bewust nieuwe opdracht (nieuwe ID) volgt wel de productregels (afgevinkt komt terug). Een ID van een
+-- ander huishouden geeft een fout; het register is niet leesbaar via de API.
+reset role;
+select set_config('test.c50a', gen_random_uuid()::text, true);
+select set_config('test.c50b', gen_random_uuid()::text, true);
+select set_config('test.c50c', gen_random_uuid()::text, true);
+select set_config('test.c50x', gen_random_uuid()::text, true);
+select set_config('test.c50d', gen_random_uuid()::text, true);
+insert into private.shopping_commands (id, household_id, item_id, outcome)
+  values (current_setting('test.c50x')::uuid, current_setting('test.hr')::uuid, gen_random_uuid(), 'nieuw');
+insert into public.shopping_items (id, household_id, name)
+  values (current_setting('test.c50d')::uuid, current_setting('test.hs')::uuid, 'T50-oud');
+set local role authenticated;
+do $$ declare h uuid := current_setting('test.hs')::uuid; a uuid := current_setting('test.c50a')::uuid;
+  b uuid := current_setting('test.c50b')::uuid; c uuid := current_setting('test.c50c')::uuid; uitkomst text;
+  afgevinkt text := $q$ select 1 from public.shopping_items where name = 'T50-melk' and deleted_at is null and checked_at is not null $q$; begin
+  perform pg_temp.als('noa');
+  select outcome into uitkomst from public.add_shopping_items(h, array[a], array['T50-melk']);
+  if uitkomst <> 'nieuw' then raise exception 'KG-T50: eerste opdracht gaf %', uitkomst; end if;
+  -- Ander gezinslid vinkt af; daarna dezelfde opdracht opnieuw (antwoord was verloren).
+  perform pg_temp.als('sam');
+  if pg_temp.geraakt($q$ update public.shopping_items set checked_at = now() where name = 'T50-melk' $q$) <> 1 then raise exception 'KG-T50: afvinken lukt niet'; end if;
+  perform pg_temp.als('noa');
+  select outcome into uitkomst from public.add_shopping_items(h, array[a], array['T50-melk']);
+  if uitkomst <> 'nieuw' then raise exception 'KG-T50: herhaalde opdracht gaf % in plaats van de oorspronkelijke uitkomst', uitkomst; end if;
+  if pg_temp.aantal(afgevinkt) <> 1 then raise exception 'KG-T50: herhaalde opdracht opende een afgevinkte boodschap opnieuw'; end if;
+  -- Bewust nieuw (nieuwe ID): afgevinkt komt terug, en herhalen daarvan opent hem niet nóg eens.
+  select outcome into uitkomst from public.add_shopping_items(h, array[b], array['t50-MELK']);
+  if uitkomst <> 'terug' or pg_temp.aantal(afgevinkt) <> 0 then raise exception 'KG-T50: bewust nieuwe opdracht gaf %', uitkomst; end if;
+  perform pg_temp.als('sam');
+  perform pg_temp.geraakt($q$ update public.shopping_items set checked_at = now() where name = 'T50-melk' $q$);
+  perform pg_temp.als('noa');
+  select outcome into uitkomst from public.add_shopping_items(h, array[b], array['t50-MELK']);
+  if uitkomst <> 'terug' or pg_temp.aantal(afgevinkt) <> 1 then raise exception 'KG-T50: herhaling van "terug" had een bijwerking (%)', uitkomst; end if;
+  -- "Staat er al": herhalen na afvinken heeft ook geen bijwerking.
+  select outcome into uitkomst from public.add_shopping_items(h, array[c], array['T50-brood']);
+  select outcome into uitkomst from public.add_shopping_items(h, array[gen_random_uuid()], array['T50-brood']);
+  if uitkomst <> 'al_op_lijst' then raise exception 'KG-T50: bestaande boodschap gaf %', uitkomst; end if;
+  -- Oude boodschap met dezelfde ID (van vóór het register): al verwerkt, geen bijwerking.
+  select outcome into uitkomst from public.add_shopping_items(h, array[current_setting('test.c50d')::uuid], array['T50-oud']);
+  if uitkomst <> 'al_verwerkt' then raise exception 'KG-T50: bestaande ID gaf %', uitkomst; end if;
+  if pg_temp.aantal($q$ select 1 from public.shopping_items where name = 'T50-melk' $q$) <> 1 then raise exception 'KG-T50: dubbele boodschap'; end if;
+  -- ID van een ander huishouden: fout, niets aangemaakt.
+  if not pg_temp.faalt(format('select public.add_shopping_items(%L, array[%L]::uuid[], array[%L])', h, current_setting('test.c50x'), 'T50-vreemd')) then raise exception 'KG-T50: opdracht-ID van een ander huishouden geaccepteerd'; end if;
+  if pg_temp.aantal($q$ select 1 from public.shopping_items where name = 'T50-vreemd' $q$) <> 0 then raise exception 'KG-T50: boodschap aangemaakt met een vreemde opdracht-ID'; end if;
+  if not pg_temp.faalt('select 1 from private.shopping_commands') then raise exception 'KG-T50: register leesbaar via de API'; end if;
+  perform pg_temp.ok('KG-T50');
+end $$;
+
 -- KG-T40 Catalogus inhoud: geen delete-recht, afspraken alleen via functies, view met security_invoker,
 -- en elke inhoudsfunctie vergrendelt het huishouden vóór de lidmaatschapscontrole.
 reset role;
@@ -1385,6 +1438,6 @@ do $$ declare h text := current_setting('test.hs'); t text; begin
 end $$;
 set constraints all deferred;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 49' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 50' as resultaat;
 
 rollback;

@@ -565,3 +565,13 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: `herstel2.test.mjs` (12), gedeelde `testhulp.mjs`, 21 mutatie-tegenproeven, e2e voor sluiten/heropenen,
   keuze bij mogelijk dubbel, offline invoer en geweigerde opslag.
 
+## Thuisplanner KG-5D herstelronde 3 — twee idempotentiefouten (review van 89e58c5)
+- Overlappende pogingen: een opdracht telt haar lopende pogingen; een zekere fout van één poging ruimt de
+  opdracht niet op zolang een andere poging (mogelijk al gecommit) nog loopt.
+- Migratie `20261017120000_kg5d_herstel3.sql`: register `private.shopping_commands`; een herhaalde
+  boodschappenopdracht (zelfde ID) geeft de oorspronkelijke uitkomst terug zonder bijwerking; alleen een nieuwe
+  ID volgt de productregels.
+- Privacy van de lokale opslag onderzocht en vastgelegd (docs/thuisplanner-sync.md §9); beslissingen P1–P5 open.
+- Tests: KG-T50 (matrix 50), 57 SQL-tegenproeven, `herstel3.test.mjs` (R1a, R1b, R2) met tegenproef op de oude
+  databasefunctie, 22 mutatie-tegenproeven.
+

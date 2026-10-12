@@ -1,6 +1,6 @@
 # Thuisplanner KG-5D: synchronisatie tussen gezinsleden (bouwplan stap 3)
 
-**Status:** gebouwd en lokaal getest op een eigen branch, als aparte PR boven op PR #21. Niet gemerged, niet gedeployd. Herstelronde 1 na de review van `3f3b7da` (§7) en herstelronde 2 na de review van `79a5852` (§8) verwerkt.
+**Status:** gebouwd en lokaal getest op een eigen branch, als aparte PR boven op PR #21. Niet gemerged, niet gedeployd. Herstelronde 1 na de review van `3f3b7da` (§7) en herstelronde 2 na de review van `79a5852` (§8) en herstelronde 3 na de review van `89e58c5` (§9) verwerkt.
 
 Technische map: `komtgoed/`; productnaam: Thuisplanner.
 
@@ -158,8 +158,10 @@ Schermafdrukken van de geautomatiseerde e2e-run staan in `docs/afbeeldingen/thui
 | Tegenproeven | `tegenproeven.txt` | KG-5D: een seintje met de hele rij, een open leesbeleid, een zendbeleid voor clients, een ontbrekende trigger. Herstelronde: geen kanaalwissel, beleid zonder volgnummer, kanaalwissel vóór het ledenseintje, kanaalnaam voor niet-leden, seintjes naar de oude vaste naam. |
 | Synchronisatie | `integratie/sync.test.mjs` | Zeven tests met aparte accounts en sessies; zie het overzicht hieronder. |
 | Herstelronde 1 | `integratie/herstel.test.mjs` | Twaalf regressietests voor de vier bevindingen, met "poorten" die lopende verzoeken in een vaste volgorde vasthouden, uitvoeren of zonder antwoord afbreken (§7). |
+| Database | `rls_tests.sql` KG-T50 | Herhaalde boodschappenopdracht (zelfde ID) zonder tweede bijwerking, ook na afvinken; bewust nieuw volgt de productregels; ID van een ander huishouden geweigerd; register niet leesbaar (herstelronde 3). |
+| Herstelronde 3 | `integratie/herstel3.test.mjs` | Overlappende geweigerde herhaling (R1a/R1b) en Melk opnieuw proberen na afvinken (R2), met tegenproef op de oude databasefunctie (§9). |
 | Herstelronde 2 | `integratie/herstel2.test.mjs` | Twaalf regressietests voor de drie idempotentieproblemen: verlopen sessie, dezelfde titel, opdrachtverlies (§8). Gedeelde testhulp in `integratie/testhulp.mjs`. |
-| Tegenproeven module | `integratie/sync-tegenproeven.mjs` | 21 mutaties van de module die één herstelde eigenschap terugdraaien; elke mutatie moet haar regressietest laten falen. |
+| Tegenproeven module | `integratie/sync-tegenproeven.mjs` | 22 mutaties van de module die één herstelde eigenschap terugdraaien; elke mutatie moet haar regressietest laten falen. |
 | Realtime-meting | `integratie/realtime-meting.mjs` | Meet het eigen gedrag van Realtime bij intrekking (geen CI; uitkomst in §7). |
 | Realtime-toegang | `integratie/integratie.test.mjs` | Buitenstaander krijgt een expliciete weigering, lid komt binnen (alleen met het actuele volgnummer), zelf zenden lukt niet. |
 | Demo e2e | `komtgoed/dev/tests/demo.e2e.mjs` | Zeven tests met twee **echte browsersessies** (Playwright, Chromium, eigen context per account); zie het overzicht hieronder. |
@@ -370,3 +372,67 @@ De volledige tabel met uitkomsten staat in de PR-beschrijving. Lokaal uitgevoerd
 - andere browsers dan Chromium;
 - echte privémodus van een browser (nagebootst met een opslag die schrijven weigert);
 - een echt verlopen token na een uur (nagebootst met een verlopen, lokaal getekend JWT op elk REST-verzoek).
+
+## 9. Herstelronde 3 (review van `89e58c5`)
+
+Twee idempotentiefouten en een onderzoek naar de privacy van de lokale opslag. De tests staan in `integratie/herstel3.test.mjs` en `rls_tests.sql` (KG-T50), tegen de echte lokale stack.
+
+### Fout 1: overlappende geweigerde herhaalpoging
+
+- **Oorzaak:** de staat van een opdracht hield geen rekening met pogingen die nog onderweg waren. Liep de eerste poging nog (al gecommit, antwoord onderweg) en kreeg een overlappende herhaling een zekere fout (`42501`), dan gold die herhaling als "enige poging, zeker geweigerd". De opdracht werd opgeruimd terwijl de eerste poging misschien al was opgeslagen.
+- **Oplossing:** een opdracht telt haar lopende pogingen (`lopend`). Een zekere fout ruimt de opdracht alleen op als geen andere poging meer loopt én er nooit een onbekende uitkomst was. Anders blijft ze onderweg en daarna "onzeker", met dezelfde UUID. Alleen een bevestiging (de server heeft het id, of een poging slaagt) of de gebruiker ("vergeten") ruimt haar op. Eén regel extra in de bestaande afhandeling; verder niets veranderd.
+- **Bewijs:**
+  - R1a, in deze volgorde: eerste poging gecommit met het antwoord tegengehouden; Bram gearchiveerd; overlappende herhaling krijgt `42501`; het antwoord van de eerste poging gaat verloren; de toegang wordt hersteld (nieuwe uitnodiging); stop/start. De identiteit blijft in geheugen en opslag. Na herstel bevestigt de eerste geldige ronde de opdracht. Opnieuw proberen verstuurt niets meer: precies één rij, dezelfde UUID.
+  - R1b: dezelfde volgorde zonder commit; na herstel geeft opnieuw proberen één rij.
+  - Tegen de module uit `89e58c5` falen R1a en R1b ("de geweigerde herhaling verwijderde de opdracht terwijl de eerste poging nog liep").
+  - Mutatie-tegenproef 22.
+
+### Fout 2: opnieuw proberen van boodschappen
+
+- **Oorzaak:** `add_shopping_items` zocht eerst op naam en opende een afgevinkte boodschap opnieuw ("terug"), vóór het keek of dezelfde opdracht-ID al verwerkt was. Een herhaalde opdracht kon dus een tweede bijwerking hebben. Bij de uitkomst "terug" of "al op de lijst" werd de ID bovendien nergens vastgelegd.
+- **Oplossing** (migratie `20261017120000_kg5d_herstel3.sql`): een register `private.shopping_commands` met opdracht-ID, huishouden, uitkomst en de boodschap waarop ze uitkwam (geen namen).
+  - **Eerst vastleggen:** per boodschap legt de functie eerst de opdracht-ID vast (`insert … on conflict do nothing`). Een gelijktijdige herhaling wacht op de eerste en ziet daarna haar uitkomst.
+  - **Bekende ID:** is ze al verwerkt, dan komt de oorspronkelijke uitkomst terug, **zonder enige bijwerking**.
+  - **Nieuwe ID:** alleen een nieuwe ID volgt de productregels (staat er al, afgevinkt komt terug, of nieuw). Zo blijft het verschil tussen opnieuw proberen (dezelfde UUID) en een nieuwe gebruikersintentie (nieuwe UUID, in de app via de keuze uit §8) ook op de server bewaard.
+  - **Oude boodschap:** een boodschap met dezelfde ID van vóór het register telt als "al verwerkt".
+  - **Ander huishouden:** een ID uit een ander huishouden geeft een algemene fout.
+- **Bewijs:**
+  - R2: Melk toevoegen; het antwoord gaat verloren; Anna vinkt Melk af; de oorspronkelijke opdracht wordt opnieuw geprobeerd. Melk blijft afgevinkt, ook bij nog een rechtstreekse herhaling. Een bewust nieuwe toevoeging (nieuwe UUID) opent Melk wel ("terug").
+  - Tegenproef (`KG_TEGENPROEF=1`): met de oude databasefunctie opent de herhaling Melk wél opnieuw.
+  - KG-T50: herhalen na afvinken, bewust nieuw, herhalen van "terug" en van "al op de lijst", een oude ID, een ID van een ander huishouden, en het register niet leesbaar.
+  - KG-T38 is aangepast: een herhaalde opdracht geeft nu de oorspronkelijke uitkomst in plaats van een nieuwe beoordeling op naam.
+  - Twee SQL-tegenproeven: de oude functie wordt gevangen door KG-T38; een leesrecht op het register door KG-T50.
+- **Beperking:** het register groeit met elke toegevoegde boodschap en heeft nog geen bewaartermijn (zie beslissing P5).
+
+### Privacy van de lokale opslag (onderzoek; beslissingen nodig)
+
+**Wat er nu op het toestel staat** (feiten, ongewijzigd in deze ronde):
+
+| Laag | Inhoud | Levensduur |
+| --- | --- | --- |
+| Paginageheugen | Volledige opdracht (ook privé-afspraken) | Tot het tabblad sluit |
+| `localStorage` (alleen als de app `opslag` meegeeft) | Identiteit, soort, account-ID, huishouden-ID, staat, plus de **inhoud** van boodschappen, taken en gedeelde afspraken. Van privé-afspraken alleen de identiteit. | Tot bevestiging of "vergeten"; overleeft uitloggen en een accountwissel |
+
+**Wat de account-ID in de sleutel wel en niet doet:** het voorkomt alleen dat de **app** opdrachten van een ander account overneemt of verstuurt (getest in H3e). Het is **geen beveiliging**: iedereen die dezelfde browser gebruikt, kan alles in `localStorage` lezen met ontwikkelaarsgereedschap, en elke code op dezelfde oorsprong ook. Versleutelen met een sleutel die op hetzelfde toestel staat, is schijnveiligheid; dat doen we dus niet.
+
+**Vier situaties apart:**
+
+1. **Veilige ontwikkelmodus met fictieve gegevens** (`komtgoed/dev`, alleen `127.0.0.1`, alleen `@test.invalid`-accounts). Inhoud in `localStorage` is hier aanvaardbaar en handig om herstel te laten zien. Zo staat het nu.
+2. **Normale accountwisseling en uitloggen.** Nu ruimt `stop()` niets op: onbevestigde opdrachten (met inhoud) blijven na uitloggen op het toestel staan. Ze zijn leesbaar voor de volgende gebruiker van die browser, maar de app neemt ze niet over. Uitloggen is een bewuste privacyhandeling van de gebruiker; een unmount, een verlopen sessie of een herstart is dat niet.
+3. **Herstelbare opdrachten bewaren.** Om dubbelingen te voorkomen is alleen de **identiteit** nodig: daarmee bevestigt de eerste geldige ronde na een herstart een opdracht die de server al heeft, en blijft dezelfde UUID beschikbaar. De **inhoud** is alleen nodig om opnieuw te kunnen versturen zonder opnieuw te typen. Dat is gemak, geen voorwaarde voor idempotentie.
+4. **Privacy op gedeelde apparaten.** De browser is geen grens tussen mensen die één browserprofiel delen. Echte bescherming is alleen: niets gevoeligs op het toestel bewaren, of aparte profielen of accounts op het toestel.
+
+**Voorgestelde productbeslissingen (vragen jouw akkoord; niet gebouwd in deze ronde):**
+
+- **P1 — Productiestand: alleen de identiteit duurzaam.**
+  - Voorstel: in de echte app gaan, net als nu bij privé-afspraken, alleen identiteit, soort, staat en huishouden naar `localStorage`. De inhoud blijft in het paginageheugen.
+  - Na een herstart bevestigt de app wat de server al heeft. Wat de server niet heeft, toont ze als "niet bevestigd, inhoud niet bewaard; voer opnieuw in", met dezelfde identiteit. Dat vraagt een kleine API-uitbreiding om bij taken en boodschappen een bestaande identiteit opnieuw in te voeren (afspraken kunnen dit al).
+  - Alternatief: inhoud wel bewaren (gemakkelijker, minder privé).
+- **P2 — Uitloggen wist onbevestigde opdrachten, na een waarschuwing.**
+  - Voorstel: zijn er onbevestigde opdrachten, dan toont uitloggen eerst "N toevoegingen zijn nog niet bevestigd". De gebruiker kiest: eerst laten nakijken (online), of van dit toestel wissen. Daarna wordt alles van dat account op het toestel gewist.
+  - Een accountwissel is uitloggen. Een unmount, een verlopen sessie of een herstart wist niets.
+- **P3 — De demo blijft zoals ze is** (inhoud in `localStorage`, fictieve gegevens, alleen lokaal), duidelijk gemarkeerd als ontwikkelmodus.
+- **P4 — Geen automatisch wissen zonder bevestiging** van onbevestigde identiteiten op het toestel (bijvoorbeeld na 30 dagen). Voorstel: niet automatisch, wel tonen. Wissen zonder bevestiging kan bij een later opnieuw invoeren tot een dubbele taak leiden.
+- **P5 — Bewaartermijn van het serverregister** `private.shopping_commands`. Na het opruimen van een registerregel kan een héél late herhaling weer een bijwerking hebben. Voorstel: 90 dagen bewaren; daarna opruimen in de periodieke onderhoudstaak (nog te bouwen).
+
+Tot er een besluit is, slaat deze ronde geen nieuwe gegevens op het toestel op. Het nieuwe serverregister bevat geen namen.

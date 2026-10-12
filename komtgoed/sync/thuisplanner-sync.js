@@ -569,14 +569,20 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     // Eerst vastleggen (geheugen en opslag), dan pas versturen: valt het antwoord weg of sluit de app,
     // dan blijft deze UUID bewaard.
     o.staat = 'verzenden';
+    o.lopend = (o.lopend || 0) + 1;   // pogingen van deze opdracht die nog onderweg zijn
     openstaand.set(o.id, o);
     o.bewaard = bewaar(o);
     zet({ [l]: [...toestand[l].filter(x => x.id !== o.id), voorlopig(o)].sort(SORTEER[l]) });
     const u = await voerUit(o);
+    o.lopend--;
+    // Loopt er nog een andere poging (bijv. de eerste, waarvan het antwoord nog onderweg is), dan zegt de
+    // uitkomst van deze poging niets over die andere: die kan al gecommit zijn. Dus geen zekerheid en niet
+    // opruimen; de opdracht blijft onderweg en daarna onzeker.
+    const andereLopen = o.lopend > 0;
     // De boekhouding van de opdracht (geheugen en opslag) wordt altijd bijgewerkt, ook na stop(): dat is
     // geen inhoud voor de cache. Cache en meldingen alleen in de eigen generatie.
     const nogBijgehouden = openstaand.get(o.id) === o;   // niet intussen bevestigd of vergeten
-    const houd = staat => { if (nogBijgehouden) { o.staat = staat; if (staat === 'onzeker') o.ooitOnzeker = true; o.bewaard = bewaar(o); } };
+    const houd = staat => { if (nogBijgehouden) { o.staat = andereLopen ? 'verzenden' : staat; if (staat === 'onzeker') o.ooitOnzeker = true; o.bewaard = bewaar(o); } };
     let r;
     if (u.uitkomst === 'opgeslagen') {
       if (nogBijgehouden) vergeet(o.id);
@@ -584,8 +590,8 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     } else if (u.uitkomst === 'onzeker') {
       houd('onzeker');
       r = { ok: false, onzeker: true, id: o.id, melding: { soort: 'onzeker', tekst: MELDINGEN.onbevestigd } };
-    } else if (o.ooitOnzeker) {
-      // Een mislukte herhaalpoging bewijst niet dat de eerdere poging niet is opgeslagen: blijft onzeker.
+    } else if (o.ooitOnzeker || andereLopen) {
+      // Een mislukte poging bewijst niet dat een eerdere of nog lopende poging niet is opgeslagen: blijft onzeker.
       houd('onzeker');
       r = { ok: false, onzeker: true, id: o.id, melding: sessieFout(u.fout) ? { soort: 'sessie', tekst: MELDINGEN.sessieBewaard } : { soort: 'onzeker', tekst: MELDINGEN.nogOnbevestigd } };
     } else if (sessieFout(u.fout)) {
@@ -593,7 +599,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
       houd('geweigerd');
       r = { ok: false, geweigerd: true, id: o.id, melding: { soort: 'sessie', tekst: MELDINGEN.sessieBewaard } };
     } else {
-      // Eerste poging zeker geweigerd (ongeldig, geen lid, ...): niets opgeslagen, niets te bewaren.
+      // Enige poging, zeker geweigerd (ongeldig, geen lid, ...): niets opgeslagen, niets te bewaren.
       if (nogBijgehouden) vergeet(o.id);
       r = { ok: false, melding: meldingVoor(u.fout) };
     }

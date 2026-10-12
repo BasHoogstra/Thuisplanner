@@ -161,8 +161,10 @@ test('H2b twee bewust identieke taken: geen stille samenvoeging; bij een onbeves
   assert.equal(r5.ok, true);
   assert.notEqual(r5.id, r3.id);
   assert.equal(telTaken(h), 4, 'de bewust nieuwe taak is niet aangemaakt');
-  // Opnieuw proberen van de derde: blijft vier.
-  assert.ok((await b.acties.opnieuwProberen(r3.id)).ok);
+  // Opnieuw proberen van de derde: blijft vier. (De ophaalronde na de vierde kan de derde al bevestigd
+  // hebben; dan is er niets meer te proberen.)
+  const rr = await b.acties.opnieuwProberen(r3.id);
+  assert.ok(rr.ok || !heeft(b, r3.id), 'derde opdracht niet bevestigd en opnieuw proberen mislukt');
   assert.equal(telTaken(h), 4);
 });
 
