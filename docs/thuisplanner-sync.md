@@ -1,6 +1,6 @@
 # Thuisplanner KG-5D: synchronisatie tussen gezinsleden (bouwplan stap 3)
 
-**Status:** gebouwd en lokaal getest op een eigen branch, als aparte PR boven op PR #21. Niet gemerged, niet gedeployd. Herstelronde 1 na de review van `3f3b7da` verwerkt (§7).
+**Status:** gebouwd en lokaal getest op een eigen branch, als aparte PR boven op PR #21. Niet gemerged, niet gedeployd. Herstelronde 1 na de review van `3f3b7da` (§7) en herstelronde 2 na de review van `79a5852` (§8) verwerkt.
 
 Technische map: `komtgoed/`; productnaam: Thuisplanner.
 
@@ -68,8 +68,9 @@ Zo kan stap 4 later zonder herbouw volgen.
   - Een dichte socket wordt actief opnieuw verbonden.
   - Beide waren nodig voor betrouwbaar herstel; dat is gevonden en gerepareerd met de tests.
 - **Schrijven (online eerst, optimistisch):**
-  - **Toevoegen** (boodschap, taak, nieuwe afspraak) is één opdracht met één vaste UUID. Komt er geen antwoord (netwerkfout, verbinding weg, time-out, fout van een tussenliggende server), dan is de uitkomst **onbekend**: het item blijft staan als "niet bevestigd", met de melding dat het nog niet bevestigd is (nooit "niet opgeslagen"). Opnieuw proberen, of dezelfde tekst opnieuw invoeren zolang hij niet bevestigd is, verstuurt dezelfde opdracht met **dezelfde UUID**. De server behandelt die als dezelfde: `add_shopping_items` geeft `al_verwerkt`; bij taken en afspraken betekent `23505` op dat id dat een eerdere poging al slaagde (de module controleert dat met een leesverzoek op het id). De eerstvolgende geslaagde ophaalronde bevestigt een item dat de server wel heeft, zonder tweede verzending.
-  - **Herstart:** met de optie `opslag` (in de demo `sessionStorage`) wordt een opdracht vóór het versturen bewaard en pas na een zekere uitkomst verwijderd. Na herladen staat ze er weer, met dezelfde UUID. `stop()` en verlies van toegang wissen de opslag.
+  - **Toevoegen** (boodschap, taak, nieuwe afspraak) is één opdracht met één vaste UUID. Komt er geen antwoord (netwerkfout, verbinding weg, time-out, fout van een tussenliggende server), dan is de uitkomst **onbekend**: het item blijft staan als "niet bevestigd", met de melding dat het nog niet bevestigd is (nooit "niet opgeslagen"). Opnieuw proberen is een expliciete actie op de **opdrachtidentiteit** (`opnieuwProberen(id)`) en verstuurt dezelfde opdracht met **dezelfde UUID**. Een nieuwe toevoeging is altijd een nieuwe opdracht; staat er een onbevestigde opdracht met precies dezelfde inhoud (bij taken: titel én overige velden zoals de datum), dan verstuurt de module niets en vraagt ze eerst een keuze: opnieuw proberen of bewust als nieuwe toevoegen (`{ bewustNieuw: true }`). Inhoud wordt nooit hergebruikt voor een andere opdracht. De server behandelt die als dezelfde: `add_shopping_items` geeft `al_verwerkt`; bij taken en afspraken betekent `23505` op dat id dat een eerdere poging al slaagde (de module controleert dat met een leesverzoek op het id). De eerstvolgende geslaagde ophaalronde bevestigt een item dat de server wel heeft, zonder tweede verzending.
+  - **Bewaren:** een opdracht staat in het geheugen van de pagina (overleeft `stop()`/`start()` en een React-unmount) en, met de optie `opslag` (in de demo `localStorage`), duurzaam: één sleutel per opdracht, met account en huishouden in sleutel én inhoud. Zo overleeft ze herladen, sluiten, opnieuw inloggen en meerdere tabbladen. Ze verdwijnt alleen na aantoonbare bevestiging, na een zekere weigering van de eerste poging, of via de expliciete actie `vergeten(id)` (§8).
+  - **Staten:** `verzenden`, `onzeker` (misschien al opgeslagen; blijft tot bevestiging, ook bij een latere fout of verlopen sessie) en `geweigerd` (eerste poging zeker niet uitgevoerd door een verlopen sessie; bewaard voor na het inloggen).
   - Er is **geen automatische wachtrij**: wat de server niet heeft, wordt pas opnieuw verstuurd als de gebruiker dat vraagt (bouwplan: zonder verbinding niet schrijven). Is het toestel aantoonbaar offline (`navigator.onLine === false`), dan wordt niets verstuurd en zegt de melding dat het niet is opgeslagen.
   - **Wijzigen, afvinken en verwijderen** van boodschappen en taken gebeuren met `... where id = x and version = v`. Raakt dat 0 rijen, dan is er een **conflict**: de module zet een melding, haalt de nieuwste stand op, en er gaat niets verloren.
   - **Afspraken** gaan via `save_event` en `delete_event`; `PT409` (HTTP 409) betekent conflict.
@@ -77,10 +78,10 @@ Zo kan stap 4 later zonder herbouw volgen.
   - supabase-js herhaalt een mislukte GET zelf (tot drie keer); schrijfverzoeken (POST/PATCH) niet.
 - **Toegang weg** (vertrek, archiveren, huishouden verwijderd):
   - de ophaalronde ziet geen lidmaatschap meer;
-  - de module beëindigt de generatie, wist **alle** gegevens en openstaande opdrachten uit het geheugen en de opslag, stopt het kanaal en zet de status op `geen-toegang`.
+  - de module beëindigt de generatie, wist **alle** gegevens uit de cache, stopt het kanaal en zet de status op `geen-toegang`. Onbevestigde eigen opdrachten blijven op het toestel (alleen hun aantal is zichtbaar, met de mogelijkheid ze te vergeten).
   - Het ledenseintje van de intrekking zelf brengt dit binnen seconden; het vangnet vangt een gemist seintje op.
 - **Overstappen naar een nieuw kanaal:** geeft de ophaalronde een andere kanaalnaam (iemand verloor toegang), dan meldt de module zich af op het oude kanaal en aan op het nieuwe, en haalt ze na `SUBSCRIBED` alles opnieuw op.
-- **Stoppen** (uitloggen, ander huishouden kiezen) beëindigt de generatie, wist alles (ook de opslag) en sluit het kanaal.
+- **Stoppen** (uitloggen, ander huishouden kiezen, unmount) beëindigt de generatie, wist de cache en sluit het kanaal. Onbevestigde opdrachten blijven bewaard.
 - **Geen inhoud in logboeken of meldingen:**
   - de module schrijft niets naar de console (statische controle);
   - meldingen zijn vaste Nederlandse teksten per foutcode;
@@ -132,7 +133,7 @@ Wat je ziet en kunt doen:
 3. **Storing:** klik bij Bram op "Verbinding verbreken (simulatie)" (of zet de browser offline). De status wordt "Geen verbinding". Wijzig iets bij Anna en herstel daarna de verbinding bij Bram: de gemiste wijziging komt binnen en de status wordt weer "Live verbonden".
 4. **Conflict:** klik bij beiden op "Wijzig" bij dezelfde boodschap. Bewaar eerst bij Anna, dan bij Bram. Bram krijgt "Iemand anders heeft dit net aangepast…" en ziet de versie van Anna.
 5. **Privacy:** de tandartsafspraak is bij Anna volledig zichtbaar ("privé"), bij Bram alleen als "Bezet".
-6. **Onbekende uitkomst:** de e2e-test laat een antwoord van de server wegvallen (Playwright `route.abort`). Het item staat er dan als "niet bevestigd". Na herladen is het bevestigd, of te bevestigen met "Opnieuw proberen", met dezelfde UUID en nooit dubbel.
+6. **Onbekende uitkomst:** de e2e-test laat een antwoord van de server wegvallen (Playwright `route.abort`). Het item staat er dan als "niet bevestigd". Na herladen of sluiten en heropenen is het bevestigd, of te bevestigen met "Opnieuw proberen", met dezelfde UUID en nooit dubbel. Dezelfde tekst opnieuw invoeren geeft eerst een keuze. "Vergeten" haalt het alleen van dit toestel.
 
 Opnieuw beginnen: `npm run seed` (verwijdert de demo-accounts en maakt ze opnieuw aan). Afsluiten: `npx supabase@2.117.0 stop` in `komtgoed/`.
 
@@ -144,7 +145,8 @@ Schermafdrukken van de geautomatiseerde e2e-run staan in `docs/afbeeldingen/thui
 - `4-conflict`: conflictmelding;
 - `5-privacy`: privé bij Anna, "Bezet" bij Bram;
 - `6-geen-toegang`: na intrekken van de toegang;
-- `7-onbevestigd`: toevoegingen met onbekende uitkomst ("niet bevestigd", "Opnieuw proberen").
+- `7-onbevestigd`: toevoegingen met onbekende uitkomst ("niet bevestigd", "Opnieuw proberen");
+- `8-keuze`: na sluiten en heropenen, opnieuw proberen via de keuze bij een mogelijk dubbele invoer.
 
 ## 5. Tests
 
@@ -156,10 +158,11 @@ Schermafdrukken van de geautomatiseerde e2e-run staan in `docs/afbeeldingen/thui
 | Tegenproeven | `tegenproeven.txt` | KG-5D: een seintje met de hele rij, een open leesbeleid, een zendbeleid voor clients, een ontbrekende trigger. Herstelronde: geen kanaalwissel, beleid zonder volgnummer, kanaalwissel vóór het ledenseintje, kanaalnaam voor niet-leden, seintjes naar de oude vaste naam. |
 | Synchronisatie | `integratie/sync.test.mjs` | Zeven tests met aparte accounts en sessies; zie het overzicht hieronder. |
 | Herstelronde 1 | `integratie/herstel.test.mjs` | Twaalf regressietests voor de vier bevindingen, met "poorten" die lopende verzoeken in een vaste volgorde vasthouden, uitvoeren of zonder antwoord afbreken (§7). |
-| Tegenproeven module | `integratie/sync-tegenproeven.mjs` | Elf mutaties van de module die één herstelde eigenschap terugdraaien; elke mutatie moet haar regressietest laten falen. |
+| Herstelronde 2 | `integratie/herstel2.test.mjs` | Twaalf regressietests voor de drie idempotentieproblemen: verlopen sessie, dezelfde titel, opdrachtverlies (§8). Gedeelde testhulp in `integratie/testhulp.mjs`. |
+| Tegenproeven module | `integratie/sync-tegenproeven.mjs` | 21 mutaties van de module die één herstelde eigenschap terugdraaien; elke mutatie moet haar regressietest laten falen. |
 | Realtime-meting | `integratie/realtime-meting.mjs` | Meet het eigen gedrag van Realtime bij intrekking (geen CI; uitkomst in §7). |
 | Realtime-toegang | `integratie/integratie.test.mjs` | Buitenstaander krijgt een expliciete weigering, lid komt binnen (alleen met het actuele volgnummer), zelf zenden lukt niet. |
-| Demo e2e | `komtgoed/dev/tests/demo.e2e.mjs` | Zes tests met twee **echte browsersessies** (Playwright, Chromium, eigen context per account); zie het overzicht hieronder. |
+| Demo e2e | `komtgoed/dev/tests/demo.e2e.mjs` | Zeven tests met twee **echte browsersessies** (Playwright, Chromium, eigen context per account); zie het overzicht hieronder. |
 | Statisch | `statisch.js` | De browsercode noemt nooit de service-role-sleutel; de sync-module logt niet. |
 
 **Synchronisatie (`sync.test.mjs`):**
@@ -179,6 +182,7 @@ Schermafdrukken van de geautomatiseerde e2e-run staan in `docs/afbeeldingen/thui
 - Conflict via de wijzigknop.
 - Privacy: scherm, HTML, clientcache en **elk HTTP-antwoord en websocketframe** naar Bram zonder privé-tekst.
 - Antwoord verloren (met en zonder commit op de server), herladen, opnieuw proberen: "niet bevestigd", nooit "niet opgeslagen", dezelfde UUID, nooit dubbel.
+- Sluiten en heropenen, keuze bij een mogelijk dubbele invoer, offline invoer terug in het veld, waarschuwing bij een browser die opslag weigert.
 - Intrekking tijdens de sessie: "Geen toegang", lege lijst, leeg geheugen.
 
 In CI draaien de database-, integratie-, sync- en e2e-tests in de job `supabase-lokaal`, op een verse lokale stack.
@@ -186,8 +190,8 @@ In CI draaien de database-, integratie-, sync- en e2e-tests in de job `supabase-
 ## 6. Bekende grenzen en open punten
 
 - **Realtime na intrekking:** zie §7, bevinding 2, voor wat de server wel en niet garandeert.
-- **Geen offline-wachtrij:** zonder verbinding wordt er niet opgeslagen (bouwplan: "online eerst"). Alleen toevoegingen met een onbekende uitkomst blijven staan, met dezelfde UUID, tot ze bevestigd zijn of de gebruiker opnieuw probeert.
-- **Opslag na herstart:** in de demo `sessionStorage` (blijft bij herladen, weg bij het sluiten van het tabblad). Dan staat de eigen, nog niet bevestigde invoer (bijv. een boodschap) tijdelijk in de browser. `stop()` en verlies van toegang wissen haar. Een sluiten zonder herladen verliest de "niet bevestigd"-markering; de server heeft de opdracht dan wel of niet, en opnieuw invoeren met een nieuwe UUID kan dan in het uiterste geval een dubbele taak geven (boodschappen niet: die ontdubbelt de server op naam).
+- **Geen offline-wachtrij:** zonder verbinding wordt er niet opgeslagen (bouwplan: "online eerst"). Alleen toevoegingen met een onbekende uitkomst (of een door een verlopen sessie geweigerde eerste poging) blijven staan, met dezelfde UUID, tot ze bevestigd zijn, de gebruiker opnieuw probeert of ze vergeet.
+- **Opslag op het toestel:** zie §8 voor wat wel en niet gegarandeerd is.
 - **De demo logt automatisch in** met vaste fictieve accounts en een lokaal wachtwoord. Het is alleen een ontwikkelpagina; inloggen met een e-mailcode is stap 7.
 - **De demo toont boodschappen en afspraken.** Taken en afspraken bewerken kan via de module (en is getest), maar heeft geen eigen knoppen in de demo.
 - **Nog niet gedaan:**
@@ -283,3 +287,86 @@ Vier bevindingen uit de onafhankelijke review. Per bevinding: oorzaak, oplossing
 | Huisplan-tests | `test/index.html` en `index.html` | ongewijzigd groen (zie PR) |
 
 **Niet uitgevoerd:** tests tegen een online Supabase-project (bewust niet), langdurige of belastingstests, en een meting met de standaardduur van een echt token van een uur. Het verlopen is gemeten met een lokaal getekend token van 15 s.
+
+## 8. Herstelronde 2 (review van `79a5852`)
+
+Drie resterende idempotentieproblemen. De tests staan in `integratie/herstel2.test.mjs` (H1–H3) en draaien tegen de echte lokale stack. Tegenproef "oude module" betekent: dezelfde tests met `KG_SYNC_MODULE` naar de module uit `79a5852`. Alle twaalf falen daar, met de bedoelde reden.
+
+### 1. Verlopen sessie na een onbekende uitkomst
+
+- **Oorzaak:** elke zekere fout van een poging verwijderde de opdracht, ook een `401` (verlopen JWT) bij een herhaalpoging na een eerder verloren antwoord. Dan ging de identiteit verloren terwijl de eerste poging misschien wel was opgeslagen.
+- **Oplossing:** opdrachten krijgen een staat. Na één onbekende uitkomst (`ooitOnzeker`) verwijdert geen enkele latere fout de opdracht meer; ze blijft `onzeker` tot aantoonbaar vastgesteld is of ze bestaat:
+  - de server geeft het id terug in een geldige ophaalronde;
+  - of een poging slaagt (of meldt "al verwerkt" of `23505` op hetzelfde id).
+
+  Onderscheid tussen een eerste en een latere poging:
+  - **Eerste poging, verlopen sessie** (`401`/`PGRST30x`, dus zeker niet uitgevoerd): staat `geweigerd`, bewaard met dezelfde UUID voor na het inloggen.
+  - **Eerste poging, zeker geweigerd om de inhoud of het lidmaatschap** (ongeldig, geen lid): weg, met een melding.
+
+  Een ophaalronde met een verlopen sessie meldt "log opnieuw in; je invoer blijft bewaard". Een opdracht wordt alleen verstuurd met de sessie van het account waarvoor ze gemaakt is.
+- **Bewijs:**
+  - H1a: commit, antwoord weg, sessie verloopt (echt verlopen JWT tegen PostgREST), herhaalpoging `401`. De opdracht en opslag blijven; na opnieuw inloggen bevestigt de eerste geldige ronde haar: één rij met dezelfde UUID.
+  - H1b: zonder commit; na inloggen opnieuw proberen geeft één rij.
+  - H1c: eerste poging met een verlopen sessie wordt bewaard en na inloggen opgeslagen. Een te lange titel is direct weg met de melding "ongeldig".
+  - Mutatie-tegenproeven 12–13.
+- **Beperking:** wie nooit opnieuw inlogt, houdt de opdracht als "niet bevestigd" op het toestel tot hij die vergeet.
+
+### 2. Verschillende taken met dezelfde titel
+
+- **Oorzaak:** opnieuw invoeren werd herkend op titel alleen en hergebruikte dan de oude opdracht (met de oude inhoud). "Gymtas" op 14 oktober werd zo stil de onbevestigde "Gymtas" van 13 oktober.
+- **Oplossing:**
+  - **Opnieuw proberen** gaat alleen nog via de stabiele opdrachtidentiteit (`opnieuwProberen(id)`).
+  - **Een nieuwe toevoeging** is altijd een nieuwe opdracht.
+  - **Mogelijk dubbel:** staat er een onbevestigde opdracht met exact dezelfde inhoud (titel én alle overige velden), dan verstuurt de module niets en geeft ze `mogelijkDubbel: <id>` met een keuze terug. Opnieuw proberen gebruikt dezelfde UUID; bewust nieuw (`{ bewustNieuw: true }`) maakt een eigen UUID. Inhoud wordt nooit stil samengevoegd of hergebruikt.
+  - **Afspraken:** een opgegeven `id` is zelf de identiteit.
+- **Bewijs:**
+  - H2a: "Gymtas" op 13 (antwoord verloren) en op 14 oktober geeft twee taken met eigen UUID's; opnieuw proberen van de eerste blijft twee.
+  - H2b: twee bewust identieke taken geven twee rijen. Bij een onbevestigde gelijke volgt eerst de keuze (niets verstuurd); bewust nieuw geeft een eigen rij; opnieuw proberen van de eerste maakt niets dubbel.
+  - E2e: de keuze in de demo.
+  - Mutatie-tegenproeven 14–15.
+- **Beperking:** de keuze kost een extra stap als iemand echt twee identieke dingen wil terwijl de eerste nog onbevestigd is.
+
+### 3. Opdrachtverlies bij stop(), tabblad sluiten of opslagproblemen
+
+- **Oorzaak:**
+  - `stop()` en verlies van toegang wisten opdrachten en opslag;
+  - de demo gebruikte `sessionStorage` (weg bij sluiten);
+  - alle opdrachten stonden in één sleutel (tabbladen overschreven elkaar);
+  - een geweigerde opslag bleef stil.
+- **Oplossing:**
+  - **Paginageheugen** (per account en huishouden): overleeft `stop()`/`start()` en een unmount.
+  - **Duurzame opslag** (`localStorage`), **één sleutel per opdracht** (`thuisplanner-opdracht:<account>:<huishouden>:<uuid>`). Account en huishouden staan ook in de inhoud en worden bij het lezen gecontroleerd. Bij elke ophaalronde worden geheugen en opslag gelijkgetrokken, zodat andere tabbladen meedoen.
+  - **Opruimen** alleen na aantoonbare bevestiging, na een zekere weigering van een eerste poging, of via `vergeten(id)` (ook na `stop()` of zonder toegang). `stop()` en verlies van toegang ruimen niets op.
+  - **Opslag geweigerd of niet beschikbaar** (proef bij `start()`, of een fout bij schrijven): `toestand.opslagDuurzaam = false` en een zichtbare waarschuwing in de demo. Dan is er **geen** garantie na herladen of sluiten.
+  - **Gevoelige inhoud:** van een **privé-afspraak** komt alleen de identiteit in de opslag, nooit titel, plek of notities ("Privacy volgt de situatie": een toestel kan gedeeld zijn). In dezelfde pagina blijft de inhoud in het geheugen. Na herladen staat de afspraak er als "inhoud niet op dit toestel bewaard"; opnieuw invoeren met dezelfde identiteit maakt hem af, zonder dubbel.
+- **Bewijs:**
+  - H3a: `stop()`/`start()` en een nieuwe sync in dezelfde pagina, ook zonder opslag.
+  - H3b: sluiten en heropenen in een nieuwe pagina en sessie, met en zonder commit.
+  - H3c: drie tabbladen; gelijktijdig toevoegen overschrijft niets en gelijktijdig opnieuw proberen geeft één rij. Een elders bevestigde opdracht ruimt het andere tabblad op.
+  - H3d: geweigerde opslag en geen opslag geven `opslagDuurzaam = false`.
+  - H3e: een ander account op dezelfde browser neemt niets over en verstuurt niets, ook niet een vervalst record onder de eigen sleutel; een ander huishouden van hetzelfde account ook niet.
+  - H3f: geen privé-inhoud in de opslag; na herladen dezelfde identiteit; één afspraak.
+  - H3g: vergeten.
+  - E2e: sluiten en heropenen, offline invoer terug in het veld, waarschuwing bij een browser die opslag weigert.
+  - Mutatie-tegenproeven 16–21.
+- **Beperkingen:**
+  - `localStorage` is niet versleuteld. Eigen, nog niet bevestigde boodschappen, taken en gedeelde afspraken staan leesbaar op het toestel tot bevestiging of vergeten. Een ander account op dezelfde browser kan ze met ontwikkelaarsgereedschap lezen, maar de app neemt ze niet over.
+  - Zonder werkende opslag (privémodus met geweigerde opslag, volle opslag) geldt de idempotentie alleen binnen de pagina; dat wordt getoond.
+  - Na verlies van toegang blijven eigen opdrachten op het toestel tot ze vergeten worden. Komt de toegang terug, dan worden ze weer nagekeken.
+  - Meerdere tabbladen worden gelijkgetrokken bij elke ophaalronde, niet direct (geen `storage`-gebeurtenis).
+
+### Uitgevoerde controles (herstelronde 2)
+
+De volledige tabel met uitkomsten staat in de PR-beschrijving. Lokaal uitgevoerd:
+
+- de SQL-matrix en tegenproeven (stub en lokale Supabase);
+- integratie, inclusief `herstel.test.mjs` en `herstel2.test.mjs`;
+- de tegenproeven voor gelijktijdigheid en realtime, en de 21 mutatie-tegenproeven;
+- `herstel2.test.mjs` tegen de module uit `79a5852` (12 van 12 falen);
+- de demo-e2e;
+- de statische controles en de Huisplan-tests.
+
+**Niet uitgevoerd:**
+- andere browsers dan Chromium;
+- echte privémodus van een browser (nagebootst met een opslag die schrijven weigert);
+- een echt verlopen token na een uur (nagebootst met een verlopen, lokaal getekend JWT op elk REST-verzoek).

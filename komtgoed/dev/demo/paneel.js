@@ -40,9 +40,11 @@ const huishoudenId = lid.data?.[0]?.household_id;
 if (!huishoudenId) { zetStatus(STATUS.GEEN_TOEGANG); throw new Error('geen huishouden'); }
 
 let bewerken = null;   // { id, versie, waarde }: de versie waarmee het bewerken begon
-// sessionStorage: een toevoeging met onbekende uitkomst houdt na herladen dezelfde UUID (geen dubbele).
+let keuze = null;     // { id, naam }: mogelijk dubbel; de gebruiker kiest opnieuw proberen of bewust nieuw
+// localStorage: een toevoeging met onbekende uitkomst houdt na herladen, sluiten en opnieuw inloggen
+// dezelfde UUID. Weigert de browser opslag, dan toont het paneel een waarschuwing (toestand.opslagDuurzaam).
 let opslag = null;
-try { opslag = window.sessionStorage; } catch { /* geen opslag: alleen in het geheugen */ }
+try { opslag = window.localStorage; } catch { /* geen opslag: alleen in het geheugen, met waarschuwing */ }
 const sync = maakSync({ supabase, huishoudenId, opWijziging: teken, opslag });
 window.__thuisplannerDemo = { get toestand() { return sync.toestand; } };   // voor de e2e-test
 
@@ -59,7 +61,19 @@ function teken(t) {
   m.hidden = !t.melding;
   m.dataset.soort = t.melding?.soort || '';
   m.textContent = t.melding?.tekst || '';
-  if (t.melding) m.append(el('button', { type: 'button', tekst: 'Oké', onclick: () => sync.acties.meldingWeg() }));
+  if (t.melding) m.append(el('button', { type: 'button', tekst: 'Oké', onclick: () => { keuze = null; sync.acties.meldingWeg(); } }));
+  if (keuze && t.melding?.soort === 'mogelijk-dubbel') {
+    const k = keuze;
+    m.append(
+      el('button', { type: 'button', tekst: 'Opnieuw proberen', 'data-testid': 'keuze-opnieuw', onclick: () => { keuze = null; sync.acties.opnieuwProberen(k.id); } }),
+      el('button', { type: 'button', tekst: 'Toch als nieuwe toevoegen', 'data-testid': 'keuze-nieuw', onclick: () => { keuze = null; toevoegen(k.naam, { bewustNieuw: true }); } }));
+  }
+  const w = $('[data-testid=opslag-waarschuwing]');
+  w.hidden = t.opslagDuurzaam !== false;
+  w.textContent = 'Let op: deze browser bewaart niets op dit toestel. Valt de verbinding weg tijdens een toevoeging, dan kan die na herladen of sluiten niet meer worden nagekeken.';
+  const bw = $('[data-testid=bewaard-op-toestel]');
+  bw.hidden = !(t.status === STATUS.GEEN_TOEGANG && t.bewaardOpToestel > 0);
+  bw.textContent = `Er staan nog ${t.bewaardOpToestel || 0} niet-bevestigde toevoegingen op dit toestel.`;
   $('[data-testid=laatst]').textContent = t.laatstOpgehaald ? 'Laatst opgehaald: ' + new Date(t.laatstOpgehaald).toLocaleTimeString('nl-NL') : '';
 
   const lijst = $('[data-testid=boodschappen]');
@@ -77,15 +91,18 @@ function teken(t) {
     }
     const vink = el('input', { type: 'checkbox', 'aria-label': 'Afgevinkt', 'data-testid': 'vink' });
     vink.checked = !!b.checked_at;
-    if (b.onzeker || b.wachtend) vink.disabled = true;
+    if (b.onzeker || b.wachtend || b.geweigerd) vink.disabled = true;
     vink.addEventListener('change', () => sync.acties.boodschapAfvinken(b));
     return el('li', { 'data-testid': 'boodschap', 'data-naam': b.name, class: b.checked_at ? 'af' : '' },
       vink,
       el('span', { class: 'naam', tekst: b.name }),
       b.wachtend ? el('span', { class: 'klein', tekst: 'opslaan…' }) : null,
       b.onzeker ? el('span', { class: 'klein', 'data-testid': 'onbevestigd', tekst: 'niet bevestigd' }) : null,
-      b.onzeker ? el('button', { type: 'button', tekst: 'Opnieuw proberen', 'data-testid': 'opnieuw', onclick: () => sync.acties.opnieuwProberen(b.id) }) : null,
-      ...(b.onzeker || b.wachtend ? [] : [
+      b.geweigerd ? el('span', { class: 'klein', 'data-testid': 'geweigerd', tekst: 'niet opgeslagen' }) : null,
+      b.onzeker || b.geweigerd ? el('button', { type: 'button', tekst: 'Opnieuw proberen', 'data-testid': 'opnieuw', onclick: () => sync.acties.opnieuwProberen(b.id) }) : null,
+      b.onzeker || b.geweigerd ? el('button', { type: 'button', tekst: 'Vergeten', 'data-testid': 'vergeten',
+        title: 'Alleen van dit toestel. Staat hij al op de server, dan blijft hij daar.', onclick: () => sync.acties.vergeten(b.id) }) : null,
+      ...(b.onzeker || b.wachtend || b.geweigerd ? [] : [
         el('button', { type: 'button', tekst: 'Wijzig', 'data-testid': 'wijzig', onclick: () => {
           bewerken = { id: b.id, versie: b.version, waarde: b.name }; teken(sync.toestand);
         } }),
@@ -99,7 +116,7 @@ function teken(t) {
     const mijnPrive = a.visibility === 'private' && !a.is_busy;
     return el('li', { 'data-testid': 'afspraak', 'data-bezet': String(a.is_busy), class: a.is_busy ? 'bezet' : '' },
       el('span', { class: 'tijd', tekst: `${a.start_date} · ${tijd}` }),
-      el('span', { class: 'naam', 'data-testid': 'afspraak-titel', tekst: a.is_busy ? 'Bezet' : a.title }),
+      el('span', { class: 'naam', 'data-testid': 'afspraak-titel', tekst: a.is_busy ? 'Bezet' : (a.inhoudNietBewaard ? 'Privé-afspraak (inhoud niet op dit toestel bewaard)' : a.title) }),
       el('span', { class: 'klein', tekst: [naamVan(a.owner_member_id), mijnPrive ? 'privé (alleen jij ziet details)' : '', a.location || ''].filter(Boolean).join(' · ') }));
   }));
 }
@@ -111,8 +128,15 @@ $('[data-testid=toevoegen]').addEventListener('submit', async (e) => {
   const naam = invoer.value.trim();
   if (!naam) return;
   invoer.value = '';
-  await sync.acties.boodschapToevoegen(naam);
+  await toevoegen(naam);
 });
+// Toevoegen. Is er niets bewaard (geen opdracht: zeker niet opgeslagen), dan komt de invoer terug in het
+// veld: niets gaat ongemerkt verloren.
+async function toevoegen(naam, opties) {
+  const r = await sync.acties.boodschapToevoegen(naam, opties);
+  if (r.mogelijkDubbel) { keuze = { id: r.mogelijkDubbel, naam }; teken(sync.toestand); return; }
+  if (!r.ok && !r.id && !r.vervallen) { const invoer = $('[data-testid=nieuw]'); if (!invoer.value) invoer.value = naam; }
+}
 $('[data-testid=verbinding]').addEventListener('click', (e) => {
   storing = !storing;
   e.target.textContent = storing ? 'Verbinding herstellen (simulatie)' : 'Verbinding verbreken (simulatie)';

@@ -553,3 +553,15 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: KG-T49, 55 tegenproeven, `herstel.test.mjs` (12), `sync-tegenproeven.mjs` (11 mutaties), realtime-
   tegenproef met een niet-meewerkende client, e2e voor een verloren antwoord met herladen.
 
+## Thuisplanner KG-5D herstelronde 2 — drie idempotentieproblemen (review van 79a5852)
+- Verlopen sessie na een onbekende uitkomst: opdrachten hebben een staat; na één onbekende uitkomst
+  verwijdert geen latere fout ze meer. Een eerste poging die door een verlopen sessie zeker niet is
+  uitgevoerd, blijft bewaard ("niet opgeslagen") voor na het inloggen.
+- Dezelfde titel: opnieuw proberen alleen via de opdrachtidentiteit; nieuwe toevoegingen zijn altijd nieuwe
+  opdrachten; bij een onbevestigde gelijke inhoud eerst een keuze (opnieuw proberen of bewust nieuw).
+- Opdrachtverlies: paginageheugen (stop/start, unmount) plus `localStorage` met één sleutel per opdracht
+  (account en huishouden gecontroleerd); opruimen alleen na bevestiging, zekere weigering of "vergeten";
+  waarschuwing als opslag geweigerd wordt; inhoud van privé-afspraken nooit in de opslag.
+- Tests: `herstel2.test.mjs` (12), gedeelde `testhulp.mjs`, 21 mutatie-tegenproeven, e2e voor sluiten/heropenen,
+  keuze bij mogelijk dubbel, offline invoer en geweigerde opslag.
+

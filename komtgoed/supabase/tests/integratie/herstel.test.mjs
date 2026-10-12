@@ -8,127 +8,27 @@
 // client seintjes ontvangen; zo is aangetoond dat Realtime zelf niet intrekt en de test dat ziet).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createClient } from '@supabase/supabase-js';
+import { maakOmgeving, nieuweOpslag, sql, wacht, totdat, isRest, isRpc } from './testhulp.mjs';
 
 const MODULE = process.env.KG_SYNC_MODULE ? pathToFileURL(path.resolve(process.env.KG_SYNC_MODULE)).href : '../../../sync/thuisplanner-sync.js';
 const { maakSync, STATUS } = await import(MODULE);
 const TEGENPROEF = process.env.KG_TEGENPROEF === '1';
 
-const { API_URL, ANON_KEY, SERVICE_ROLE_KEY, DB_URL } = process.env;
-for (const u of [API_URL, DB_URL]) {
-  if (!u || !/\/\/([^@/]*@)?(127\.0\.0\.1|localhost)[:/]/.test(u)) throw new Error('Weigering: alleen een lokale Supabase');
-}
-const sql = q => execFileSync(process.env.PSQL || 'psql', ['-X', '-q', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-d', DB_URL, '-c', q]).toString().trim();
-const wacht = ms => new Promise(r => setTimeout(r, ms));
-async function totdat(f, ms = 10000, wat = 'voorwaarde') {
-  const eind = Date.now() + ms;
-  while (Date.now() < eind) { if (await f()) return; await wacht(100); }
-  throw new Error('Niet binnen ' + ms + ' ms: ' + wat);
-}
-
-const admin = createClient(API_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-const run = randomUUID().slice(0, 8);
-const wachtwoord = 'Herstel-' + randomUUID();
-const personen = {};
-const opruimen = [];
-
-// Een client met een eigen netwerk en "poorten": een verzoek dat bij een poort past, wordt vastgehouden
-// tot de test het vrijgeeft. Met eerstUitvoeren voert de server het verzoek eerst uit (commit); met
-// antwoordWeg komt er daarna geen antwoord (zoals een verbinding die precies dan wegvalt).
-function clientMetPoorten() {
-  const net = { uit: false };
-  const poorten = [];
-  const doorgeven = async (url, init) => {
-    const u = String(url?.url || url);
-    const methode = String(init?.method || url?.method || 'GET').toUpperCase();
-    const p = poorten.find(x => !x.gebruikt && !x.dicht && x.past(u, methode));
-    if (!p) {
-      if (net.uit) throw new TypeError('fetch failed (netwerk uit)');
-      return fetch(url, init);
-    }
-    p.aantal++;
-    if (!p.blijvend) p.gebruikt = true;   // blijvend: elke poging (ook automatische herhalingen) loopt erin
-    const antwoord = p.eerstUitvoeren ? await fetch(url, init) : null;
-    p.aangekomen();
-    await p.vrij;
-    if (p.antwoordWeg) throw new TypeError('fetch failed (antwoord verloren)');
-    return antwoord ?? fetch(url, init);
-  };
-  class WsMetNet extends WebSocket {
-    constructor(url, protocols) { super(net.uit ? 'ws://127.0.0.1:9/' : url, protocols); }
-  }
-  const c = createClient(API_URL, ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { fetch: doorgeven },
-    realtime: { transport: WsMetNet },
-  });
-  function poort(past, opties = {}) {
-    const p = { past, eerstUitvoeren: false, antwoordWeg: false, blijvend: false, gebruikt: false, dicht: false, aantal: 0, ...opties };
-    let vrijgeven;
-    p.vrij = new Promise(r => { vrijgeven = r; });
-    p.binnen = new Promise(r => { p.aangekomen = r; });
-    p.geefVrij = (meer = {}) => { Object.assign(p, meer); vrijgeven(); };
-    poorten.push(p);
-    return p;
-  }
-  return { c, net, poort };
-}
-const isRest = (tabel, methode) => (u, m) => m === methode && new URL(u).pathname === `/rest/v1/${tabel}`;
-const isRpc = naam => (u, m) => m === 'POST' && new URL(u).pathname === `/rest/v1/rpc/${naam}`;
-
-async function maakPersoon(naam) {
-  const email = `${naam}-${run}@test.invalid`;
-  const { data, error } = await admin.auth.admin.createUser({ email, password: wachtwoord, email_confirm: true });
-  assert.ifError(error);
-  personen[naam] = { id: data.user.id, email };
-  return personen[naam];
-}
-// Een nieuwe sessie (zoals een nieuw tabblad of een herstart van de app).
-async function sessie(naam) {
-  const s = clientMetPoorten();
-  assert.ifError((await s.c.auth.signInWithPassword({ email: personen[naam].email, password: wachtwoord })).error);
-  opruimen.push(s);
-  return s;
-}
-// Een sync met een logboek van alle meldingen aan de app.
-function maak(s, h, extra = {}) {
-  const meldingen = [];
-  const sync = maakSync({ supabase: s.c, huishoudenId: h, vangnetMs: 600000, opWijziging: t => meldingen.push(t), ...extra });
-  sync.meldingen = meldingen;
-  opruimen.push(sync);
-  return sync;
-}
-const heeftInhoud = t => t.boodschappen.length + t.taken.length + t.afspraken.length + t.leden.length > 0 || t.lid !== null;
-const ledenVan = h => JSON.parse(sql(`select coalesce(json_agg(json_build_object('id', id, 'naam', display_name)), '[]') from public.household_members where household_id = '${h}'`));
-const lidId = (h, naam) => ledenVan(h).find(m => m.naam === naam).id;
-const rpcAls = async (s, naam, args) => { const r = await s.c.rpc(naam, args); assert.ifError(r.error); return r.data; };
+const omg = maakOmgeving({ maakSync, voorvoegsel: 'Herstel' });
+const { run, sessie, maak, heeftInhoud, lidId, rpcAls } = omg;
 
 let anna;   // sessie van Anna (eigenaar van alle testhuishoudens)
-async function huishouden(naam, leden = []) {
-  const h = await rpcAls(anna, 'create_household', { p_name: `${naam} ${run}`, p_display_name: 'Anna' });
-  for (const lid of leden) {
-    const tok = await rpcAls(anna, 'create_invite', { p_household: h, p_member: null, p_role: 'member' });
-    const s = await sessie(lid);
-    await rpcAls(s, 'accept_invite', { p_token: tok, p_display_name: lid[0].toUpperCase() + lid.slice(1) });
-  }
-  return h;
-}
+const huishouden = (naam, leden = []) => omg.huishouden(anna, naam, leden);
 
 before(async () => {
-  for (const n of ['anna', 'bram', 'carla']) await maakPersoon(n);
+  for (const n of ['anna', 'bram', 'carla']) await omg.maakPersoon(n);
   anna = await sessie('anna');
 });
 
-after(async () => {
-  sql(`delete from public.households where name like '%${run}%'`);
-  for (const p of Object.values(personen)) await admin.auth.admin.deleteUser(p.id);
-  await Promise.race([Promise.allSettled(opruimen.filter(x => x.stop).map(x => x.stop())), wacht(5000)]);
-  for (const s of opruimen.filter(x => x.c)) { s.net.uit = false; s.c.realtime.disconnect(); }
-});
+after(() => omg.ruimOp());
 
 // ============================ Bevinding 1: levenscyclus en generaties ============================
 test('B1a stoppen tijdens een lopende wijziging: een late fout zet niets terug in de cache en meldt niets', { skip: TEGENPROEF, timeout: 60000 }, async () => {
@@ -244,8 +144,9 @@ test('B3a taak: commit, antwoord verloren, opnieuw proberen = precies één taak
   bram.poort(isRest('tasks', 'POST'), { eerstUitvoeren: true }).geefVrij({ antwoordWeg: true });
   const r = await b.acties.taakToevoegen('B3a-fietsband');
   assert.equal(sql(`select count(*) from public.tasks where household_id = '${h}'`), '1', 'de server heeft hem wél');
-  // De gebruiker typt hem nog eens in (zolang hij niet bevestigd is): dezelfde opdracht, dezelfde UUID.
-  const r2 = await b.acties.taakToevoegen('B3a-fietsband');
+  // Opnieuw proberen: dezelfde opdracht, dezelfde UUID. (Sinds herstelronde 2 alleen via de identiteit;
+  // dezelfde tekst opnieuw invoeren vraagt eerst een keuze, zie herstel2.test.mjs.)
+  const r2 = await opnieuw(b, r, () => b.acties.taakToevoegen('B3a-fietsband'));
   assert.equal(sql(`select count(*) from public.tasks where household_id = '${h}'`), '1', 'dubbele taak');
   assert.equal(r2.ok, true, 'opnieuw proberen na een geslaagde commit moet slagen');
   geenZekerNietOpgeslagen(r);
@@ -301,18 +202,12 @@ test('B3c commit, antwoord verloren, verbinding weg en terug: de volgende ronde 
   if (b.openstaand) assert.deepEqual(b.openstaand, []);
 });
 
-// Eenvoudige opslag zoals sessionStorage.
-const nieuweOpslag = (begin = {}) => {
-  const m = new Map(Object.entries(begin));
-  return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), m };
-};
-
 test('B3d herstart na verloren antwoord: dezelfde UUID overleeft de herstart; bevestigd of opnieuw geprobeerd, nooit dubbel', { skip: TEGENPROEF, timeout: 90000 }, async () => {
   const h = await huishouden('B3d', ['bram']);
   // (1) De server heeft hem opgeslagen; de app sluit voordat het antwoord er is.
   const s1 = await sessie('bram');
   const opslag1 = nieuweOpslag();
-  const b1 = maak(s1, h, { opslag: opslag1 });
+  const b1 = maak(s1, h, { opslag: opslag1, geheugen: new Map() });
   await b1.start();
   await totdat(() => b1.toestand.lid, 15000, 'B geladen');
   const p1 = s1.poort(isRest('tasks', 'POST'), { eerstUitvoeren: true });
@@ -326,7 +221,7 @@ test('B3d herstart na verloren antwoord: dezelfde UUID overleeft de herstart; be
   // Herstart: nieuwe sessie, nieuwe module-instantie, dezelfde opslag.
   const s2 = await sessie('bram');
   const opslag2 = nieuweOpslag(bewaard);
-  const b2 = maak(s2, h, { opslag: opslag2 });
+  const b2 = maak(s2, h, { opslag: opslag2, geheugen: new Map() });   // nieuwe pagina: leeg geheugen
   await b2.start();
   await totdat(() => b2.toestand.taken.some(x => x.title === 'B3d-opgeslagen' && !x.onzeker), 15000, 'opgeslagen taak bevestigd');
   const onbevestigd = b2.toestand.taken.find(x => x.title === 'B3d-nooit-aangekomen');
@@ -343,10 +238,6 @@ test('B3d herstart na verloren antwoord: dezelfde UUID overleeft de herstart; be
   await b2.vernieuw();
   assert.equal(b2.toestand.taken.length, 2);
   assert.deepEqual([...opslag2.m.keys()], [], 'opslag niet leeg na bevestiging');
-  // Stoppen wist de opslag ook.
-  b2.acties.taakToevoegen('B3d-na');
-  await b2.stop();
-  assert.deepEqual([...opslag2.m.keys()], []);
 });
 
 // ============================ Bevinding 4: paginering ============================

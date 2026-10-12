@@ -152,6 +152,54 @@ test('Antwoord verloren: "niet bevestigd" (nooit "niet opgeslagen"); na herladen
   controle.realtime.disconnect();
 });
 
+test('Herstelronde 2: sluiten en heropenen, keuze bij een mogelijk dubbele invoer, offline invoer terug, opslag geweigerd', async () => {
+  const { API_URL, ANON_KEY } = lokaleSupabase();
+  const controle = createClient(API_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  assert.ifError((await controle.auth.signInWithPassword({ email: 'anna.demo@test.invalid', password: 'thuisplanner-demo-lokaal' })).error);
+  const aantal = async naam => (await controle.from('shopping_items').select('id').eq('household_id', demo.huishouden).eq('name', naam).is('deleted_at', null)).data.length;
+  let a = pagina.anna;
+  const rij = naam => a.locator(`[data-testid=boodschap][data-naam="${naam}"]`);
+  const toevoegen = async naam => { await a.fill('[data-testid=nieuw]', naam); await a.press('[data-testid=nieuw]', 'Enter'); };
+  // Een toevoeging die de server niet bereikt; daarna sluit het tabblad (localStorage blijft).
+  await a.route('**/rest/v1/rpc/add_shopping_items', r => r.abort('connectionfailed'), { times: 1 });
+  await toevoegen('Krentenbollen');
+  await rij('Krentenbollen').locator('[data-testid=onbevestigd]').waitFor({ timeout: 10000 });
+  const id = await a.evaluate(() => window.__thuisplannerDemo.toestand.boodschappen.find(b => b.name === 'Krentenbollen').id);
+  await a.close();
+  a = pagina.anna = await ctx.anna.newPage();
+  a.on('pageerror', e => { throw e; });
+  await a.goto(`${basis}/paneel.html?als=anna`);
+  await status(a).filter({ hasText: 'Live verbonden' }).waitFor({ timeout: 30000 });
+  await rij('Krentenbollen').locator('[data-testid=onbevestigd]').waitFor({ timeout: 10000 });
+  assert.equal(await a.evaluate(() => window.__thuisplannerDemo.toestand.boodschappen.find(b => b.name === 'Krentenbollen').id), id);
+  // Dezelfde tekst opnieuw invoeren: niets verstuurd, eerst een keuze. "Opnieuw proberen" = dezelfde UUID.
+  await toevoegen('Krentenbollen');
+  await a.locator('[data-testid=melding][data-soort=mogelijk-dubbel]').waitFor();
+  assert.equal(await aantal('Krentenbollen'), 0);
+  await afdruk('8-keuze-anna', a);
+  await a.locator('[data-testid=keuze-opnieuw]').click();
+  await rij('Krentenbollen').locator('[data-testid=onbevestigd]').waitFor({ state: 'detached', timeout: 10000 });
+  assert.equal(await aantal('Krentenbollen'), 1);
+  assert.equal((await controle.from('shopping_items').select('id').eq('name', 'Krentenbollen')).data[0].id, id);
+  // Aantoonbaar offline: niets verstuurd, melding "niet opgeslagen" en de invoer staat weer in het veld.
+  await ctx.anna.setOffline(true);
+  await toevoegen('Offline-invoer');
+  await a.locator('[data-testid=melding][data-soort=offline]').waitFor({ timeout: 10000 });
+  assert.equal(await a.inputValue('[data-testid=nieuw]'), 'Offline-invoer', 'invoer ongemerkt verloren');
+  await ctx.anna.setOffline(false);
+  await a.fill('[data-testid=nieuw]', '');
+  await status(a).filter({ hasText: 'Live verbonden' }).waitFor({ timeout: 45000 });
+  // Een browser die opslag weigert: duidelijke waarschuwing.
+  const weiger = await browser.newContext({ viewport: { width: 640, height: 900 } });
+  await weiger.addInitScript(() => { Storage.prototype.setItem = function () { throw new DOMException('geweigerd', 'QuotaExceededError'); }; });
+  const w = await weiger.newPage();
+  await w.goto(`${basis}/paneel.html?als=anna`);
+  await w.locator('[data-testid=opslag-waarschuwing]').waitFor({ state: 'visible', timeout: 30000 });
+  assert.equal(await a.locator('[data-testid=opslag-waarschuwing]').isVisible(), false, 'waarschuwing terwijl opslag werkt');
+  await weiger.close();
+  controle.realtime.disconnect();
+});
+
 test('Toegang ingetrokken tijdens de sessie: Bram ziet "Geen toegang" en de lijst is leeg', async () => {
   const { API_URL, ANON_KEY } = lokaleSupabase();
   // Anna archiveert Bram (via haar eigen account, zoals in de app).
