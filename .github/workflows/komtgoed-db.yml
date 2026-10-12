@@ -2,7 +2,7 @@
 # PostgreSQL op de runner, en dezelfde tests plus een integratietest (API, Auth, Realtime) op een
 # lokale Supabase-stack in Docker op de runner (supabase start). Geen secrets, geen verbinding met
 # een online Supabase-project, geen deploy.
-name: KomtGoed database (KG-1)
+name: Thuisplanner database en sync (komtgoed)
 
 on:
   pull_request:
@@ -66,6 +66,12 @@ jobs:
         run: |
           (cd komtgoed/supabase/tests/integratie && npm ci --no-audit --no-fund)
           bash komtgoed/supabase/tests/integratie/run.sh
+      - name: Syncdemo e2e (twee browsersessies, Playwright)
+        working-directory: komtgoed/dev
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npm test
       - name: Lokale Supabase stoppen
         if: always()
         working-directory: komtgoed

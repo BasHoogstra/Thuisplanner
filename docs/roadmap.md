@@ -104,7 +104,8 @@ verschijnen alleen als "Bezet"; taken en boodschappen zijn voorlopig alleen gede
 | --- | --- | --- |
 | KG-5B (stap 1) | PR #19 verstevigen: tests op echte lokale Supabase, account-ID's afgeschermd, account en huishouden verwijderen, limiet | **Gebouwd** als vervolgcommits op PR #19; herstelronde 1 (vijf reviewbevindingen) gedaan; wacht op review |
 | KG-5C (stap 2) | Inhoudsschema: afspraken (privé als "Bezet"), taken, boodschappen, met RLS (gate 9 voor deze domeinen) | **Gebouwd** als aparte PR boven op PR #19; wacht op review (`docs/thuisplanner-inhoud.md`) |
-| KG-5D t/m KG-5J (stap 3–9) | Realtime, frontend herindelen, lezen, schrijven, inloggen, realtime in de app, staging | Gepland; staging wacht op B2 |
+| KG-5D (stap 3) | Realtime op de server (seintjes zonder inhoud, toegang per huishouden) + synchronisatiemodule en ontwikkelpagina met twee accounts | **Gebouwd** als aparte PR boven op PR #21; herstelronde 1 (vier reviewbevindingen) herstelronde 2 (drie idempotentieproblemen) en herstelronde 3 (twee idempotentiefouten) verwerkt; privacybeslissingen P1–P5 open; wacht op een nieuwe review (`docs/thuisplanner-sync.md` §7–9) |
+| KG-5E t/m KG-5J (stap 4–9) | Frontend herindelen, lezen, schrijven, inloggen, realtime in de app, staging | Gepland; stap 4 wacht op akkoord over de bibliotheken, staging op B2 |
 
 **Wat er verandert aan de gates, en wat niet:**
 

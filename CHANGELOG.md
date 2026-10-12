@@ -530,3 +530,48 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   DETAIL en HINT, zodat account-ID's (`owner_user_id`) niet via foutdetails lekken.
 - Tests: KG-T43 uitgebreid, KG-T45 en KG-T46, integratietest op de foutrespons; 46 tegenproeven.
 
+## Thuisplanner KG-5D — synchronisatie tussen gezinsleden (bouwplan stap 3; alleen lokaal)
+- Migratie `20261015120000_kg5d_realtime.sql`: seintjes `{t, id, v, op}` op het private kanaal
+  `household:<id>` na elke wijziging (zonder inhoud); RLS op `realtime.messages`: alleen actieve leden
+  luisteren, niemand zendt via de client, geen presence.
+- `komtgoed/sync/thuisplanner-sync.js`: synchronisatielaag (opnieuw ophalen op seintje, herverbinden met
+  backoff, vangnet, versiecontrole en conflictmelding, UUID's van de client, alles wissen bij verlies van
+  toegang). Geen nieuwe app-bibliotheken; het prototype van PR #20 is niet aangeraakt.
+- `komtgoed/dev/`: lokale ontwikkelpagina met twee demo-accounts (alleen 127.0.0.1, alleen de anon-sleutel).
+- Tests: KG-T47 en KG-T48, 50 tegenproeven, sync-tests met aparte sessies, e2e met twee browsersessies.
+
+## Thuisplanner KG-5D herstelronde 1 — vier reviewbevindingen (review van 3f3b7da)
+- Bevinding 1: generaties in de syncmodule; na `stop()` of verlies van toegang verandert of meldt een laat
+  antwoord (ophalen, schrijven, terugdraaien, kanaalstatus) niets meer. Terugdraaien werkt op de huidige stand.
+- Bevinding 2: migratie `20261016120000_kg5d_herstel1.sql`: kanaal `household:<id>:<epoch>`; bij elk verlies
+  van een actief lidmaatschap met account een nieuw volgnummer, zodat een niet-meewerkende client op het oude
+  kanaal niets meer krijgt. `household_channel()` geeft de actuele naam. Gemeten: Realtime trekt zelf pas in
+  bij een nieuw token of het verlopen van het token.
+- Bevinding 3: toevoegingen als opdracht met een vaste UUID; onbekende uitkomst = "niet bevestigd" (nooit "niet
+  opgeslagen"); opnieuw proberen en herstart (optionele opslag) met dezelfde UUID; geen automatische wachtrij.
+- Bevinding 4: keyset-paginering op id voor alle soorten, cache pas vervangen als alle pagina's binnen zijn.
+- Tests: KG-T49, 55 tegenproeven, `herstel.test.mjs` (12), `sync-tegenproeven.mjs` (11 mutaties), realtime-
+  tegenproef met een niet-meewerkende client, e2e voor een verloren antwoord met herladen.
+
+## Thuisplanner KG-5D herstelronde 2 — drie idempotentieproblemen (review van 79a5852)
+- Verlopen sessie na een onbekende uitkomst: opdrachten hebben een staat; na één onbekende uitkomst
+  verwijdert geen latere fout ze meer. Een eerste poging die door een verlopen sessie zeker niet is
+  uitgevoerd, blijft bewaard ("niet opgeslagen") voor na het inloggen.
+- Dezelfde titel: opnieuw proberen alleen via de opdrachtidentiteit; nieuwe toevoegingen zijn altijd nieuwe
+  opdrachten; bij een onbevestigde gelijke inhoud eerst een keuze (opnieuw proberen of bewust nieuw).
+- Opdrachtverlies: paginageheugen (stop/start, unmount) plus `localStorage` met één sleutel per opdracht
+  (account en huishouden gecontroleerd); opruimen alleen na bevestiging, zekere weigering of "vergeten";
+  waarschuwing als opslag geweigerd wordt; inhoud van privé-afspraken nooit in de opslag.
+- Tests: `herstel2.test.mjs` (12), gedeelde `testhulp.mjs`, 21 mutatie-tegenproeven, e2e voor sluiten/heropenen,
+  keuze bij mogelijk dubbel, offline invoer en geweigerde opslag.
+
+## Thuisplanner KG-5D herstelronde 3 — twee idempotentiefouten (review van 89e58c5)
+- Overlappende pogingen: een opdracht telt haar lopende pogingen; een zekere fout van één poging ruimt de
+  opdracht niet op zolang een andere poging (mogelijk al gecommit) nog loopt.
+- Migratie `20261017120000_kg5d_herstel3.sql`: register `private.shopping_commands`; een herhaalde
+  boodschappenopdracht (zelfde ID) geeft de oorspronkelijke uitkomst terug zonder bijwerking; alleen een nieuwe
+  ID volgt de productregels.
+- Privacy van de lokale opslag onderzocht en vastgelegd (docs/thuisplanner-sync.md §9); beslissingen P1–P5 open.
+- Tests: KG-T50 (matrix 50), 57 SQL-tegenproeven, `herstel3.test.mjs` (R1a, R1b, R2) met tegenproef op de oude
+  databasefunctie, 22 mutatie-tegenproeven.
+

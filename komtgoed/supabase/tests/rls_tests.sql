@@ -964,7 +964,8 @@ do $$ declare h text := current_setting('test.hs'); u uuid[] := array[gen_random
   select string_agg(name || ':' || outcome, ',' order by name) into uitkomst from public.add_shopping_items(h::uuid, v, array['MELK', 'Eieren']);
   if uitkomst <> 'Eieren:nieuw,Melk:terug' then raise exception 'KG-T38: tweede toevoeging gaf %', uitkomst; end if;
   select string_agg(name || ':' || outcome, ',' order by name) into uitkomst from public.add_shopping_items(h::uuid, v, array['MELK', 'Eieren']);
-  if uitkomst <> 'Eieren:al_op_lijst,Melk:al_op_lijst' then raise exception 'KG-T38: herhaalde opdracht gaf %', uitkomst; end if;
+  -- Herhaalde opdracht (zelfde ID's): de oorspronkelijke uitkomst, zonder nieuwe bijwerking (herstelronde 3).
+  if uitkomst <> 'Eieren:nieuw,Melk:terug' then raise exception 'KG-T38: herhaalde opdracht gaf %', uitkomst; end if;
   if not pg_temp.faalt(format($q$ insert into public.shopping_items (household_id, name) values (%L, 'brood') $q$, h)) then raise exception 'KG-T38: directe dubbeling toegestaan'; end if;
   perform pg_temp.geraakt($q$ update public.shopping_items set deleted_at = now() where name = 'Brood' $q$);
   select string_agg(name || ':' || outcome, ',') into uitkomst from public.add_shopping_items(h::uuid, array[gen_random_uuid()], array['Brood']);
@@ -1168,6 +1169,226 @@ do $$ declare r record; begin
 end $$;
 set local role authenticated;
 
+-- ============================== KG-5D: realtime op de server (bouwplan stap 3) ==============================
+-- KG-T47 Seintjes: na een wijziging komt er een bericht op household:<id> met alleen {t, id, v, op},
+-- zonder inhoud of account-ID's. Luisteren mag alleen een actief lid van dat huishouden; zenden via de
+-- client mag niemand; presence niet.
+reset role;
+delete from realtime.messages;   -- alleen binnen deze teruggedraaide transactie
+set local role authenticated;
+select set_config('test.e47', gen_random_uuid()::text, true);
+select set_config('test.t47', gen_random_uuid()::text, true);
+select pg_temp.als('sam');
+select * from public.add_shopping_items(current_setting('test.hs')::uuid, array[gen_random_uuid()], array['RT-melk']);
+select pg_temp.bewaar(current_setting('test.hs'), current_setting('test.e47'), null, '2026-11-02', '10:00', '11:00', 'private', 'RT-geheim', null, null, 'RT-plek-geheim', 'RT-notitie-geheim');
+insert into public.tasks (id, household_id, title) values (current_setting('test.t47')::uuid, current_setting('test.hs')::uuid, 'RT-taak');
+reset role;
+do $$ declare m record; u record; t text; begin
+  foreach t in array array['shopping_items', 'events', 'tasks'] loop
+    if not exists (select 1 from realtime.messages where topic = private.household_topic(current_setting('test.hs')::uuid) and payload->>'t' = t) then raise exception 'KG-T47: geen seintje voor %', t; end if;
+  end loop;
+  for m in select * from realtime.messages loop
+    if m.extension <> 'broadcast' or m.event <> 'wijziging' or not m.private or m.topic !~ '^household:' then raise exception 'KG-T47: onverwacht bericht % % %', m.extension, m.event, m.topic; end if;
+    if exists (select 1 from jsonb_object_keys(m.payload) k where k not in ('t', 'id', 'v', 'op')) then raise exception 'KG-T47: seintje bevat meer dan t/id/v/op: %', m.payload; end if;
+    if m.payload::text ~ '(geheim|RT-melk|RT-taak)' then raise exception 'KG-T47: seintje bevat inhoud'; end if;
+    for u in select id from auth.users loop
+      if m.payload::text like '%' || u.id::text || '%' then raise exception 'KG-T47: seintje bevat een account-ID'; end if;
+    end loop;
+  end loop;
+  -- Een presence-bericht op het kanaal (alleen om te testen dat het beleid presence uitsluit).
+  insert into realtime.messages (topic, extension, payload, event, private) values (private.household_topic(current_setting('test.hs')::uuid), 'presence', '{}', 'x', true);
+  perform set_config('test.topic47', private.household_topic(current_setting('test.hs')::uuid), true);
+end $$;
+set local role authenticated;
+do $$ declare hs text := current_setting('test.topic47'); begin
+  perform pg_temp.als('noa');
+  perform set_config('realtime.topic', hs, true);
+  if pg_temp.aantal($q$ select 1 from realtime.messages where extension = 'broadcast' $q$) < 3 then raise exception 'KG-T47: lid kan het kanaal van het eigen huishouden niet lezen'; end if;
+  if pg_temp.aantal($q$ select 1 from realtime.messages where extension = 'presence' $q$) <> 0 then raise exception 'KG-T47: presence toegestaan'; end if;
+  if not pg_temp.faalt(format($q$ insert into realtime.messages (topic, extension, payload, event, private) values (%L, 'broadcast', '{"t":"x"}', 'wijziging', true) $q$, hs)) then raise exception 'KG-T47: lid kan zelf zenden op het huishoudkanaal'; end if;
+  perform set_config('realtime.topic', 'household:' || upper(current_setting('test.hs')) || substr(hs, 47), true);
+  if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T47: afwijkende kanaalnaam geeft toegang'; end if;
+  perform set_config('realtime.topic', 'household:', true);
+  if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T47: lege kanaalnaam geeft toegang'; end if;
+  perform pg_temp.als('ravi');
+  perform set_config('realtime.topic', hs, true);
+  if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T47: buitenstaander luistert mee'; end if;
+  perform pg_temp.als('jip');   -- gearchiveerd (KG-T39)
+  if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T47: gearchiveerd lid luistert mee'; end if;
+  perform set_config('realtime.topic', '', true);
+  perform pg_temp.ok('KG-T47');
+end $$;
+
+-- KG-T48 Catalogus realtime: elke inhouds-, leden- en huishoudtabel zendt een seintje; de
+-- seintjesfuncties noemen geen inhoudskolommen; alleen een leesbeleid op realtime.messages.
+reset role;
+do $$ declare t text; f text; def text; begin
+  foreach t in array array['events', 'tasks', 'shopping_items', 'household_members', 'households'] loop
+    if not exists (select 1 from pg_trigger g join pg_proc p on p.oid = g.tgfoid
+                   where g.tgrelid = ('public.' || t)::regclass and p.proname like 'ping%' and not g.tgisinternal) then
+      raise exception 'KG-T48: public.% zendt geen seintje', t;
+    end if;
+  end loop;
+  foreach f in array array['ping', 'ping_content', 'ping_members', 'ping_household'] loop
+    select pg_get_functiondef(p.oid) into def from pg_proc p where p.pronamespace = 'private'::regnamespace and p.proname = f;
+    if def ~* '(\m(title|name|notes|location|preparation|user_id|display_name)\M|to_jsonb\(r\)|row_to_json)' then raise exception 'KG-T48: private.% zet mogelijk inhoud in een seintje', f; end if;
+  end loop;
+  if exists (select 1 from pg_policy where polrelid = 'realtime.messages'::regclass and polcmd <> 'r') then raise exception 'KG-T48: schrijfbeleid op realtime.messages'; end if;
+  perform pg_temp.ok('KG-T48');
+end $$;
+set local role authenticated;
+
+-- ============================== KG-5D herstelronde 1 (review van 3f3b7da) ==============================
+-- KG-T49 (bevinding 2) Intrekken sluit het oude kanaal aan de serverkant. Het kanaal heet
+-- household:<id>:<epoch>. Verliest een account zijn actieve lidmaatschap (archiveren, vertrekken,
+-- account verwijderd), dan krijgt het huishouden een nieuw volgnummer: het ledenseintje over die
+-- intrekking gaat nog naar het oude kanaal, alles daarna alleen naar het nieuwe. Het beleid laat alleen
+-- een actief lid toe, en alleen op het actuele volgnummer. Een kind zonder account wisselt niets.
+reset role;
+select set_config('test.rt1', gen_random_uuid()::text, true);
+select set_config('test.rt2', gen_random_uuid()::text, true);
+select set_config('test.rt3', gen_random_uuid()::text, true);
+insert into auth.users (id, email) values
+  (current_setting('test.rt1')::uuid, 'rt1@test.invalid'),
+  (current_setting('test.rt2')::uuid, 'rt2@test.invalid'),
+  (current_setting('test.rt3')::uuid, 'rt3@test.invalid');
+set local role authenticated;
+select pg_temp.als('sam');
+select set_config('test.tok_rt1', public.create_invite(current_setting('test.hs')::uuid), true);
+select set_config('test.tok_rt2', public.create_invite(current_setting('test.hs')::uuid), true);
+select set_config('test.tok_rt3', public.create_invite(current_setting('test.hs')::uuid), true);
+select pg_temp.als('rt1'); select public.accept_invite(current_setting('test.tok_rt1'), 'Rt1');
+select set_config('test.m_rt1', (select member_id from public.my_memberships() where household_id = current_setting('test.hs')::uuid)::text, true);
+select pg_temp.als('rt2'); select public.accept_invite(current_setting('test.tok_rt2'), 'Rt2');
+select pg_temp.als('rt3'); select public.accept_invite(current_setting('test.tok_rt3'), 'Rt3');
+reset role;
+delete from realtime.messages;   -- alleen binnen deze teruggedraaide transactie
+do $$ declare h uuid := current_setting('test.hs')::uuid; t0 text := private.household_topic(h); begin
+  -- Het volgnummer is al eerder gewisseld (KG-T39 Jip gearchiveerd, KG-T42 Pim vertrokken).
+  if t0 !~ '^household:[0-9a-f-]{36}:[1-9][0-9]*$' then raise exception 'KG-T49: kanaalnaam % zonder gewisseld volgnummer', t0; end if;
+  perform set_config('test.t49a', t0, true);
+end $$;
+set local role authenticated;
+do $$ declare h uuid := current_setting('test.hs')::uuid; t0 text := current_setting('test.t49a'); t1 text; begin
+  -- De app vraagt de kanaalnaam op; alleen een actief lid krijgt hem.
+  perform pg_temp.als('rt1');
+  if public.household_channel(h) <> t0 then raise exception 'KG-T49: household_channel geeft niet de actuele naam'; end if;
+  foreach t1 in array array['ravi', 'jip'] loop
+    perform pg_temp.als(t1);
+    if not pg_temp.faalt(format('select public.household_channel(%L)', h)) then raise exception 'KG-T49: % krijgt de kanaalnaam', t1; end if;
+  end loop;
+  -- Archiveren van Rt1 (account): nieuw volgnummer.
+  perform pg_temp.als('sam');
+  perform public.archive_member(h, current_setting('test.m_rt1')::uuid);
+  t1 := public.household_channel(h);
+  if t1 = t0 then raise exception 'KG-T49: archiveren wisselt het kanaal niet'; end if;
+  -- Daarna wijzigt Sam inhoud: dat seintje mag alleen naar het nieuwe kanaal.
+  perform public.add_shopping_items(h, array[gen_random_uuid()], array['RT49-na-intrekking']);
+  perform set_config('test.t49b', t1, true);
+  -- Een kind zonder account archiveren wisselt niets.
+  perform public.archive_member(h, current_setting('test.m_mees')::uuid);
+  if public.household_channel(h) <> t1 then raise exception 'KG-T49: archiveren van een kind zonder account wisselt het kanaal'; end if;
+  -- Vertrekken (Rt2) wisselt het kanaal.
+  perform pg_temp.als('rt2');
+  perform public.leave_household(h);
+  perform pg_temp.als('sam');
+  if public.household_channel(h) = t1 then raise exception 'KG-T49: vertrekken wisselt het kanaal niet'; end if;
+  perform set_config('test.t49c', public.household_channel(h), true);
+end $$;
+reset role;
+do $$ declare h uuid := current_setting('test.hs')::uuid; t0 text := current_setting('test.t49a'); t1 text := current_setting('test.t49b'); m record; begin
+  -- Op het oude kanaal: alleen wat vóór de wissel in die transactie gebeurde (het ledenseintje).
+  if not exists (select 1 from realtime.messages where topic = t0 and payload->>'t' = 'household_members'
+                 and payload->>'id' = current_setting('test.m_rt1')) then
+    raise exception 'KG-T49: ledenseintje over de intrekking niet op het oude kanaal';
+  end if;
+  for m in select * from realtime.messages where topic = t0 loop
+    if m.payload->>'t' <> 'household_members' then raise exception 'KG-T49: na intrekking nog % op het oude kanaal', m.payload->>'t'; end if;
+  end loop;
+  if not exists (select 1 from realtime.messages where topic = t1 and payload->>'t' = 'shopping_items') then
+    raise exception 'KG-T49: seintje na intrekking niet op het nieuwe kanaal';
+  end if;
+  -- Account verwijderd (lid nog actief): het kanaal wisselt.
+  set constraints all immediate;
+  delete from auth.users where id = current_setting('test.rt3')::uuid;
+  if private.household_topic(h) = current_setting('test.t49c') then raise exception 'KG-T49: accountverwijdering wisselt het kanaal niet'; end if;
+  perform set_config('test.t49d', private.household_topic(h), true);
+  insert into realtime.messages (topic, extension, payload, event, private) values (t0, 'broadcast', '{}', 'x', true), (current_setting('test.t49d'), 'broadcast', '{}', 'x', true);
+end $$;
+set local role authenticated;
+do $$ declare h text := current_setting('test.hs'); nu text := current_setting('test.t49d'); oud text := current_setting('test.t49a'); t text; begin
+  -- Beleid: het actuele kanaal wel (actief lid), het oude volgnummer, de oude vorm en varianten niet.
+  perform pg_temp.als('noa');
+  perform set_config('realtime.topic', nu, true);
+  if pg_temp.aantal('select 1 from realtime.messages') = 0 then raise exception 'KG-T49: lid kan het actuele kanaal niet lezen'; end if;
+  foreach t in array array[oud, 'household:' || h, nu || '0', nu || ' ', replace(nu, ':', '::'), 'household:' || h || ':-1', 'household:' || h || ':01'] loop
+    perform set_config('realtime.topic', t, true);
+    if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T49: kanaal % geeft toegang', t; end if;
+  end loop;
+  -- Wie toegang verloor, komt op geen enkel kanaal van dit huishouden.
+  foreach t in array array['rt1', 'rt2', 'jip', 'ravi'] loop
+    perform pg_temp.als(t);
+    perform set_config('realtime.topic', nu, true);
+    if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T49: % luistert mee op het actuele kanaal', t; end if;
+    perform set_config('realtime.topic', oud, true);
+    if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T49: % luistert mee op het oude kanaal', t; end if;
+  end loop;
+  perform set_config('realtime.topic', '', true);
+  perform pg_temp.ok('KG-T49');
+end $$;
+
+-- ============================== KG-5D herstelronde 3 (review van 89e58c5) ==============================
+-- KG-T50 (fout 2) Een herhaalde boodschappenopdracht (zelfde opdracht-ID) heeft nooit een tweede
+-- bijwerking: ze geeft de oorspronkelijke uitkomst terug, ook als iemand de boodschap intussen afvinkte.
+-- Een bewust nieuwe opdracht (nieuwe ID) volgt wel de productregels (afgevinkt komt terug). Een ID van een
+-- ander huishouden geeft een fout; het register is niet leesbaar via de API.
+reset role;
+select set_config('test.c50a', gen_random_uuid()::text, true);
+select set_config('test.c50b', gen_random_uuid()::text, true);
+select set_config('test.c50c', gen_random_uuid()::text, true);
+select set_config('test.c50x', gen_random_uuid()::text, true);
+select set_config('test.c50d', gen_random_uuid()::text, true);
+insert into private.shopping_commands (id, household_id, item_id, outcome)
+  values (current_setting('test.c50x')::uuid, current_setting('test.hr')::uuid, gen_random_uuid(), 'nieuw');
+insert into public.shopping_items (id, household_id, name)
+  values (current_setting('test.c50d')::uuid, current_setting('test.hs')::uuid, 'T50-oud');
+set local role authenticated;
+do $$ declare h uuid := current_setting('test.hs')::uuid; a uuid := current_setting('test.c50a')::uuid;
+  b uuid := current_setting('test.c50b')::uuid; c uuid := current_setting('test.c50c')::uuid; uitkomst text;
+  afgevinkt text := $q$ select 1 from public.shopping_items where name = 'T50-melk' and deleted_at is null and checked_at is not null $q$; begin
+  perform pg_temp.als('noa');
+  select outcome into uitkomst from public.add_shopping_items(h, array[a], array['T50-melk']);
+  if uitkomst <> 'nieuw' then raise exception 'KG-T50: eerste opdracht gaf %', uitkomst; end if;
+  -- Ander gezinslid vinkt af; daarna dezelfde opdracht opnieuw (antwoord was verloren).
+  perform pg_temp.als('sam');
+  if pg_temp.geraakt($q$ update public.shopping_items set checked_at = now() where name = 'T50-melk' $q$) <> 1 then raise exception 'KG-T50: afvinken lukt niet'; end if;
+  perform pg_temp.als('noa');
+  select outcome into uitkomst from public.add_shopping_items(h, array[a], array['T50-melk']);
+  if uitkomst <> 'nieuw' then raise exception 'KG-T50: herhaalde opdracht gaf % in plaats van de oorspronkelijke uitkomst', uitkomst; end if;
+  if pg_temp.aantal(afgevinkt) <> 1 then raise exception 'KG-T50: herhaalde opdracht opende een afgevinkte boodschap opnieuw'; end if;
+  -- Bewust nieuw (nieuwe ID): afgevinkt komt terug, en herhalen daarvan opent hem niet nóg eens.
+  select outcome into uitkomst from public.add_shopping_items(h, array[b], array['t50-MELK']);
+  if uitkomst <> 'terug' or pg_temp.aantal(afgevinkt) <> 0 then raise exception 'KG-T50: bewust nieuwe opdracht gaf %', uitkomst; end if;
+  perform pg_temp.als('sam');
+  perform pg_temp.geraakt($q$ update public.shopping_items set checked_at = now() where name = 'T50-melk' $q$);
+  perform pg_temp.als('noa');
+  select outcome into uitkomst from public.add_shopping_items(h, array[b], array['t50-MELK']);
+  if uitkomst <> 'terug' or pg_temp.aantal(afgevinkt) <> 1 then raise exception 'KG-T50: herhaling van "terug" had een bijwerking (%)', uitkomst; end if;
+  -- "Staat er al": herhalen na afvinken heeft ook geen bijwerking.
+  select outcome into uitkomst from public.add_shopping_items(h, array[c], array['T50-brood']);
+  select outcome into uitkomst from public.add_shopping_items(h, array[gen_random_uuid()], array['T50-brood']);
+  if uitkomst <> 'al_op_lijst' then raise exception 'KG-T50: bestaande boodschap gaf %', uitkomst; end if;
+  -- Oude boodschap met dezelfde ID (van vóór het register): al verwerkt, geen bijwerking.
+  select outcome into uitkomst from public.add_shopping_items(h, array[current_setting('test.c50d')::uuid], array['T50-oud']);
+  if uitkomst <> 'al_verwerkt' then raise exception 'KG-T50: bestaande ID gaf %', uitkomst; end if;
+  if pg_temp.aantal($q$ select 1 from public.shopping_items where name = 'T50-melk' $q$) <> 1 then raise exception 'KG-T50: dubbele boodschap'; end if;
+  -- ID van een ander huishouden: fout, niets aangemaakt.
+  if not pg_temp.faalt(format('select public.add_shopping_items(%L, array[%L]::uuid[], array[%L])', h, current_setting('test.c50x'), 'T50-vreemd')) then raise exception 'KG-T50: opdracht-ID van een ander huishouden geaccepteerd'; end if;
+  if pg_temp.aantal($q$ select 1 from public.shopping_items where name = 'T50-vreemd' $q$) <> 0 then raise exception 'KG-T50: boodschap aangemaakt met een vreemde opdracht-ID'; end if;
+  if not pg_temp.faalt('select 1 from private.shopping_commands') then raise exception 'KG-T50: register leesbaar via de API'; end if;
+  perform pg_temp.ok('KG-T50');
+end $$;
+
 -- KG-T40 Catalogus inhoud: geen delete-recht, afspraken alleen via functies, view met security_invoker,
 -- en elke inhoudsfunctie vergrendelt het huishouden vóór de lidmaatschapscontrole.
 reset role;
@@ -1217,6 +1438,6 @@ do $$ declare h text := current_setting('test.hs'); t text; begin
 end $$;
 set constraints all deferred;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 46' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 50' as resultaat;
 
 rollback;

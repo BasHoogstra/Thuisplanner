@@ -75,5 +75,44 @@ grant execute on function storage.foldername(text) to anon, authenticated, servi
 
 create publication supabase_realtime;
 
+-- Realtime-broadcast vanuit de database (Thuisplanner KG-5D), zoals in de lokale Supabase-stack
+-- (supabase/realtime v2.130): realtime.messages met RLS aan en zonder beleid, realtime.topic() en
+-- realtime.send(). Alleen de tabel en de functies; de realtime-server zelf ontbreekt hier.
+create schema realtime;
+grant usage on schema realtime to anon, authenticated, service_role;
+create table realtime.messages (
+  topic text not null,
+  extension text not null,
+  payload jsonb,
+  event text,
+  private boolean default false,
+  updated_at timestamp not null default now(),
+  inserted_at timestamp not null default now(),
+  id uuid not null default gen_random_uuid()
+);
+alter table realtime.messages enable row level security;
+grant select, insert, update on realtime.messages to anon, authenticated, service_role;
+create function realtime.topic() returns text language sql stable as $$
+  select nullif(current_setting('realtime.topic', true), '')::text;
+$$;
+create function realtime.send(payload jsonb, event text, topic text, private boolean default true)
+returns void language plpgsql as $$
+declare
+  generated_id uuid;
+  final_payload jsonb;
+begin
+  begin
+    generated_id := gen_random_uuid();
+    if payload ? 'id' then final_payload := payload;
+    else final_payload := jsonb_set(payload, '{id}', to_jsonb(generated_id)); end if;
+    execute format('set local realtime.topic to %L', topic);
+    insert into realtime.messages (id, payload, event, topic, private, extension)
+      values (generated_id, final_payload, event, topic, private, 'broadcast');
+  exception when others then
+    raise warning 'WarnSendingBroadcastMessage: %', sqlerrm;
+  end;
+end $$;
+grant execute on function realtime.topic(), realtime.send(jsonb, text, text, boolean) to anon, authenticated, service_role;
+
 -- Zoals de Supabase CLI (cli_login_postgres): migraties draaien zonder 'extensions' in het search_path.
 alter role postgres set search_path = "$user", public;
