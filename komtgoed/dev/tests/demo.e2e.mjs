@@ -133,8 +133,10 @@ test('Antwoord verloren: "niet bevestigd" (nooit "niet opgeslagen"); na herladen
   // (1) De server slaat op, maar het antwoord gaat verloren.
   await a.route('**/rest/v1/rpc/add_shopping_items', async r => { await r.fetch(); await r.abort('connectionfailed'); }, { times: 1 });
   await toevoegen('Appelstroop');
-  await rij('Appelstroop').locator('[data-testid=onbevestigd]').waitFor({ timeout: 10000 });
-  await a.locator('[data-testid=melding][data-soort=onzeker]').waitFor();
+  // De melding zegt "niet bevestigd"; het label bij het item kan heel kort zijn, want de volgende
+  // ophaalronde bevestigt een item dat de server wel heeft meteen (CI-run 38283608135).
+  await a.locator('[data-testid=melding][data-soort=onzeker]').waitFor({ timeout: 10000 });
+  await rij('Appelstroop').waitFor();
   assert.doesNotMatch(await a.locator('[data-testid=melding]').textContent(), /niet opgeslagen/i);
   assert.equal(await aantal('Appelstroop'), 1);
   // (2) Het verzoek bereikt de server nooit.
