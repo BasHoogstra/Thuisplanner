@@ -20,6 +20,14 @@ const ctx = {}, pagina = {};
 const binnenB = [];   // alles wat Brams browser van de server ontving (HTTP-antwoorden en websocketframes)
 
 const status = p => p.locator('[data-testid=status]');
+// Wachten tot de server een bepaald aantal heeft (het label "niet bevestigd" verdwijnt al zodra het verzoek
+// vertrekt; de rij staat er pas als het antwoord binnen is).
+async function wachtOpAantal(aantal, naam, verwacht, ms = 15000) {
+  const eind = Date.now() + ms;
+  let n;
+  while (Date.now() < eind) { n = await aantal(naam); if (n === verwacht) return n; await new Promise(r => setTimeout(r, 100)); }
+  return n;
+}
 const namen = p => p.locator('[data-testid=boodschap]').evaluateAll(els => els.map(e => e.dataset.naam));
 async function afdruk(naam, p) {
   if (!process.env.SCHERMAFDRUKKEN) return;
@@ -146,7 +154,7 @@ test('Antwoord verloren: "niet bevestigd" (nooit "niet opgeslagen"); na herladen
   assert.equal(await a.evaluate(() => window.__thuisplannerDemo.toestand.boodschappen.find(b => b.name === 'Rozijnen').id), idVoor);
   await rij('Rozijnen').locator('[data-testid=opnieuw]').click();
   await rij('Rozijnen').locator('[data-testid=onbevestigd]').waitFor({ state: 'detached', timeout: 10000 });
-  assert.equal(await aantal('Rozijnen'), 1);
+  assert.equal(await wachtOpAantal(aantal, 'Rozijnen', 1), 1);
   assert.equal(await aantal('Appelstroop'), 1);
   assert.deepEqual((await namen(a)).filter(n => n === 'Appelstroop' || n === 'Rozijnen').sort(), ['Appelstroop', 'Rozijnen']);
   controle.realtime.disconnect();
@@ -179,7 +187,7 @@ test('Herstelronde 2: sluiten en heropenen, keuze bij een mogelijk dubbele invoe
   await afdruk('8-keuze-anna', a);
   await a.locator('[data-testid=keuze-opnieuw]').click();
   await rij('Krentenbollen').locator('[data-testid=onbevestigd]').waitFor({ state: 'detached', timeout: 10000 });
-  assert.equal(await aantal('Krentenbollen'), 1);
+  assert.equal(await wachtOpAantal(aantal, 'Krentenbollen', 1), 1);
   assert.equal((await controle.from('shopping_items').select('id').eq('name', 'Krentenbollen')).data[0].id, id);
   // Aantoonbaar offline: niets verstuurd, melding "niet opgeslagen" en de invoer staat weer in het veld.
   await ctx.anna.setOffline(true);
