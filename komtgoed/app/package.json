@@ -12,9 +12,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
-    "screenshots": "KG_SCREENSHOTS=1 playwright test --grep @screenshot"
+    "screenshots": "KG_SCREENSHOTS=1 playwright test --grep @screenshot",
+    "lokaal": "node scripts/lokaal.mjs dev",
+    "lokaal:lan": "node scripts/lokaal.mjs dev --lan",
+    "lokaal:seed": "node scripts/lokaal.mjs seed",
+    "e2e:lokaal": "playwright test -c playwright.lokaal.config.ts",
+    "screenshots:lokaal": "KG_SCREENSHOTS=1 playwright test -c playwright.lokaal.config.ts --grep @screenshot"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.117.2",
     "react": "19.1.1",
     "react-dom": "19.1.1"
   },

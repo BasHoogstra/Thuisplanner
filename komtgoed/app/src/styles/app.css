@@ -452,3 +452,16 @@ a { color: var(--accent); }
   .week-lijst .rij-open { padding: 10px 8px 10px 6px; }
   .week-lijst .rij-pijl { display: none; }
 }
+
+/* ---------- Lokale modus (alleen met een lokale Supabase) ---------- */
+.sync-status.offline, .sync-status.geen-toegang { color: var(--fout); font-weight: 600; }
+.sync-waarschuwing {
+  display: flex; align-items: center; gap: 10px; max-width: 640px; margin: 8px auto 0; padding: 8px 12px;
+  border-radius: var(--radius-klein); background: var(--demo-zacht); color: var(--inkt); font-size: 14px;
+}
+.sync-waarschuwing > span { flex: 1 1 0; }
+.sync-label { font-style: italic; color: var(--inkt-3); }
+.sync-label.onzeker, .sync-label.geweigerd, .sync-label.zonder-inhoud { color: var(--fout); font-style: normal; }
+.keuzes.herstel { margin-top: 10px; }
+.rij.herstel-rij { padding: 12px 16px; }
+@media (min-width: 960px) { .sync-waarschuwing { max-width: 960px; } }

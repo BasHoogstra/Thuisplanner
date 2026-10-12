@@ -35,6 +35,22 @@ npm run dev         # open http://127.0.0.1:5180
 screenshots gebruiken dat. Zonder die parameter volgt de demo de echte tijd. De voorbeelddata staan
 altijd rond "vandaag".
 
+## Lokale modus: echte synchronisatie tussen twee accounts
+
+Naast de demo kan de app draaien tegen een **lokale** Supabase-stack met een verzonnen gezin, met
+inloggen als Eva of Thomas en synchronisatie tussen twee tabbladen of twee telefoons. Uitleg, wat echt
+werkt en wat nog demo is: [`docs/thuisplanner-app.md`](../../docs/thuisplanner-app.md).
+
+| Opdracht | Wat het doet |
+| --- | --- |
+| `npm run lokaal:seed` | Zet het fictieve gezin De Boer opnieuw klaar in de lokale stack (`supabase start` in `komtgoed/`). |
+| `npm run lokaal` | App op `http://127.0.0.1:5180` tegen de lokale stack. |
+| `npm run lokaal:lan` | Idem, bereikbaar op het eigen netwerk (twee telefoons). |
+| `npm run e2e:lokaal` | Browsertests met Eva en Thomas in twee browsercontexten. |
+| `npm run screenshots:lokaal` | Screenshots in `screenshots/lokaal/`. |
+
+De tabel hieronder beschrijft de **demo-modus**.
+
 ## Wat werkt er echt, en wat is demo?
 
 | Onderdeel | Status |

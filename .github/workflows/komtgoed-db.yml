@@ -48,7 +48,7 @@ jobs:
     # Echte Supabase-componenten (PostgreSQL 17, PostgREST, GoTrue, Realtime) in Docker op de runner.
     # De sleutels zijn de vaste lokale demosleutels uit `supabase status`; niets online.
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       SUPABASE: npx --yes supabase@2.117.0
       DB_URL: postgresql://postgres:postgres@127.0.0.1:55322/postgres
@@ -72,6 +72,14 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
           npm test
+      - name: React-app e2e tegen de lokale stack (Eva en Thomas, twee browsercontexten)
+        working-directory: komtgoed/app
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npm run e2e:lokaal
+        env:
+          CI: '1'
       - name: Lokale Supabase stoppen
         if: always()
         working-directory: komtgoed

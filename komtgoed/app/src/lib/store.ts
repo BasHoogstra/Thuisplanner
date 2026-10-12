@@ -3,7 +3,9 @@
 import { useMemo, useReducer } from 'react';
 import { demoItems, huishouden, type Scenario } from '../data/demo';
 import { zichtbaarVoor } from './rechten';
-import type { Datum, Item } from './types';
+import { boodschappenMelding, voegBoodschappenToe } from './boodschappen';
+import { verwijderReeks, verwijderVoorkomen, wijzigVoorkomen } from './herhaling';
+import type { Afspraak, Datum, Item } from './types';
 
 export interface Melding {
   id: number;
@@ -33,6 +35,10 @@ type Actie =
   | ({ type: 'bijwerken'; item: Item } & Wijziging)
   | ({ type: 'wissel'; id: string; vandaag: Datum } & Wijziging)
   | ({ type: 'verwijder'; ids: string[] } & Wijziging)
+  | { type: 'boodschappen'; namen: string[] }
+  | ({ type: 'voorkomenWijzigen'; reeksId: string; datum: Datum; afspraak: Afspraak } & Wijziging)
+  | ({ type: 'voorkomenVerwijderen'; reeksId: string; datum: Datum } & Wijziging)
+  | ({ type: 'reeksVerwijderen'; reeksId: string } & Wijziging)
   | { type: 'ongedaan' }
   | { type: 'wegklikken'; id: string }
   | { type: 'meld'; tekst: string }
@@ -64,6 +70,16 @@ export function reducer(s: Staat, a: Actie): Staat {
       }), a.melding);
     case 'verwijder':
       return wijzig(s, s.items.filter(i => !a.ids.includes(i.id)), a.melding);
+    case 'boodschappen': {
+      const r = voegBoodschappenToe(s.items, a.namen, () => nieuwId('b'));
+      return wijzig(s, r.items, boodschappenMelding(r));
+    }
+    case 'voorkomenWijzigen':
+      return wijzig(s, wijzigVoorkomen(s.items, a.reeksId, a.datum, a.afspraak), a.melding);
+    case 'voorkomenVerwijderen':
+      return wijzig(s, verwijderVoorkomen(s.items, a.reeksId, a.datum), a.melding);
+    case 'reeksVerwijderen':
+      return wijzig(s, verwijderReeks(s.items, a.reeksId), a.melding);
     case 'ongedaan':
       return s.vorige ? { ...s, items: s.vorige, vorige: null, melding: melding('Teruggezet', false) } : s;
     case 'wegklikken':
@@ -93,6 +109,14 @@ export function useDemoStaat(vandaag: Datum) {
     bijwerken: (item: Item, melding?: string) => dispatch({ type: 'bijwerken', item, melding }),
     wissel: (id: string, melding?: string) => dispatch({ type: 'wissel', id, vandaag, melding }),
     verwijder: (ids: string[], melding?: string) => dispatch({ type: 'verwijder', ids, melding }),
+    // Expliciete handelingen (in plaats van "vervang alles"): zo kan de lokale Supabase-modus precies
+    // dezelfde handeling op de server uitvoeren (zie lokaal/staat.ts).
+    voegBoodschappenToe: (namen: string[]) => dispatch({ type: 'boodschappen', namen }),
+    wijzigVoorkomen: (reeksId: string, datum: Datum, afspraak: Afspraak, melding?: string) =>
+      dispatch({ type: 'voorkomenWijzigen', reeksId, datum, afspraak, melding }),
+    verwijderVoorkomen: (reeksId: string, datum: Datum, melding?: string) =>
+      dispatch({ type: 'voorkomenVerwijderen', reeksId, datum, melding }),
+    verwijderReeks: (reeksId: string, melding?: string) => dispatch({ type: 'reeksVerwijderen', reeksId, melding }),
     ongedaan: () => dispatch({ type: 'ongedaan' }),
     wegklikken: (id: string) => dispatch({ type: 'wegklikken', id }),
     meld: (tekst: string) => dispatch({ type: 'meld', tekst }),

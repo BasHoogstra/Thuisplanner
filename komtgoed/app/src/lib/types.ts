@@ -1,6 +1,7 @@
 // Prototypemodel voor KG-2. Volgt de begrippen uit KG-1 (komtgoed/supabase): een lid is niet hetzelfde
 // als een account, kinderen zijn leden zonder account, en zichtbaarheid hoort bij het item.
-// Dit is géén databasecontract; de echte typen volgen uit het schema zodra de app een backend krijgt.
+// Dit is géén databasecontract. In de lokale Supabase-modus zet src/lib/lokaal/omzetten.ts de rijen van
+// de server om naar deze typen (en terug).
 
 export type LidId = string;
 
@@ -21,10 +22,19 @@ export interface Huishouden {
 
 /** ISO-datum zonder tijd, bijvoorbeeld 2026-10-10. */
 export type Datum = string;
+
+/**
+ * Alleen in de lokale Supabase-modus: de versie van de rij (voor versiecontrole bij bewaren) en, voor een
+ * toevoeging die de server nog niet bevestigde, de staat ervan (zie de sync-module).
+ */
+export interface SyncVelden {
+  versie?: number;
+  sync?: 'wachtend' | 'onzeker' | 'geweigerd' | 'zonder-inhoud';
+}
 /** Tijd als HH:MM. */
 export type Tijd = string;
 
-export interface Afspraak {
+export interface Afspraak extends SyncVelden {
   id: string;
   soort: 'afspraak';
   datum: Datum;
@@ -61,7 +71,7 @@ export interface Herhaling {
   uitzonderingen?: Datum[];
 }
 
-export interface Taak {
+export interface Taak extends SyncVelden {
   id: string;
   soort: 'taak';
   titel: string;
@@ -73,7 +83,7 @@ export interface Taak {
   klaarOp?: Datum | null;
 }
 
-export interface Boodschap {
+export interface Boodschap extends SyncVelden {
   id: string;
   soort: 'boodschap';
   naam: string;

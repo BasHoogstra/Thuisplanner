@@ -17,7 +17,7 @@ const WEERGAVEN: { id: AgendaWeergave; label: string }[] = [
 ];
 
 export function Agenda() {
-  const { agenda, zetAgenda, vandaag, huishouden, staat } = useApp();
+  const { agenda, zetAgenda, vandaag, huishouden, staat, lokaal } = useApp();
   const { weergave, datum, filter } = agenda;
   const stap = (n: number) => zetAgenda({
     datum: weergave === 'dag' ? plusDagen(datum, n) : weergave === 'week' ? plusDagen(datum, 7 * n) : plusMaanden(datum, n),
@@ -78,7 +78,7 @@ export function Agenda() {
           <ul className="lijst">{zonderDatum.map(t => <TaakRij key={t.id} t={t} />)}</ul>
         </section>
       )}
-      <p className="demo-noot">Demo: delen met mensen buiten het gezin en uitnodigingen komen in een latere fase.</p>
+      <p className="demo-noot">{lokaal ? 'Nog niet' : 'Demo'}: delen met mensen buiten het gezin en uitnodigingen komen in een latere fase.</p>
     </div>
   );
 }

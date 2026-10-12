@@ -9,6 +9,7 @@ technische map en oudere documentnamen houden die naam voorlopig.
 - **Fundament (KG-1, verstevigd in KG-5B):** `docs/komtgoed-fundament.md`.
 - **Inhoud (KG-5C: afspraken, taken, boodschappen):** `docs/thuisplanner-inhoud.md`.
 - **Synchronisatie (KG-5D) en de lokale demo:** `docs/thuisplanner-sync.md`.
+- **React-app met echte synchronisatie (lokaal, fictief):** `docs/thuisplanner-app.md`.
 
 ## Wat hier staat
 

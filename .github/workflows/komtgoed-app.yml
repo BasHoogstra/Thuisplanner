@@ -6,11 +6,13 @@ on:
   pull_request:
     paths:
       - 'komtgoed/app/**'
+      - 'komtgoed/sync/**'
       - '.github/workflows/komtgoed-app.yml'
   push:
     branches: [main]
     paths:
       - 'komtgoed/app/**'
+      - 'komtgoed/sync/**'
       - '.github/workflows/komtgoed-app.yml'
 
 permissions:

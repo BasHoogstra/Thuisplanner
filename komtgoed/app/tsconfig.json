@@ -14,5 +14,5 @@
     "noEmit": true,
     "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
   },
-  "include": ["src", "tests", "e2e", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "tests", "e2e", "e2e-lokaal", "vite.config.ts", "playwright.config.ts", "playwright.lokaal.config.ts"]
 }

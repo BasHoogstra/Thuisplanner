@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp, type Soort } from '../lib/context';
 import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen } from '../lib/datum';
-import {
-  FREQUENTIES, herhalingTekst, verwijderReeks, verwijderVoorkomen, vindAfspraak, wijzigVoorkomen, wordtDubbel,
-} from '../lib/herhaling';
-import { boodschappenMelding, splitsBoodschappen, voegBoodschappenToe } from '../lib/boodschappen';
+import { FREQUENTIES, herhalingTekst, vindAfspraak, wordtDubbel } from '../lib/herhaling';
+import { splitsBoodschappen } from '../lib/boodschappen';
 import { isBezetVanAnder, magZichtbaarheidKiezen } from '../lib/rechten';
 import { nieuwId } from '../lib/store';
 import type { Afspraak, Datum, Frequentie, Herhaling, Item, LidId } from '../lib/types';
 import { tijdTekst, Wie } from './Rijen';
 import { IcHerhaal, IcSlot } from './Iconen';
 import { Venster } from './Venster';
+import { OnbevestigdVenster } from './Lokaal';
 
 const SOORTEN: { id: Soort; label: string }[] = [
   { id: 'afspraak', label: 'Afspraak' },
@@ -35,6 +34,11 @@ export function ItemVenster({ opdracht, sluit }: { opdracht: VensterOpdracht; sl
   // Een voorkomen van een herhalende afspraak heeft een berekend id ("reeks@datum").
   const item = staat.items.find(i => i.id === opdracht.id && i.soort !== 'afspraak') ?? vindAfspraak(staat.items, opdracht.id);
   if (!item) return null;
+  // Lokale modus: wat de server nog niet heeft bevestigd, kun je niet aanpassen; wel opnieuw proberen of vergeten.
+  if (item.sync) {
+    const naam = item.soort === 'boodschap' ? item.naam : item.titel ?? '';
+    return <OnbevestigdVenster id={item.soort === 'afspraak' ? item.voorkomenVan ?? item.id : item.id} naam={naam} sync={item.sync} sluit={sluit} />;
+  }
   if (item.soort === 'afspraak' && isBezetVanAnder(item, huishouden.ik)) return <BezetVenster a={item} sluit={sluit} />;
   return <Formulier bestaand={item} sluit={sluit} />;
 }
@@ -79,6 +83,10 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
     ? staat.items.find((i): i is Afspraak => i.id === voorkomen.voorkomenVan && i.soort === 'afspraak') : undefined;
   const losgemaakt = !!voorkomen?.reeksId;
   const [bereik, zetBereik] = useState<'deze' | 'reeks'>('deze');
+  // De versie bij het openen. Wijzigt iemand anders het intussen, dan weigert de server het opslaan
+  // (versieconflict) in plaats van diens wijziging stil te overschrijven. In de demo-modus ongebruikt.
+  const [beginVersie] = useState(() => bestaand?.versie);
+  const [reeksVersie] = useState(() => reeks?.versie);
   const [freq, zetFreq] = useState<Frequentie | 'geen'>(voorkomen?.herhaling?.freq ?? 'geen');
   const [herhaalTot, zetHerhaalTot] = useState(voorkomen?.herhaling?.tot ?? '');
   const [fout, zetFout] = useState<{ veld: 'titel' | 'tijd' | 'dag' | 'herhaling'; tekst: string } | null>(null);
@@ -146,11 +154,11 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
       };
       const wanneer = `${dagLabel(datum, vandaag).toLowerCase()}${a.start ? ' ' + a.start : ''}`;
       if (reeks && vorig && bereik === 'deze') {
-        app.vervangAlles(wijzigVoorkomen(staat.items, reeks.id, vorig.datum, { ...a, id: nieuwId('a') }), `${t} aangepast (${wanneer})`);
+        app.wijzigVoorkomen(reeks.id, vorig.datum, { ...a, id: nieuwId('a') }, `${t} aangepast (${wanneer})`);
       } else if (reeks && bereik === 'reeks') {
-        app.bijwerken({ ...a, id: reeks.id }, herhaling ? `Hele reeks ${t} aangepast` : `${t} herhaalt niet meer`);
+        app.bijwerken({ ...a, id: reeks.id, versie: reeksVersie }, herhaling ? `Hele reeks ${t} aangepast` : `${t} herhaalt niet meer`);
       } else if (vorig) {
-        app.bijwerken(a, `${t} aangepast (${wanneer})`);
+        app.bijwerken({ ...a, versie: beginVersie }, `${t} aangepast (${wanneer})`);
       } else {
         app.toevoegen([a], herhaling ? `${t} staat in de agenda (${herhalingTekst(datum, herhaling).toLowerCase()})`
           : `${t} staat in de agenda (${wanneer})`);
@@ -159,15 +167,14 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
       const vorig = bestaand?.soort === 'taak' ? bestaand : undefined;
       const taak = {
         id: vorig?.id ?? nieuwId('t'), soort: 'taak' as const, titel: t, datum: dag === 'ooit' ? null : dag,
-        voor: wie[0] ?? null, klaar: vorig?.klaar ?? false, klaarOp: vorig?.klaarOp ?? null,
+        voor: wie[0] ?? null, klaar: vorig?.klaar ?? false, klaarOp: vorig?.klaarOp ?? null, versie: beginVersie,
       };
       if (vorig) app.bijwerken(taak, `${t} aangepast`);
       else app.toevoegen([taak], dag === 'ooit' ? `${t} staat op de lijst voor later` : `${t} staat op de takenlijst`);
     } else if (bestaand?.soort === 'boodschap') {
-      app.bijwerken({ ...bestaand, naam: t.charAt(0).toUpperCase() + t.slice(1) }, `${t} aangepast`);
+      app.bijwerken({ ...bestaand, naam: t.charAt(0).toUpperCase() + t.slice(1), versie: beginVersie }, `${t} aangepast`);
     } else {
-      const r = voegBoodschappenToe(staat.items, splitsBoodschappen(t), () => nieuwId('b'));
-      app.vervangAlles(r.items, boodschappenMelding(r));
+      app.voegBoodschappenToe(splitsBoodschappen(t));
     }
     sluit();
   }
@@ -176,9 +183,9 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
     if (!bestaand) return;
     const naam = bestaand.soort === 'boodschap' ? bestaand.naam : bestaand.titel ?? 'Afspraak';
     if (reeks && voorkomen && bereik === 'deze') {
-      app.vervangAlles(verwijderVoorkomen(staat.items, reeks.id, voorkomen.datum), `${naam} op ${langeDatum(voorkomen.datum)} verwijderd`);
+      app.verwijderVoorkomen(reeks.id, voorkomen.datum, `${naam} op ${langeDatum(voorkomen.datum)} verwijderd`);
     } else if (reeks) {
-      app.vervangAlles(verwijderReeks(staat.items, reeks.id), `Hele reeks ${naam} verwijderd`);
+      app.verwijderReeks(reeks.id, `Hele reeks ${naam} verwijderd`);
     } else {
       app.verwijder([bestaand.id], `${naam} verwijderd`);
     }

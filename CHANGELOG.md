@@ -575,3 +575,15 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: KG-T50 (matrix 50), 57 SQL-tegenproeven, `herstel3.test.mjs` (R1a, R1b, R2) met tegenproef op de oude
   databasefunctie, 22 mutatie-tegenproeven.
 
+## Thuisplanner React-integratie — prototype met echte synchronisatie (alleen lokaal, fictief)
+- De React-app uit PR #20 heeft naast de demo een lokale modus: inloggen als fictief gezinslid en lezen
+  en schrijven via de sync-module uit PR #22 tegen een lokale Supabase-stack. Vandaag, Agenda, taken en
+  Boodschappen werken met echte gegevens en synchroniseren tussen twee accounts.
+- Eén centrale sessie per pagina buiten React; unmount en StrictMode stoppen niets, alleen uitloggen.
+- Versieconflicten, onbevestigde opdrachten (opnieuw proberen, vergeten, mogelijk dubbel) en de
+  opslagwaarschuwing zijn zichtbaar in de app. Privé-afspraken van een ander blijven "Bezet" (server).
+- Sync-module: uitzonderingen op herhalende afspraken, taak bijwerken, één voorkomen wijzigen of
+  verwijderen.
+- Nieuw: `scripts/lokaal.mjs` (fictief gezin, twee telefoons), e2e met twee accounts, integratietest,
+  CI-stap. Alleen `@supabase/supabase-js` toegevoegd. P1–P5 niet ingevoerd. Documentatie:
+  `docs/thuisplanner-app.md`. Geen wijziging aan de Huisplan-app.

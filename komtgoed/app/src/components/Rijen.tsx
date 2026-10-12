@@ -2,6 +2,7 @@ import { useApp } from '../lib/context';
 import { isBezetVanAnder } from '../lib/rechten';
 import type { Afspraak, Boodschap, LidId, Taak } from '../lib/types';
 import { IcHerhaal, IcPijl, IcSlot, IcVink } from './Iconen';
+import { SyncLabel } from './Lokaal';
 
 export function Wie({ ids, klein }: { ids: LidId[]; klein?: boolean }) {
   const { lid } = useApp();
@@ -30,7 +31,7 @@ export function AfspraakRij({ a, voorbij, compact }: { a: Afspraak; voorbij?: bo
   const { lid, huishouden, openItem } = useApp();
   const bezet = isBezetVanAnder(a, huishouden.ik);
   const kleur = a.wie.length === 1 ? lid(a.wie[0])?.kleur : undefined;
-  const naam = (bezet ? `Bezet, ${tijdTekst(a)}` : `${a.titel}, ${tijdTekst(a)}`) + (a.herhaling ? ', herhaalt' : '');
+  const naam = (bezet ? `Bezet, ${tijdTekst(a)}` : `${a.titel ?? 'Afspraak'}, ${tijdTekst(a)}`) + (a.herhaling ? ', herhaalt' : '');
   return (
     <li className={'rij afspraak' + (voorbij ? ' voorbij' : '') + (compact ? ' compact' : '')}>
       <button type="button" className="rij-knop" onClick={() => openItem(a.id)} aria-label={`${naam}. Openen`}>
@@ -51,6 +52,7 @@ export function AfspraakRij({ a, voorbij, compact }: { a: Afspraak; voorbij?: bo
             {bezet && <span className="plek">privé-afspraak</span>}
             {!bezet && a.zichtbaarheid === 'prive' && <span className="plek prive"><IcSlot /> alleen voor jou</span>}
             {a.herhaling && <span className="plek herhaalt" title="Herhalende afspraak"><IcHerhaal /></span>}
+            <SyncLabel sync={a.sync} />
           </span>
         </span>
       </button>
@@ -67,17 +69,19 @@ export function TaakRij({ t, extra }: { t: Taak; extra?: string }) {
   const { wissel, openItem } = useApp();
   return (
     <li className={'rij taak' + (t.klaar ? ' klaar' : '')}>
-      <button type="button" className="vink-knop" role="checkbox" aria-checked={t.klaar}
+      {/* Afvinken kan pas als de server de taak kent (zie de sync-module); tot dan staat het vinkje stil. */}
+      <button type="button" className="vink-knop" role="checkbox" aria-checked={t.klaar} disabled={!!t.sync}
         aria-label={t.titel} onClick={() => wissel(t.id, t.klaar ? `${t.titel} weer open` : `${t.titel} afgerond`)}>
         <Vinkje aan={t.klaar} />
       </button>
       <button type="button" className="rij-open" onClick={() => openItem(t.id)} aria-label={`${t.titel} openen`}>
         <span className="rij-inhoud">
           <span className="rij-titel">{t.titel}</span>
-          {(t.voor || extra) && (
+          {(t.voor || extra || t.sync) && (
             <span className="rij-sub">
               {t.voor && <Wie ids={[t.voor]} klein />}
               {extra && <span className="plek">{extra}</span>}
+              <SyncLabel sync={t.sync} />
             </span>
           )}
         </span>
@@ -92,11 +96,14 @@ export function BoodschapRij({ b }: { b: Boodschap }) {
   return (
     <li className={'rij boodschap' + (b.afgevinkt ? ' klaar' : '')}>
       <button type="button" className="vink-knop" role="checkbox" aria-checked={b.afgevinkt} aria-label={b.naam}
-        onClick={() => wissel(b.id)}>
+        disabled={!!b.sync} onClick={() => wissel(b.id)}>
         <Vinkje aan={b.afgevinkt} />
       </button>
       <button type="button" className="rij-open" onClick={() => openItem(b.id)} aria-label={`${b.naam} aanpassen`}>
-        <span className="rij-inhoud"><span className="rij-titel">{b.naam}</span></span>
+        <span className="rij-inhoud">
+          <span className="rij-titel">{b.naam}</span>
+          {b.sync && <span className="rij-sub"><SyncLabel sync={b.sync} /></span>}
+        </span>
         <IcPijl className="rij-pijl" />
       </button>
     </li>

@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useApp } from '../lib/context';
-import { boodschappenMelding, splitsBoodschappen, voegBoodschappenToe } from '../lib/boodschappen';
+import { splitsBoodschappen } from '../lib/boodschappen';
 import { isBoodschap } from '../lib/vandaag';
-import { nieuwId } from '../lib/store';
 import { BoodschapRij } from '../components/Rijen';
 
 export function Boodschappen() {
-  const { staat, vervangAlles, verwijder } = useApp();
+  const { staat, voegBoodschappenToe, verwijder, lokaal } = useApp();
   const [tekst, zetTekst] = useState('');
   const alle = staat.items.filter(isBoodschap);
   const open = alle.filter(b => !b.afgevinkt);
@@ -17,8 +16,7 @@ export function Boodschappen() {
     e.preventDefault();
     const namen = splitsBoodschappen(tekst);
     if (!namen.length) return;
-    const r = voegBoodschappenToe(staat.items, namen, () => nieuwId('b'));
-    vervangAlles(r.items, boodschappenMelding(r));
+    voegBoodschappenToe(namen);
     zetTekst('');
   }
 
@@ -56,7 +54,8 @@ export function Boodschappen() {
         </section>
       )}
       <p className="demo-noot">Tik op het rondje om af te vinken, op de naam om aan te passen of te verwijderen.
-        Demo: synchroniseren tussen telefoons en winkelvolgorde komen in een latere fase.</p>
+        {' '}{lokaal ? 'Wijzigingen verschijnen ook op de andere telefoons. Winkelvolgorde komt in een latere fase.'
+          : 'Demo: synchroniseren tussen telefoons en winkelvolgorde komen in een latere fase.'}</p>
     </div>
   );
 }

@@ -6,7 +6,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   base: './',
   plugins: [react()],
-  server: { host: '127.0.0.1', port: 5180, strictPort: true },
+  // De sync-module staat naast de app (../sync); Vite mag die map lezen.
+  server: { host: '127.0.0.1', port: 5180, strictPort: true, fs: { allow: ['..'] } },
   preview: { host: '127.0.0.1', port: 5181, strictPort: true },
   test: {
     environment: 'jsdom',
