@@ -506,3 +506,27 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: KG-T28 t/m KG-T31, 26 tegenproeven, gelijktijdigheidstests met aparte verbindingen (met
   tegenproef; reproduceren alle vijf problemen op `6da0f47`), strengere realtime-tests.
 
+## Thuisplanner KG-5C — inhoudsschema (bouwplan stap 2; alleen lokaal, geen app-wijziging)
+- De nieuwe app heet voortaan Thuisplanner (technische map `komtgoed/` blijft).
+- Migratie `20261012120000_kg5c_inhoud.sql`: `events`, `event_details` (strengere RLS: privé van een
+  ander = "Bezet"), `event_participants`, `event_exceptions`, `tasks`, `shopping_items`,
+  `households.timezone` en de view `event_overview` (security_invoker). Afspraken via functies
+  (`save_event`, `edit_occurrence`, `delete_occurrence`, `delete_event`) met versiecontrole (PT409 =
+  HTTP 409); taken en boodschappen via de API en `add_shopping_items`. Accountverwijdering ruimt
+  privé-afspraken op.
+- Tests: KG-T32 t/m KG-T41, 39 tegenproeven, gelijktijdigheids-, API- en realtime-tests.
+
+## Thuisplanner KG-5C herstelronde 1 — drie reviewbevindingen opgelost (alleen lokaal)
+- Migratie `20261013120000_kg5c_herstel1.sql`: privé-inhoud hoort bij het account (`owner_user_id`,
+  niet leesbaar via de API) en verdwijnt zodra een account van een profiel loskomt; een gedeelde reeks
+  verwijderen laat andermans privé-voorkomens staan; vaste vergrendelvolgorde (reeks → voorkomen) en
+  een unieke index op (reeks, dag).
+- Tests: KG-T42 t/m KG-T44 (falen op `700c3d9`), 43 tegenproeven, gelijktijdigheidstest voor twee
+  verplaatsingen tegelijk en een deadlockcontrole.
+
+## Thuisplanner KG-5C herstelronde 2 — twee herreviewbevindingen opgelost (alleen lokaal)
+- Migratie `20261014120000_kg5c_herstel2.sql`: een verwijderde reeks blokkeert geen datums meer
+  (achtergebleven privé-voorkomens zijn vrij te verplaatsen); publieke functies geven fouten door zonder
+  DETAIL en HINT, zodat account-ID's (`owner_user_id`) niet via foutdetails lekken.
+- Tests: KG-T43 uitgebreid, KG-T45 en KG-T46, integratietest op de foutrespons; 46 tegenproeven.
+

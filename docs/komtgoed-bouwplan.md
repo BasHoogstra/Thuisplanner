@@ -2,7 +2,9 @@
 
 Opgesteld 10 oktober 2026 (KG-5A). Dit is de vastgelegde versie van het bouwplan dat eerst als Claude-document is gedeeld; vanaf nu is dit bestand leidend. Wijzigingen in het plan gaan via een PR op dit bestand.
 
-KomtGoed is een werknaam. Dit plan raakt de bestaande Huisplan-app (`index.html`, `supabase/`) niet en gebruikt geen bestaand online Supabase-project.
+De nieuwe app heet sinds 11 oktober 2026 **Thuisplanner** (eerder werknaam KomtGoed); de technische map `komtgoed/` blijft voorlopig staan.
+
+KomtGoed was een werknaam. Dit plan raakt de bestaande Huisplan-app (`index.html`, `supabase/`) niet en gebruikt geen bestaand online Supabase-project.
 
 We bouwen de echte gezinsapp op Supabase door PR #19 eerst te verstevigen en te testen op een echte lokale Supabase, daarna de inhoudstabellen toe te voegen met privé-afspraken als aparte detailtabel, en de bestaande React-app via één datalaag te koppelen. Elke stap is klein, lokaal getest en zonder deploy; staging volgt pas na jouw keuze voor een nieuw Supabase-project.
 
@@ -189,6 +191,9 @@ Negen stappen, elk een eigen kleine PR die lokaal of in CI getest wordt. Tot en 
    - Herstelronde 1 na onafhankelijke review: vijf beveiligingsproblemen (races, oude uitnodigingen, gelijktijdig vertrek, `created_by`, limiet bij overdracht) opgelost met één vergrendelingsprotocol; 31 scenario's, 26 tegenproeven en gelijktijdigheidstests met aparte verbindingen. Zie `docs/komtgoed-fundament.md` §8.
 2. **KG-5C · Inhoudsschema.** Zes inhoudstabellen, de view voor afspraken, de functies voor herhaling en boodschappen, en de RLS.
    - Klaar als: de matrix voor privé, herhaling en dubbelingen slaagt met tegenproeven (gate 9 technisch gehaald).
+   - Uitkomst KG-5C: gebouwd op een eigen branch boven op PR #19. Matrix 41 scenario's en 39 tegenproeven op de nabootsing én de echte lokale Supabase, gelijktijdigheids-, API- en realtime-tests. Zie `docs/thuisplanner-inhoud.md`.
+   - Herstelronde 1 na onafhankelijke review (NO-GO op `700c3d9`): privé-inhoud aan het account gebonden en opgeruimd bij ontkoppelen, reeksverwijdering respecteert andermans privé-voorkomens, race bij verplaatsen dicht. 44 scenario's, 43 tegenproeven.
+   - Herstelronde 2 (NO-GO op `427542d`): verwijderde reeks blokkeert geen datums meer; foutmeldingen zonder DETAIL/HINT (geen account-ID's). 46 scenario's, 46 tegenproeven.
 3. **KG-5D · Realtime op de server.** Trigger naar `household:<id>` en het beleid op `realtime.messages`.
    - Klaar als: integratietests aantonen dat een ander huishouden niet kan meeluisteren en dat berichten geen inhoud bevatten.
 4. **KG-5E · Frontend herindelen, zonder zichtbaar verschil.** Mappen `domein`, `data`, `app`, `paginas` en `ui`; de opslag-interface met `DemoOpslag`; cache en router.

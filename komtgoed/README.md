@@ -1,20 +1,21 @@
-# KomtGoed (werknaam)
+# Thuisplanner (map: komtgoed)
 
-De nieuwe gezinsapp, technisch gescheiden van Huisplan. De definitieve merknaam is nog niet gekozen;
-"komtgoed" is alleen een werknaam en mag later overal worden vervangen.
+De nieuwe gezinsapp **Thuisplanner**, technisch gescheiden van Huisplan. "komtgoed" was de werknaam; de
+technische map en oudere documentnamen houden die naam voorlopig.
 
 - **Ontwikkelrichting en gevolgen voor bestaande besluiten:** `docs/roadmap.md`, sectie
   "Ontwikkelrichting KomtGoed".
 - **Technisch bouwplan (KG-5A):** `docs/komtgoed-bouwplan.md`.
 - **Fundament (KG-1, verstevigd in KG-5B):** `docs/komtgoed-fundament.md`.
+- **Inhoud (KG-5C: afspraken, taken, boodschappen):** `docs/thuisplanner-inhoud.md`.
 
 ## Wat hier staat
 
 | Pad | Inhoud |
 | --- | --- |
 | `supabase/config.toml` | Supabase CLI-configuratie, alleen voor lokale ontwikkeling. Niet gekoppeld aan een project. |
-| `supabase/migrations/` | Het databaseschema van KomtGoed. KG-1: profielen, huishoudens, leden, uitnodigingen, rollen, toegangsrechten. KG-5B: account-ID's afgeschermd, account en huishouden verwijderen, limiet op huishoudens; herstelronde 1: vergrendelingsprotocol tegen races. |
-| `supabase/tests/rls_tests.sql` | De RLS- en rechtentestmatrix (KG-T01 t/m KG-T31), in één transactie die wordt teruggedraaid. |
+| `supabase/migrations/` | Het databaseschema van KomtGoed. KG-1: profielen, huishoudens, leden, uitnodigingen, rollen, toegangsrechten. KG-5B: account-ID's afgeschermd, account en huishouden verwijderen, limiet op huishoudens; herstelronde 1: vergrendelingsprotocol tegen races. KG-5C: afspraken (privé als "Bezet"), taken en boodschappen. |
+| `supabase/tests/rls_tests.sql` | De RLS- en rechtentestmatrix (KG-T01 t/m KG-T46), in één transactie die wordt teruggedraaid. |
 | `supabase/tests/tegenproeven.txt` | Sabotages: elke regel schakelt één beveiliging uit; de matrix moet dan op het genoemde scenario falen. |
 | `supabase/tests/run.sh` | Bouwt een tijdelijke, lege PostgreSQL op, voert de migraties uit en draait de matrix (en met `--tegenproef` de tegenproeven). Met `--db <url>` op een draaiende lokale Supabase. |
 | `supabase/tests/integratie/` | Integratietest met supabase-js tegen een lokale Supabase: API, Auth (account verwijderen) en Realtime (niets lekt uit). Plus `gelijktijdig.test.mjs`: races met aparte databaseverbindingen (node-postgres), met tegenproef. |
@@ -25,8 +26,8 @@ De nieuwe gezinsapp, technisch gescheiden van Huisplan. De definitieve merknaam 
 
 ```sh
 node komtgoed/supabase/tests/statisch.js                 # zonder database
-komtgoed/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "31 van 31"
-komtgoed/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "26 van 26"
+komtgoed/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "46 van 46"
+komtgoed/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "46 van 46"
 komtgoed/supabase/tests/run.sh --tegenproef --gelijktijdig  # + gelijktijdigheidstests (node, aparte verbindingen)
 node tests/run.js komtgoed                               # via de bestaande testrunner
 ```
