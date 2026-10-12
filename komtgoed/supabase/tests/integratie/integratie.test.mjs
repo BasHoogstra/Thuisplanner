@@ -346,6 +346,38 @@ test('KG-5C realtime: zelfs met event_details in een publicatie krijgt een ander
   assert.equal(sql(`select count(*) from pg_publication_tables where schemaname = 'public'`), '0');
 });
 
+test('KG-5C herstel 2: foutrespons van de API bevat geen account-ID\'s (DETAIL/HINT weg)', async () => {
+  // Mira (lid) wijzigt een gedeelde afspraak van Anna met een einddatum vóór de start. Zonder herstel
+  // stond in "details" de hele rij, met het account-ID van Anna (owner_user_id).
+  const e = randomUUID(), s = randomUUID();
+  assert.ifError((await nieuweAfspraak('anna', { id: e, titel: 'Gedeeld (fouttest)', dag: '2026-11-07' })).error);
+  assert.ifError((await accounts.anna.client.rpc('save_event', { p_household: h1, p_id: s, p_version: null, p_start_date: '2026-11-07',
+    p_start_time: null, p_end_date: null, p_end_time: null, p_visibility: 'household', p_title: 'Reeks (fouttest)', p_location: null,
+    p_notes: null, p_preparation: null, p_participants: null, p_recurrence_freq: 'weekly', p_recurrence_until: null })).error);
+  const accountIds = sql('select string_agg(id::text, \',\') from auth.users').split(',');
+  const m = accounts.mira.client;
+  const pogingen = {
+    'save_event eind vóór start': m.rpc('save_event', { p_household: h1, p_id: e, p_version: 1, p_start_date: '2026-11-07', p_start_time: null,
+      p_end_date: '2026-11-01', p_end_time: null, p_visibility: 'household', p_title: 'X', p_location: null, p_notes: null, p_preparation: null,
+      p_participants: null, p_recurrence_freq: null, p_recurrence_until: null }),
+    'save_event herhaling eindigt vóór start': m.rpc('save_event', { p_household: h1, p_id: e, p_version: 1, p_start_date: '2026-11-07',
+      p_start_time: null, p_end_date: null, p_end_time: null, p_visibility: 'household', p_title: 'X', p_location: null, p_notes: null,
+      p_preparation: null, p_participants: null, p_recurrence_freq: 'weekly', p_recurrence_until: '2026-10-01' }),
+    'edit_occurrence eind vóór start': m.rpc('edit_occurrence', { p_series: s, p_original_date: '2026-11-14', p_id: randomUUID(),
+      p_start_date: '2026-11-15', p_start_time: null, p_end_date: '2026-11-01', p_end_time: null, p_title: 'X', p_location: null,
+      p_notes: null, p_preparation: null, p_participants: null }),
+    'huishoudnaam te lang (API)': accounts.anna.client.from('households').update({ name: 'x'.repeat(90) }).eq('id', h1),
+  };
+  for (const [naam, p] of Object.entries(pogingen)) {
+    const r = await p;
+    assert.ok(r.error, naam + ': opzet: geen fout');
+    assert.equal(r.error.code, '23514', naam + ': foutcode');
+    assert.ok(!r.error.details && !r.error.hint, `${naam}: details/hint in de foutrespons: ${r.error.details}`);
+    const tekst = JSON.stringify(r.error);
+    for (const id of accountIds) assert.ok(!tekst.includes(id), `${naam}: account-ID in de foutrespons`);
+  }
+});
+
 test('account verwijderen via Auth (AVG): lid lukt, enige eigenaar met anderen geweigerd, anders gaat het huishouden mee', async () => {
   // Tweede huishouden: Ouder (eigenaar) + Helper (beheerder) + een kind.
   await account('ouder'); await account('helper');

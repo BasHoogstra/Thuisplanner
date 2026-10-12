@@ -524,3 +524,9 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: KG-T42 t/m KG-T44 (falen op `700c3d9`), 43 tegenproeven, gelijktijdigheidstest voor twee
   verplaatsingen tegelijk en een deadlockcontrole.
 
+## Thuisplanner KG-5C herstelronde 2 — twee herreviewbevindingen opgelost (alleen lokaal)
+- Migratie `20261014120000_kg5c_herstel2.sql`: een verwijderde reeks blokkeert geen datums meer
+  (achtergebleven privé-voorkomens zijn vrij te verplaatsen); publieke functies geven fouten door zonder
+  DETAIL en HINT, zodat account-ID's (`owner_user_id`) niet via foutdetails lekken.
+- Tests: KG-T43 uitgebreid, KG-T45 en KG-T46, integratietest op de foutrespons; 46 tegenproeven.
+

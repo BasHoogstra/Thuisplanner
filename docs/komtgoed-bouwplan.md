@@ -193,6 +193,7 @@ Negen stappen, elk een eigen kleine PR die lokaal of in CI getest wordt. Tot en 
    - Klaar als: de matrix voor privé, herhaling en dubbelingen slaagt met tegenproeven (gate 9 technisch gehaald).
    - Uitkomst KG-5C: gebouwd op een eigen branch boven op PR #19. Matrix 41 scenario's en 39 tegenproeven op de nabootsing én de echte lokale Supabase, gelijktijdigheids-, API- en realtime-tests. Zie `docs/thuisplanner-inhoud.md`.
    - Herstelronde 1 na onafhankelijke review (NO-GO op `700c3d9`): privé-inhoud aan het account gebonden en opgeruimd bij ontkoppelen, reeksverwijdering respecteert andermans privé-voorkomens, race bij verplaatsen dicht. 44 scenario's, 43 tegenproeven.
+   - Herstelronde 2 (NO-GO op `427542d`): verwijderde reeks blokkeert geen datums meer; foutmeldingen zonder DETAIL/HINT (geen account-ID's). 46 scenario's, 46 tegenproeven.
 3. **KG-5D · Realtime op de server.** Trigger naar `household:<id>` en het beleid op `realtime.messages`.
    - Klaar als: integratietests aantonen dat een ander huishouden niet kan meeluisteren en dat berichten geen inhoud bevatten.
 4. **KG-5E · Frontend herindelen, zonder zichtbaar verschil.** Mappen `domein`, `data`, `app`, `paginas` en `ui`; de opslag-interface met `DemoOpslag`; cache en router.

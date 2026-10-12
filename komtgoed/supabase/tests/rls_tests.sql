@@ -1080,6 +1080,22 @@ do $$ declare s text := current_setting('test.s2'); begin
   if pg_temp.aantal(format('select 1 from public.event_details where event_id = %L', current_setting('test.o5'))) <> 0 then raise exception 'KG-T43: details van het privé-voorkomen zichtbaar'; end if;
   perform pg_temp.als('sam');
   if (select title from public.event_overview where id = current_setting('test.o5')::uuid) is distinct from 'Sam-los-geheim' then raise exception 'KG-T43: eigenaar ziet het privé-voorkomen niet meer'; end if;
+  -- Herstelronde 2 (scenario uit de review): reeks vanaf 7 november, privé-voorkomen naar 15 november,
+  -- gedeelde reeks verwijderd door een ander lid; daarna verplaatst de eigenaar het voorkomen naar
+  -- 28 november (een dag van het oude reekspatroon). Een verwijderde reeks blokkeert geen datums.
+  if pg_temp.fout(format($q$ select pg_temp.bewaar(%L, %L, 1, '2026-11-28', '09:00', '10:00', 'private', 'Sam-los-geheim (verplaatst)', null) $q$, current_setting('test.hs'), current_setting('test.o5'))) is not null then raise exception 'KG-T43: achtergebleven privé-voorkomen niet te verplaatsen na reeksverwijdering'; end if;
+  if (select start_date from public.event_overview where id = current_setting('test.o5')::uuid) <> '2026-11-28'
+     or (select version from public.event_overview where id = current_setting('test.o5')::uuid) <> 2 then raise exception 'KG-T43: verplaatsing niet opgeslagen'; end if;
+  -- Privacy blijft: Noa ziet alleen "Bezet" en kan het voorkomen niet wijzigen of verwijderen.
+  perform pg_temp.als('noa');
+  if (select is_busy from public.event_overview where id = current_setting('test.o5')::uuid) is not true
+     or pg_temp.aantal(format('select 1 from public.event_details where event_id = %L', current_setting('test.o5'))) <> 0 then raise exception 'KG-T43: verplaatst privé-voorkomen zichtbaar voor een ander'; end if;
+  if pg_temp.fout(format($q$ select pg_temp.bewaar(%L, %L, 2, '2026-11-29', null, null, 'household', 'Gekaapt', null) $q$, current_setting('test.hs'), current_setting('test.o5'))) <> 'P0002'
+     or pg_temp.fout(format($q$ select public.delete_event(%L, 2) $q$, current_setting('test.o5'))) <> 'P0002' then raise exception 'KG-T43: ander lid kan het privé-voorkomen wijzigen of verwijderen'; end if;
+  -- De eigenaar kan het daarna ook verwijderen.
+  perform pg_temp.als('sam');
+  perform public.delete_event(current_setting('test.o5')::uuid, 2);
+  if pg_temp.aantal(format('select 1 from public.events where id = %L and deleted_at is not null', current_setting('test.o5'))) <> 1 then raise exception 'KG-T43: eigenaar kan het privé-voorkomen niet verwijderen'; end if;
   perform pg_temp.ok('KG-T43');
 end $$;
 
@@ -1095,6 +1111,60 @@ do $$ declare s text := current_setting('test.s1'); begin
     values (current_setting('test.hs')::uuid, current_setting('test.m_sam')::uuid, '2026-12-13', current_setting('test.s3')::uuid, '2026-12-12');
   if not pg_temp.faalt(format($q$ insert into public.events (household_id, owner_member_id, start_date, series_id, original_date) values (%L, %L, '2026-12-13', %L, '2026-12-19') $q$, current_setting('test.hs'), current_setting('test.m_sam'), current_setting('test.s3'))) then raise exception 'KG-T44: twee actieve voorkomens van een reeks op één dag'; end if;
   perform pg_temp.ok('KG-T44');
+end $$;
+set local role authenticated;
+
+-- ============================== KG-5C herstelronde 2 (herreview van 427542d) ==============================
+-- KG-T45 Fouten van functies geven geen DETAIL of HINT terug. Binnen een functie met eigenaarsrechten zou
+-- PostgreSQL bij een constraintschending de hele rij in DETAIL zetten, inclusief account-ID's
+-- (events.owner_user_id). Noa wijzigt een gedeelde afspraak van Sam met een ongeldige datum.
+reset role;
+create function pg_temp.detail(p_sql text) returns text language plpgsql as $$
+declare d text; h text;
+begin
+  execute p_sql;
+  return null;
+exception when others then
+  get stacked diagnostics d = pg_exception_detail, h = pg_exception_hint;
+  return coalesce(nullif(d, ''), '') || coalesce(nullif(h, ''), '');
+end $$;
+grant execute on function pg_temp.detail(text) to authenticated;
+set local role authenticated;
+select set_config('test.e45', gen_random_uuid()::text, true);
+select set_config('test.s45', gen_random_uuid()::text, true);
+select pg_temp.als('sam');
+select pg_temp.bewaar(current_setting('test.hs'), current_setting('test.e45'), null, '2026-11-07', null, null, 'household', 'Gedeeld', null);
+select pg_temp.bewaar(current_setting('test.hs'), current_setting('test.s45'), null, '2026-11-07', null, null, 'household', 'Reeks', null, 'weekly');
+do $$ declare d text; q text; begin
+  perform pg_temp.als('noa');
+  foreach q in array array[
+    format($q$ select public.save_event(%L, %L, 1, '2026-11-07', null, '2026-11-01', null, 'household', 'X', null, null, null, null, null, null) $q$, current_setting('test.hs'), current_setting('test.e45')),
+    format($q$ select public.save_event(%L, %L, 1, '2026-11-07', null, null, null, 'household', 'X', null, null, null, null, 'weekly', '2026-10-01') $q$, current_setting('test.hs'), current_setting('test.e45')),
+    format($q$ select public.edit_occurrence(%L, '2026-11-14', gen_random_uuid(), '2026-11-15', null, '2026-11-01', null, 'X', null, null, null, null) $q$, current_setting('test.s45')),
+    format($q$ select public.save_event(%L, %L, 1, '2026-11-07', null, null, null, 'household', 'X', repeat('x', 300), null, null, null, null, null) $q$, current_setting('test.hs'), current_setting('test.e45'))
+  ] loop
+    d := pg_temp.detail(q);
+    if d is null then raise exception 'KG-T45: opzet: opdracht faalde niet: %', q; end if;
+    if d <> '' then raise exception 'KG-T45: fout bevat DETAIL/HINT (mogelijk account-ID''s): %', d; end if;
+  end loop;
+  -- De foutcode blijft bruikbaar voor de app.
+  if pg_temp.fout(format($q$ select public.save_event(%L, %L, 1, '2026-11-07', null, '2026-11-01', null, 'household', 'X', null, null, null, null, null, null) $q$, current_setting('test.hs'), current_setting('test.e45'))) <> '23514' then raise exception 'KG-T45: foutcode gaat verloren'; end if;
+  perform pg_temp.ok('KG-T45');
+end $$;
+
+-- KG-T46 Catalogus: elke publieke functie (de enige weg naar private) geeft fouten door zonder DETAIL en
+-- HINT, en is security invoker.
+reset role;
+do $$ declare r record; begin
+  for r in select p.proname, l.lanname, pg_get_functiondef(p.oid) as def, p.prosecdef
+           from pg_proc p join pg_language l on l.oid = p.prolang where p.pronamespace = 'public'::regnamespace loop
+    if r.prosecdef then raise exception 'KG-T46: public.% is security definer', r.proname; end if;
+    if r.lanname <> 'plpgsql' or position('exception when others then' in r.def) = 0
+       or position('raise exception using errcode = sqlstate, message = sqlerrm' in r.def) = 0 then
+      raise exception 'KG-T46: public.% geeft fouten door met DETAIL/HINT', r.proname;
+    end if;
+  end loop;
+  perform pg_temp.ok('KG-T46');
 end $$;
 set local role authenticated;
 
@@ -1147,6 +1217,6 @@ do $$ declare h text := current_setting('test.hs'); t text; begin
 end $$;
 set constraints all deferred;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 44' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 46' as resultaat;
 
 rollback;

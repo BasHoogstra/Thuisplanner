@@ -5,7 +5,7 @@
 De nieuwe app heet voortaan **Thuisplanner**. De technische map `komtgoed/` en de oude documentnamen blijven voorlopig staan.
 
 - **Wat het is:** afspraken, taken en boodschappen in de database, met de privacyregels van gate 9.
-- **Migraties:** `komtgoed/supabase/migrations/20261012120000_kg5c_inhoud.sql`, en `20261013120000_kg5c_herstel1.sql` (herstelronde 1, sectie 9).
+- **Migraties:** `komtgoed/supabase/migrations/20261012120000_kg5c_inhoud.sql`, en `20261013120000_kg5c_herstel1.sql` (herstelronde 1, sectie 9) en `20261014120000_kg5c_herstel2.sql` (herstelronde 2, sectie 10).
 - **Plan:** `docs/komtgoed-bouwplan.md`, stap 2. Het fundament (stap 1) staat in `docs/komtgoed-fundament.md`.
 
 ## 1. Productkompas-toets
@@ -103,6 +103,7 @@ De herhalingsregels van `private.occurs_on` zijn gelijk aan `herhaling.ts` in de
 | KG-T40 | Catalogus: geen delete-recht, afspraken alleen via functies, view met `security_invoker`, protocol in elke inhoudsfunctie |
 | KG-T41 | AVG: privé-afspraken van een verwijderd account weg, gedeelde inhoud blijft; huishouden verwijderen neemt alles mee |
 | KG-T42–T44 | Herstelronde 1: privé hoort bij het account; reeksverwijdering laat andermans privé-voorkomens staan; één actief voorkomen per reeksdag (sectie 9) |
+| KG-T45–T46 | Herstelronde 2: foutmeldingen zonder DETAIL/HINT (geen account-ID's); elke publieke functie volgt die regel (sectie 10) |
 
 **Tegenproeven:** 13 nieuwe sabotages in KG-5C (totaal toen 39; nu 43, zie sectie 9). Elk wordt door het bedoelde scenario gevangen, onder meer:
 
@@ -166,3 +167,38 @@ Migratie `20261013120000_kg5c_herstel1.sql`. Elke bevinding is eerst met een tes
 - index weg.
 
 **De vijf reparaties uit PR #19** (P1–P5, KG-T28–T31) blijven groen in dezelfde runs.
+
+## 10. Herstelronde 2 (herreview van `427542d`)
+
+Migratie `20261014120000_kg5c_herstel2.sql`.
+
+| # | Bevinding | Oplossing | Regressietest |
+| --- | --- | --- | --- |
+| 1 (middel) | Een verwijderde reeks blokkeerde nog datums. Daardoor kon een achtergebleven privé-voorkomen niet vrij worden verplaatst. | `private.occurrence_taken` telt het reekspatroon alleen mee als de reeks niet verwijderd is. Botsingen met andere actieve voorkomens van dezelfde reeks blijven geweigerd (functie en unieke index). | KG-T43, uitgebreid met het scenario uit de review: reeks vanaf 7 november 2026, privé-voorkomen naar 15 november, de gedeelde reeks wordt door een ander lid verwijderd, en de eigenaar verplaatst het voorkomen naar 28 november. Daarna controleert de test: de eigenaar leest, wijzigt, verplaatst en verwijdert het voorkomen; het andere lid ziet alleen "Bezet" en kan het niet wijzigen of verwijderen. |
+| 2 (middel) | Account-ID's via foutdetails. Binnen een functie met eigenaarsrechten (`security definer`) zet PostgreSQL bij een constraintschending de hele rij in DETAIL ("Failing row contains …"), ook kolommen die de aanroeper niet mag lezen. PostgREST stuurt `details` en `hint` mee. | Elke publieke functie (de enige weg naar `private`) is een dunne plpgsql-functie die fouten doorgeeft met dezelfde SQLSTATE en melding, zonder DETAIL en HINT. Meldingen zelf bevatten nooit rijgegevens; eigen meldingen noemen geen account-ID's. | KG-T45 (vier foutpaden: geen DETAIL/HINT, foutcode blijft), KG-T46 (catalogus: elke publieke functie volgt de regel en is `security invoker`), integratietest via PostgREST (de foutrespons bevat geen enkel account-ID uit `auth.users`) |
+
+**Onderzoek bevinding 2 op de echte lokale stack** (PostgREST, `427542d`), per foutpad met de volledige API-respons:
+
+| Foutpad | Vóór herstel | Na herstel |
+| --- | --- | --- |
+| `save_event` (ander lid, einddatum vóór start) | `details` met de hele rij, **inclusief het account-ID van de eigenaar** | `details: null` |
+| `edit_occurrence` (einddatum vóór start) | idem, **lek** | `details: null` |
+| `save_event` (herhaling eindigt vóór start) | idem, **lek** | `details: null` |
+| `save_event` (plek te lang) | rij van `event_details` (geen account-ID, wel onnodige data) | `details: null` |
+| Huishoudnaam, ledennaam of -kleur, taak via de API (direct) | `details: null`: PostgreSQL toont alleen kolommen waarop de aanroeper leesrecht heeft | ongewijzigd |
+| Eigen meldingen (`raise`) in functies | geen DETAIL | ongewijzigd |
+
+Waarom dit nu dicht is:
+
+- **Directe API-schrijfacties** lopen als `authenticated`. Kolommen met account-ID's zijn voor die rol niet leesbaar (KG-T29), dus PostgreSQL laat ze uit DETAIL weg.
+- **Functies met eigenaarsrechten** zijn alleen via de publieke functies bereikbaar, want schema `private` is niet via de API ontsloten. Die publieke functies halen DETAIL en HINT altijd weg.
+- **Eigen meldingen** in de functies noemen nooit account-ID's.
+
+**Vóór en na herstel:**
+
+| Wat | Op `427542d` (oude migraties, verse lokale stack) | Op de herstelde code |
+| --- | --- | --- |
+| **Complete nieuwe matrix** op de oude code | Faalt bij het eerste nieuwe scenario: KG-T43 ("achtergebleven privé-voorkomen niet te verplaatsen na reeksverwijdering"). Omdat de matrix bij de eerste fout stopt, zijn KG-T45 en KG-T46 daarna los gedraaid: KG-T45 "fout bevat DETAIL/HINT: Failing row contains (…)" en KG-T46 "public.create_household geeft fouten door met DETAIL/HINT". | 46 van 46 |
+| **Complete nieuwe integratiesuite** op de oude code | 21 van 22: alleen de nieuwe foutresponstest faalt ("details/hint in de foutrespons: Failing row contains …") | 22 van 22 |
+| **Gerichte tegenproeven** (sabotage op de nieuwe code, in `tegenproeven.txt`) | — | De oude `occurrence_taken` wordt gevangen door KG-T43, `save_event` zonder foutfilter door KG-T45, en een publieke functie in SQL door KG-T46. Totaal 46 van 46. |
+
