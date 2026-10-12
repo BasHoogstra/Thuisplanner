@@ -242,6 +242,9 @@ test('B3d herstart na verloren antwoord: dezelfde UUID overleeft de herstart; be
 
 // ============================ Bevinding 4: paginering ============================
 let hGroot;
+// Ruime wachttijd voor het laden van dit grote huishouden: op een trage CI-runner duurde het eens
+// langer dan 30 s (lokaal ~1 s). De beweringen zelf (alle rijen, niets dubbel) veranderen niet.
+const LAADTIJD = 90000;
 async function grootHuishouden() {
   if (hGroot) return hGroot;
   hGroot = await huishouden('B4');
@@ -266,12 +269,12 @@ const telling = h => ({
 });
 const inCache = t => ({ boodschappen: t.boodschappen.length, taken: t.taken.length, afspraken: t.afspraken.length, leden: t.leden.length });
 
-test('B4a meer dan 1000 rijen per soort: alles komt mee (boodschappen, taken, afspraken, leden)', { skip: TEGENPROEF, timeout: 120000 }, async () => {
+test('B4a meer dan 1000 rijen per soort: alles komt mee (boodschappen, taken, afspraken, leden)', { skip: TEGENPROEF, timeout: 240000 }, async () => {
   const h = await grootHuishouden();
   const s = await sessie('anna');
   const a = maak(s, h);
   await a.start();
-  await totdat(() => a.toestand.lid, 30000, 'geladen');
+  await totdat(() => a.toestand.lid, LAADTIJD, 'geladen');
   const verwacht = telling(h);
   assert.ok(Object.values(verwacht).every(n => n > 1000), JSON.stringify(verwacht));
   assert.deepEqual(inCache(a.toestand), verwacht);
@@ -283,12 +286,12 @@ test('B4a meer dan 1000 rijen per soort: alles komt mee (boodschappen, taken, af
   assert.deepEqual(datums, [...datums].sort());
 });
 
-test('B4b een mislukte pagina: de cache blijft zoals hij was (geen halve vervanging)', { skip: TEGENPROEF, timeout: 120000 }, async () => {
+test('B4b een mislukte pagina: de cache blijft zoals hij was (geen halve vervanging)', { skip: TEGENPROEF, timeout: 240000 }, async () => {
   const h = await grootHuishouden();
   const s = await sessie('anna');
   const a = maak(s, h, { debounceMs: 600000 });   // alleen de rondes van de test zelf
   await a.start();
-  await totdat(() => a.toestand.lid && a.toestand.taken.length > 1000, 30000, 'geladen');
+  await totdat(() => a.toestand.lid && a.toestand.taken.length > 1000, LAADTIJD, 'geladen');
   await wacht(1000);
   await a.vernieuw();
   const voor = a.toestand;
@@ -306,12 +309,12 @@ test('B4b een mislukte pagina: de cache blijft zoals hij was (geen halve vervang
   sql(`delete from public.shopping_items where household_id = '${h}' and name = 'B4b-nieuw'`);
 });
 
-test('B4c wijzigingen tijdens het ophalen: geen rij overgeslagen of dubbel; daarna gelijk aan de server', { skip: TEGENPROEF, timeout: 120000 }, async () => {
+test('B4c wijzigingen tijdens het ophalen: geen rij overgeslagen of dubbel; daarna gelijk aan de server', { skip: TEGENPROEF, timeout: 240000 }, async () => {
   const h = await grootHuishouden();
   const s = await sessie('anna');
   const a = maak(s, h, { debounceMs: 600000 });   // alleen de rondes van de test zelf
   await a.start();
-  await totdat(() => a.toestand.lid && a.toestand.boodschappen.length > 1000, 30000, 'geladen');
+  await totdat(() => a.toestand.lid && a.toestand.boodschappen.length > 1000, LAADTIJD, 'geladen');
   await wacht(1000);
   await a.vernieuw();
   // Volgorde op id zoals de server die ziet; de eerste rij van pagina 2 moet in elk geval meekomen.
