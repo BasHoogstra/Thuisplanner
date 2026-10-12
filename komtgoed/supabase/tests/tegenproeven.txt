@@ -48,3 +48,8 @@ KG-T47|create or replace function private.ping_content() returns trigger languag
 KG-T47|drop policy thuisplanner_household_luisteren on realtime.messages; create policy thuisplanner_household_luisteren on realtime.messages for select to authenticated using (true);
 KG-T47|create policy kg_zenden on realtime.messages for insert to authenticated with check (true);
 KG-T48|drop trigger household_members_ping on public.household_members;
+KG-T49|drop trigger household_members_rotate_channel on public.household_members;
+KG-T49|create or replace function private.may_listen(p_topic text) returns boolean language sql stable security definer set search_path = '' as $$ select substring(p_topic from '^household:([0-9a-f-]{36})') is not null and private.is_active_member(substring(p_topic from '^household:([0-9a-f-]{36})')::uuid) $$;
+KG-T49|alter trigger household_members_rotate_channel on public.household_members rename to household_members_a_rotate_channel;
+KG-T49|create or replace function private.household_channel(p_household uuid) returns text language sql stable security definer set search_path = '' as $$ select private.household_topic(p_household) $$;
+KG-T47|create or replace function private.ping(p_household uuid, p_payload jsonb) returns void language plpgsql security definer set search_path = '' as $$ begin if p_household is null or not exists (select 1 from public.households h where h.id = p_household) then return; end if; perform realtime.send(p_payload, 'wijziging', 'household:' || p_household::text, true); end $$;

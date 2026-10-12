@@ -170,16 +170,23 @@ test('Verbinding weg en terug: status offline, daarna de gemiste wijzigingen als
   personen.bram.net.uit = true;
   personen.bram.c.realtime.disconnect();
   await totdat(() => b.toestand.status === STATUS.OFFLINE, 15000, 'B offline');
+  // Zonder antwoord is de uitkomst onbekend: niet "niet opgeslagen" melden, maar "niet bevestigd" tonen
+  // met dezelfde UUID (KG-5D herstelronde, bevinding 3). Niets wordt automatisch later verstuurd.
   const r = await b.acties.boodschapToevoegen('Offline toegevoegd');
   assert.equal(r.ok, false);
-  assert.equal(r.melding.soort, 'offline');
-  assert.ok(!naamLijst(b).includes('Offline toegevoegd'), 'een mislukte toevoeging blijft niet staan');
+  assert.equal(r.melding.soort, 'onzeker');
+  assert.ok(r.onzeker && r.id);
+  assert.ok(b.toestand.boodschappen.find(x => x.id === r.id)?.onzeker, 'onbevestigde toevoeging zichtbaar als onzeker');
   assert.ok((await a.acties.boodschapToevoegen('Tijdens storing')).ok);
   await wacht(2000);
   assert.ok(!naamLijst(b).includes('Tijdens storing'));
   personen.bram.net.uit = false;
   await totdat(() => naamLijst(b).includes('Tijdens storing'), 45000, 'B haalt de gemiste wijziging op');
   await totdat(() => b.toestand.status === STATUS.VERBONDEN, 45000, 'B weer verbonden');
+  // Bram probeert opnieuw: dezelfde UUID, precies één keer opgeslagen.
+  assert.ok((await b.acties.opnieuwProberen(r.id)).ok);
+  assert.equal(sql(`select count(*) from public.shopping_items where household_id = '${h}' and name = 'Offline toegevoegd'`), '1');
+  assert.equal(sql(`select id from public.shopping_items where household_id = '${h}' and name = 'Offline toegevoegd'`), r.id);
   // En daarna gewoon weer live.
   assert.ok((await a.acties.boodschapToevoegen('Na herstel')).ok);
   await totdat(() => naamLijst(b).includes('Na herstel'), 10000, 'B weer live');
@@ -192,7 +199,7 @@ test('Huishoudisolatie: een ander huishouden ziet en hoort niets', { timeout: 60
   // Kanaal van h direct proberen (eigen sessie): geweigerd.
   const carla2 = await tweedeSessie('carla');
   await carla2.realtime.setAuth();
-  const k = carla2.channel(`household:${h}`, { config: { private: true } });
+  const k = carla2.channel(sql(`select private.household_topic('${h}')`), { config: { private: true } });
   const status = await new Promise(r => { const t = setTimeout(() => r('GEEN_ANTWOORD'), 10000); k.subscribe(s => { clearTimeout(t); r(s); }); });
   await carla2.removeChannel(k);
   assert.equal(status, 'CHANNEL_ERROR');
@@ -213,7 +220,7 @@ test('Privacy: privé-afspraak voor de eigenaar volledig, voor het andere lid al
   const ruw = [];
   const bram2 = await tweedeSessie('bram');
   await bram2.realtime.setAuth();
-  const k = bram2.channel(`household:${h}`, { config: { private: true } }).on('broadcast', { event: '*' }, m => ruw.push(m));
+  const k = bram2.channel(b.kanaalNaam, { config: { private: true } }).on('broadcast', { event: '*' }, m => ruw.push(m));
   await new Promise(r => k.subscribe(s => s === 'SUBSCRIBED' && r()));
   const id = randomUUID();
   assert.ok((await a.acties.afspraakBewaren({ id, start_date: '2026-11-21', start_time: '09:00', end_time: '10:00', visibility: 'private',

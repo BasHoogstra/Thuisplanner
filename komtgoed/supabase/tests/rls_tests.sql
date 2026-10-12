@@ -1184,7 +1184,7 @@ insert into public.tasks (id, household_id, title) values (current_setting('test
 reset role;
 do $$ declare m record; u record; t text; begin
   foreach t in array array['shopping_items', 'events', 'tasks'] loop
-    if not exists (select 1 from realtime.messages where topic = 'household:' || current_setting('test.hs') and payload->>'t' = t) then raise exception 'KG-T47: geen seintje voor %', t; end if;
+    if not exists (select 1 from realtime.messages where topic = private.household_topic(current_setting('test.hs')::uuid) and payload->>'t' = t) then raise exception 'KG-T47: geen seintje voor %', t; end if;
   end loop;
   for m in select * from realtime.messages loop
     if m.extension <> 'broadcast' or m.event <> 'wijziging' or not m.private or m.topic !~ '^household:' then raise exception 'KG-T47: onverwacht bericht % % %', m.extension, m.event, m.topic; end if;
@@ -1195,16 +1195,17 @@ do $$ declare m record; u record; t text; begin
     end loop;
   end loop;
   -- Een presence-bericht op het kanaal (alleen om te testen dat het beleid presence uitsluit).
-  insert into realtime.messages (topic, extension, payload, event, private) values ('household:' || current_setting('test.hs'), 'presence', '{}', 'x', true);
+  insert into realtime.messages (topic, extension, payload, event, private) values (private.household_topic(current_setting('test.hs')::uuid), 'presence', '{}', 'x', true);
+  perform set_config('test.topic47', private.household_topic(current_setting('test.hs')::uuid), true);
 end $$;
 set local role authenticated;
-do $$ declare hs text := 'household:' || current_setting('test.hs'); begin
+do $$ declare hs text := current_setting('test.topic47'); begin
   perform pg_temp.als('noa');
   perform set_config('realtime.topic', hs, true);
   if pg_temp.aantal($q$ select 1 from realtime.messages where extension = 'broadcast' $q$) < 3 then raise exception 'KG-T47: lid kan het kanaal van het eigen huishouden niet lezen'; end if;
   if pg_temp.aantal($q$ select 1 from realtime.messages where extension = 'presence' $q$) <> 0 then raise exception 'KG-T47: presence toegestaan'; end if;
   if not pg_temp.faalt(format($q$ insert into realtime.messages (topic, extension, payload, event, private) values (%L, 'broadcast', '{"t":"x"}', 'wijziging', true) $q$, hs)) then raise exception 'KG-T47: lid kan zelf zenden op het huishoudkanaal'; end if;
-  perform set_config('realtime.topic', 'household:' || upper(current_setting('test.hs')), true);
+  perform set_config('realtime.topic', 'household:' || upper(current_setting('test.hs')) || substr(hs, 47), true);
   if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T47: afwijkende kanaalnaam geeft toegang'; end if;
   perform set_config('realtime.topic', 'household:', true);
   if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T47: lege kanaalnaam geeft toegang'; end if;
@@ -1235,6 +1236,105 @@ do $$ declare t text; f text; def text; begin
   perform pg_temp.ok('KG-T48');
 end $$;
 set local role authenticated;
+
+-- ============================== KG-5D herstelronde 1 (review van 3f3b7da) ==============================
+-- KG-T49 (bevinding 2) Intrekken sluit het oude kanaal aan de serverkant. Het kanaal heet
+-- household:<id>:<epoch>. Verliest een account zijn actieve lidmaatschap (archiveren, vertrekken,
+-- account verwijderd), dan krijgt het huishouden een nieuw volgnummer: het ledenseintje over die
+-- intrekking gaat nog naar het oude kanaal, alles daarna alleen naar het nieuwe. Het beleid laat alleen
+-- een actief lid toe, en alleen op het actuele volgnummer. Een kind zonder account wisselt niets.
+reset role;
+select set_config('test.rt1', gen_random_uuid()::text, true);
+select set_config('test.rt2', gen_random_uuid()::text, true);
+select set_config('test.rt3', gen_random_uuid()::text, true);
+insert into auth.users (id, email) values
+  (current_setting('test.rt1')::uuid, 'rt1@test.invalid'),
+  (current_setting('test.rt2')::uuid, 'rt2@test.invalid'),
+  (current_setting('test.rt3')::uuid, 'rt3@test.invalid');
+set local role authenticated;
+select pg_temp.als('sam');
+select set_config('test.tok_rt1', public.create_invite(current_setting('test.hs')::uuid), true);
+select set_config('test.tok_rt2', public.create_invite(current_setting('test.hs')::uuid), true);
+select set_config('test.tok_rt3', public.create_invite(current_setting('test.hs')::uuid), true);
+select pg_temp.als('rt1'); select public.accept_invite(current_setting('test.tok_rt1'), 'Rt1');
+select set_config('test.m_rt1', (select member_id from public.my_memberships() where household_id = current_setting('test.hs')::uuid)::text, true);
+select pg_temp.als('rt2'); select public.accept_invite(current_setting('test.tok_rt2'), 'Rt2');
+select pg_temp.als('rt3'); select public.accept_invite(current_setting('test.tok_rt3'), 'Rt3');
+reset role;
+delete from realtime.messages;   -- alleen binnen deze teruggedraaide transactie
+do $$ declare h uuid := current_setting('test.hs')::uuid; t0 text := private.household_topic(h); begin
+  -- Het volgnummer is al eerder gewisseld (KG-T39 Jip gearchiveerd, KG-T42 Pim vertrokken).
+  if t0 !~ '^household:[0-9a-f-]{36}:[1-9][0-9]*$' then raise exception 'KG-T49: kanaalnaam % zonder gewisseld volgnummer', t0; end if;
+  perform set_config('test.t49a', t0, true);
+end $$;
+set local role authenticated;
+do $$ declare h uuid := current_setting('test.hs')::uuid; t0 text := current_setting('test.t49a'); t1 text; begin
+  -- De app vraagt de kanaalnaam op; alleen een actief lid krijgt hem.
+  perform pg_temp.als('rt1');
+  if public.household_channel(h) <> t0 then raise exception 'KG-T49: household_channel geeft niet de actuele naam'; end if;
+  foreach t1 in array array['ravi', 'jip'] loop
+    perform pg_temp.als(t1);
+    if not pg_temp.faalt(format('select public.household_channel(%L)', h)) then raise exception 'KG-T49: % krijgt de kanaalnaam', t1; end if;
+  end loop;
+  -- Archiveren van Rt1 (account): nieuw volgnummer.
+  perform pg_temp.als('sam');
+  perform public.archive_member(h, current_setting('test.m_rt1')::uuid);
+  t1 := public.household_channel(h);
+  if t1 = t0 then raise exception 'KG-T49: archiveren wisselt het kanaal niet'; end if;
+  -- Daarna wijzigt Sam inhoud: dat seintje mag alleen naar het nieuwe kanaal.
+  perform public.add_shopping_items(h, array[gen_random_uuid()], array['RT49-na-intrekking']);
+  perform set_config('test.t49b', t1, true);
+  -- Een kind zonder account archiveren wisselt niets.
+  perform public.archive_member(h, current_setting('test.m_mees')::uuid);
+  if public.household_channel(h) <> t1 then raise exception 'KG-T49: archiveren van een kind zonder account wisselt het kanaal'; end if;
+  -- Vertrekken (Rt2) wisselt het kanaal.
+  perform pg_temp.als('rt2');
+  perform public.leave_household(h);
+  perform pg_temp.als('sam');
+  if public.household_channel(h) = t1 then raise exception 'KG-T49: vertrekken wisselt het kanaal niet'; end if;
+  perform set_config('test.t49c', public.household_channel(h), true);
+end $$;
+reset role;
+do $$ declare h uuid := current_setting('test.hs')::uuid; t0 text := current_setting('test.t49a'); t1 text := current_setting('test.t49b'); m record; begin
+  -- Op het oude kanaal: alleen wat vóór de wissel in die transactie gebeurde (het ledenseintje).
+  if not exists (select 1 from realtime.messages where topic = t0 and payload->>'t' = 'household_members'
+                 and payload->>'id' = current_setting('test.m_rt1')) then
+    raise exception 'KG-T49: ledenseintje over de intrekking niet op het oude kanaal';
+  end if;
+  for m in select * from realtime.messages where topic = t0 loop
+    if m.payload->>'t' <> 'household_members' then raise exception 'KG-T49: na intrekking nog % op het oude kanaal', m.payload->>'t'; end if;
+  end loop;
+  if not exists (select 1 from realtime.messages where topic = t1 and payload->>'t' = 'shopping_items') then
+    raise exception 'KG-T49: seintje na intrekking niet op het nieuwe kanaal';
+  end if;
+  -- Account verwijderd (lid nog actief): het kanaal wisselt.
+  set constraints all immediate;
+  delete from auth.users where id = current_setting('test.rt3')::uuid;
+  if private.household_topic(h) = current_setting('test.t49c') then raise exception 'KG-T49: accountverwijdering wisselt het kanaal niet'; end if;
+  perform set_config('test.t49d', private.household_topic(h), true);
+  insert into realtime.messages (topic, extension, payload, event, private) values (t0, 'broadcast', '{}', 'x', true), (current_setting('test.t49d'), 'broadcast', '{}', 'x', true);
+end $$;
+set local role authenticated;
+do $$ declare h text := current_setting('test.hs'); nu text := current_setting('test.t49d'); oud text := current_setting('test.t49a'); t text; begin
+  -- Beleid: het actuele kanaal wel (actief lid), het oude volgnummer, de oude vorm en varianten niet.
+  perform pg_temp.als('noa');
+  perform set_config('realtime.topic', nu, true);
+  if pg_temp.aantal('select 1 from realtime.messages') = 0 then raise exception 'KG-T49: lid kan het actuele kanaal niet lezen'; end if;
+  foreach t in array array[oud, 'household:' || h, nu || '0', nu || ' ', replace(nu, ':', '::'), 'household:' || h || ':-1', 'household:' || h || ':01'] loop
+    perform set_config('realtime.topic', t, true);
+    if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T49: kanaal % geeft toegang', t; end if;
+  end loop;
+  -- Wie toegang verloor, komt op geen enkel kanaal van dit huishouden.
+  foreach t in array array['rt1', 'rt2', 'jip', 'ravi'] loop
+    perform pg_temp.als(t);
+    perform set_config('realtime.topic', nu, true);
+    if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T49: % luistert mee op het actuele kanaal', t; end if;
+    perform set_config('realtime.topic', oud, true);
+    if pg_temp.aantal('select 1 from realtime.messages') <> 0 then raise exception 'KG-T49: % luistert mee op het oude kanaal', t; end if;
+  end loop;
+  perform set_config('realtime.topic', '', true);
+  perform pg_temp.ok('KG-T49');
+end $$;
 
 -- KG-T40 Catalogus inhoud: geen delete-recht, afspraken alleen via functies, view met security_invoker,
 -- en elke inhoudsfunctie vergrendelt het huishouden vóór de lidmaatschapscontrole.
@@ -1285,6 +1385,6 @@ do $$ declare h text := current_setting('test.hs'); t text; begin
 end $$;
 set constraints all deferred;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 48' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 49' as resultaat;
 
 rollback;

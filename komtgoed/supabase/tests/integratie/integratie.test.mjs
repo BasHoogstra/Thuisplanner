@@ -222,12 +222,15 @@ test('realtime postgres_changes: wijzigingen lekken niet uit (met tegenproef)', 
 
 test('realtime private kanalen: dicht voor een buitenstaander, open voor een lid (KG-5D), zenden voor niemand', { timeout: 120000 }, async () => {
   for (const naam of ['eve', 'mira']) await wachtOpRealtime(accounts[naam].client);
+  // Sinds de KG-5D-herstelronde heet het kanaal household:<id>:<epoch> (zie household_channel).
+  const kanaal = sql(`select private.household_topic('${h1}')`);
+  assert.match(kanaal, /^household:[0-9a-f-]{36}:\d+$/);
   // Een weigering telt alleen als de server expliciet 'geen toegang' antwoordt; een time-out of een
   // andere fout is geen bewijs.
   {
     const c = accounts.eve.client;
     await c.realtime.setAuth();
-    const k = c.channel('household:' + h1, { config: { private: true } });
+    const k = c.channel(kanaal, { config: { private: true } });
     const r = await abonneer(k);
     await c.removeChannel(k);
     assert.equal(r.status, 'CHANNEL_ERROR', `eve: verwacht een expliciete weigering, kreeg ${r.status}`);
@@ -237,7 +240,12 @@ test('realtime private kanalen: dicht voor een buitenstaander, open voor een lid
   {
     const c = accounts.mira.client;
     await c.realtime.setAuth();
-    const k = c.channel('household:' + h1, { config: { private: true, broadcast: { ack: true } } });
+    // De oude vorm zonder volgnummer gaat niet meer open.
+    const oud = c.channel('household:' + h1, { config: { private: true } });
+    const ro = await abonneer(oud);
+    await c.removeChannel(oud);
+    assert.equal(ro.status, 'CHANNEL_ERROR', `mira: kanaal zonder volgnummer gaat open (${ro.status})`);
+    const k = c.channel(kanaal, { config: { private: true, broadcast: { ack: true } } });
     const r = await abonneer(k);
     assert.equal(r.status, 'SUBSCRIBED', `mira: lid kan het kanaal van het eigen huishouden niet openen (${r.status})`);
     // ... maar niet zelf zenden: alleen de database zendt seintjes.

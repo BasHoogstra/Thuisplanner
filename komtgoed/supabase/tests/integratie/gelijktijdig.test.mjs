@@ -137,11 +137,16 @@ before(async () => {
       language plpgsql security definer set search_path = '' as $$ begin end $$`);
     await db.query(`create or replace function private.lock_household_shared(p_household uuid) returns void
       language plpgsql security definer set search_path = '' as $$ begin end $$`);
+    // Sinds KG-5D herstelronde 1 neemt de kanaalwissel bij intrekking (upsert in private.household_channels)
+    // toevallig ook een rijslot per huishouden. Dat hoort niet bij het vergrendelprotocol; om alleen dat
+    // protocol te meten staat de kanaalwissel tijdens de tegenproef uit.
+    await db.query('alter table public.household_members disable trigger household_members_rotate_channel');
   }
 });
 
 after(async () => {
   for (const d of Object.values(bewaard)) await db.query(d);
+  if (TEGENPROEF) await db.query('alter table public.household_members enable trigger household_members_rotate_channel');
   if (huishoudens.length) await db.query('delete from public.households where id = any($1::uuid[])', [huishoudens]);
   if (accounts.length) await db.query('delete from auth.users where id = any($1::uuid[])', [accounts]);
   await db.end();

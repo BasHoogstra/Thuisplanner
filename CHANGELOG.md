@@ -540,3 +540,16 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - `komtgoed/dev/`: lokale ontwikkelpagina met twee demo-accounts (alleen 127.0.0.1, alleen de anon-sleutel).
 - Tests: KG-T47 en KG-T48, 50 tegenproeven, sync-tests met aparte sessies, e2e met twee browsersessies.
 
+## Thuisplanner KG-5D herstelronde 1 — vier reviewbevindingen (review van 3f3b7da)
+- Bevinding 1: generaties in de syncmodule; na `stop()` of verlies van toegang verandert of meldt een laat
+  antwoord (ophalen, schrijven, terugdraaien, kanaalstatus) niets meer. Terugdraaien werkt op de huidige stand.
+- Bevinding 2: migratie `20261016120000_kg5d_herstel1.sql`: kanaal `household:<id>:<epoch>`; bij elk verlies
+  van een actief lidmaatschap met account een nieuw volgnummer, zodat een niet-meewerkende client op het oude
+  kanaal niets meer krijgt. `household_channel()` geeft de actuele naam. Gemeten: Realtime trekt zelf pas in
+  bij een nieuw token of het verlopen van het token.
+- Bevinding 3: toevoegingen als opdracht met een vaste UUID; onbekende uitkomst = "niet bevestigd" (nooit "niet
+  opgeslagen"); opnieuw proberen en herstart (optionele opslag) met dezelfde UUID; geen automatische wachtrij.
+- Bevinding 4: keyset-paginering op id voor alle soorten, cache pas vervangen als alle pagina's binnen zijn.
+- Tests: KG-T49, 55 tegenproeven, `herstel.test.mjs` (12), `sync-tegenproeven.mjs` (11 mutaties), realtime-
+  tegenproef met een niet-meewerkende client, e2e voor een verloren antwoord met herladen.
+

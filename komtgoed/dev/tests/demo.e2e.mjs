@@ -114,6 +114,44 @@ test('Privacy: privé-afspraak volledig bij Anna, bij Bram alleen "Bezet" (scher
   await afdruk('5-privacy-bram', b);
 });
 
+test('Antwoord verloren: "niet bevestigd" (nooit "niet opgeslagen"); na herladen bevestigd of opnieuw geprobeerd, nooit dubbel', async () => {
+  const a = pagina.anna;
+  const { API_URL, ANON_KEY } = lokaleSupabase();
+  const controle = createClient(API_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  assert.ifError((await controle.auth.signInWithPassword({ email: 'anna.demo@test.invalid', password: 'thuisplanner-demo-lokaal' })).error);
+  const aantal = async naam => (await controle.from('shopping_items').select('id').eq('household_id', demo.huishouden).eq('name', naam).is('deleted_at', null)).data.length;
+  const rij = naam => a.locator(`[data-testid=boodschap][data-naam="${naam}"]`);
+  const toevoegen = async naam => { await a.fill('[data-testid=nieuw]', naam); await a.press('[data-testid=nieuw]', 'Enter'); };
+  // (1) De server slaat op, maar het antwoord gaat verloren.
+  await a.route('**/rest/v1/rpc/add_shopping_items', async r => { await r.fetch(); await r.abort('connectionfailed'); }, { times: 1 });
+  await toevoegen('Appelstroop');
+  await rij('Appelstroop').locator('[data-testid=onbevestigd]').waitFor({ timeout: 10000 });
+  await a.locator('[data-testid=melding][data-soort=onzeker]').waitFor();
+  assert.doesNotMatch(await a.locator('[data-testid=melding]').textContent(), /niet opgeslagen/i);
+  assert.equal(await aantal('Appelstroop'), 1);
+  // (2) Het verzoek bereikt de server nooit.
+  await a.route('**/rest/v1/rpc/add_shopping_items', r => r.abort('connectionfailed'), { times: 1 });
+  await toevoegen('Rozijnen');
+  await rij('Rozijnen').locator('[data-testid=onbevestigd]').waitFor({ timeout: 10000 });
+  assert.equal(await aantal('Rozijnen'), 0);
+  await afdruk('7-onbevestigd-anna', a);
+  // Herladen (herstart van de app): (1) wordt bevestigd zonder nieuwe verzending, (2) blijft
+  // "niet bevestigd" met dezelfde UUID en wordt met "Opnieuw proberen" precies één keer opgeslagen.
+  const idVoor = await a.evaluate(() => window.__thuisplannerDemo.toestand.boodschappen.find(b => b.name === 'Rozijnen').id);
+  await a.reload();
+  await status(a).filter({ hasText: 'Live verbonden' }).waitFor({ timeout: 30000 });
+  await rij('Appelstroop').waitFor();
+  assert.equal(await rij('Appelstroop').locator('[data-testid=onbevestigd]').count(), 0);
+  await rij('Rozijnen').locator('[data-testid=onbevestigd]').waitFor({ timeout: 10000 });
+  assert.equal(await a.evaluate(() => window.__thuisplannerDemo.toestand.boodschappen.find(b => b.name === 'Rozijnen').id), idVoor);
+  await rij('Rozijnen').locator('[data-testid=opnieuw]').click();
+  await rij('Rozijnen').locator('[data-testid=onbevestigd]').waitFor({ state: 'detached', timeout: 10000 });
+  assert.equal(await aantal('Rozijnen'), 1);
+  assert.equal(await aantal('Appelstroop'), 1);
+  assert.deepEqual((await namen(a)).filter(n => n === 'Appelstroop' || n === 'Rozijnen').sort(), ['Appelstroop', 'Rozijnen']);
+  controle.realtime.disconnect();
+});
+
 test('Toegang ingetrokken tijdens de sessie: Bram ziet "Geen toegang" en de lijst is leeg', async () => {
   const { API_URL, ANON_KEY } = lokaleSupabase();
   // Anna archiveert Bram (via haar eigen account, zoals in de app).

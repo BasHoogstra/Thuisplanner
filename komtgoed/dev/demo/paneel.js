@@ -40,7 +40,10 @@ const huishoudenId = lid.data?.[0]?.household_id;
 if (!huishoudenId) { zetStatus(STATUS.GEEN_TOEGANG); throw new Error('geen huishouden'); }
 
 let bewerken = null;   // { id, versie, waarde }: de versie waarmee het bewerken begon
-const sync = maakSync({ supabase, huishoudenId, opWijziging: teken });
+// sessionStorage: een toevoeging met onbekende uitkomst houdt na herladen dezelfde UUID (geen dubbele).
+let opslag = null;
+try { opslag = window.sessionStorage; } catch { /* geen opslag: alleen in het geheugen */ }
+const sync = maakSync({ supabase, huishoudenId, opWijziging: teken, opslag });
 window.__thuisplannerDemo = { get toestand() { return sync.toestand; } };   // voor de e2e-test
 
 function zetStatus(status, tekst) {
@@ -74,15 +77,19 @@ function teken(t) {
     }
     const vink = el('input', { type: 'checkbox', 'aria-label': 'Afgevinkt', 'data-testid': 'vink' });
     vink.checked = !!b.checked_at;
+    if (b.onzeker || b.wachtend) vink.disabled = true;
     vink.addEventListener('change', () => sync.acties.boodschapAfvinken(b));
     return el('li', { 'data-testid': 'boodschap', 'data-naam': b.name, class: b.checked_at ? 'af' : '' },
       vink,
       el('span', { class: 'naam', tekst: b.name }),
       b.wachtend ? el('span', { class: 'klein', tekst: 'opslaan…' }) : null,
-      el('button', { type: 'button', tekst: 'Wijzig', 'data-testid': 'wijzig', onclick: () => {
-        bewerken = { id: b.id, versie: b.version, waarde: b.name }; teken(sync.toestand);
-      } }),
-      el('button', { type: 'button', tekst: 'Verwijder', 'data-testid': 'verwijder', onclick: () => sync.acties.boodschapVerwijderen(b) }));
+      b.onzeker ? el('span', { class: 'klein', 'data-testid': 'onbevestigd', tekst: 'niet bevestigd' }) : null,
+      b.onzeker ? el('button', { type: 'button', tekst: 'Opnieuw proberen', 'data-testid': 'opnieuw', onclick: () => sync.acties.opnieuwProberen(b.id) }) : null,
+      ...(b.onzeker || b.wachtend ? [] : [
+        el('button', { type: 'button', tekst: 'Wijzig', 'data-testid': 'wijzig', onclick: () => {
+          bewerken = { id: b.id, versie: b.version, waarde: b.name }; teken(sync.toestand);
+        } }),
+        el('button', { type: 'button', tekst: 'Verwijder', 'data-testid': 'verwijder', onclick: () => sync.acties.boodschapVerwijderen(b) })]));
   }));
   if (bewerken) { const i = $('[data-testid=bewerk-invoer]'); if (i && document.activeElement?.tagName !== 'INPUT') { i.focus(); } }
 

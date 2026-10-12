@@ -16,7 +16,7 @@ technische map en oudere documentnamen houden die naam voorlopig.
 | --- | --- |
 | `supabase/config.toml` | Supabase CLI-configuratie, alleen voor lokale ontwikkeling. Niet gekoppeld aan een project. |
 | `supabase/migrations/` | Het databaseschema van KomtGoed. KG-1: profielen, huishoudens, leden, uitnodigingen, rollen, toegangsrechten. KG-5B: account-ID's afgeschermd, account en huishouden verwijderen, limiet op huishoudens; herstelronde 1: vergrendelingsprotocol tegen races. KG-5C: afspraken (privé als "Bezet"), taken en boodschappen. |
-| `supabase/tests/rls_tests.sql` | De RLS- en rechtentestmatrix (KG-T01 t/m KG-T48), in één transactie die wordt teruggedraaid. |
+| `supabase/tests/rls_tests.sql` | De RLS- en rechtentestmatrix (KG-T01 t/m KG-T49), in één transactie die wordt teruggedraaid. |
 | `supabase/tests/tegenproeven.txt` | Sabotages: elke regel schakelt één beveiliging uit; de matrix moet dan op het genoemde scenario falen. |
 | `supabase/tests/run.sh` | Bouwt een tijdelijke, lege PostgreSQL op, voert de migraties uit en draait de matrix (en met `--tegenproef` de tegenproeven). Met `--db <url>` op een draaiende lokale Supabase. |
 | `sync/thuisplanner-sync.js` | Synchronisatielaag (framework-onafhankelijk): seintje → opnieuw ophalen, versiecontrole, herverbinden, wissen bij verlies van toegang. |
@@ -29,8 +29,8 @@ technische map en oudere documentnamen houden die naam voorlopig.
 
 ```sh
 node komtgoed/supabase/tests/statisch.js                 # zonder database
-komtgoed/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "48 van 48"
-komtgoed/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "50 van 50"
+komtgoed/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "49 van 49"
+komtgoed/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "55 van 55"
 komtgoed/supabase/tests/run.sh --tegenproef --gelijktijdig  # + gelijktijdigheidstests (node, aparte verbindingen)
 node tests/run.js komtgoed                               # via de bestaande testrunner
 ```
