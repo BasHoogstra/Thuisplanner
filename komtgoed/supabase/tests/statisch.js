@@ -80,7 +80,7 @@ const checks = {
     assert(/rollback;\s*$/i.test(sql), 'rls_tests.sql moet met rollback; eindigen');
     assert(!/\bcommit\b/i.test(sql), 'rls_tests.sql mag geen commit bevatten');
     const nummers = [...new Set([...sql.matchAll(/pg_temp\.ok\('(KG-T\d\d)'\)/g)].map(m => m[1]))];
-    assert(nummers.length === 46, 'Verwacht 46 genummerde scenario\'s, gevonden ' + nummers.length);
+    assert(nummers.length === 48, 'Verwacht 48 genummerde scenario\'s, gevonden ' + nummers.length);
   },
 
   'tegenproeven: elke regel noemt een bestaand scenario'() {
@@ -122,6 +122,15 @@ const checks = {
       while ((m = jwt.exec(s))) bad.push(f + ': JWT');
     });
     assert(bad.length === 0, bad.join('\n'));
+  },
+
+  'browsercode (sync en demo) gebruikt nooit de service-role-sleutel'() {
+    const map = path.join(ROOT, 'komtgoed');
+    const browser = ['sync/thuisplanner-sync.js', 'dev/demo/paneel.js', 'dev/demo/paneel.html', 'dev/demo/index.html', 'dev/server.mjs'];
+    const bad = browser.filter(f => fs.existsSync(path.join(map, f)) && /SERVICE_ROLE|service_role|sb_secret/.test(fs.readFileSync(path.join(map, f), 'utf8')));
+    assert(bad.length === 0, 'Service-role-sleutel genoemd in browsercode of server: ' + bad.join(', '));
+    const sync = path.join(map, 'sync/thuisplanner-sync.js');
+    if (fs.existsSync(sync)) assert(!/console\./.test(fs.readFileSync(sync, 'utf8')), 'De synchronisatiemodule logt naar de console');
   },
 
   'bestaande Huisplan-bestanden ongewijzigd door deze branch'() {

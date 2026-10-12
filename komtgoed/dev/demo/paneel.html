@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Thuisplanner · paneel</title>
+  <link rel="stylesheet" href="/stijl.css">
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/paneel.js"></script>
+</head>
+<body>
+  <section class="paneel">
+    <header class="paneelkop">
+      <div>
+        <div class="wie" data-testid="wie">…</div>
+        <div class="huishouden" data-testid="huishouden"></div>
+      </div>
+      <span class="status" data-testid="status" data-status="laden">Laden…</span>
+    </header>
+    <div class="melding" data-testid="melding" hidden></div>
+
+    <h2>Boodschappen</h2>
+    <form class="toevoegen" data-testid="toevoegen">
+      <input name="naam" placeholder="Bijvoorbeeld: eieren" autocomplete="off" aria-label="Nieuwe boodschap" data-testid="nieuw">
+      <button type="submit">Toevoegen</button>
+    </form>
+    <ul class="lijst" data-testid="boodschappen"></ul>
+
+    <h2>Afspraken</h2>
+    <ul class="lijst afspraken" data-testid="afspraken"></ul>
+
+    <footer class="demo">
+      <button type="button" data-testid="verbinding">Verbinding verbreken (simulatie)</button>
+      <span class="klein" data-testid="laatst"></span>
+    </footer>
+  </section>
+</body>
+</html>

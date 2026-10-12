@@ -11,5 +11,5 @@ cd "$HERE"
 [ -d node_modules ] || npm ci --no-audit --no-fund
 # API, Auth en Realtime; daarna gelijktijdigheid (aparte verbindingen) en de tegenproef daarvan:
 # zonder vergrendelingen moet elke race weer optreden.
-node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit integratie.test.mjs gelijktijdig.test.mjs
+node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit integratie.test.mjs gelijktijdig.test.mjs sync.test.mjs
 KG_TEGENPROEF=1 node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit gelijktijdig.test.mjs

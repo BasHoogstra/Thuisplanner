@@ -530,3 +530,13 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   DETAIL en HINT, zodat account-ID's (`owner_user_id`) niet via foutdetails lekken.
 - Tests: KG-T43 uitgebreid, KG-T45 en KG-T46, integratietest op de foutrespons; 46 tegenproeven.
 
+## Thuisplanner KG-5D — synchronisatie tussen gezinsleden (bouwplan stap 3; alleen lokaal)
+- Migratie `20261015120000_kg5d_realtime.sql`: seintjes `{t, id, v, op}` op het private kanaal
+  `household:<id>` na elke wijziging (zonder inhoud); RLS op `realtime.messages`: alleen actieve leden
+  luisteren, niemand zendt via de client, geen presence.
+- `komtgoed/sync/thuisplanner-sync.js`: synchronisatielaag (opnieuw ophalen op seintje, herverbinden met
+  backoff, vangnet, versiecontrole en conflictmelding, UUID's van de client, alles wissen bij verlies van
+  toegang). Geen nieuwe app-bibliotheken; het prototype van PR #20 is niet aangeraakt.
+- `komtgoed/dev/`: lokale ontwikkelpagina met twee demo-accounts (alleen 127.0.0.1, alleen de anon-sleutel).
+- Tests: KG-T47 en KG-T48, 50 tegenproeven, sync-tests met aparte sessies, e2e met twee browsersessies.
+

@@ -8,6 +8,7 @@ technische map en oudere documentnamen houden die naam voorlopig.
 - **Technisch bouwplan (KG-5A):** `docs/komtgoed-bouwplan.md`.
 - **Fundament (KG-1, verstevigd in KG-5B):** `docs/komtgoed-fundament.md`.
 - **Inhoud (KG-5C: afspraken, taken, boodschappen):** `docs/thuisplanner-inhoud.md`.
+- **Synchronisatie (KG-5D) en de lokale demo:** `docs/thuisplanner-sync.md`.
 
 ## Wat hier staat
 
@@ -15,9 +16,11 @@ technische map en oudere documentnamen houden die naam voorlopig.
 | --- | --- |
 | `supabase/config.toml` | Supabase CLI-configuratie, alleen voor lokale ontwikkeling. Niet gekoppeld aan een project. |
 | `supabase/migrations/` | Het databaseschema van KomtGoed. KG-1: profielen, huishoudens, leden, uitnodigingen, rollen, toegangsrechten. KG-5B: account-ID's afgeschermd, account en huishouden verwijderen, limiet op huishoudens; herstelronde 1: vergrendelingsprotocol tegen races. KG-5C: afspraken (privé als "Bezet"), taken en boodschappen. |
-| `supabase/tests/rls_tests.sql` | De RLS- en rechtentestmatrix (KG-T01 t/m KG-T46), in één transactie die wordt teruggedraaid. |
+| `supabase/tests/rls_tests.sql` | De RLS- en rechtentestmatrix (KG-T01 t/m KG-T48), in één transactie die wordt teruggedraaid. |
 | `supabase/tests/tegenproeven.txt` | Sabotages: elke regel schakelt één beveiliging uit; de matrix moet dan op het genoemde scenario falen. |
 | `supabase/tests/run.sh` | Bouwt een tijdelijke, lege PostgreSQL op, voert de migraties uit en draait de matrix (en met `--tegenproef` de tegenproeven). Met `--db <url>` op een draaiende lokale Supabase. |
+| `sync/thuisplanner-sync.js` | Synchronisatielaag (framework-onafhankelijk): seintje → opnieuw ophalen, versiecontrole, herverbinden, wissen bij verlies van toegang. |
+| `dev/` | Lokale demo: server (alleen 127.0.0.1, alleen de anon-sleutel), seed met fictieve accounts, twee panelen, e2e-test met Playwright. Zie `docs/thuisplanner-sync.md` §4. |
 | `supabase/tests/integratie/` | Integratietest met supabase-js tegen een lokale Supabase: API, Auth (account verwijderen) en Realtime (niets lekt uit). Plus `gelijktijdig.test.mjs`: races met aparte databaseverbindingen (node-postgres), met tegenproef. |
 | `supabase/tests/statisch.js` | Statische controles zonder database (naamgeving, RLS op elke tabel, security invoker in `public`, geen secrets, geen koppeling, Huisplan-bestanden ongewijzigd). |
 | `supabase/tests/supabase_stub.sql` | Kopie van de Huisplan-nabootsing van de Supabase-onderdelen (auth, rollen, extensies), zodat deze map los staat. |
@@ -26,8 +29,8 @@ technische map en oudere documentnamen houden die naam voorlopig.
 
 ```sh
 node komtgoed/supabase/tests/statisch.js                 # zonder database
-komtgoed/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "46 van 46"
-komtgoed/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "46 van 46"
+komtgoed/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "48 van 48"
+komtgoed/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "50 van 50"
 komtgoed/supabase/tests/run.sh --tegenproef --gelijktijdig  # + gelijktijdigheidstests (node, aparte verbindingen)
 node tests/run.js komtgoed                               # via de bestaande testrunner
 ```

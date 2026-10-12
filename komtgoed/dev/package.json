@@ -1,0 +1,15 @@
+{
+  "name": "thuisplanner-dev",
+  "private": true,
+  "description": "Thuisplanner KG-5D: lokale demonstratie van de synchronisatie (alleen tegen een lokale Supabase-stack).",
+  "type": "module",
+  "scripts": {
+    "seed": "node seed.mjs",
+    "start": "node server.mjs",
+    "test": "node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit tests/demo.e2e.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.2",
+    "playwright": "1.56.1"
+  }
+}
