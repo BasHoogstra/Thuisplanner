@@ -17,7 +17,8 @@
     "lokaal:lan": "node scripts/lokaal.mjs dev --lan",
     "lokaal:seed": "node scripts/lokaal.mjs seed",
     "e2e:lokaal": "playwright test -c playwright.lokaal.config.ts",
-    "screenshots:lokaal": "KG_SCREENSHOTS=1 playwright test -c playwright.lokaal.config.ts --grep @screenshot"
+    "screenshots:lokaal": "KG_SCREENSHOTS=1 playwright test -c playwright.lokaal.config.ts --grep @screenshot",
+    "lan-proef": "bash scripts/lan-proef.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",

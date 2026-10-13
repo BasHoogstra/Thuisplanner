@@ -115,3 +115,110 @@ test('Taak bijwerken: titel, datum en wie; met een verouderde versie een conflic
   const opServer = sql(`select title || '|' || due_date || '|' || assignee_member_id from public.tasks where id = '${bijEva.id}'`);
   assert.equal(opServer, `Fietsband Lotte plakken|2026-11-03|${lidThomas}`);
 });
+
+// ---- Herstelronde 1, bevinding 4: privé-afspraak zonder bewaarde inhoud opnieuw invoeren ----------------
+// Een client waarvan save_event "de verbinding verliest": 'weg' = het verzoek komt niet aan, 'antwoordWeg'
+// = de server voert het uit maar het antwoord komt niet terug. 'normaal' = gewoon doorlaten.
+async function clientMetVerbinding(naam) {
+  const net = { saveEvent: 'normaal' };
+  const f = async (url, init = {}) => {
+    const u = String(url?.url || url);
+    if (new URL(u).pathname === '/rest/v1/rpc/save_event' && net.saveEvent !== 'normaal') {
+      if (net.saveEvent === 'antwoordWeg') await fetch(url, init);
+      throw new TypeError('fetch failed (verbinding weg)');
+    }
+    return fetch(url, init);
+  };
+  const c = createClient(API_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: f } });
+  assert.ifError((await c.auth.signInWithPassword({ email: `${naam}-${run}@test.invalid`, password: wachtwoord })).error);
+  return { c, net };
+}
+// Opslag zoals localStorage (alleen wat de sync-module duurzaam bewaart).
+function opslagNieuw() {
+  const m = new Map();
+  return { get length() { return m.size; }, key: i => [...m.keys()][i] ?? null, getItem: k => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => { m.set(k, String(v)); }, removeItem: k => { m.delete(k); }, m };
+}
+async function syncOp(c, opslag) {
+  const s = maakSync({ supabase: c, huishoudenId: h, vangnetMs: 60000, opslag, geheugen: new Map() });
+  syncs.push(s);
+  await s.start();
+  await totdat(() => s.toestand.status === STATUS.VERBONDEN, 30000, 'verbonden');
+  return s;
+}
+const prive = (titel, datum = '2026-11-12') => ({ start_date: datum, start_time: '10:00', end_time: '11:00', visibility: 'private', title: titel, notes: 'Pasje mee' });
+const telAfspraken = (titel) => Number(sql(`select count(*) from public.event_details d join public.events e on e.id = d.event_id where e.household_id = '${h}' and d.title = '${titel}' and e.deleted_at is null`));
+
+test('Privé-afspraak niet aangekomen → herladen → opnieuw invoeren met dezelfde ID: één afspraak, met die ID', { timeout: 60000 }, async () => {
+  for (const s of Object.values(actief)) await s.stop();
+  const { c, net } = await clientMetVerbinding('eva');
+  const opslag = opslagNieuw();
+  const voor = await syncOp(c, opslag);
+  net.saveEvent = 'weg';
+  const r = await voor.acties.afspraakBewaren(prive('Huisarts Eva'));
+  assert.equal(r.ok, false);
+  const id = r.id ?? voor.openstaand[0]?.id;
+  assert.ok(id, 'geen opdracht-ID');
+  // Op het toestel: identiteit, geen inhoud.
+  assert.equal(opslag.m.size, 1);
+  assert.ok(![...opslag.m.values()][0].includes('Huisarts'), 'inhoud van een privé-afspraak in de opslag');
+  await voor.stop();
+
+  // Herladen: nieuw paginageheugen, zelfde opslag. Een plaatshouder zonder inhoud, met dezelfde ID.
+  net.saveEvent = 'normaal';
+  const na = await syncOp(c, opslag);
+  const plaats = na.toestand.afspraken.find(a => a.id === id);
+  assert.ok(plaats?.inhoudNietBewaard, 'geen plaatshouder zonder inhoud na herladen');
+  assert.equal((await na.acties.opnieuwProberen(id)).inhoudOntbreekt, true, 'opnieuw proberen zonder inhoud moet om de inhoud vragen');
+
+  // Opnieuw invoeren zoals de app doet: afspraakBewaren met dezelfde id en zonder versie.
+  const her = await na.acties.afspraakBewaren({ ...prive('Huisarts Eva'), id });
+  assert.ok(her.ok, JSON.stringify(her.melding));
+  assert.equal(telAfspraken('Huisarts Eva'), 1);
+  assert.equal(sql(`select count(*) from public.events where id = '${id}'`), '1');
+  assert.equal(opslag.m.size, 0, 'bevestigde opdracht nog op het toestel');
+  await na.stop();
+});
+
+test('Privé-afspraak wél aangekomen (antwoord weg) → herladen: laat bevestigd; herinvoer daarna maakt geen tweede', { timeout: 60000 }, async () => {
+  const { c, net } = await clientMetVerbinding('eva');
+  const opslag = opslagNieuw();
+  const voor = await syncOp(c, opslag);
+  net.saveEvent = 'antwoordWeg';
+  const r = await voor.acties.afspraakBewaren(prive('Tandarts Eva'));
+  assert.equal(r.ok, false);
+  const id = r.id ?? [...opslag.m.keys()][0].split(':').pop();
+  await voor.stop();
+  net.saveEvent = 'normaal';
+
+  const na = await syncOp(c, opslag);
+  // De eerste ronde ziet de afspraak op de server: bevestigd, zonder herinvoer.
+  await totdat(() => na.toestand.afspraken.some(a => a.id === id && a.title === 'Tandarts Eva' && !a.inhoudNietBewaard), 10000, 'laat bevestigd');
+  assert.equal(opslag.m.size, 0);
+  // Een verouderd herinvoer-venster dat toch nog opslaat (zelfde ID): geen tweede afspraak.
+  const her = await na.acties.afspraakBewaren({ ...prive('Tandarts Eva'), id });
+  assert.ok(her.ok, JSON.stringify(her.melding));
+  assert.equal(telAfspraken('Tandarts Eva'), 1);
+  await na.stop();
+});
+
+test('Herinvoer terwijl het antwoord opnieuw wegvalt, dan opnieuw proberen: nog steeds één afspraak', { timeout: 60000 }, async () => {
+  const { c, net } = await clientMetVerbinding('eva');
+  const opslag = opslagNieuw();
+  const voor = await syncOp(c, opslag);
+  net.saveEvent = 'weg';
+  const r = await voor.acties.afspraakBewaren(prive('Pedicure Eva'));
+  const id = r.id ?? [...opslag.m.keys()][0].split(':').pop();
+  await voor.stop();
+
+  const na = await syncOp(c, opslag);
+  net.saveEvent = 'antwoordWeg';
+  const her = await na.acties.afspraakBewaren({ ...prive('Pedicure Eva'), id });
+  assert.equal(her.ok, false);
+  net.saveEvent = 'normaal';
+  const opnieuw = await na.acties.opnieuwProberen(id);
+  assert.ok(opnieuw.ok, JSON.stringify(opnieuw.melding));
+  assert.equal(telAfspraken('Pedicure Eva'), 1);
+  assert.equal(sql(`select count(*) from public.events where id = '${id}'`), '1');
+  await na.stop();
+});

@@ -52,6 +52,12 @@ export interface Afspraak extends SyncVelden {
   plek?: string;
   /** Wat er de dag ervoor klaar moet staan; voedt het ene rustige meedenk-signaal. */
   voorbereiding?: string;
+  /**
+   * Velden die het venster (nog) niet toont, maar die bij aanpassen nooit verloren mogen gaan: notities en,
+   * bij een meerdaagse afspraak, de laatste dag (alleen als die na `datum` ligt). In de demo ongebruikt.
+   */
+  notities?: string;
+  eindDatum?: Datum;
   /** Alleen op de eerste afspraak van een reeks: hoe hij terugkomt. Voorkomens worden berekend, niet opgeslagen. */
   herhaling?: Herhaling;
   /** Bij één losgemaakt voorkomen van een reeks: de reeks en de datum waarop het oorspronkelijk viel. */

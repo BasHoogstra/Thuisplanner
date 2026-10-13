@@ -116,4 +116,7 @@ export declare function maakSync(o: {
   spoor?: (soort: string, status: string) => void;
 }): Sync;
 
+/** UUID v4 met crypto.randomUUID of, zonder secure context, crypto.getRandomValues (nooit Math.random). */
+export declare function uuidV4(c?: Pick<Crypto, 'getRandomValues'> & { randomUUID?: () => string }): string;
+
 export declare function meldingVoor(fout: unknown): Melding | null;

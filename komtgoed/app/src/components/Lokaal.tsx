@@ -132,11 +132,14 @@ export function SyncLabel({ sync }: { sync: SyncVelden['sync'] }) {
 
 /** Herstelkeuzes voor een onbevestigde opdracht (in het venster van dat item en in Meer). */
 export function HerstelKnoppen({ id, sync, na }: { id: string; sync: SyncVelden['sync']; na?: () => void }) {
-  const { lokaal } = useApp();
+  const { lokaal, openItem } = useApp();
   if (!lokaal || !sync || sync === 'wachtend') return null;
   return (
     <div className="keuzes herstel">
-      {sync !== 'zonder-inhoud' && (
+      {sync === 'zonder-inhoud' ? (
+        // Inhoud niet op dit toestel: opnieuw invoeren onder dezelfde opdracht-ID (zie ItemVenster).
+        <button type="button" className="knop klein" onClick={() => { na?.(); openItem(id); }}>Opnieuw invoeren</button>
+      ) : (
         <button type="button" className="knop klein" onClick={() => { lokaal.opnieuwProberen(id); na?.(); }}>Opnieuw proberen</button>
       )}
       <button type="button" className="knop klein stil" onClick={() => { lokaal.vergeten(id); na?.(); }}>Vergeten op dit toestel</button>
@@ -149,9 +152,7 @@ export function OnbevestigdVenster({ id, naam, sync, sluit }: { id: string; naam
     ? 'Dit wordt nu naar de server gestuurd. Even geduld; daarna kun je het aanpassen.'
     : sync === 'geweigerd'
       ? 'De server heeft dit niet bewaard. Je kunt het opnieuw proberen of van dit toestel halen.'
-      : sync === 'zonder-inhoud'
-        ? 'Deze privé-toevoeging is niet bevestigd en de inhoud is (bewust) niet op dit toestel bewaard. Vergeet hem en voeg hem opnieuw toe.'
-        : 'Het is niet zeker of de server dit heeft ontvangen. Opnieuw proberen maakt geen dubbele: het is dezelfde opdracht.';
+      : 'Het is niet zeker of de server dit heeft ontvangen. Opnieuw proberen maakt geen dubbele: het is dezelfde opdracht.';
   return (
     <Venster titel={naam || 'Niet bevestigd'} sluit={sluit}>
       <p>{uitleg}</p>

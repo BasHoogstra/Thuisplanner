@@ -34,12 +34,37 @@ npm run lokaal                          # http://127.0.0.1:5180
 
 - **Op één computer:** open de app in twee tabbladen (of twee browsers). Kies in het ene "Inloggen als
   Eva", in het andere "Inloggen als Thomas". De inlogsessie hoort bij het tabblad (`sessionStorage`).
-- **Op twee telefoons (zelfde wifi):** `npm run lokaal:lan`. Het script toont het adres
-  (`http://<lan-ip>:5180/`); de app praat dan met Supabase op `http://<lan-ip>:<api-poort>`. Eva op de
-  ene telefoon, Thomas op de andere. Sta in de firewall van de computer de poorten 5180 en de API-poort
-  van de stack toe (zie `supabase status`). Alleen op een vertrouwd thuisnetwerk.
+- **Op twee telefoons (zelfde wifi):** zie §2a.
 - Accounts: `eva.demo@test.invalid` en `thomas.demo@test.invalid`, lokaal wachtwoord
   `lokaal-alleen-fictief` (staat vooringevuld). Kinderen Lotte en Daan zijn leden zonder account.
+
+### 2a. Twee telefoons op hetzelfde wifi
+
+Nog **niet met echte telefoons uitgevoerd**. Wel aangetoond met browsers op een aparte netwerkhost (zie
+§5, LAN-proef). Stappen:
+
+1. Computer en beide telefoons op hetzelfde, vertrouwde thuisnetwerk (geen gastnetwerk met
+   "client-isolatie", geen VPN op de telefoons).
+2. `cd komtgoed && supabase start`, daarna `cd app && npm run lokaal:seed`.
+3. `npm run lokaal:lan`. Het script kiest het wifi-adres van de computer (virtuele netwerken van Docker,
+   VM's en VPN's slaat het over; bij twijfel noemt het de kandidaten) en controleert dat Auth en REST op
+   dat adres antwoorden. Klopt het adres niet: `node scripts/lokaal.mjs dev --host 192.168.x.y`.
+4. Firewall van de computer: sta inkomend alleen poort **5180** (app) en **55321** (Supabase API, ook
+   Realtime) toe. De lokale stack luistert ook met de database (55322, standaardwachtwoord) op alle
+   netwerken: laat die dicht, en gebruik dit alleen thuis.
+5. Open op beide telefoons `http://<adres>:5180/` (het script toont het). Telefoon 1: "Inloggen als
+   Eva", telefoon 2: "Inloggen als Thomas". Bovenin moet "Verbonden" staan.
+6. Proef: voeg op de ene telefoon een afspraak, taak en boodschap toe; ze verschijnen binnen enkele
+   seconden op de andere. Vink op de andere telefoon iets af; het verschijnt terug.
+
+**Waarom HTTP en geen HTTPS op het netwerk:** `http://<lan-ip>` is in de browser geen "secure context".
+`crypto.randomUUID()` ontbreekt dan; daardoor mislukte toevoegen (bevinding 2 van de review). De
+sync-module maakt opdracht-ID's nu met `crypto.getRandomValues()` (UUID v4; die functie bestaat ook zonder
+secure context en is even sterk; nooit `Math.random`). HTTPS op het netwerk zou op elke telefoon een
+vertrouwd certificaat vragen, en ook Supabase (API en Realtime) achter TLS (anders blokkeert de browser
+het als gemengde inhoud). Dat is voor een proef met fictieve gegevens veel meer opzet dan nodig. Andere
+functies die een secure context eisen, gebruikt de app niet: `localStorage` en `sessionStorage` werken;
+supabase-js valt zonder `navigator.locks` terug op een eigen vergrendeling.
 
 `scripts/lokaal.mjs` leest de URL en sleutels uit `supabase status -o env`. De service-role-sleutel
 gebruikt het alleen in Node om de fictieve accounts te maken; de browser krijgt alleen de anon-sleutel
@@ -59,6 +84,8 @@ gebruikt het alleen in Node om de fictieve accounts te maken; de browser krijgt 
 | **Privé-afspraken** van een ander | **Echt** "Bezet": de server stuurt titel, plek en details niet mee (RLS, gate 9) |
 | **Versieconflict** | **Echt**: het venster onthoudt de versie bij openen; is die intussen veranderd, dan weigert de server en verschijnt de melding van de sync-module; niets wordt stil overschreven |
 | **Onbevestigde opdrachten** | **Echt**: label "niet bevestigd" op de rij, afvinken en bewerken staan stil, "Opnieuw proberen" (zelfde opdracht-ID, nooit dubbel) en "Vergeten op dit toestel" in het venster en onder Meer; keuze bij een mogelijk dubbele toevoeging; waarschuwing als de browser niets kan bewaren |
+| **Onbevestigde privé-afspraak na herladen** | **Echt**: de inhoud is bewust niet op het toestel bewaard (blijft zo). Onder Meer: "Opnieuw invoeren" opent het venster ("Privé-afspraak opnieuw invoeren", privé vast). Opslaan gebruikt dezelfde opdracht-ID, dus nooit een tweede afspraak; bevestigt de server hem intussen toch, dan wisselt het venster naar de bewaarde afspraak |
+| **Afspraakvelden die het venster niet toont** (notities, einddatum van een meerdaagse afspraak) | **Echt behouden** bij aanpassen, ook bij één voorkomen of de hele reeks; de duur schuift mee met de begindatum |
 | Verbindingsstatus | **Echt**: bovenin (Verbonden, Bijwerken, Geen verbinding, Geen toegang) |
 | Uitloggen | **Echt**: stopt de synchronisatie; onbevestigde opdrachten blijven bewaard (zie §6, P2) |
 | Ongedaan maken | **Niet** in de lokale modus (alleen demo) |
@@ -85,6 +112,13 @@ React-schermen (ongewijzigd)  ── useApp() ──  Schil (App.tsx)
   onderdeel dat unmount (ander scherm, StrictMode die dubbel mount, inlogscherm na uitloggen) stopt de
   synchronisatie dus niet en wist geen opdrachten. Alleen `uitloggen()` (en opnieuw inloggen) stopt de
   sync. Getest in `tests/lokaal.test.tsx` en `e2e-lokaal/sync.spec.ts`.
+- **Volgorde van herstellen, inloggen en uitloggen (herstelronde 1).** Elke actie begint een nieuwe
+  generatie; een antwoord van een oudere generatie (een trage inlog na uitloggen, een herstel dat pas na
+  uitloggen terugkomt) verandert niets meer en start geen sync. De aanroepen die de inlogsessie van de
+  Supabase-client veranderen (getSession, inloggen, uitloggen) lopen na elkaar: zo ruimt een uitloggen ook
+  een inlog op die pas daarna binnenkomt, en houdt de client bij snel wisselen de sessie van het laatst
+  gekozen account. Uitloggen toont meteen "uitgelogd"; het wacht niet op het netwerk. Getest in
+  `tests/sessie.test.tsx`.
 - **Zelfde schermen.** De demo-store en de lokale staat bieden dezelfde acties. De algemene
   `vervangAlles` is in het venster en op Boodschappen vervangen door expliciete handelingen
   (`voegBoodschappenToe`, `wijzigVoorkomen`, `verwijderVoorkomen`, `verwijderReeks`), zodat elke
@@ -106,11 +140,21 @@ React-schermen (ongewijzigd)  ── useApp() ──  Schil (App.tsx)
 | Laag | Bestand | Wat |
 | --- | --- | --- |
 | Unit (Vitest) | `komtgoed/app/tests/lokaal.test.tsx` | omzetten (bezet zonder details, herhaling + uitzonderingen, versies, syncstaat), alleen-lokaal-adres, sessie: StrictMode/unmount stoppen niets, herstel één keer, uitloggen stopt |
-| Integratie (lokale stack) | `komtgoed/supabase/tests/integratie/react.test.mjs` | uitzonderingen over meerdere pagina's bij beide accounts, voorkomen wijzigen en verwijderen, taak bijwerken met conflict |
+| Unit (herstelronde 1) | `tests/afspraakbehoud.test.tsx` | bevinding 1: echte keten serverrij → venster → save_event; alleen de titel wijzigen behoudt notities, einddatum en alle andere velden (los, één voorkomen, hele reeks) |
+| Unit (herstelronde 1) | `tests/sessie.test.tsx` | bevinding 3: uitgestelde antwoorden; uitloggen na elk van de stappen van inloggen en herstellen; snel wisselen van account in beide volgordes; uitloggen + opnieuw inloggen; StrictMode |
+| Unit (herstelronde 1) | `tests/uuid.test.ts` | bevinding 2: zonder `randomUUID` geldige, unieke v4-UUID's uit `getRandomValues`, nooit `Math.random`; fout zonder cryptografische willekeur |
+| Integratie (lokale stack) | `komtgoed/supabase/tests/integratie/react.test.mjs` | uitzonderingen over meerdere pagina's bij beide accounts, voorkomen wijzigen en verwijderen, taak bijwerken met conflict; bevinding 4: privé-afspraak niet aangekomen → herladen → herinvoer met dezelfde ID; aangekomen → laat bevestigd → herinvoer maakt geen tweede; herinvoer met weggevallen antwoord → opnieuw proberen |
 | E2E, twee accounts | `komtgoed/app/e2e-lokaal/sync.spec.ts` (`npm run e2e:lokaal`) | privé "Bezet"; afspraak toevoegen/aanpassen/één voorkomen verwijderen; taak toevoegen en afvinken; boodschappen toevoegen, afvinken, geen dubbele; versieconflict; onbevestigd (aangekomen / niet aangekomen / na herladen / vergeten / keuze bij mogelijk dubbel); schermwissels en uitloggen |
+| E2E (herstelronde 1) | `komtgoed/app/e2e-lokaal/herstel1.spec.ts` | bevinding 1 in de echte app, gecontroleerd in de database; bevinding 4: niet aangekomen + herladen + opnieuw invoeren (zelfde ID, Thomas ziet één keer "Bezet"), aangekomen + herladen (laat bevestigd), herinvoer-venster open tijdens de late bevestiging |
+| LAN-proef | `komtgoed/app/e2e-lan/lan.spec.ts` via `scripts/lan-proef.sh` (`npm run lan-proef`) | bevinding 2: de app draait op het netwerkadres van de ontwikkelmachine; de browsers draaien in een container met een **eigen netwerkstack** (eigen IP) en bereiken app, Auth, REST en Realtime alleen via dat adres. Toetst: geen secure context, geen `randomUUID`, toch inloggen, toevoegen, afvinken en realtime-synchronisatie tussen twee accounts. **Geen echte telefoons** |
 | Bestaand | demo-e2e (138), unit, sync- en herstelintegratie, RLS-matrix, Huisplan | ongewijzigd groen |
 
-CI: de lokale e2e draait in de job `supabase-lokaal` van `.github/workflows/komtgoed-db.yml`.
+CI: de lokale e2e en de LAN-proef draaien in de job `supabase-lokaal` van `.github/workflows/komtgoed-db.yml`.
+
+**Tegenproeven (herstelronde 1):** de nieuwe tests zijn tegen de code van 79cebd0 gedraaid en vangen de
+oude fouten: `afspraakbehoud` 4/4 rood, `sessie` 8/14 rood (de races; de overige 6 zijn bewaking),
+`herstel1.spec` 4/5 rood (de late bevestiging werkte al), en de LAN-proef rood met de oude
+`crypto.randomUUID()`.
 
 Screenshots: `komtgoed/app/screenshots/lokaal/` (`npm run screenshots:lokaal`).
 
@@ -157,7 +201,11 @@ implementatie. Dat houdt deze stap klein; de herindeling kan later nog.
 - Kinderen kunnen geen account hebben; uitnodigen gebeurt alleen in het seed-script.
 - Bij meerdere huishoudens per account kiest de app het eerste.
 - Op een telefoon via `lokaal:lan` is het verkeer onversleuteld HTTP in het eigen netwerk; alleen
-  fictieve gegevens.
+  fictieve gegevens. De database van de lokale stack luistert ook op het netwerk (firewall, §2a).
+- De wifi-route is aangetoond met een aparte netwerkhost op dezelfde machine, niet met echte telefoons
+  en echt wifi (client-isolatie, firewall en mobiele browsers zijn dus nog niet getoetst).
+- Meerdaagse afspraken worden behouden, maar het venster toont de einddatum niet en kan hem niet wijzigen;
+  de agenda toont zo'n afspraak alleen op de eerste dag (zoals in PR #20).
 - Geen offline-wachtrij: zonder verbinding wordt niets verstuurd (de sync-module meldt dat).
 - De demo-bundel (ook het losse bestand) bevat nu de Supabase-client, ongeveer een verdubbeling van de
   grootte. In de demo-modus wordt die niet gebruikt; de demo-e2e controleert dat er geen enkele externe

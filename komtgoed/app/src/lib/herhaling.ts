@@ -72,7 +72,10 @@ export function leesVoorkomenId(id: string): { reeksId: string; datum: Datum } |
 }
 
 export function maakVoorkomen(reeks: Afspraak, datum: Datum): Afspraak {
-  return { ...reeks, id: voorkomenId(reeks.id, datum), datum, voorkomenVan: reeks.id };
+  const v: Afspraak = { ...reeks, id: voorkomenId(reeks.id, datum), datum, voorkomenVan: reeks.id };
+  // Een meerdaags voorkomen duurt even lang als de eerste keer.
+  if (reeks.eindDatum) v.eindDatum = plusDagen(datum, verschilInDagen(reeks.datum, reeks.eindDatum));
+  return v;
 }
 
 /** Alle afspraken in [van, tot]: losse afspraken en de berekende voorkomens van reeksen. */

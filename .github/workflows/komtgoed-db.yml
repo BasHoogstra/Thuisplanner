@@ -80,6 +80,11 @@ jobs:
           npm run e2e:lokaal
         env:
           CI: '1'
+      - name: LAN-proef (browsers op een aparte netwerkhost, zonder secure context)
+        working-directory: komtgoed/app
+        run: bash scripts/lan-proef.sh
+        env:
+          CI: '1'
       - name: Lokale Supabase stoppen
         if: always()
         working-directory: komtgoed

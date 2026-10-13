@@ -78,7 +78,7 @@ function LokaleApp({ config }: { config: LokaleConfig }) {
 function IngelogdeApp({ sessie, snap }: { sessie: Sessie; snap: Momentopname }) {
   const klok = useKlok();
   const vandaag = naarDatum(klok);
-  const { keuze, sluitKeuze, opnieuwProberen, vergeten, syncMeldingWeg, ...data } = useLokaleStaat(sessie, snap, vandaag);
+  const { keuze, sluitKeuze, opnieuwProberen, vergeten, herinvoeren, syncMeldingWeg, ...data } = useLokaleStaat(sessie, snap, vandaag);
   const t = snap.toestand!;
   const hh = useMemo(() => naarHuishouden(t, snap.huishouden!.naam), [t, snap.huishouden]);
   const lokaal: LokaalContext = {
@@ -90,6 +90,7 @@ function IngelogdeApp({ sessie, snap }: { sessie: Sessie; snap: Momentopname }) 
     openstaand: sessie.syncObject?.openstaand ?? [],
     opnieuwProberen,
     vergeten,
+    herinvoeren,
     uitloggen: () => { void sessie.uitloggen(); },
   };
   return (

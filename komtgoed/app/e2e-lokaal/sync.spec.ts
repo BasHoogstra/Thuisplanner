@@ -1,33 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { nav, SYNC, telefoon, toevoegen, venster } from './hulp';
 
 // Twee telefoons, één gezin: Eva en Thomas (fictief) in twee aparte browsercontexten, tegen de lokale
 // Supabase-stack. Wat de een toevoegt, wijzigt of afvinkt, verschijnt bij de ander via de sync-module.
-
-const venster = (p: Page) => p.getByRole('dialog');
-const nav = (p: Page, naam: string) => p.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: naam }).click();
-const SYNC = { timeout: 15_000 };
-
-async function telefoon(browser: Browser, naam: 'Eva' | 'Thomas'): Promise<{ ctx: BrowserContext; p: Page }> {
-  const ctx = await browser.newContext();
-  const p = await ctx.newPage();
-  p.on('request', r => {
-    const u = new URL(r.url());
-    if (!['127.0.0.1', 'localhost'].includes(u.hostname) && !['data:', 'file:'].includes(u.protocol)) throw new Error('Externe aanvraag: ' + r.url());
-  });
-  await p.goto('./');
-  await p.getByRole('button', { name: `Inloggen als ${naam}` }).click();
-  await expect(p.locator('.sync-status')).toHaveText('Verbonden', SYNC);
-  return { ctx, p };
-}
-
-async function toevoegen(p: Page, soort: 'Afspraak' | 'Taak' | 'Boodschap', titel: string) {
-  await p.getByRole('button', { name: 'Toevoegen' }).first().click();
-  await venster(p).getByRole('tab', { name: soort }).click();
-  await venster(p).locator('#item-titel').fill(titel);
-  await venster(p).getByRole('button', { name: 'Toevoegen', exact: true }).click();
-  await expect(venster(p)).toHaveCount(0);
-}
 
 let eva: Page, thomas: Page;
 const contexten: BrowserContext[] = [];
@@ -65,13 +41,13 @@ test('afspraak: toevoegen, aanpassen en één keer van een reeks verwijderen ver
   await expect(eva.getByText('Kapper Lotte en Daan')).toBeVisible(SYNC);
 
   // Herhalende afspraak: alleen het voorkomen van vandaag verwijderen.
-  await eva.getByRole('button', { name: /^Zwemles, 09:15/ }).click();
+  await eva.getByRole('button', { name: /^Zwemles, 09:15/ }).first().click();
   await venster(eva).getByRole('button', { name: 'Alleen deze verwijderen' }).click();
   await expect(thomas.getByRole('button', { name: /^Zwemles, 09:15/ })).toHaveCount(0, SYNC);
   // De reeks zelf bestaat nog (volgende week).
   await nav(thomas, 'Agenda');
   await thomas.getByRole('button', { name: 'Volgende week' }).click();
-  await expect(thomas.getByRole('button', { name: /^Zwemles, 09:15/ })).toBeVisible();
+  await expect(thomas.getByRole('button', { name: /^Zwemles, 09:15/ }).first()).toBeVisible();
 });
 
 test('taak: toevoegen bij Eva, afvinken bij Thomas, afgevinkt bij Eva', async () => {

@@ -133,6 +133,11 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
       meldingWeg: (id: number) => zetMelding(m => (m?.id === id ? null : m)),
       kiesScenario: () => {},
       opnieuwProberen: (id: string) => { void na(a()?.opnieuwProberen(id), 'Opnieuw verstuurd'); },
+      // Zelfde opdracht-ID als de oorspronkelijke toevoeging: de sync-module zet de inhoud op die opdracht en
+      // verstuurt hem opnieuw. Staat hij intussen al op de server, dan blijft het bij die ene afspraak.
+      herinvoeren: (id: string, afspraak: Afspraak, melding?: string) => {
+        void na(a()?.afspraakBewaren({ ...naarNieuweAfspraak(afspraak, null), id }), melding);
+      },
       vergeten: (id: string) => { if (sessie.syncObject?.vergeten(id)) meld('Van dit toestel gehaald'); },
       syncMeldingWeg: () => a()?.meldingWeg(),
     };

@@ -3,7 +3,8 @@ import type { Scenario } from '../data/demo';
 import { HerstelKnoppen } from '../components/Lokaal';
 import type { Item, SyncVelden } from '../lib/types';
 
-const naamVan = (i: Item) => (i.soort === 'boodschap' ? i.naam : i.titel ?? 'Afspraak (privé)');
+const naamVan = (i: Item) => (i.soort === 'boodschap' ? i.naam
+  : i.sync === 'zonder-inhoud' ? 'Privé-afspraak (inhoud niet op dit toestel)' : i.titel ?? 'Afspraak (privé)');
 
 export function Meer() {
   const { huishouden, staat, kiesScenario, gaNaar, lokaal } = useApp();

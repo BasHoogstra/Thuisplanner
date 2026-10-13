@@ -53,7 +53,9 @@ export function naarAfspraak(r: AfspraakRij, uitzonderingen: Map<string, string[
     if (r.title) a.titel = r.title;
     if (r.location) a.plek = r.location;
     if (r.preparation) a.voorbereiding = r.preparation;
+    if (r.notes) a.notities = r.notes;
   }
+  if (r.end_date && r.start_date && r.end_date > r.start_date) a.eindDatum = r.end_date;
   if (r.recurrence_freq && NAAR_FREQ[r.recurrence_freq]) {
     a.herhaling = { freq: NAAR_FREQ[r.recurrence_freq], tot: r.recurrence_until ?? null, uitzonderingen: uitzonderingen.get(r.id) ?? [] };
   }
@@ -92,18 +94,24 @@ export function naarHuishouden(t: Pick<Toestand, 'leden' | 'lid'>, naam: string)
   return { naam, leden: naarLeden(t.leden), ik: t.lid?.member_id ?? '' };
 }
 
-/** Een afspraak uit het venster als invoer voor save_event (nieuw: zonder versie; bijwerken: met versie). */
+/**
+ * Een afspraak uit het venster als invoer voor save_event (nieuw: zonder versie; bijwerken: met versie).
+ * Volledig: elk veld dat save_event overschrijft, komt hier uit de afspraak, ook velden die het venster niet
+ * toont (notities, einddatum). Zo wist alleen de titel aanpassen nooit iets anders.
+ */
 export function naarNieuweAfspraak(a: Afspraak, versie: number | null): NieuweAfspraak {
   return {
     id: versie === null ? undefined : a.id,
     version: versie,
     start_date: a.datum,
     start_time: a.start ?? null,
+    end_date: a.eindDatum && a.eindDatum > a.datum ? a.eindDatum : null,
     end_time: a.start ? a.eind ?? null : null,
     visibility: a.zichtbaarheid === 'prive' ? 'private' : 'household',
     title: a.titel ?? '',
     location: a.plek ?? null,
     preparation: a.voorbereiding ?? null,
+    notes: a.notities ?? null,
     participant_ids: a.wie,
     recurrence_freq: a.herhaling ? VAN_FREQ[a.herhaling.freq] : null,
     recurrence_until: a.herhaling?.tot ?? null,

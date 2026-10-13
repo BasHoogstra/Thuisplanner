@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import type { Melding as SyncMelding, SyncStatus } from '../../../sync/thuisplanner-sync.js';
 import type { DemoActies, Staat } from './store';
 import type { GezinsFilter } from './filter';
-import type { Datum, Huishouden, Lid, LidId, Tijd } from './types';
+import type { Afspraak, Datum, Huishouden, Lid, LidId, Tijd } from './types';
 
 export type AgendaWeergave = 'dag' | 'week' | 'maand';
 
@@ -48,6 +48,8 @@ export interface LokaalContext {
   openstaand: { soort: string; id: string; staat: string; bewaard: boolean }[];
   opnieuwProberen: (id: string) => void;
   vergeten: (id: string) => void;
+  /** Een privé-afspraak zonder bewaarde inhoud opnieuw invoeren, met dezelfde opdracht-ID. */
+  herinvoeren: (id: string, afspraak: Afspraak, melding?: string) => void;
   uitloggen: () => void;
 }
 

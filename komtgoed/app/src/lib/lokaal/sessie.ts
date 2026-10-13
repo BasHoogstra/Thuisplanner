@@ -79,6 +79,19 @@ export class Sessie {
   private readonly luisteraars = new Set<() => void>();
   private readonly maakSyncFn: typeof maakSync;
   private herstelBezig: Promise<void> | null = null;
+  /**
+   * Generatie: elke herstel-, inlog- of uitlogactie begint een nieuwe. Een antwoord dat binnenkomt nadat er
+   * een nieuwere actie begon (bijvoorbeeld een trage inlog na uitloggen), verandert niets meer: geen fase,
+   * geen account, geen sync.
+   */
+  private generatie = 0;
+  /**
+   * De Supabase-client heeft één inlogsessie. Aanroepen die die sessie veranderen (getSession, inloggen,
+   * uitloggen) lopen daarom na elkaar, in de volgorde waarin ze gevraagd zijn: een trage inlog die pas na
+   * "uitloggen" terugkomt, wordt daarna alsnog door dat uitloggen opgeruimd, en bij snel wisselen van
+   * account houdt de client de sessie van het laatst gekozen account.
+   */
+  private authRij: Promise<unknown> = Promise.resolve();
 
   constructor(readonly config: LokaleConfig, f: Fabrieken = {}) {
     this.client = (f.maakClient ?? ((url, key) => createClient(url, key, {
@@ -98,38 +111,61 @@ export class Sessie {
     for (const f of this.luisteraars) f();
   }
 
+  private inRij<T>(f: () => Promise<T>): Promise<T> {
+    const p = this.authRij.then(f, f);
+    this.authRij = p.catch(() => undefined);
+    return p;
+  }
+
+  private actueel = (g: number) => g === this.generatie;
+
+  /** Stopt de huidige sync (als die er is); onbevestigde opdrachten blijven bewaard. */
+  private async stopSync() {
+    const sync = this.sync;
+    this.sync = null;
+    if (sync) await sync.stop();
+  }
+
   /** Bij het laden van de pagina: is er in dit tabblad al iemand ingelogd? */
   // Eén keer per pagina, ook als React het effect twee keer uitvoert (StrictMode).
   herstel(): Promise<void> {
     this.herstelBezig ??= (async () => {
       if (this.snap.fase !== 'start') return;
-      const { data } = await this.client.auth.getSession();
-      if (data.session) await this.begin(data.session.user.id, data.session.user.email ?? '');
+      const g = ++this.generatie;
+      const { data } = await this.inRij(() => this.client.auth.getSession());
+      if (!this.actueel(g)) return;
+      if (data.session) await this.begin(g, data.session.user.id, data.session.user.email ?? '');
       else this.zet({ fase: 'uitgelogd' });
     })();
     return this.herstelBezig;
   }
 
   async inloggen(email: string, wachtwoord: string): Promise<void> {
-    if (this.sync) await this.uitloggen();
-    this.zet({ fase: 'bezig', fout: null });
-    const { data, error } = await this.client.auth.signInWithPassword({ email, password: wachtwoord });
+    const g = ++this.generatie;
+    await this.stopSync();
+    if (!this.actueel(g)) return;
+    this.zet({ ...LEEG, fase: 'bezig' });
+    const { data, error } = await this.inRij(() => this.client.auth.signInWithPassword({ email, password: wachtwoord }));
+    if (!this.actueel(g)) return;   // intussen uitgelogd of een ander account gekozen: die actie ruimt op
     if (error || !data.user) {
       this.zet({ fase: 'uitgelogd', fout: 'Inloggen lukte niet. Klopt het wachtwoord, en staat de lokale database klaar?' });
       return;
     }
-    await this.begin(data.user.id, data.user.email ?? email);
+    await this.begin(g, data.user.id, data.user.email ?? email);
   }
 
-  private async begin(id: string, email: string) {
+  private async begin(g: number, id: string, email: string) {
     this.zet({ fase: 'bezig', fout: null, account: { id, email } });
     const lid = await this.client.rpc('my_memberships');
+    if (!this.actueel(g)) return;
     const eerste = (lid.data as { household_id: string }[] | null)?.[0];
     if (lid.error || !eerste) { this.zet({ fase: 'geen-huishouden' }); return; }
     const h = await this.client.from('households').select('name').eq('id', eerste.household_id).maybeSingle();
+    if (!this.actueel(g)) return;
     const naam = (h.data as { name?: string } | null)?.name ?? 'Huishouden';
     // Eén sync per sessie. Een vorige (ander account of huishouden) stopt eerst.
-    if (this.sync) await this.sync.stop();
+    await this.stopSync();
+    if (!this.actueel(g)) return;
     const sync = this.maakSyncFn({
       supabase: this.client,
       huishoudenId: eerste.household_id,
@@ -138,19 +174,21 @@ export class Sessie {
     });
     this.sync = sync;
     this.zet({ fase: 'actief', huishouden: { id: eerste.household_id, naam }, toestand: sync.toestand });
+    // Starten loopt verder op de achtergrond; uitloggen tijdens het starten stopt deze sync (this.sync).
     await sync.start();
   }
 
   /**
-   * Uitloggen: synchronisatie stoppen (kanaal dicht, cache leeg) en de inlogsessie beëindigen.
+   * Uitloggen: synchronisatie stoppen (kanaal dicht, cache leeg) en de inlogsessie beëindigen. Het scherm
+   * toont meteen "uitgelogd"; lopende inlog- of herstelacties tellen vanaf nu niet meer mee.
    * Onbevestigde opdrachten blijven bewaard; wissen bij uitloggen (P2) vraagt eerst een productbesluit.
    */
   async uitloggen(): Promise<void> {
-    const sync = this.sync;
-    this.sync = null;
-    if (sync) await sync.stop();
-    await this.client.auth.signOut({ scope: 'local' });
+    const g = ++this.generatie;
     this.zet({ ...LEEG, fase: 'uitgelogd' });
+    await this.stopSync();
+    await this.inRij(() => this.client.auth.signOut({ scope: 'local' }));
+    if (this.actueel(g)) this.zet({ ...LEEG, fase: 'uitgelogd' });
   }
 }
 

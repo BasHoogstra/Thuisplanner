@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp, type Soort } from '../lib/context';
-import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen } from '../lib/datum';
+import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen, verschilInDagen } from '../lib/datum';
 import { FREQUENTIES, herhalingTekst, vindAfspraak, wordtDubbel } from '../lib/herhaling';
 import { splitsBoodschappen } from '../lib/boodschappen';
 import { isBezetVanAnder, magZichtbaarheidKiezen } from '../lib/rechten';
@@ -35,12 +35,18 @@ export function ItemVenster({ opdracht, sluit }: { opdracht: VensterOpdracht; sl
   const item = staat.items.find(i => i.id === opdracht.id && i.soort !== 'afspraak') ?? vindAfspraak(staat.items, opdracht.id);
   if (!item) return null;
   // Lokale modus: wat de server nog niet heeft bevestigd, kun je niet aanpassen; wel opnieuw proberen of vergeten.
+  // Een privé-afspraak waarvan de inhoud bewust niet op dit toestel bewaard is (zie de sync-module): opnieuw
+  // invoeren, met dezelfde opdracht-ID. Bevestigt de server hem intussen toch, dan wisselt dit venster vanzelf
+  // naar de bewaarde afspraak (andere key, dus een vers formulier).
+  if (item.soort === 'afspraak' && item.sync === 'zonder-inhoud') {
+    return <Formulier key="herinvoer" herinvoerId={item.id} soortBegin="afspraak" sluit={sluit} />;
+  }
   if (item.sync) {
     const naam = item.soort === 'boodschap' ? item.naam : item.titel ?? '';
     return <OnbevestigdVenster id={item.soort === 'afspraak' ? item.voorkomenVan ?? item.id : item.id} naam={naam} sync={item.sync} sluit={sluit} />;
   }
   if (item.soort === 'afspraak' && isBezetVanAnder(item, huishouden.ik)) return <BezetVenster a={item} sluit={sluit} />;
-  return <Formulier bestaand={item} sluit={sluit} />;
+  return <Formulier key="bewerk" bestaand={item} sluit={sluit} />;
 }
 
 function BezetVenster({ a, sluit }: { a: Afspraak; sluit: () => void }) {
@@ -59,8 +65,11 @@ function BezetVenster({ a, sluit }: { a: Afspraak; sluit: () => void }) {
   );
 }
 
-function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
-  bestaand?: Item; soortBegin?: Soort; datumBegin?: Datum; sluit: () => void;
+function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
+  bestaand?: Item; soortBegin?: Soort; datumBegin?: Datum;
+  /** Opnieuw invoeren van een privé-afspraak zonder bewaarde inhoud, met deze opdracht-ID. */
+  herinvoerId?: string;
+  sluit: () => void;
 }) {
   const app = useApp();
   const { vandaag, huishouden, staat } = app;
@@ -76,7 +85,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
   const [plek, zetPlek] = useState(bestaand?.soort === 'afspraak' ? bestaand.plek ?? '' : '');
   const [wie, zetWie] = useState<LidId[]>(
     bestaand?.soort === 'afspraak' ? bestaand.wie : bestaand?.soort === 'taak' && bestaand.voor ? [bestaand.voor] : []);
-  const [prive, zetPrive] = useState(bestaand?.soort === 'afspraak' && bestaand.zichtbaarheid === 'prive');
+  const [prive, zetPrive] = useState(!!herinvoerId || (bestaand?.soort === 'afspraak' && bestaand.zichtbaarheid === 'prive'));
   // Herhaling. Bij een voorkomen van een reeks kies je eerst: alleen deze afspraak, of de hele reeks.
   const voorkomen = bestaand?.soort === 'afspraak' ? bestaand : undefined;
   const reeks = voorkomen?.voorkomenVan
@@ -124,7 +133,9 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
       zetFout({ veld: 'dag', tekst: 'Kies een geldige datum.' });
       return;
     }
-    if (soort === 'afspraak' && eind && (!start || eind <= start)) {
+    // Een meerdaagse afspraak (van de server) mag eindigen op een vroegere klok dan hij begon.
+    const meerdaags = bestaand?.soort === 'afspraak' && !!bestaand.eindDatum;
+    if (soort === 'afspraak' && eind && (!start || (!meerdaags && eind <= start))) {
       zetFout({ veld: 'tijd', tekst: start ? 'De eindtijd ligt vóór of op de begintijd.' : 'Vul eerst een begintijd in.' });
       return;
     }
@@ -149,11 +160,17 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
         eigenaar: vorig?.eigenaar ?? huishouden.ik,
         zichtbaarheid: kanPriveKiezen ? (prive ? 'prive' : 'huishouden') : vorig?.zichtbaarheid ?? 'huishouden',
         voorbereiding: vorig?.voorbereiding,
+        // Niet in het venster, wel bewaren: notities, en de duur van een meerdaagse afspraak (verschuift mee).
+        notities: vorig?.notities,
+        eindDatum: vorig?.eindDatum ? plusDagen(vorig.eindDatum, verschilInDagen(vorig.datum, datum)) : undefined,
         herhaling,
         reeksId: vorig?.reeksId, origineleDatum: vorig?.origineleDatum,
       };
       const wanneer = `${dagLabel(datum, vandaag).toLowerCase()}${a.start ? ' ' + a.start : ''}`;
-      if (reeks && vorig && bereik === 'deze') {
+      if (herinvoerId && app.lokaal) {
+        // Zelfde opdracht, nu met inhoud; privé blijft privé (zo is hij oorspronkelijk aangemaakt).
+        app.lokaal.herinvoeren(herinvoerId, { ...a, zichtbaarheid: 'prive' }, `${t} staat in de agenda (${wanneer})`);
+      } else if (reeks && vorig && bereik === 'deze') {
         app.wijzigVoorkomen(reeks.id, vorig.datum, { ...a, id: nieuwId('a') }, `${t} aangepast (${wanneer})`);
       } else if (reeks && bereik === 'reeks') {
         app.bijwerken({ ...a, id: reeks.id, versie: reeksVersie }, herhaling ? `Hele reeks ${t} aangepast` : `${t} herhaalt niet meer`);
@@ -210,8 +227,14 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
   const setFoutWeg = () => zetFout(null);
 
   return (
-    <Venster titel={bestaand ? NAAM[soort] : 'Toevoegen'} sluit={sluit}>
-      {!bestaand && (
+    <Venster titel={herinvoerId ? 'Privé-afspraak opnieuw invoeren' : bestaand ? NAAM[soort] : 'Toevoegen'} sluit={sluit}>
+      {herinvoerId && (
+        <p className="stil-tekst herinvoer-uitleg">
+          Deze privé-afspraak is nog niet door de server bevestigd. De inhoud is om privacyredenen niet op dit toestel
+          bewaard. Vul hem opnieuw in: het blijft dezelfde afspraak, dus er komt geen tweede bij.
+        </p>
+      )}
+      {!bestaand && !herinvoerId && (
         <div className="segment" role="tablist" aria-label="Soort">
           {SOORTEN.map(s => (
             <button key={s.id} type="button" role="tab" aria-selected={soort === s.id}
@@ -326,7 +349,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
 
         {kanPriveKiezen && (
           <label className="schakel">
-            <input type="checkbox" id="item-prive" checked={prive} onChange={e => zetPrive(e.target.checked)} />
+            <input type="checkbox" id="item-prive" checked={prive} disabled={!!herinvoerId} onChange={e => zetPrive(e.target.checked)} />
             <span>
               Privé
               <small>Anderen zien alleen dat je bezet bent.</small>
@@ -335,7 +358,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, sluit }: {
         )}
 
         <button type="submit" className="knop breed" onClick={bewaar}>
-          {!bestaand ? 'Toevoegen' : reeks ? (bereik === 'reeks' ? 'Hele reeks opslaan' : 'Alleen deze opslaan') : 'Opslaan'}
+          {herinvoerId ? 'Opslaan' : !bestaand ? 'Toevoegen' : reeks ? (bereik === 'reeks' ? 'Hele reeks opslaan' : 'Alleen deze opslaan') : 'Opslaan'}
         </button>
         {bestaand && (
           <button type="button" className="knop breed gevaar" onClick={verwijder}>

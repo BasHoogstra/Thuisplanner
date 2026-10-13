@@ -82,7 +82,20 @@ export function meldingVoor(fout) {
 
 const foutVan = r => (r?.error ? { ...r.error, status: r.status } : null);
 const leeg = () => ({ lid: null, leden: [], boodschappen: [], taken: [], afspraken: [], uitzonderingen: [] });
-const nieuweId = () => globalThis.crypto.randomUUID();
+// UUID versie 4 uit de cryptografische toevalsgenerator van het platform. crypto.randomUUID() bestaat
+// alleen in een "secure context" (HTTPS of localhost); op een telefoon via http://<lan-ip> ontbreekt hij.
+// crypto.getRandomValues() is daar wel beschikbaar (Web Crypto, ook zonder secure context) en is even sterk.
+// Geen Math.random: ontbreekt ook getRandomValues, dan liever een duidelijke fout dan zwakke id's.
+export function uuidV4(c = globalThis.crypto) {
+  if (typeof c?.randomUUID === 'function') return c.randomUUID();
+  if (typeof c?.getRandomValues !== 'function') throw new Error('Geen cryptografische willekeur beschikbaar (crypto.getRandomValues)');
+  const b = c.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;   // versie 4
+  b[8] = (b[8] & 0x3f) | 0x80;   // variant RFC 4122
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+const nieuweId = () => uuidV4();
 const tekstSleutel = s => String(s ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 const VERVALLEN = Symbol('vervallen');   // antwoord van een beëindigde generatie
 

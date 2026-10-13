@@ -80,12 +80,14 @@ export async function seed({ API_URL, ANON_KEY, SERVICE_ROLE_KEY }, vandaag = ne
 
   const afspraak = (c, a) => c.rpc('save_event', {
     p_household: h, p_id: randomUUID(), p_version: null, p_start_date: a.datum, p_start_time: a.start ?? null,
-    p_end_date: null, p_end_time: a.eind ?? null, p_visibility: a.prive ? 'private' : 'household', p_title: a.titel,
-    p_location: a.plek ?? null, p_notes: null, p_preparation: a.voorbereiding ?? null, p_participants: a.wie ?? [],
+    p_end_date: a.eindDatum ?? null, p_end_time: a.eind ?? null, p_visibility: a.prive ? 'private' : 'household', p_title: a.titel,
+    p_location: a.plek ?? null, p_notes: a.notities ?? null, p_preparation: a.voorbereiding ?? null, p_participants: a.wie ?? [],
     p_recurrence_freq: a.herhaal ?? null, p_recurrence_until: null,
   });
   const afspraken = [
-    [eva, { titel: 'Zwemles', datum: d(-21), start: '09:15', eind: '10:00', wie: [daan], plek: 'Sportfondsenbad', herhaal: 'weekly' }],
+    [eva, { titel: 'Zwemles', datum: d(-21), start: '09:15', eind: '10:00', wie: [daan], plek: 'Sportfondsenbad', herhaal: 'weekly', notities: 'Badpas zit in de blauwe tas' }],
+    // Meerdaags, met notities: het venster toont die velden niet, maar ze mogen nooit verloren gaan.
+    [eva, { titel: 'Kamp Daan', datum: d(2), eindDatum: d(4), start: '18:00', eind: '11:00', wie: [daan], plek: 'Scoutinggebouw', notities: 'Slaapzak en zaklamp mee. Ophalen bij de achteringang.', voorbereiding: 'Tas inpakken' }],
     [thomas, { titel: 'Voetbal', datum: d(0), start: '13:00', eind: '14:30', wie: [lotte], plek: 'Sportpark Noord' }],
     // Privé-afspraak van Thomas: Eva krijgt van de server alleen "bezet" (geen titel, geen plek).
     [thomas, { titel: 'Fysiotherapie', datum: d(-7), start: '15:00', eind: '16:00', wie: [m_thomas], plek: 'Praktijk Oost', prive: true, herhaal: 'weekly' }],
@@ -116,13 +118,41 @@ export async function seed({ API_URL, ANON_KEY, SERVICE_ROLE_KEY }, vandaag = ne
   return { huishouden: h };
 }
 
-function lanAdres() {
-  for (const lijst of Object.values(networkInterfaces())) {
+const PRIVE = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
+// Virtuele netwerken op de ontwikkelmachine (Docker, VM's, VPN) zijn niet het wifi-netwerk van de telefoons.
+const VIRTUEEL = /^(docker|br-|veth|virbr|vmnet|vboxnet|utun|tun|tap|wg|zt|tailscale|lo)/i;
+
+/** Kandidaten voor het adres op het eigen (wifi-)netwerk, de waarschijnlijkste eerst. */
+export function lanAdressen(interfaces = networkInterfaces()) {
+  const uit = [];
+  for (const [naam, lijst] of Object.entries(interfaces)) {
     for (const a of lijst ?? []) {
-      if (a.family === 'IPv4' && !a.internal && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a.address)) return a.address;
+      if (a.family === 'IPv4' && !a.internal && PRIVE.test(a.address) && !VIRTUEEL.test(naam)) uit.push({ naam, adres: a.address });
     }
   }
-  throw new Error('Geen adres op het eigen netwerk gevonden (10.x, 172.16-31.x of 192.168.x).');
+  const rang = x => (x.adres.startsWith('192.168.') ? 0 : x.adres.startsWith('10.') ? 1 : 2);
+  return uit.sort((x, y) => rang(x) - rang(y));
+}
+
+function lanAdres(gekozen) {
+  if (gekozen) {
+    if (!PRIVE.test(gekozen)) throw new Error(`Weigering: ${gekozen} is geen adres op een eigen netwerk (10.x, 172.16-31.x of 192.168.x).`);
+    return gekozen;
+  }
+  const kandidaten = lanAdressen();
+  if (!kandidaten.length) throw new Error('Geen adres op het eigen netwerk gevonden. Geef het op met --host <ip> (zie de wifi-instellingen van deze computer).');
+  if (kandidaten.length > 1) console.log('Meerdere netwerken: ' + kandidaten.map(k => `${k.adres} (${k.naam})`).join(', ') + `. Gekozen: ${kandidaten[0].adres}; anders --host <ip>.`);
+  return kandidaten[0].adres;
+}
+
+/** Controleert vanaf deze computer dat Supabase (Auth en REST) op het LAN-adres antwoordt. */
+async function controleerBereikbaar(omg, host) {
+  const basis = omg.API_URL.replace(/\/\/(127\.0\.0\.1|localhost)/, `//${host}`).replace(/\/$/, '');
+  for (const pad of ['/auth/v1/health', '/rest/v1/']) {
+    const r = await fetch(basis + pad, { headers: { apikey: omg.ANON_KEY } }).catch(e => ({ ok: false, status: e.message }));
+    if (!r.ok) throw new Error(`Supabase antwoordt niet op ${basis}${pad} (${r.status}). Draait \`supabase start\`, en luistert de stack op alle netwerken?`);
+  }
+  return basis;
 }
 
 /** Schrijft .env.lokaal.local (genegeerd door git): wat de app in de modus "lokaal" leest. */
@@ -139,8 +169,14 @@ export function schrijfEnv(omg, host = '127.0.0.1') {
 }
 
 /** Start Vite in de modus "lokaal". */
-function dev(omg, lan) {
-  const host = lan ? lanAdres() : '127.0.0.1';
+async function dev(omg, lan, gekozen) {
+  const host = lan ? lanAdres(gekozen) : '127.0.0.1';
+  if (lan) {
+    const basis = await controleerBereikbaar(omg, host);
+    console.log(`Supabase bereikbaar op ${basis} (Auth en REST, gecontroleerd vanaf deze computer).`);
+    console.log('Let op: de lokale stack luistert op alle netwerken, ook de database (poort 55322, wachtwoord "postgres").');
+    console.log('Gebruik dit alleen op een vertrouwd thuisnetwerk en laat in de firewall alleen 5180 en 55321 toe.');
+  }
   schrijfEnv(omg, host);
   const args = ['vite', '--mode', 'lokaal', ...(lan ? ['--host', '0.0.0.0'] : [])];
   console.log(lan
@@ -158,11 +194,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const r = await seed(omg, i >= 0 ? rest[i + 1] : undefined);
     console.log(`Fictief gezin "${HUISHOUDEN}" klaargezet (${r.huishouden}). Accounts: ${ACCOUNTS.map(a => a.email).join(', ')}; wachtwoord: ${WACHTWOORD}`);
   } else if (opdracht === 'env') {
-    schrijfEnv(omg);
+    const i = rest.indexOf('--host');
+    schrijfEnv(omg, i >= 0 ? lanAdres(rest[i + 1]) : undefined);
   } else if (opdracht === 'dev') {
-    dev(omg, rest.includes('--lan'));
+    const i = rest.indexOf('--host');
+    await dev(omg, rest.includes('--lan') || i >= 0, i >= 0 ? rest[i + 1] : undefined);
   } else {
-    console.error('Gebruik: node scripts/lokaal.mjs seed [--datum JJJJ-MM-DD] | dev [--lan]');
+    console.error('Gebruik: node scripts/lokaal.mjs seed [--datum JJJJ-MM-DD] | dev [--lan] [--host <ip>] | env [--host <ip>]');
     process.exit(2);
   }
 }

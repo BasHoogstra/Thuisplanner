@@ -587,3 +587,15 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Nieuw: `scripts/lokaal.mjs` (fictief gezin, twee telefoons), e2e met twee accounts, integratietest,
   CI-stap. Alleen `@supabase/supabase-js` toegevoegd. P1–P5 niet ingevoerd. Documentatie:
   `docs/thuisplanner-app.md`. Geen wijziging aan de Huisplan-app.
+
+## Thuisplanner React-integratie herstelronde 1 — vier reviewbevindingen (alleen lokaal, fictief)
+- Afspraken verliezen geen gegevens meer: notities en de einddatum van een meerdaagse afspraak gaan mee
+  bij aanpassen (los, één voorkomen, hele reeks); het venster weigert een meerdaagse afspraak niet meer.
+- Wifi-route: opdracht-ID's met `crypto.getRandomValues` als `crypto.randomUUID` ontbreekt (geen secure
+  context); betere keuze van het wifi-adres (geen Docker- of VPN-netwerk), bereikbaarheidscontrole en
+  instructies voor twee telefoons. LAN-proef met browsers op een aparte netwerkhost (`npm run lan-proef`,
+  ook in CI). Nog geen proef met echte telefoons.
+- Sessie: generatie per actie en auth-aanroepen na elkaar; een oud antwoord kan uitloggen niet meer
+  terugdraaien.
+- Privé-afspraak zonder bewaarde inhoud: "Opnieuw invoeren" met dezelfde opdracht-ID (geen dubbele).
+- Regressietests voor alle vier, met tegenproeven tegen de vorige versie. P1–P5 niet ingevoerd.
