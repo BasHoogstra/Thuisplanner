@@ -13,10 +13,15 @@ export async function telefoon(browser: Browser, naam: 'Eva' | 'Thomas', { basis
   const ctx = await browser.newContext();
   const p = await ctx.newPage();
   bijPagina?.(p);
-  p.on('request', r => {
-    const u = new URL(r.url());
-    if (!hosts.includes(u.hostname) && !['data:', 'file:'].includes(u.protocol)) throw new Error('Externe aanvraag: ' + r.url());
-  });
+  // Via de proxy (KG_VIA_PROXY=1, zoals de telefoons): alles, ook de Realtime-websocket, gaat naar de app zelf.
+  const appPoort = process.env.KG_VIA_PROXY === '1' ? '5182' : null;
+  const controleer = (url: string) => {
+    const u = new URL(url);
+    if (!hosts.includes(u.hostname) && !['data:', 'file:'].includes(u.protocol)) throw new Error('Externe aanvraag: ' + url);
+    if (appPoort && u.port && u.port !== appPoort) throw new Error('Niet via de proxy: ' + url);
+  };
+  p.on('request', r => controleer(r.url()));
+  p.on('websocket', ws => controleer(ws.url()));
   await p.goto(basis);
   await p.getByRole('button', { name: `Inloggen als ${naam}` }).click();
   await expect(p.locator('.sync-status')).toHaveText('Verbonden', SYNC);

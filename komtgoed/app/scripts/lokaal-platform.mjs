@@ -42,7 +42,25 @@ export function leesStatus(uit) {
   return { API_URL: waarde('API_URL'), ANON_KEY: waarde('ANON_KEY'), SERVICE_ROLE_KEY: waarde('SERVICE_ROLE_KEY') };
 }
 
-const PRIVE =/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
+const LOKAAL_DOEL = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/;
+
+/**
+ * Vite-proxy naar de lokale Supabase (telefoonproef): telefoons praten alleen met de app op poort 5180; Vite
+ * stuurt Auth, REST en Realtime (websocket) door naar Supabase op dit toestel. Zo blijven de database, Studio
+ * en de API zelf alleen op 127.0.0.1 (Docker Desktop: Port binding "Local only"). Het doel moet op dit toestel
+ * staan; een ander adres wordt geweigerd.
+ */
+export function supabaseProxy(doel) {
+  if (!LOKAAL_DOEL.test(doel || '')) throw new Error(`Weigering: de Supabase-proxy wijst alleen naar een lokale Supabase op dit toestel, niet naar ${doel}.`);
+  const target = doel.replace(/\/$/, '');
+  return {
+    '/auth/v1': { target, changeOrigin: true },
+    '/rest/v1': { target, changeOrigin: true },
+    '/realtime/v1': { target, changeOrigin: true, ws: true },
+  };
+}
+
+const PRIVE = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
 // Virtuele netwerken op de ontwikkelmachine (Docker, VM's, VPN; op Windows Hyper-V/WSL als "vEthernet (...)",
 // VMware en VirtualBox) zijn niet het wifi-netwerk van de telefoons.
 const VIRTUEEL = /^(docker|br-|veth|virbr|vmnet|vboxnet|utun|tun|tap|wg|zt|tailscale|lo|vEthernet|VMware|VirtualBox)/i;

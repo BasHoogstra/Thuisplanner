@@ -4,7 +4,8 @@
 //
 //   npm run lokaal:seed          fictief gezin De Boer opnieuw klaarzetten (Eva en Thomas, Lotte en Daan)
 //   npm run lokaal               app starten op http://127.0.0.1:5180 (twee tabbladen = twee accounts)
-//   npm run lokaal:lan           app en database bereikbaar op het eigen netwerk (twee telefoons)
+//   npm run lokaal:lan           app op het eigen netwerk (twee telefoons); Supabase blijft op dit toestel,
+//                                bereikbaar via de Vite-proxy op poort 5180
 //
 // URL's en sleutels komen uit `supabase status -o env` (of uit API_URL/ANON_KEY/SERVICE_ROLE_KEY in de
 // omgeving). De service-role-sleutel blijft in dit Node-script; de browser krijgt alleen de anon-sleutel.
@@ -132,45 +133,62 @@ function lanAdres(gekozen) {
   return kandidaten[0].adres;
 }
 
-/** Controleert vanaf deze computer dat Supabase (Auth en REST) op het LAN-adres antwoordt. */
-async function controleerBereikbaar(omg, host) {
-  const basis = omg.API_URL.replace(/\/\/(127\.0\.0\.1|localhost)/, `//${host}`).replace(/\/$/, '');
+/** Wacht tot Auth en REST via de Vite-proxy antwoorden (gecontroleerd vanaf deze computer). */
+async function controleerProxy(basis, anonKey, pogingen = 60) {
   for (const pad of ['/auth/v1/health', '/rest/v1/']) {
-    const r = await fetch(basis + pad, { headers: { apikey: omg.ANON_KEY } }).catch(e => ({ ok: false, status: e.message }));
-    if (!r.ok) throw new Error(`Supabase antwoordt niet op ${basis}${pad} (${r.status}). Draait \`supabase start\`, en luistert de stack op alle netwerken?`);
+    let r;
+    for (let i = 0; i < pogingen; i++) {
+      r = await fetch(basis + pad, { headers: { apikey: anonKey } }).catch(e => ({ ok: false, status: e.message }));
+      if (r.ok) break;
+      await new Promise(klaar => setTimeout(klaar, 500));
+    }
+    if (!r.ok) throw new Error(`Supabase antwoordt niet via de proxy op ${basis}${pad} (${r.status}). Draait \`supabase start\` in komtgoed/?`);
   }
-  return basis;
 }
 
-/** Schrijft .env.lokaal.local (genegeerd door git): wat de app in de modus "lokaal" leest. */
-export function schrijfEnv(omg, host = '127.0.0.1') {
-  const url = omg.API_URL.replace(/\/\/(127\.0\.0\.1|localhost)/, `//${host}`).replace(/\/$/, '');
-  writeFileSync(join(APP, '.env.lokaal.local'), [
+/**
+ * Schrijft .env.lokaal.local (genegeerd door git): wat de app in de modus "lokaal" leest. Met een proxypoort
+ * praat de browser alleen met de app zelf (http://<host>:<poort>) en stuurt Vite Auth, REST en Realtime door
+ * naar de lokale Supabase (KG_SUPABASE_DOEL: alleen voor vite.config.ts, niet voor de browser).
+ */
+export function schrijfEnv(omg, host = '127.0.0.1', proxyPoort) {
+  const url = proxyPoort ? `http://${host}:${proxyPoort}` : omg.API_URL.replace(/\/\/(127\.0\.0\.1|localhost)/, `//${host}`).replace(/\/$/, '');
+  writeFileSync(process.env.KG_ENV_BESTAND || join(APP, '.env.lokaal.local'), [
     '# Gemaakt door scripts/lokaal.mjs. Alleen de lokale anon-sleutel; nooit de service-role-sleutel.',
     `VITE_SUPABASE_URL=${url}`,
     `VITE_SUPABASE_ANON_KEY=${omg.ANON_KEY}`,
     `VITE_DEMO_ACCOUNTS=${JSON.stringify(ACCOUNTS)}`,
     `VITE_DEMO_WACHTWOORD=${WACHTWOORD}`,
+    ...(proxyPoort ? [`KG_SUPABASE_DOEL=${omg.API_URL.replace(/\/$/, '')}`] : []),
     '',
   ].join('\n'));
 }
 
-/** Start Vite in de modus "lokaal". */
-async function dev(omg, lan, gekozen) {
+/**
+ * Start Vite in de modus "lokaal". Op het netwerk (--lan/--host) altijd via de proxy: Vite luistert alleen op
+ * het gekozen adres, en Supabase (API, database, Studio) blijft op 127.0.0.1. Met --proxy op dit toestel
+ * dezelfde weg, om die op één computer te testen.
+ */
+async function dev(omg, lan, gekozen, proxy) {
   const host = lan ? lanAdres(gekozen) : '127.0.0.1';
-  if (lan) {
-    const basis = await controleerBereikbaar(omg, host);
-    console.log(`Supabase bereikbaar op ${basis} (Auth en REST, gecontroleerd vanaf deze computer).`);
-    console.log('Let op: de lokale stack luistert op alle netwerken, ook de database (poort 55322, wachtwoord "postgres").');
-    console.log('Gebruik dit alleen op een vertrouwd thuisnetwerk en laat in de firewall alleen 5180 en 55321 toe.');
-  }
-  schrijfEnv(omg, host);
-  const [cmd, args] = viteOpdracht(['--mode', 'lokaal', ...(lan ? ['--host', '0.0.0.0'] : [])]);
+  const viaProxy = lan || proxy;
+  schrijfEnv(omg, host, viaProxy ? 5180 : undefined);
+  const [cmd, args] = viteOpdracht(['--mode', 'lokaal', ...(lan ? ['--host', host] : [])]);
   console.log(lan
     ? `Open op beide telefoons (zelfde wifi): http://${host}:5180/  ·  Eva op de ene, Thomas op de andere.`
     : 'Open http://127.0.0.1:5180/ in twee tabbladen (of twee browsers): Eva in het ene, Thomas in het andere.');
+  if (lan) {
+    console.log('Supabase (API, database, Studio) blijft op dit toestel; telefoons praten alleen met poort 5180 (app en proxy).');
+    console.log('Docker Desktop: Port binding "Local only". Firewall: alleen 5180, alleen vanaf het eigen netwerk. Alleen fictieve gegevens.');
+  }
   const p = spawn(cmd, args, { cwd: APP, stdio: 'inherit' });
   p.on('exit', code => process.exit(code ?? 0));
+  if (viaProxy) {
+    await controleerProxy(`http://${host}:5180`, omg.ANON_KEY).then(
+      () => console.log(`Supabase bereikbaar via de proxy op http://${host}:5180 (Auth en REST, gecontroleerd vanaf deze computer).`),
+      fout => { console.error(fout.message); p.kill(); process.exit(1); },
+    );
+  }
 }
 
 if (isHoofdscript(import.meta.url, process.argv[1])) {
@@ -181,13 +199,18 @@ if (isHoofdscript(import.meta.url, process.argv[1])) {
     const r = await seed(omg, i >= 0 ? rest[i + 1] : undefined);
     console.log(`Fictief gezin "${HUISHOUDEN}" klaargezet (${r.huishouden}). Accounts: ${ACCOUNTS.map(a => a.email).join(', ')}; wachtwoord: ${WACHTWOORD}`);
   } else if (opdracht === 'env') {
+    // Met --host altijd via de proxy op 5180 (Supabase staat niet op het netwerk); --proxy <poort> kiest de
+    // poort van de app (bijvoorbeeld 5182 voor `vite preview` in de browsertests).
     const i = rest.indexOf('--host');
-    schrijfEnv(omg, i >= 0 ? lanAdres(rest[i + 1]) : undefined);
+    const j = rest.indexOf('--proxy');
+    const poort = j >= 0 ? Number(rest[j + 1]) : i >= 0 ? 5180 : undefined;
+    if (poort !== undefined && !(poort > 0 && poort < 65536)) throw new Error(`Ongeldige proxypoort: ${rest[j + 1]}`);
+    schrijfEnv(omg, i >= 0 ? lanAdres(rest[i + 1]) : undefined, poort);
   } else if (opdracht === 'dev') {
     const i = rest.indexOf('--host');
-    await dev(omg, rest.includes('--lan') || i >= 0, i >= 0 ? rest[i + 1] : undefined);
+    await dev(omg, rest.includes('--lan') || i >= 0, i >= 0 ? rest[i + 1] : undefined, rest.includes('--proxy'));
   } else {
-    console.error('Gebruik: node scripts/lokaal.mjs seed [--datum JJJJ-MM-DD] | dev [--lan] [--host <ip>] | env [--host <ip>]');
+    console.error('Gebruik: node scripts/lokaal.mjs seed [--datum JJJJ-MM-DD] | dev [--lan] [--host <ip>] [--proxy] | env [--host <ip>] [--proxy <poort>]');
     process.exit(2);
   }
 }

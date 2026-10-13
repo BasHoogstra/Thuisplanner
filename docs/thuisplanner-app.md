@@ -48,15 +48,26 @@ npm run lokaal                          # http://127.0.0.1:5180
 Nog **niet met echte telefoons uitgevoerd**. Wel aangetoond met browsers op een aparte netwerkhost (zie
 §5, LAN-proef). Stappen:
 
-1. Computer en beide telefoons op hetzelfde, vertrouwde thuisnetwerk (geen gastnetwerk met
-   "client-isolatie", geen VPN op de telefoons).
-2. `cd komtgoed && supabase start`, daarna `cd app && npm run lokaal:seed`.
+**Alleen poort 5180 op het netwerk (Vite-proxy).** De telefoons praten alleen met de app. Vite stuurt Auth,
+REST en Realtime (websocket) door naar Supabase op `127.0.0.1:55321`. De Supabase-stack zelf (API, database
+55322 met standaardwachtwoord, Studio, mail) blijft alleen op de computer bereikbaar. In Docker Desktop:
+Settings → Resources → Network → **Port binding behavior: Local only** (dan luistert elke gepubliceerde
+poort alleen op `127.0.0.1` en `::1`, en weigert Docker `0.0.0.0`). Wie de app kan openen, kan via de proxy
+nog wel de API gebruiken (met de bekende lokale demosleutels): daarom alleen fictieve gegevens en alleen
+een eigen netwerk.
+
+1. Computer en beide telefoons op hetzelfde, vertrouwde netwerk (thuiswifi of de eigen telefoonhotspot;
+   geen gastnetwerk met "client-isolatie", geen VPN op de telefoons).
+2. Docker Desktop op "Local only" (zie boven). `cd komtgoed && supabase start`, daarna
+   `cd app && npm run lokaal:seed`.
 3. `npm run lokaal:lan`. Het script kiest het wifi-adres van de computer (virtuele netwerken van Docker,
-   VM's en VPN's slaat het over; bij twijfel noemt het de kandidaten) en controleert dat Auth en REST op
-   dat adres antwoorden. Klopt het adres niet: `node scripts/lokaal.mjs dev --host 192.168.x.y`.
-4. Firewall van de computer: sta inkomend alleen poort **5180** (app) en **55321** (Supabase API, ook
-   Realtime) toe. De lokale stack luistert ook met de database (55322, standaardwachtwoord) op alle
-   netwerken: laat die dicht, en gebruik dit alleen thuis.
+   Hyper-V/WSL, VM's en VPN's slaat het over; bij twijfel noemt het de kandidaten), laat Vite alleen op dat
+   adres luisteren en controleert dat Auth en REST via de proxy antwoorden. Klopt het adres niet:
+   `node scripts/lokaal.mjs dev --host 192.168.x.y`. Op één computer dezelfde weg testen:
+   `node scripts/lokaal.mjs dev --proxy` (alleen `127.0.0.1`), of de browsertests met `KG_VIA_PROXY=1`.
+4. Firewall van de computer: sta inkomend alleen poort **5180** (TCP) toe, en alleen vanaf het eigen
+   netwerk (bijvoorbeeld `-RemoteAddress 172.20.10.0/28` voor een iPhone-hotspot). Brede regels die Node of
+   Docker op elke poort toestaan, horen uit. Haal de regel na de proef weer weg.
 5. Open op beide telefoons `http://<adres>:5180/` (het script toont het). Telefoon 1: "Inloggen als
    Eva", telefoon 2: "Inloggen als Thomas". Bovenin moet "Verbonden" staan.
 6. Proef: voeg op de ene telefoon een afspraak, taak en boodschap toe; ze verschijnen binnen enkele
@@ -157,7 +168,7 @@ React-schermen (ongewijzigd)  ── useApp() ──  Schil (App.tsx)
 | Integratie (lokale stack) | `komtgoed/supabase/tests/integratie/react.test.mjs` | uitzonderingen over meerdere pagina's bij beide accounts, voorkomen wijzigen en verwijderen, taak bijwerken met conflict; bevinding 4: privé-afspraak niet aangekomen → herladen → herinvoer met dezelfde ID; aangekomen → laat bevestigd → herinvoer maakt geen tweede; herinvoer met weggevallen antwoord → opnieuw proberen |
 | E2E, twee accounts | `komtgoed/app/e2e-lokaal/sync.spec.ts` (`npm run e2e:lokaal`) | privé "Bezet"; afspraak toevoegen/aanpassen/één voorkomen verwijderen; taak toevoegen en afvinken; boodschappen toevoegen, afvinken, geen dubbele; versieconflict; onbevestigd (aangekomen / niet aangekomen / na herladen / vergeten / keuze bij mogelijk dubbel); schermwissels en uitloggen |
 | E2E (herstelronde 1) | `komtgoed/app/e2e-lokaal/herstel1.spec.ts` | bevinding 1 in de echte app, gecontroleerd in de database; bevinding 4: niet aangekomen + herladen + opnieuw invoeren (zelfde ID, Thomas ziet één keer "Bezet"), aangekomen + herladen (laat bevestigd), herinvoer-venster open tijdens de late bevestiging |
-| LAN-proef | `komtgoed/app/e2e-lan/lan.spec.ts` via `scripts/lan-proef.sh` (`npm run lan-proef`) | bevinding 2: de app draait op het netwerkadres van de ontwikkelmachine; de browsers draaien in een container met een **eigen netwerkstack** (eigen IP) en bereiken app, Auth, REST en Realtime alleen via dat adres. Toetst: geen secure context, geen `randomUUID`, toch inloggen, toevoegen, afvinken en realtime-synchronisatie tussen twee accounts. **Geen echte telefoons** |
+| LAN-proef | `komtgoed/app/e2e-lan/lan.spec.ts` via `scripts/lan-proef.sh` (`npm run lan-proef`) | bevinding 2: de app draait op het netwerkadres van de ontwikkelmachine; de browsers draaien in een container met een **eigen netwerkstack** (eigen IP) en bereiken app, Auth, REST en Realtime alleen via dat adres, poort 5180 (Vite-proxy; Supabase zelf hoeft niet op het netwerk). Toetst: geen secure context, geen `randomUUID`, toch inloggen, toevoegen, afvinken en realtime-synchronisatie tussen twee accounts. **Geen echte telefoons** |
 | Bestaand | demo-e2e (138), unit, sync- en herstelintegratie, RLS-matrix, Huisplan | ongewijzigd groen |
 
 CI: de lokale e2e en de LAN-proef draaien in de job `supabase-lokaal` van `.github/workflows/komtgoed-db.yml`.
