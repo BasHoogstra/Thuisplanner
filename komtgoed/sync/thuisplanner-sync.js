@@ -81,8 +81,21 @@ export function meldingVoor(fout) {
 }
 
 const foutVan = r => (r?.error ? { ...r.error, status: r.status } : null);
-const leeg = () => ({ lid: null, leden: [], boodschappen: [], taken: [], afspraken: [] });
-const nieuweId = () => globalThis.crypto.randomUUID();
+const leeg = () => ({ lid: null, leden: [], boodschappen: [], taken: [], afspraken: [], uitzonderingen: [] });
+// UUID versie 4 uit de cryptografische toevalsgenerator van het platform. crypto.randomUUID() bestaat
+// alleen in een "secure context" (HTTPS of localhost); op een telefoon via http://<lan-ip> ontbreekt hij.
+// crypto.getRandomValues() is daar wel beschikbaar (Web Crypto, ook zonder secure context) en is even sterk.
+// Geen Math.random: ontbreekt ook getRandomValues, dan liever een duidelijke fout dan zwakke id's.
+export function uuidV4(c = globalThis.crypto) {
+  if (typeof c?.randomUUID === 'function') return c.randomUUID();
+  if (typeof c?.getRandomValues !== 'function') throw new Error('Geen cryptografische willekeur beschikbaar (crypto.getRandomValues)');
+  const b = c.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;   // versie 4
+  b[8] = (b[8] & 0x3f) | 0x80;   // variant RFC 4122
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+const nieuweId = () => uuidV4();
 const tekstSleutel = s => String(s ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 const VERVALLEN = Symbol('vervallen');   // antwoord van een beëindigde generatie
 
@@ -278,6 +291,23 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     }
   }
 
+  // Uitzonderingen op herhalende afspraken (verwijderde of losgemaakte voorkomens). Geen id-kolom: keyset
+  // op de primaire sleutel (series_id, occurrence_date), met dezelfde garanties als allePaginas.
+  async function alleUitzonderingen(g) {
+    const rijen = [];
+    let na = null;
+    for (;;) {
+      let q = supabase.from('event_exceptions').select('series_id,occurrence_date').eq('household_id', huishoudenId);
+      if (na) q = q.or(`series_id.gt.${na.series_id},and(series_id.eq.${na.series_id},occurrence_date.gt.${na.occurrence_date})`);
+      const r = await q.order('series_id').order('occurrence_date').limit(paginaGrootte);
+      if (r.error) throw foutVan(r);
+      if (!geldig(g)) throw VERVALLEN;
+      if (r.data.length === 0) return rijen;   // pas klaar bij een lege pagina (de server kan minder teruggeven)
+      rijen.push(...r.data);
+      na = r.data[r.data.length - 1];
+    }
+  }
+
   async function haalOp(g) {
     // 1. Lidmaatschap: nog actief lid van dit huishouden?
     const lid = await supabase.rpc('my_memberships');
@@ -287,19 +317,20 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     if (!mijn) return { geenToegang: true };
     // 2. Kanaalnaam en inhoud, alleen dit huishouden, alleen expliciete kolommen, alleen wat RLS
     //    teruggeeft. Pas als alles binnen is, gaat het naar de cache (geen halve vervanging).
-    const [kn, b, t, a, l] = await Promise.all([
+    const [kn, b, t, a, l, u] = await Promise.all([
       supabase.rpc('household_channel', { p_household: huishoudenId }),
       allePaginas(() => supabase.from('shopping_items').select(VELDEN_BOODSCHAP).eq('household_id', huishoudenId).is('deleted_at', null), g),
       allePaginas(() => supabase.from('tasks').select(VELDEN_TAAK).eq('household_id', huishoudenId).is('deleted_at', null), g),
       allePaginas(() => supabase.from('event_overview').select(VELDEN_AFSPRAAK).eq('household_id', huishoudenId).is('deleted_at', null), g),
       allePaginas(() => supabase.from('household_members').select(VELDEN_LID).eq('household_id', huishoudenId), g),
+      alleUitzonderingen(g),
     ]);
     if (kn.error) {
       if (kn.error.code === '42501') return { geenToegang: true };
       throw foutVan(kn);
     }
     if (!geldig(g)) throw VERVALLEN;
-    return { lid: mijn, kanaalNaam: kn.data, boodschappen: b, taken: t, afspraken: a, leden: l.sort(SORTEER.leden) };
+    return { lid: mijn, kanaalNaam: kn.data, boodschappen: b, taken: t, afspraken: a, leden: l.sort(SORTEER.leden), uitzonderingen: u };
   }
 
   // Eén ophaalronde tegelijk; seintjes tijdens een ronde leiden tot precies één extra ronde.
@@ -330,7 +361,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
         const lijsten = samenvoegen({ boodschappen: r.boodschappen, taken: r.taken, afspraken: r.afspraken });
         // Verbonden = gegevens actueel én het kanaal luistert. Kanaal nog niet open: bij de eerste ronde
         // nog "laden", daarna "offline" (er komen dan geen seintjes binnen).
-        zet({ lid: r.lid, leden: r.leden, ...lijsten,
+        zet({ lid: r.lid, leden: r.leden, uitzonderingen: r.uitzonderingen, ...lijsten,
               status: kanaalOpen() ? STATUS.VERBONDEN : (kanaal ? STATUS.OFFLINE : STATUS.LADEN),
               laatstOpgehaald: new Date().toISOString() });
         // Andere kanaalnaam (iemand verloor toegang): overstappen. Het oude kanaal krijgt niets meer.
@@ -684,6 +715,13 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     taakToevoegen(titel, velden = {}, opties) {
       return nieuweToevoeging({ soort: 'taak', id: nieuweId(), titel, velden: { ...velden } }, opties);
     },
+    // Titel, datum of wie het oppakt wijzigen, met de versie waarmee de gebruiker begon.
+    taakBijwerken(taak, velden, versie = taak.version) {
+      return schrijf(() => bijwerkenMetVersie('tasks', taak.id, versie, velden), {
+        optimistisch: t => ({ taken: vervang(t.taken, taak.id, x => ({ ...x, ...velden, wachtend: true })) }),
+        terugdraaien: t => ({ taken: vervang(t.taken, taak.id, x => ({ ...x, ...Object.fromEntries(Object.keys(velden).map(k => [k, taak[k]])), wachtend: false })) }),
+      });
+    },
     taakAfvinken(taak) {
       const done_on = taak.done_on ? null : new Date().toISOString().slice(0, 10);
       const done_by_member_id = done_on ? toestand.lid?.member_id ?? null : null;
@@ -721,6 +759,20 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     },
     afspraakVerwijderen(a) {
       return schrijf(() => supabase.rpc('delete_event', { p_id: a.id, p_version: a.version }));
+    },
+    // Eén voorkomen van een reeks wijzigen: de server maakt er een losse afspraak van (met dit id) en zet
+    // een uitzondering op de reeks. Zichtbaarheid en herhaling volgen de reeks.
+    afspraakVoorkomenWijzigen(reeksId, datum, a) {
+      return schrijf(() => supabase.rpc('edit_occurrence', {
+        p_series: reeksId, p_original_date: datum, p_id: a.id || nieuweId(), p_start_date: a.start_date,
+        p_start_time: a.start_time ?? null, p_end_date: a.end_date ?? null, p_end_time: a.end_time ?? null,
+        p_title: a.title, p_location: a.location ?? null, p_notes: a.notes ?? null, p_preparation: a.preparation ?? null,
+        p_participants: a.participant_ids ?? null,
+      }));
+    },
+    // Eén voorkomen van een reeks verwijderen (een uitzondering op de reeks).
+    afspraakVoorkomenVerwijderen(reeksId, datum) {
+      return schrijf(() => supabase.rpc('delete_occurrence', { p_series: reeksId, p_date: datum }));
     },
     // Een niet-bevestigde toevoeging opnieuw versturen: dezelfde opdracht, dezelfde UUID.
     opnieuwProberen(id) {

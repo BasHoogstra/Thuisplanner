@@ -133,6 +133,20 @@ const checks = {
     if (fs.existsSync(sync)) assert(!/console\./.test(fs.readFileSync(sync, 'utf8')), 'De synchronisatiemodule logt naar de console');
   },
 
+  'React-app: browsercode noemt nooit de service-role-sleutel; de lokale env krijgt alleen de anon-sleutel'() {
+    const app = path.join(ROOT, 'komtgoed/app');
+    if (!fs.existsSync(path.join(app, 'src'))) return 'overgeslagen: geen React-app';
+    const bestanden = execSync('git ls-files -co --exclude-standard src index.html', { cwd: app }).toString().split('\n').filter(Boolean);
+    const bad = bestanden.filter(f => /SERVICE_ROLE|service_role|sb_secret/.test(fs.readFileSync(path.join(app, f), 'utf8')));
+    assert(bad.length === 0, 'Service-role-sleutel genoemd in de React-app: ' + bad.join(', '));
+    const script = path.join(app, 'scripts/lokaal.mjs');
+    if (fs.existsSync(script)) {
+      const s = fs.readFileSync(script, 'utf8');
+      const env = s.slice(s.indexOf('export function schrijfEnv'), s.indexOf('/** Start Vite'));
+      assert(env.includes('VITE_SUPABASE_ANON_KEY') && !/SERVICE_ROLE/.test(env), 'scripts/lokaal.mjs zet meer dan de anon-sleutel in de browseromgeving');
+    }
+  },
+
   'bestaande Huisplan-bestanden ongewijzigd door deze branch'() {
     const beschermd = ['index.html', 'test/index.html', 'supabase'];
     let basis;
