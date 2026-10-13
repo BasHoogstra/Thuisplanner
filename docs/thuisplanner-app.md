@@ -25,6 +25,11 @@ weigert de app op te starten (een melding, nooit stil terugvallen op de demo).
 
 Vereist: Docker en de Supabase-CLI, Node 20+.
 
+**Windows:** de scripts werken ook in PowerShell. Staat de CLI niet op het PATH, gebruik dan
+`npx supabase@2.120.0 start` en zet voor de app-scripts `$env:SUPABASE = 'npx supabase@2.120.0'`. Kies bij
+`lokaal:lan` het wifi-adres zo nodig zelf met `node scripts/lokaal.mjs dev --host <ip>`; Hyper-V/WSL-adapters
+(`vEthernet (...)`) slaat het script over.
+
 ```sh
 cd komtgoed && supabase start          # lokale stack (eenmalig per sessie)
 cd app && npm ci

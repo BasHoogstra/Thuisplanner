@@ -8,13 +8,13 @@
 //
 // URL's en sleutels komen uit `supabase status -o env` (of uit API_URL/ANON_KEY/SERVICE_ROLE_KEY in de
 // omgeving). De service-role-sleutel blijft in dit Node-script; de browser krijgt alleen de anon-sleutel.
-import { execFileSync, spawn } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
-import { networkInterfaces } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
+import { isHoofdscript, isPriveAdres, lanAdressen, leesStatus, supabaseOpdracht, viteOpdracht } from './lokaal-platform.mjs';
 
 const HIER = dirname(fileURLToPath(import.meta.url));
 const APP = join(HIER, '..');
@@ -33,10 +33,11 @@ const LOKAAL = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/;
 function stackOmgeving() {
   let { API_URL, ANON_KEY, SERVICE_ROLE_KEY } = process.env;
   if (!API_URL || !ANON_KEY || !SERVICE_ROLE_KEY) {
-    const [cmd, ...args] = (process.env.SUPABASE || 'supabase').split(' ');
-    const uit = execFileSync(cmd, [...args, 'status', '-o', 'env'], { cwd: KOMTGOED, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
-    const waarde = k => uit.match(new RegExp(`^${k}="?([^"\\n]*)"?$`, 'm'))?.[1];
-    API_URL = waarde('API_URL'); ANON_KEY = waarde('ANON_KEY'); SERVICE_ROLE_KEY = waarde('SERVICE_ROLE_KEY');
+    const opdracht = supabaseOpdracht(process.env.SUPABASE);
+    let uit;
+    try { uit = execSync(opdracht, { cwd: KOMTGOED, stdio: ['ignore', 'pipe', 'ignore'] }).toString(); }
+    catch { throw new Error(`\`${opdracht}\` in komtgoed/ mislukte. Draait de lokale stack (supabase start in komtgoed/)? Staat de CLI niet op het PATH, zet dan bijvoorbeeld SUPABASE="npx supabase@2.120.0".`); }
+    ({ API_URL, ANON_KEY, SERVICE_ROLE_KEY } = leesStatus(uit));
   }
   if (!API_URL || !LOKAAL.test(API_URL)) throw new Error('Weigering: alleen een lokale Supabase (127.0.0.1 of localhost). Draai eerst `supabase start` in komtgoed/.');
   if (!ANON_KEY || !SERVICE_ROLE_KEY) throw new Error('Geen sleutels gevonden in `supabase status -o env`.');
@@ -118,25 +119,11 @@ export async function seed({ API_URL, ANON_KEY, SERVICE_ROLE_KEY }, vandaag = ne
   return { huishouden: h };
 }
 
-const PRIVE = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
-// Virtuele netwerken op de ontwikkelmachine (Docker, VM's, VPN) zijn niet het wifi-netwerk van de telefoons.
-const VIRTUEEL = /^(docker|br-|veth|virbr|vmnet|vboxnet|utun|tun|tap|wg|zt|tailscale|lo)/i;
-
-/** Kandidaten voor het adres op het eigen (wifi-)netwerk, de waarschijnlijkste eerst. */
-export function lanAdressen(interfaces = networkInterfaces()) {
-  const uit = [];
-  for (const [naam, lijst] of Object.entries(interfaces)) {
-    for (const a of lijst ?? []) {
-      if (a.family === 'IPv4' && !a.internal && PRIVE.test(a.address) && !VIRTUEEL.test(naam)) uit.push({ naam, adres: a.address });
-    }
-  }
-  const rang = x => (x.adres.startsWith('192.168.') ? 0 : x.adres.startsWith('10.') ? 1 : 2);
-  return uit.sort((x, y) => rang(x) - rang(y));
-}
+export { lanAdressen };
 
 function lanAdres(gekozen) {
   if (gekozen) {
-    if (!PRIVE.test(gekozen)) throw new Error(`Weigering: ${gekozen} is geen adres op een eigen netwerk (10.x, 172.16-31.x of 192.168.x).`);
+    if (!isPriveAdres(gekozen)) throw new Error(`Weigering: ${gekozen} is geen adres op een eigen netwerk (10.x, 172.16-31.x of 192.168.x).`);
     return gekozen;
   }
   const kandidaten = lanAdressen();
@@ -178,15 +165,15 @@ async function dev(omg, lan, gekozen) {
     console.log('Gebruik dit alleen op een vertrouwd thuisnetwerk en laat in de firewall alleen 5180 en 55321 toe.');
   }
   schrijfEnv(omg, host);
-  const args = ['vite', '--mode', 'lokaal', ...(lan ? ['--host', '0.0.0.0'] : [])];
+  const [cmd, args] = viteOpdracht(['--mode', 'lokaal', ...(lan ? ['--host', '0.0.0.0'] : [])]);
   console.log(lan
     ? `Open op beide telefoons (zelfde wifi): http://${host}:5180/  ·  Eva op de ene, Thomas op de andere.`
     : 'Open http://127.0.0.1:5180/ in twee tabbladen (of twee browsers): Eva in het ene, Thomas in het andere.');
-  const p = spawn('npx', args, { cwd: APP, stdio: 'inherit' });
+  const p = spawn(cmd, args, { cwd: APP, stdio: 'inherit' });
   p.on('exit', code => process.exit(code ?? 0));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isHoofdscript(import.meta.url, process.argv[1])) {
   const [opdracht = 'dev', ...rest] = process.argv.slice(2);
   const omg = stackOmgeving();
   if (opdracht === 'seed') {
