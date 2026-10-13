@@ -604,3 +604,13 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Uitloggen en inloggen zetten hun auth-aanroep direct in de rij, niet pas nadat de vorige sync zijn
   Realtime-kanaal heeft afgemeld. Een oude uitlog kan zo het token van een nieuwere inlog niet meer wissen;
   een hangende of mislukte afmelding blokkeert niets. Regressietests (11) falen op b867346 en slagen nu.
+
+## Thuisplanner telefoonproef — Windows, Vite-proxy en eerste proef met echte telefoons (13 oktober 2026, alleen lokaal, fictief)
+- `scripts/lokaal.mjs` werkt op Windows (hoofdscript-herkenning, Vite en de Supabase-CLI zonder .cmd via
+  spawn, wifi-adres zonder Hyper-V/WSL-adapters); `tegenproeven.txt` altijd met LF.
+- Vite-proxy: telefoons praten alleen met poort 5180; Auth, REST en Realtime gaan via Vite naar Supabase op
+  `127.0.0.1`. Database, Studio en API blijven van het netwerk af (Docker Desktop "Local only"). De lokale
+  e2e draait ook via de proxy (`KG_VIA_PROXY=1`) en faalt op elke aanvraag buiten de app-poort.
+- Mijlpaal: eerste proef met twee echte telefoons geslaagd. Eva en Thomas logden in; een boodschap die
+  Eva toevoegde en Thomas afvinkte, verscheen beide keren automatisch op de andere telefoon.
+  Geen wijziging aan de Huisplan-app.
