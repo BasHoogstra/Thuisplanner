@@ -11,8 +11,13 @@ cd "$APP"
 IP="${LAN_IP:-$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')}"
 NODE="$(command -v node)"
 BROWSERS="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
-BEELD="${LAN_BEELD:-$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -m1 '^supabase/postgres:')}"
+# Een image die er al is (die van de database-container van de stack; in CI komt die van public.ecr.aws).
+BEELD="${LAN_BEELD:-$(docker ps --filter 'name=supabase_db_' --format '{{.Image}}' | awk 'NR == 1')}"
 LOG="$(mktemp)"
+[ -n "$IP" ] || { echo "LAN-proef: geen netwerkadres van de Docker-brug gevonden" >&2; exit 1; }
+[ -n "$BEELD" ] || { echo "LAN-proef: geen draaiende database-container van de lokale stack (supabase start)" >&2; exit 1; }
+[ -d "$BROWSERS" ] || { echo "LAN-proef: Playwright-browsers niet gevonden in $BROWSERS" >&2; exit 1; }
+echo "LAN-proef: app op http://$IP:5180, browsers in een container van $BEELD, Chromium uit $BROWSERS"
 
 node scripts/lokaal.mjs seed
 node scripts/lokaal.mjs dev --host "$IP" > "$LOG" 2>&1 &
