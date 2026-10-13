@@ -119,6 +119,12 @@ React-schermen (ongewijzigd)  ── useApp() ──  Schil (App.tsx)
   een inlog op die pas daarna binnenkomt, en houdt de client bij snel wisselen de sessie van het laatst
   gekozen account. Uitloggen toont meteen "uitgelogd"; het wacht niet op het netwerk. Getest in
   `tests/sessie.test.tsx`.
+- **Kanaalafmelding blokkeert niets (herstelronde 2).** Inloggen en uitloggen zetten hun auth-aanroep
+  meteen in de rij, nog vóór de vorige sync stopt. De sync verstuurt vanaf `stop()` niets meer; alleen het
+  afmelden van het Realtime-kanaal kan duren of mislukken, en daar wacht geen auth-handeling op. Zo kan een
+  oude uitlog met een hangende afmelding nooit het token van een nieuwere inlog wissen, en blokkeert een
+  fout bij het afmelden de rij niet. Getest met een bewust hangende en een mislukkende afmelding, in elke
+  volgorde, en met snel uit- en weer inloggen; telkens op de schermstatus én het werkelijke token.
 - **Zelfde schermen.** De demo-store en de lokale staat bieden dezelfde acties. De algemene
   `vervangAlles` is in het venster en op Boodschappen vervangen door expliciete handelingen
   (`voegBoodschappenToe`, `wijzigVoorkomen`, `verwijderVoorkomen`, `verwijderReeks`), zodat elke

@@ -13,7 +13,7 @@ const CONFIG: LokaleConfig = { url: 'http://127.0.0.1:54321', anonKey: 'x', acco
 
 interface Uitgesteld<T = unknown> { naam: string; los: (v: T) => void; belofte: Promise<T> }
 
-function nepOmgeving({ ingelogd = null as string | null } = {}) {
+function nepOmgeving({ ingelogd = null as string | null, stop = 'direct' as 'direct' | 'wacht' | 'fout' } = {}) {
   const wachtrij: Uitgesteld[] = [];
   const wacht = <T,>(naam: string): Promise<T> => {
     let los!: (v: T) => void;
@@ -39,7 +39,13 @@ function nepOmgeving({ ingelogd = null as string | null } = {}) {
     syncs.push(s);
     return {
       start: async () => { await wacht('syncStart'); s.gestart = true; },
-      stop: async () => { s.gestopt = true; },
+      // De sync-module stopt synchroon (geen verzoeken meer); alleen het afmelden van het Realtime-kanaal
+      // kan duren. 'wacht': dat afmelden hangt tot de test het loslaat; 'fout': het afmelden mislukt.
+      stop: async () => {
+        s.gestopt = true;
+        if (stop === 'wacht') await wacht('syncStop');
+        if (stop === 'fout') throw new Error('kanaal afmelden mislukt');
+      },
       toestand: { status: 'verbonden', afspraken: [], taken: [], boodschappen: [], leden: [], uitzonderingen: [], lid: null } as unknown as Toestand,
       acties: {}, openstaand: [],
     } as unknown as Sync;
@@ -56,8 +62,17 @@ function nepOmgeving({ ingelogd = null as string | null } = {}) {
     await stap();
   };
   const alles = async () => { for (let n = 0; n < 50 && (await stap(), wachtrij.length); n++) await geef(); };
+  // Alles laten terugkomen behalve de hangende kanaalafmeldingen ('syncStop').
+  const allesBehalveStop = async () => {
+    for (let n = 0; n < 50; n++) {
+      await stap();
+      const w = wachtrij.find(x => x.naam !== 'syncStop');
+      if (!w) return;
+      await geef(w.naam);
+    }
+  };
   const draaiend = () => syncs.filter(s => !s.gestopt);
-  return { sessie, client, syncs, draaiend, wachtrij, geef, alles, stap };
+  return { sessie, client, syncs, draaiend, wachtrij, geef, alles, allesBehalveStop, stap };
 }
 
 // De stappen van inloggen tot een draaiende sync, in volgorde.
@@ -166,5 +181,109 @@ describe('React StrictMode', () => {
     await p.alles(); await act(async () => { await Promise.all([h, u]); });
     expect(r2.container).toHaveTextContent('uitgelogd');
     expect(p.draaiend()).toEqual([]);
+  });
+});
+
+// Herstelronde 2 (review van b867346): een uitlogactie wiens kanaalafmelding hangt, mag een latere inlog niet
+// meer ongedaan maken. Gecontroleerd op twee plekken: wat React toont (momentopname) en welke inlogsessie de
+// Supabase-client werkelijk heeft (client.sessie, het token waarmee verzoeken gaan).
+describe('uitloggen met een hangende kanaalafmelding, daarna een nieuwe inlog', () => {
+  async function evaActief(o: ReturnType<typeof nepOmgeving>) {
+    const a = o.sessie.inloggen('eva', 'x');
+    await o.allesBehalveStop(); await act(async () => { await a; });
+    expect(o.sessie.momentopname()).toMatchObject({ fase: 'actief', account: { id: 'eva' } });
+  }
+  const verwachtThomas = (o: ReturnType<typeof nepOmgeving>) => {
+    expect(o.sessie.momentopname()).toMatchObject({ fase: 'actief', account: { id: 'thomas' }, huishouden: { id: 'h-thomas' } });
+    expect(o.client.sessie).toBe('thomas');
+    expect(o.draaiend().map(s => s.huishouden)).toEqual(['h-thomas']);
+  };
+
+  it('reproductie uit de review: A uit (stop hangt), B in en actief, dan pas eindigt de stop van A: B blijft ingelogd', async () => {
+    const o = nepOmgeving({ stop: 'wacht' });
+    await evaActief(o);
+    const uit = o.sessie.uitloggen();
+    await o.stap();
+    expect(o.sessie.momentopname().fase).toBe('uitgelogd');   // het scherm toont meteen de inlogpagina
+    const b = o.sessie.inloggen('thomas', 'x');
+    await o.allesBehalveStop();
+    await act(async () => { await b; });
+    verwachtThomas(o);
+    // Nu pas eindigt het afmelden van het kanaal van Eva.
+    await o.geef('syncStop');
+    await o.alles();
+    await act(async () => { await uit; });
+    verwachtThomas(o);
+  });
+
+  const STAPPEN_B = ['signOut', 'signIn:thomas', 'memberships', 'huishouden', 'syncStart'];
+  for (let k = 0; k <= STAPPEN_B.length; k++) {
+    it(`de stop van A eindigt na ${k} van de ${STAPPEN_B.length} stappen van uitloggen en inloggen als B`, async () => {
+      const o = nepOmgeving({ stop: 'wacht' });
+      await evaActief(o);
+      const uit = o.sessie.uitloggen();
+      const b = o.sessie.inloggen('thomas', 'x');
+      for (let i = 0; i < k; i++) await o.geef(STAPPEN_B[i]);
+      await o.geef('syncStop');
+      await o.alles();
+      await act(async () => { await Promise.all([uit, b]); });
+      verwachtThomas(o);
+    });
+  }
+
+  it('snel uit en weer in, twee keer (A → B → A), stops eindigen in omgekeerde volgorde: A actief met het token van A', async () => {
+    const o = nepOmgeving({ stop: 'wacht' });
+    await evaActief(o);
+    const acties = [o.sessie.uitloggen(), o.sessie.inloggen('thomas', 'x')];
+    await o.allesBehalveStop();
+    acties.push(o.sessie.uitloggen(), o.sessie.inloggen('eva', 'x'));
+    await o.allesBehalveStop();
+    // Hangende afmeldingen pas nu, de nieuwste eerst.
+    for (const i of o.wachtrij.map((w, i) => (w.naam === 'syncStop' ? i : -1)).filter(i => i >= 0).reverse()) {
+      const [w] = o.wachtrij.splice(i, 1); w.los(undefined); await o.stap();
+    }
+    await o.alles();
+    await act(async () => { await Promise.all(acties); });
+    expect(o.sessie.momentopname()).toMatchObject({ fase: 'actief', account: { id: 'eva' } });
+    expect(o.client.sessie).toBe('eva');
+    expect(o.draaiend().map(s => s.huishouden)).toEqual(['h-eva']);
+  });
+
+  it('uitloggen terwijl de stop hangt en die nooit eindigt: het token is toch weg en een nieuwe inlog loopt niet vast', async () => {
+    const o = nepOmgeving({ stop: 'wacht' });
+    await evaActief(o);
+    void o.sessie.uitloggen();
+    await o.allesBehalveStop();
+    expect(o.client.sessie).toBeNull();
+    const b = o.sessie.inloggen('thomas', 'x');
+    await o.allesBehalveStop();
+    await act(async () => { await b; });
+    verwachtThomas(o);
+    expect(o.wachtrij.map(w => w.naam)).toEqual(['syncStop']);   // hangt nog steeds; niets wacht erop
+  });
+
+  it('direct van A naar B wisselen (zonder uitloggen) terwijl de stop van A hangt: B wordt toch actief', async () => {
+    const o = nepOmgeving({ stop: 'wacht' });
+    await evaActief(o);
+    const b = o.sessie.inloggen('thomas', 'x');
+    await o.allesBehalveStop();
+    await act(async () => { await b; });
+    verwachtThomas(o);
+    await o.alles();
+    verwachtThomas(o);
+  });
+
+  it('een fout bij het stoppen blokkeert de auth-wachtrij niet: uitgelogd, token weg, daarna gewoon inloggen', async () => {
+    const o = nepOmgeving({ stop: 'fout' });
+    await evaActief(o);
+    const uit = o.sessie.uitloggen();
+    await o.alles();
+    await act(async () => { await uit; });
+    expect(o.sessie.momentopname().fase).toBe('uitgelogd');
+    expect(o.client.sessie).toBeNull();
+    const b = o.sessie.inloggen('thomas', 'x');
+    await o.alles();
+    await act(async () => { await b; });
+    verwachtThomas(o);
   });
 });

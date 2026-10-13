@@ -119,11 +119,16 @@ export class Sessie {
 
   private actueel = (g: number) => g === this.generatie;
 
-  /** Stopt de huidige sync (als die er is); onbevestigde opdrachten blijven bewaard. */
+  /**
+   * Stopt de huidige sync (als die er is); onbevestigde opdrachten blijven bewaard. De sync verstuurt vanaf
+   * het aanroepen van stop() niets meer; alleen het afmelden van het Realtime-kanaal kan nog duren of mislukken.
+   * Daar wacht geen auth-handeling op, en een fout daarbij blokkeert niets.
+   */
   private async stopSync() {
     const sync = this.sync;
     this.sync = null;
-    if (sync) await sync.stop();
+    if (!sync) return;
+    try { await sync.stop(); } catch { /* kanaal niet netjes afgemeld; de sync is wel gestopt */ }
   }
 
   /** Bij het laden van de pagina: is er in dit tabblad al iemand ingelogd? */
@@ -142,9 +147,10 @@ export class Sessie {
 
   async inloggen(email: string, wachtwoord: string): Promise<void> {
     const g = ++this.generatie;
-    await this.stopSync();
-    if (!this.actueel(g)) return;
     this.zet({ ...LEEG, fase: 'bezig' });
+    // Een vorige sync stopt meteen (verstuurt niets meer); op het afmelden van zijn kanaal wacht de inlog niet.
+    // De inlog gaat direct de auth-rij in, in de volgorde waarin hij gevraagd is.
+    void this.stopSync();
     const { data, error } = await this.inRij(() => this.client.auth.signInWithPassword({ email, password: wachtwoord }));
     if (!this.actueel(g)) return;   // intussen uitgelogd of een ander account gekozen: die actie ruimt op
     if (error || !data.user) {
@@ -163,9 +169,8 @@ export class Sessie {
     const h = await this.client.from('households').select('name').eq('id', eerste.household_id).maybeSingle();
     if (!this.actueel(g)) return;
     const naam = (h.data as { name?: string } | null)?.name ?? 'Huishouden';
-    // Eén sync per sessie. Een vorige (ander account of huishouden) stopt eerst.
-    await this.stopSync();
-    if (!this.actueel(g)) return;
+    // Eén sync per sessie. Een vorige (ander account of huishouden) stopt eerst; niet wachten op zijn kanaal.
+    void this.stopSync();
     const sync = this.maakSyncFn({
       supabase: this.client,
       huishoudenId: eerste.household_id,
@@ -186,8 +191,11 @@ export class Sessie {
   async uitloggen(): Promise<void> {
     const g = ++this.generatie;
     this.zet({ ...LEEG, fase: 'uitgelogd' });
-    await this.stopSync();
-    await this.inRij(() => this.client.auth.signOut({ scope: 'local' }));
+    // Het afmelden direct in de auth-rij zetten, vóór het (mogelijk trage) stoppen van de sync. Anders kan een
+    // nieuwe inlog dit uitloggen inhalen en wist het late signOut het token van die nieuwe gebruiker.
+    const afmelding = this.inRij(() => this.client.auth.signOut({ scope: 'local' }));
+    void this.stopSync();   // de sync stopt meteen; op het afmelden van het kanaal wacht niets
+    await afmelding.catch(() => undefined);   // lokaal afmelden; een fout mag de rest niet tegenhouden
     if (this.actueel(g)) this.zet({ ...LEEG, fase: 'uitgelogd' });
   }
 }

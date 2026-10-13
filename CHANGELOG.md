@@ -599,3 +599,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   terugdraaien.
 - Privé-afspraak zonder bewaarde inhoud: "Opnieuw invoeren" met dezelfde opdracht-ID (geen dubbele).
 - Regressietests voor alle vier, met tegenproeven tegen de vorige versie. P1–P5 niet ingevoerd.
+
+## Thuisplanner React-integratie herstelronde 2 — auth-volgorde bij een trage kanaalafmelding
+- Uitloggen en inloggen zetten hun auth-aanroep direct in de rij, niet pas nadat de vorige sync zijn
+  Realtime-kanaal heeft afgemeld. Een oude uitlog kan zo het token van een nieuwere inlog niet meer wissen;
+  een hangende of mislukte afmelding blokkeert niets. Regressietests (11) falen op b867346 en slagen nu.
