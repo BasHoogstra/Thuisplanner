@@ -623,5 +623,6 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   ingevuld; Voor wie staat nu direct onder de tijd. Een nieuwe afspraak past zo op één telefoonscherm.
 - Geen wijziging aan gegevens, sync of database; bewerken behoudt alle velden zoals voorheen.
 - Tests: `toevoegen-rustig.test.tsx` (12, met tegenproef), e2e bijgewerkt; screenshots 3, 7 en 11 opnieuw
-  gemaakt. De lokale e2e (`e2e-lokaal`) is aangepast maar nog niet gedraaid (Docker stond uit).
+  gemaakt. Lokale e2e (`e2e-lokaal`, echte lokale Supabase): 15 geslaagd, 2 screenshots overgeslagen; één
+  test hing eerst in het klaarzetten (`beforeEach`, vóór het venster) en slaagde bij opnieuw draaien.
   Geen wijziging aan de Huisplan-app.
