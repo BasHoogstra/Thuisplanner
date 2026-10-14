@@ -59,6 +59,7 @@ test('afspraak toevoegen verschijnt op Vandaag en in de Agenda; ongedaan maken h
   await expect(venster(page)).toBeVisible();
   await expect(venster(page).getByLabel('Wat?')).toBeFocused();
   await venster(page).getByLabel('Wat?').fill('Kapper');
+  await venster(page).getByRole('button', { name: 'Andere tijd' }).click();
   await venster(page).getByLabel('Van', { exact: true }).fill('16:30');
   await venster(page).getByRole('button', { name: 'Eva' }).click();
   await geenHorizontaleScroll(page);
@@ -128,7 +129,8 @@ test('privé: van een ander alleen "bezet"; eigen privé-afspraak met slotje', a
   await expect(agenda).toContainText('privé-afspraak');
   await plus(page).click();
   await venster(page).getByLabel('Wat?').fill('Huisarts');
-  await venster(page).getByLabel('Van', { exact: true }).fill('17:00');
+  await venster(page).getByRole('button', { name: '18:00' }).click();
+  await venster(page).getByRole('button', { name: /^Meer opties/ }).click();
   await venster(page).getByLabel(/Privé/).check();
   await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
   await expect(agenda.locator('li', { hasText: 'Huisarts' })).toContainText('alleen voor jou');

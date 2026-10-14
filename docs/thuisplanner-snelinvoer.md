@@ -101,6 +101,11 @@ Regels:
   gebruikt (principe 4), maar dat is een aparte stap.
 - **Velden die het venster niet toont blijven bewaard,** zoals nu met `notities` en `eindDatum`.
 
+**Gebouwd (14 oktober 2026)** in `komtgoed/app/src/components/ItemVenster.tsx`, met de tests in
+`tests/toevoegen-rustig.test.tsx`. Kleine uitwerking: "Voor wie" staat nu direct onder "Hoe laat", en de
+knop Meer opties noemt wat erachter zit ("Waar · Herhalen · Privé"; alleen wat voor deze afspraak kan).
+Bij één voorkomen van een reeks blijft Meer opties dicht: de herhaling staat al in de reekskop.
+
 Wat níet verandert: het "Alleen deze / Hele reeks"-blok, de foutmeldingen, het herinvoeren van een
 privé-afspraak zonder inhoud, het Bezet-venster, en de rechten.
 

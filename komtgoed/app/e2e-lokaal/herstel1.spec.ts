@@ -76,6 +76,7 @@ async function priveToevoegenZonderAntwoord(p: Page, titel: string, { bereikt }:
   await p.getByRole('button', { name: 'Toevoegen' }).first().click();
   await venster(p).getByRole('tab', { name: 'Afspraak' }).click();
   await venster(p).locator('#item-titel').fill(titel);
+  await venster(p).getByRole('button', { name: /^Meer opties/ }).click();
   await venster(p).locator('#item-prive').check();
   await venster(p).getByRole('button', { name: 'Toevoegen', exact: true }).click();
   await expect(p.locator('.sync-waarschuwing')).toContainText('nog niet bevestigd', SYNC);

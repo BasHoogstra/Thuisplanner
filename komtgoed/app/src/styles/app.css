@@ -275,6 +275,15 @@ a { color: var(--accent); }
 .schakel { display: flex; align-items: flex-start; gap: 12px; margin-top: 18px; font-weight: 600; }
 .schakel input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--accent); }
 .schakel small { display: block; font-weight: 400; color: var(--inkt-3); font-size: 13px; }
+/* Rustiger venster (docs/thuisplanner-snelinvoer.md, deel A): eindtijd en meer opties pas op verzoek. */
+.tekstknop { align-self: flex-start; min-height: 36px; padding: 0 2px; border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 15px; }
+.meer-knop {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; margin-top: 18px;
+  padding: 12px 14px; border-radius: var(--radius-klein); border: 1.5px dashed var(--lijn-sterk); background: transparent;
+  color: var(--inkt); font-weight: 600; font-size: 15px; text-align: left;
+}
+.meer-knop small { font-weight: 400; color: var(--inkt-3); font-size: 13px; }
+@media (hover: hover) { .tekstknop:hover { text-decoration: underline; } .meer-knop:hover { border-color: var(--accent); } }
 
 /* ---------- Boodschappen ---------- */
 .snel { display: flex; gap: 8px; margin: 12px 0 16px; }
