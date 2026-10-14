@@ -1,0 +1,13 @@
+# GitHub Pages (Jekyll) van Huisplan.
+# Enige doel: de map komtgoed/ (Thuisplanner) niet mee publiceren op de Huisplan-site.
+# GitHub Pages gebruikt Jekyll 3: een eigen exclude-lijst vervangt de standaardlijst,
+# daarom staan de standaarduitsluitingen van Jekyll hieronder ook.
+exclude:
+  - komtgoed
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
