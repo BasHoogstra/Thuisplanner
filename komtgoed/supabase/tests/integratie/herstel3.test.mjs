@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { maakOmgeving, nieuweOpslag, sql, totdat, isRest, isRpc } from './testhulp.mjs';
+import { maakOmgeving, nieuweOpslag, sql, totdat, isRest, isRpc, isOphalen } from './testhulp.mjs';
 
 const MODULE = process.env.KG_SYNC_MODULE ? pathToFileURL(path.resolve(process.env.KG_SYNC_MODULE)).href : '../../../sync/thuisplanner-sync.js';
 const { maakSync } = await import(MODULE);
@@ -117,16 +117,27 @@ test(TEGENPROEF ? 'R2 TEGENPROEF: met de oude databasefunctie opent de herhaalde
     const h = await huishouden('R2', ['bram']);
     const bram = await sessie('bram');
     const b = await geladen(bram, h, { opslag: nieuweOpslag(), geheugen: new Map() });
-    bram.poort(isRpc('add_shopping_items'), { eerstUitvoeren: true }).geefVrij({ antwoordWeg: true });
-    const r = await b.acties.boodschapToevoegen('Melk');
-    assert.equal(r.ok, false);
-    assert.equal(melk(h), '1:false');
-    // Een ander gezinslid (Anna) vinkt Melk af.
-    const { error } = await anna.c.from('shopping_items').update({ checked_at: new Date().toISOString() }).eq('household_id', h).eq('name', 'Melk');
-    assert.ifError(error);
-    assert.equal(melk(h), '1:true');
-    // De oorspronkelijke opdracht opnieuw (zelfde UUID).
-    assert.ok((await b.acties.opnieuwProberen(r.id)).ok);
+    // Het automatische opnieuw ophalen vasthouden tot na de herhaling: anders kan de sync de opdracht al zelf
+    // bevestigen (Melk staat op de server) en bereikt de herhaling de server nooit. Dat hing af van timing.
+    const ophalen = bram.poort(isOphalen('shopping_items'), { blijvend: true });
+    let r;
+    try {
+      bram.poort(isRpc('add_shopping_items'), { eerstUitvoeren: true }).geefVrij({ antwoordWeg: true });
+      r = await b.acties.boodschapToevoegen('Melk');
+      assert.equal(r.ok, false);
+      assert.equal(melk(h), '1:false');
+      // Een ander gezinslid (Anna) vinkt Melk af.
+      const { error } = await anna.c.from('shopping_items').update({ checked_at: new Date().toISOString() }).eq('household_id', h).eq('name', 'Melk');
+      assert.ifError(error);
+      assert.equal(melk(h), '1:true');
+      // De oorspronkelijke opdracht opnieuw (zelfde UUID); hij is nog onbevestigd.
+      assert.ok(heeft(b, r.id), 'de opdracht was al bevestigd vóór de herhaling');
+      assert.ok((await b.acties.opnieuwProberen(r.id)).ok);
+      assert.ok(!heeft(b, r.id), 'de herhaling bevestigde de opdracht niet');
+    } finally {
+      ophalen.geefVrij();
+      ophalen.dicht = true;
+    }
     if (TEGENPROEF) {
       assert.equal(melk(h), '1:false', 'tegenproef: verwacht dat de oude functie Melk opnieuw opent');
       return;

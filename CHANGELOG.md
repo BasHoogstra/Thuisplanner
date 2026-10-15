@@ -641,3 +641,17 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   slaagden pas bij opnieuw draaien, zelfde instabiliteit als in deel A). De integratietests konden op deze
   Windows-computer niet draaien (ze starten `psql` direct en er is geen `psql.exe`); `sync.test.mjs` controleert
   nu ook de opgeslagen datum, maar die controle draait pas in CI. Geen wijziging aan de Huisplan-app.
+
+## Thuisplanner integratietests H2a en R2 deterministisch gemaakt (15 oktober 2026, alleen tests, lokaal)
+- Oorzaak: na een poging met een verloren antwoord haalt de sync meteen opnieuw op (`vernieuw()`) en bevestigt de
+  opdracht zelf als de rij al op de server staat. Was dat sneller dan de herhaling van de test, dan gaf
+  `opnieuwProberen` `{ ok: false }` (niets meer open) en faalde de test, terwijl het product juist werkte. Op Windows
+  gebeurde dat vaak, omdat elke `sql()` van de test daar via `docker exec` ongeveer 330 ms kost.
+- Oplossing, alleen in de tests: een blijvende poort op de volledige ophaalronde van de tabel (`isOphalen` in
+  `testhulp.mjs`, herkenbaar aan het filter op `deleted_at`) tot na de herhaling. De gerichte controle na een dubbel
+  id gaat gewoon door. Nieuw is ook de expliciete voorwaarde dat de opdracht vóór de herhaling nog openstaat, met een
+  duidelijke melding als de race toch optreedt. H2a controleert daarna ook dat de sync precies twee taken toont.
+- Tests (lokaal, tijdelijke Supabase-stack): H2a en R2 tien keer achter elkaar groen (eerder ongeveer de helft
+  rood); integratie 61 van 61; tegenproeven, waaronder R2 (oude databasefunctie), en sync-tegenproeven 22 van 22,
+  waaronder H2a en H2b. Een afgedwongen race laat de nieuwe voorwaarde falen zoals bedoeld. Geen wijziging aan app,
+  sync of database.

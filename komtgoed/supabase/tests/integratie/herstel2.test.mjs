@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { maakOmgeving, nieuweOpslag, sql, wacht, totdat, isRest, isRpc } from './testhulp.mjs';
+import { maakOmgeving, nieuweOpslag, sql, wacht, totdat, isRest, isRpc, isOphalen } from './testhulp.mjs';
 
 const MODULE = process.env.KG_SYNC_MODULE ? pathToFileURL(path.resolve(process.env.KG_SYNC_MODULE)).href : '../../../sync/thuisplanner-sync.js';
 const { maakSync } = await import(MODULE);
@@ -128,16 +128,30 @@ test('H2a "Gymtas" op 13 en op 14 oktober zijn twee taken, ook als de eerste nog
   const h = await huishouden('H2a', ['bram']);
   const bram = await sessie('bram');
   const b = await geladen(bram, h, { geheugen: new Map() });
-  const r13 = await antwoordWeg(bram, b, 'Gymtas', { due_date: '2026-10-13' });
-  assert.equal(telTaken(h), 1);
-  const r14 = await b.acties.taakToevoegen('Gymtas', { due_date: '2026-10-14' });
-  assert.equal(r14.ok, true, 'de taak van 14 oktober werd niet als eigen taak opgeslagen');
-  assert.notEqual(r14.id, r13.id);
-  assert.equal(telTaken(h, `due_date = '2026-10-14'`), 1, 'taak van 14 oktober ontbreekt');
-  assert.equal(telTaken(h, `due_date = '2026-10-13'`), 1);
-  // De eerste opnieuw proberen: geen derde taak.
-  assert.ok((await b.acties.opnieuwProberen(r13.id)).ok);
-  assert.equal(telTaken(h), 2);
+  // Het automatische opnieuw ophalen vasthouden tot na de herhaling: anders kan de sync de eerste taak al
+  // zelf bevestigen (hij staat op de server) en raakt de herhaling de server nooit. Dat hing af van timing.
+  const ophalen = bram.poort(isOphalen('tasks'), { blijvend: true });
+  try {
+    const r13 = await antwoordWeg(bram, b, 'Gymtas', { due_date: '2026-10-13' });
+    assert.equal(telTaken(h), 1);
+    const r14 = await b.acties.taakToevoegen('Gymtas', { due_date: '2026-10-14' });
+    assert.equal(r14.ok, true, 'de taak van 14 oktober werd niet als eigen taak opgeslagen');
+    assert.notEqual(r14.id, r13.id);
+    assert.equal(telTaken(h, `due_date = '2026-10-14'`), 1, 'taak van 14 oktober ontbreekt');
+    assert.equal(telTaken(h, `due_date = '2026-10-13'`), 1);
+    // De eerste opnieuw proberen (hij is nog onbevestigd): geen derde taak.
+    assert.ok(heeft(b, r13.id), 'de eerste taak was al bevestigd vóór de herhaling');
+    assert.ok((await b.acties.opnieuwProberen(r13.id)).ok);
+    assert.ok(!heeft(b, r13.id), 'de herhaling bevestigde de eerste taak niet');
+    assert.equal(telTaken(h), 2);
+  } finally {
+    ophalen.geefVrij();
+    ophalen.dicht = true;
+  }
+  // Daarna ziet de sync precies de twee taken, zonder iets onbevestigds.
+  await b.vernieuw();
+  assert.equal(b.toestand.taken.filter(t => t.title === 'Gymtas').length, 2);
+  assert.equal(b.openstaand.length, 0);
 });
 
 test('H2b twee bewust identieke taken: geen stille samenvoeging; bij een onbevestigde gelijke eerst een keuze', { timeout: 60000 }, async () => {
