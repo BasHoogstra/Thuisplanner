@@ -626,3 +626,18 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   gemaakt. Lokale e2e (`e2e-lokaal`, echte lokale Supabase): 15 geslaagd, 2 screenshots overgeslagen; één
   test hing eerst in het klaarzetten (`beforeEach`, vóór het venster) en slaagde bij opnieuw draaien.
   Geen wijziging aan de Huisplan-app.
+
+## Thuisplanner herstelronde architectuurcontrole — K1 en K2 (15 oktober 2026, alleen lokaal, fictief)
+- Rapport: `docs/thuisplanner-architectuurcontrole.md` (bevindingen, advies en het K3-voorstel in §7).
+- K1: een afgevinkte taak krijgt de dag die de app als "vandaag" toont (ook met de testklok `?nu=`), niet
+  meer de UTC-datum. Een taak die in Nederland tussen 00:00 en 02:00 werd afgevinkt, telde eerder voor
+  gisteren. `taakAfvinken(taak, vandaag)`; zonder datum gebruikt de sync `lokaleDatum()`.
+- K2: nieuwe migratie `20261018120000_index_uitzonderingen.sql` met een index op `event_exceptions`
+  `(household_id, series_id, occurrence_date)`; de sync haalt uitzonderingen per huishouden op.
+- K3 (archiveren gescheiden van verwijderen) is nog niet gebouwd; voorstel ter beslissing.
+- Tests: `afvinken-datum.test.tsx` (met tegenproef in de tijdzone Europe/Amsterdam), alle 127 unittests,
+  demo-e2e (138 geslaagd, 9 overgeslagen zoals altijd). Op een echte lokale Supabase: RLS-matrix 51 van 51
+  (nieuw KG-T51: index per huishouden) en tegenproeven 58 van 58; lokale e2e 15 geslaagd (2 afspraaktests
+  slaagden pas bij opnieuw draaien, zelfde instabiliteit als in deel A). De integratietests konden op deze
+  Windows-computer niet draaien (ze starten `psql` direct en er is geen `psql.exe`); `sync.test.mjs` controleert
+  nu ook de opgeslagen datum, maar die controle draait pas in CI. Geen wijziging aan de Huisplan-app.

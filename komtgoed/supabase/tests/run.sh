@@ -17,7 +17,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 KG="$(cd "$HERE/.." && pwd)"
 PGBIN="${PGBIN:-/usr/lib/postgresql/16/bin}"
-VERWACHT="KG-RLS-tests geslaagd: 50 van 50"
+VERWACHT="KG-RLS-tests geslaagd: 51 van 51"
 
 DB_URL=""; TEGENPROEF=0; GELIJKTIJDIG=0
 while [ $# -gt 0 ]; do

@@ -1438,6 +1438,22 @@ do $$ declare h text := current_setting('test.hs'); t text; begin
 end $$;
 set constraints all deferred;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 50' as resultaat;
+-- KG-T51 (architectuurcontrole K2) Catalogus: elke inhoudstabel die per huishouden wordt gelezen, heeft een
+-- index die met household_id begint. De sync haalt per huishouden op; zonder zo'n index wordt dat een scan
+-- over alle huishoudens. (event_details niet: die wordt alleen via event_id, de primaire sleutel, bereikt.)
+do $$ declare r record; begin
+  for r in
+    select c.relname from pg_class c
+    join pg_attribute a on a.attrelid = c.oid and a.attname = 'household_id' and not a.attisdropped
+    where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
+      and c.relname in ('events', 'event_participants', 'event_exceptions', 'tasks', 'shopping_items')
+      and not exists (select 1 from pg_index i where i.indrelid = c.oid and i.indkey[0] = a.attnum)
+  loop
+    raise exception 'KG-T51: public.% heeft geen index die met household_id begint', r.relname;
+  end loop;
+  perform pg_temp.ok('KG-T51');
+end $$;
+
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 51' as resultaat;
 
 rollback;

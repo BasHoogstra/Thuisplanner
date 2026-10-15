@@ -96,6 +96,13 @@ export function uuidV4(c = globalThis.crypto) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 const nieuweId = () => uuidV4();
+
+// De kalenderdag op dit toestel (jjjj-mm-dd), niet in UTC: anders telt een taak die na middernacht maar vóór
+// de UTC-dagwissel wordt afgevinkt (in Nederland 00:00–02:00) voor gisteren.
+export function lokaleDatum(d = new Date()) {
+  const twee = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${twee(d.getMonth() + 1)}-${twee(d.getDate())}`;
+}
 const tekstSleutel = s => String(s ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 const VERVALLEN = Symbol('vervallen');   // antwoord van een beëindigde generatie
 
@@ -722,8 +729,9 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
         terugdraaien: t => ({ taken: vervang(t.taken, taak.id, x => ({ ...x, ...Object.fromEntries(Object.keys(velden).map(k => [k, taak[k]])), wachtend: false })) }),
       });
     },
-    taakAfvinken(taak) {
-      const done_on = taak.done_on ? null : new Date().toISOString().slice(0, 10);
+    // vandaag: de dag die de app als "vandaag" toont (jjjj-mm-dd); zonder: de lokale datum van dit toestel.
+    taakAfvinken(taak, vandaag) {
+      const done_on = taak.done_on ? null : (vandaag ?? lokaleDatum());
       const done_by_member_id = done_on ? toestand.lid?.member_id ?? null : null;
       return schrijf(() => bijwerkenMetVersie('tasks', taak.id, taak.version, { done_on, done_by_member_id }), {
         optimistisch: t => ({ taken: vervang(t.taken, taak.id, x => ({ ...x, done_on, wachtend: true })) }),

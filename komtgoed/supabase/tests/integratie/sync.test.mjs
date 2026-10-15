@@ -102,8 +102,10 @@ test('A voegt toe, vinkt af, hernoemt en verwijdert; B ziet het zonder te verver
   // Taken: toevoegen en afvinken
   assert.ok((await b.acties.taakToevoegen('Gymtas')).ok);
   await totdat(() => a.toestand.taken.some(t => t.title === 'Gymtas'), 10000, 'A ziet taak');
-  assert.ok((await a.acties.taakAfvinken(a.toestand.taken.find(t => t.title === 'Gymtas'))).ok);
+  // K1: de server bewaart precies de dag die de app als "vandaag" meegeeft (geen UTC-datum).
+  assert.ok((await a.acties.taakAfvinken(a.toestand.taken.find(t => t.title === 'Gymtas'), '2026-10-16')).ok);
   await totdat(() => b.toestand.taken.find(t => t.title === 'Gymtas')?.done_on, 10000, 'B ziet taak afgevinkt');
+  assert.equal(b.toestand.taken.find(t => t.title === 'Gymtas').done_on, '2026-10-16');
   assert.ok(b.statistiek.seintjes > 0, 'B kreeg geen seintjes (dan was het alleen het vangnet)');
 });
 
