@@ -655,3 +655,24 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   rood); integratie 61 van 61; tegenproeven, waaronder R2 (oude databasefunctie), en sync-tegenproeven 22 van 22,
   waaronder H2a en H2b. Een afgedwongen race laat de nieuwe voorwaarde falen zoals bedoeld. Geen wijziging aan app,
   sync of database.
+
+## Thuisplanner K3 — archiveren met een bewaartermijn van 30 dagen (15 oktober 2026, alleen lokaal, fictief)
+- Besloten: variant A met 30 dagen (`docs/thuisplanner-k3-archiveren.md`). Migratie
+  `20261019120000_archief_bewaartermijn.sql`.
+- Archiveren wist niets. De privé-afspraken van het gearchiveerde lid zijn voor niemand meer zichtbaar, ook niet als
+  "Bezet", en dat geldt ook voor hun deelnemers en uitzonderingen (RLS). Gedeelde afspraken blijven zichtbaar en te
+  wijzigen; een gearchiveerd lid kan alleen geen deelnemer meer zijn (bestaande regel).
+- Binnen 30 dagen haalt een eigenaar of beheerder het lid terug (`restore_member`), als gewoon lid. De privé-afspraken
+  zijn dan direct weer van de betrokkene.
+- Na 30 dagen verwijdert `private.purge_archived_private()` de privé-afspraken definitief: dagelijks om 03:17 UTC via
+  `pg_cron` (taak `thuisplanner-archief-opruimen`), en ook direct bij een herstel na de termijn. Het profiel en de
+  gedeelde inhoud blijven. Een beheerder kan andermans privé-afspraken niet wissen. De termijn staat op één plek
+  (`private.archive_retention()`).
+- Tests (lokale Supabase-stack): RLS-matrix 56 van 56 (KG-T52 t/m KG-T56), tegenproeven 66 van 66, de nieuwe
+  K3-integratietest groen (volledige run en drie keer los), unittests en demo-e2e groen. App-e2e tegen de stack:
+  14 van 15 per run. De mislukte test verschilde per run ("onbevestigd: maar wel aangekomen", daarna het klaarzetten
+  van "privé: Eva ziet…") en slaagde los telkens. In het Realtime-log stond tijdens de runs "ReplicationConnectionDown".
+- Niet opgelost (bestaat ook zonder K3, aangetoond met een A/B-proef op een database zonder deze migratie): R1a
+  in `herstel3.test.mjs` faalt hier steeds door dezelfde race als H2a en R2. Wisselvallig in de volledige run: H1b en
+  H2a (time-out, terwijl Realtime haperde).
+- Geen wijziging aan de app of de sync; niet gepusht.

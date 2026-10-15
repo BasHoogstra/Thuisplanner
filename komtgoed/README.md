@@ -30,8 +30,8 @@ technische map en oudere documentnamen houden die naam voorlopig.
 
 ```sh
 node komtgoed/supabase/tests/statisch.js                 # zonder database
-komtgoed/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "51 van 51"
-komtgoed/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "58 van 58"
+komtgoed/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "56 van 56"
+komtgoed/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "66 van 66"
 komtgoed/supabase/tests/run.sh --tegenproef --gelijktijdig  # + gelijktijdigheidstests (node, aparte verbindingen)
 node tests/run.js komtgoed                               # via de bestaande testrunner
 ```

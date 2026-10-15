@@ -711,7 +711,7 @@ end $$;
 reset role;
 do $$ declare f text; def text; begin
   foreach f in array array['add_member', 'create_invite', 'revoke_invite', 'accept_invite', 'set_member_role',
-    'archive_member', 'transfer_ownership', 'leave_household', 'delete_household', 'before_account_delete',
+    'archive_member', 'restore_member', 'transfer_ownership', 'leave_household', 'delete_household', 'before_account_delete',
     'ensure_owner', 'guard_member', 'guard_household'] loop
     select pg_get_functiondef(p.oid) into def from pg_proc p where p.pronamespace = 'private'::regnamespace and p.proname = f;
     if def is null or position('private.lock_household(' in def) = 0 then raise exception 'KG-T31: private.% vergrendelt het huishouden niet', f; end if;
@@ -1454,6 +1454,175 @@ do $$ declare r record; begin
   perform pg_temp.ok('KG-T51');
 end $$;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 51' as resultaat;
+-- K3 (architectuurcontrole): archiveren met een bewaartermijn van 30 dagen (docs/thuisplanner-k3-archiveren.md).
+-- Huishouden HA (Archief): Arno eigenaar, Bea en Cas leden met account. Bea heeft een privé-afspraak met
+-- deelnemer, een privé-reeks met een uitzondering en een gedeelde afspraak; zij wordt gearchiveerd.
+reset role;
+select set_config('test.arno', gen_random_uuid()::text, true);
+select set_config('test.bea',  gen_random_uuid()::text, true);
+select set_config('test.cas',  gen_random_uuid()::text, true);
+insert into auth.users (id, email) values
+  (current_setting('test.arno')::uuid, 'arno@test.invalid'),
+  (current_setting('test.bea')::uuid,  'bea@test.invalid'),
+  (current_setting('test.cas')::uuid,  'cas@test.invalid');
+select set_config('test.pa1', gen_random_uuid()::text, true);   -- privé-afspraak van Bea, met deelnemer
+select set_config('test.pa2', gen_random_uuid()::text, true);   -- gedeelde afspraak van Bea
+select set_config('test.pa3', gen_random_uuid()::text, true);   -- privé-reeks van Bea, met een uitzondering
+select set_config('test.pa4', gen_random_uuid()::text, true);   -- latere privé-afspraak van Bea (KG-T56)
+set local role authenticated;
+select pg_temp.als('arno');
+select set_config('test.ha', public.create_household('Archief', 'Arno')::text, true);
+select set_config('test.tok_bea', public.create_invite(current_setting('test.ha')::uuid), true);
+select set_config('test.tok_cas', public.create_invite(current_setting('test.ha')::uuid), true);
+select pg_temp.als('bea');
+select public.accept_invite(current_setting('test.tok_bea'), 'Bea');
+select set_config('test.m_bea', (select member_id from public.my_memberships() where household_id = current_setting('test.ha')::uuid)::text, true);
+select pg_temp.als('cas');
+select public.accept_invite(current_setting('test.tok_cas'), 'Cas');
+select set_config('test.m_cas', (select member_id from public.my_memberships() where household_id = current_setting('test.ha')::uuid)::text, true);
+select pg_temp.als('bea');
+select pg_temp.bewaar(current_setting('test.ha'), current_setting('test.pa1'), null, '2026-10-20', '09:00', '10:00', 'private',
+  'Bea-geheim', array[current_setting('test.m_bea')]::uuid[], null, 'Bea-plek-geheim');
+select pg_temp.bewaar(current_setting('test.ha'), current_setting('test.pa2'), null, '2026-10-21', '19:00', '20:00', 'household',
+  'Bea-gedeeld', array[current_setting('test.m_bea'), current_setting('test.m_cas')]::uuid[]);
+select pg_temp.bewaar(current_setting('test.ha'), current_setting('test.pa3'), null, '2026-10-05', '08:00', '09:00', 'private',
+  'Bea-reeks-geheim', null, 'weekly');
+select public.delete_occurrence(current_setting('test.pa3')::uuid, '2026-10-12');
+
+-- KG-T52 (K3) Archiveren wist niets, maar privé-afspraken van het gearchiveerde lid ziet niemand meer, ook niet
+-- als "Bezet" (afspraak, overzicht, details, deelnemers, uitzonderingen). Gedeelde afspraken blijven zichtbaar en
+-- door ieder actief lid te wijzigen.
+do $$ declare ha text := current_setting('test.ha'); pa1 text := current_setting('test.pa1'); pa2 text := current_setting('test.pa2');
+  pa3 text := current_setting('test.pa3'); u text; begin
+  perform pg_temp.als('cas');
+  if pg_temp.aantal(format('select 1 from public.event_overview where id in (%L, %L) and is_busy', pa1, pa3)) <> 2 then raise exception 'KG-T52: vooraf geen "Bezet"'; end if;
+  perform pg_temp.als('arno');
+  perform public.archive_member(ha::uuid, current_setting('test.m_bea')::uuid);
+  foreach u in array array['cas', 'arno'] loop
+    perform pg_temp.als(u);
+    if pg_temp.aantal(format('select 1 from public.events where id in (%L, %L)', pa1, pa3)) <> 0 then raise exception 'KG-T52: % ziet privé-afspraken van een gearchiveerd lid', u; end if;
+    if pg_temp.aantal(format('select 1 from public.event_overview where id in (%L, %L)', pa1, pa3)) <> 0 then raise exception 'KG-T52: % ziet ze in het overzicht', u; end if;
+    if pg_temp.aantal(format('select 1 from public.event_details where event_id in (%L, %L)', pa1, pa3)) <> 0 then raise exception 'KG-T52: % ziet details', u; end if;
+    if pg_temp.aantal(format('select 1 from public.event_participants where event_id = %L', pa1)) <> 0 then raise exception 'KG-T52: % ziet deelnemers van een verborgen afspraak', u; end if;
+    if pg_temp.aantal(format('select 1 from public.event_exceptions where series_id = %L', pa3)) <> 0 then raise exception 'KG-T52: % ziet uitzonderingen van een verborgen reeks', u; end if;
+    if pg_temp.aantal(format($q$ select 1 from public.event_overview where id = %L and title = 'Bea-gedeeld' and cardinality(participant_ids) = 2 $q$, pa2)) <> 1 then raise exception 'KG-T52: % ziet de gedeelde afspraak van Bea niet volledig', u; end if;
+  end loop;
+  perform pg_temp.als('cas');
+  -- Wijzigen kan; een gearchiveerd lid kan (bestaande regel) geen deelnemer meer worden, dus Cas laat Bea weg.
+  if pg_temp.bewaar(ha, pa2, 1, '2026-10-21', '19:30', '20:30', 'household', 'Bea-gedeeld', array[current_setting('test.m_cas')]::uuid[]) <> 2 then raise exception 'KG-T52: gedeelde afspraak van een gearchiveerd lid niet te wijzigen'; end if;
+  -- Bewaard: alles staat er nog (gezien als postgres).
+  reset role;
+  if (select count(*) from public.events where id in (pa1::uuid, pa3::uuid)) <> 2 or (select count(*) from public.event_details where event_id = pa1::uuid) <> 1
+     or (select count(*) from public.event_participants where event_id = pa1::uuid) <> 1 or (select count(*) from public.event_exceptions where series_id = pa3::uuid) <> 1 then
+    raise exception 'KG-T52: archiveren wiste privé-gegevens';
+  end if;
+  set local role authenticated;
+  perform pg_temp.ok('KG-T52');
+end $$;
+
+-- KG-T53 (K3) Terughalen binnen de termijn: de privé-afspraken zijn direct weer van Bea (met details en de
+-- uitzondering), de anderen zien weer "Bezet"; Bea komt terug als gewoon lid.
+do $$ declare ha text := current_setting('test.ha'); pa1 text := current_setting('test.pa1'); pa3 text := current_setting('test.pa3'); r record; begin
+  perform pg_temp.als('arno');
+  perform public.restore_member(ha::uuid, current_setting('test.m_bea')::uuid);
+  if pg_temp.aantal(format($q$ select 1 from public.household_members where id = %L and status = 'active' and role = 'member' and archived_at is null $q$, current_setting('test.m_bea'))) <> 1 then raise exception 'KG-T53: Bea niet als gewoon, actief lid terug'; end if;
+  perform pg_temp.als('bea');
+  select * into r from public.event_overview where id = pa1::uuid;
+  if not found then raise exception 'KG-T53: Bea ziet haar privé-afspraak niet terug'; end if;
+  if r.title is distinct from 'Bea-geheim' or r.location is distinct from 'Bea-plek-geheim' or r.is_busy then raise exception 'KG-T53: Bea krijgt haar privé-afspraak niet volledig terug'; end if;
+  if pg_temp.aantal(format('select 1 from public.event_exceptions where series_id = %L', pa3)) <> 1 then raise exception 'KG-T53: uitzondering van de privé-reeks niet terug'; end if;
+  perform pg_temp.als('cas');
+  select * into r from public.event_overview where id = pa1::uuid;
+  if not found then raise exception 'KG-T53: Cas ziet geen "Bezet" na het terughalen'; end if;
+  if not r.is_busy or r.title is not null or r.location is not null then raise exception 'KG-T53: Cas ziet meer dan "Bezet"'; end if;
+  if pg_temp.aantal(format('select 1 from public.event_participants where event_id = %L', pa1)) <> 1 then raise exception 'KG-T53: deelnemer niet terug'; end if;
+  perform pg_temp.ok('KG-T53');
+end $$;
+
+-- KG-T54 (K3) Terughalen mag alleen een eigenaar of beheerder van dat huishouden, alleen voor een gearchiveerd
+-- lid van dat huishouden. Een geweigerd herstel verandert niets.
+do $$ declare ha text := current_setting('test.ha'); mb text := current_setting('test.m_bea'); begin
+  perform pg_temp.als('arno');
+  perform public.archive_member(ha::uuid, mb::uuid);
+  perform pg_temp.als('cas');
+  if pg_temp.fout(format('select public.restore_member(%L, %L)', ha, mb)) is distinct from '42501' then raise exception 'KG-T54: gewoon lid haalt een lid terug'; end if;
+  perform pg_temp.als('ravi');
+  if pg_temp.fout(format('select public.restore_member(%L, %L)', ha, mb)) is distinct from '42501' then raise exception 'KG-T54: buitenstaander haalt een lid terug'; end if;
+  perform pg_temp.als('bea');
+  if pg_temp.fout(format('select public.restore_member(%L, %L)', ha, mb)) is distinct from '42501' then raise exception 'KG-T54: gearchiveerd lid haalt zichzelf terug'; end if;
+  perform pg_temp.als('arno');
+  if pg_temp.fout(format('select public.restore_member(%L, %L)', ha, current_setting('test.m_cas'))) is distinct from '22023' then raise exception 'KG-T54: actief lid "teruggehaald"'; end if;
+  if pg_temp.fout(format('select public.restore_member(%L, %L)', ha, current_setting('test.m_ravi'))) is distinct from 'P0002' then raise exception 'KG-T54: lid van een ander huishouden teruggehaald'; end if;
+  if pg_temp.fout(format('select public.restore_member(%L, %L)', current_setting('test.hr'), mb)) is distinct from '42501' then raise exception 'KG-T54: terughalen via een ander huishouden'; end if;
+  if pg_temp.aantal(format($q$ select 1 from public.household_members where id = %L and status = 'archived' $q$, mb)) <> 1 then raise exception 'KG-T54: een geweigerd herstel veranderde de status'; end if;
+  perform pg_temp.ok('KG-T54');
+end $$;
+
+-- KG-T55 (K3) Na de termijn (30 dagen) verwijdert de opruimfunctie de privé-afspraken van het gearchiveerde lid
+-- definitief, met details, deelnemers en uitzonderingen. Binnen de termijn blijft alles. Gedeelde inhoud, het
+-- profiel en andere huishoudens blijven. Een tweede keer opruimen verandert niets.
+reset role;
+do $$ declare mb uuid := current_setting('test.m_bea')::uuid; ha uuid := current_setting('test.ha')::uuid;
+  pa1 uuid := current_setting('test.pa1')::uuid; pa2 uuid := current_setting('test.pa2')::uuid; pa3 uuid := current_setting('test.pa3')::uuid;
+  elders bigint; n integer; begin
+  if private.archive_retention() <> interval '30 days' then raise exception 'KG-T55: bewaartermijn is niet 30 dagen'; end if;
+  elders := (select count(*) from public.events where visibility = 'private' and household_id <> ha);
+  update public.household_members set archived_at = now() - interval '29 days' where id = mb;
+  perform private.purge_archived_private();
+  if (select count(*) from public.events where id in (pa1, pa3)) <> 2 or (select count(*) from public.event_details where event_id = pa1) <> 1 then raise exception 'KG-T55: binnen de termijn verwijderd'; end if;
+  update public.household_members set archived_at = now() - interval '31 days' where id = mb;
+  n := private.purge_archived_private();
+  if n <> 2 then raise exception 'KG-T55: % afspraken opgeruimd in plaats van 2', n; end if;
+  if exists (select 1 from public.events where id in (pa1, pa3)) or exists (select 1 from public.event_details where event_id in (pa1, pa3))
+     or exists (select 1 from public.event_participants where event_id = pa1) or exists (select 1 from public.event_exceptions where series_id = pa3) then
+    raise exception 'KG-T55: privé-gegevens blijven na de termijn';
+  end if;
+  if not exists (select 1 from public.events e join public.event_details d on d.event_id = e.id where e.id = pa2 and d.title = 'Bea-gedeeld')
+     or (select count(*) from public.event_participants where event_id = pa2) <> 1 then raise exception 'KG-T55: gedeelde afspraak verdwenen of aangetast'; end if;
+  if not exists (select 1 from public.household_members where id = mb and status = 'archived' and display_name = 'Bea') then raise exception 'KG-T55: profiel verdwenen of gewijzigd'; end if;
+  if (select count(*) from public.events where visibility = 'private' and household_id <> ha) <> elders then raise exception 'KG-T55: privé-afspraken van een ander huishouden geraakt'; end if;
+  if private.purge_archived_private() <> 0 then raise exception 'KG-T55: tweede keer opruimen verwijdert nog iets'; end if;
+  perform pg_temp.ok('KG-T55');
+end $$;
+
+-- KG-T56 (K3) Terughalen na de termijn ruimt eerst op, ook als de dagelijkse opruiming nog niet draaide; terughalen
+-- terwijl hetzelfde account al onder een ander profiel actief is, wordt geweigerd. Catalogus: de opruimfuncties zijn
+-- niet via de API aan te roepen en opruimen vergrendelt per huishouden; waar pg_cron bestaat, staat de taak gepland.
+set local role authenticated;
+do $$ declare ha text := current_setting('test.ha'); mb text := current_setting('test.m_bea'); pa4 text := current_setting('test.pa4'); tok text; n bigint; begin
+  perform pg_temp.als('arno');
+  perform public.restore_member(ha::uuid, mb::uuid);   -- na de termijn: het profiel komt terug, de privé-afspraken zijn al weg
+  perform pg_temp.als('bea');
+  perform pg_temp.bewaar(ha, pa4, null, '2026-10-22', null, null, 'private', 'Bea-later-geheim', null);
+  perform pg_temp.als('arno');
+  perform public.archive_member(ha::uuid, mb::uuid);
+  reset role;
+  update public.household_members set archived_at = now() - interval '31 days' where id = mb::uuid;   -- opruiming draaide nog niet
+  set local role authenticated;
+  perform pg_temp.als('arno');
+  perform public.restore_member(ha::uuid, mb::uuid);
+  reset role;
+  if exists (select 1 from public.events where id = pa4::uuid) then raise exception 'KG-T56: herstel na de termijn bracht verlopen privé-afspraken terug'; end if;
+  set local role authenticated;
+  -- Hetzelfde account intussen onder een ander profiel actief: geweigerd, met een eigen foutcode.
+  perform pg_temp.als('arno');
+  perform public.archive_member(ha::uuid, mb::uuid);
+  tok := public.create_invite(ha::uuid);
+  perform pg_temp.als('bea');
+  perform public.accept_invite(tok, 'Bea opnieuw');
+  perform pg_temp.als('arno');
+  if pg_temp.fout(format('select public.restore_member(%L, %L)', ha, mb)) is distinct from '23505' then raise exception 'KG-T56: herstel met een al actief account niet geweigerd'; end if;
+  reset role;
+  if has_function_privilege('authenticated', 'private.purge_archived_private()', 'execute') or has_function_privilege('anon', 'private.purge_archived_private()', 'execute')
+     or has_function_privilege('authenticated', 'private.purge_member_private(uuid, uuid)', 'execute') then raise exception 'KG-T56: opruimfunctie via de API aan te roepen'; end if;
+  if position('private.lock_household(' in pg_get_functiondef('private.purge_archived_private()'::regprocedure)) = 0 then raise exception 'KG-T56: opruimen vergrendelt het huishouden niet'; end if;
+  if to_regnamespace('cron') is not null then
+    execute $q$ select count(*) from cron.job where jobname = 'thuisplanner-archief-opruimen' and command like '%private.purge_archived_private()%' $q$ into n;
+    if n <> 1 then raise exception 'KG-T56: geplande opruiming ontbreekt'; end if;
+  end if;
+  perform pg_temp.ok('KG-T56');
+end $$;
+
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 56' as resultaat;
 
 rollback;
