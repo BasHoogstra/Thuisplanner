@@ -1,0 +1,47 @@
+# KomtGoed KG-2: typecontrole, unit- en browsertests van het prototype in komtgoed/app.
+# Geen secrets, geen backend, geen deploy.
+name: KomtGoed app (KG-2)
+
+on:
+  pull_request:
+    paths:
+      - 'komtgoed/app/**'
+      - '.github/workflows/komtgoed-app.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'komtgoed/app/**'
+      - '.github/workflows/komtgoed-app.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: komtgoed/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: komtgoed/app/package-lock.json
+      - run: npm ci
+      - name: Typecontrole
+        run: npm run typecheck
+      - name: Unit- en componenttests
+        run: npm test
+      - name: Chromium voor Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Browsertests (360, 390, desktop)
+        run: npm run e2e
+        env:
+          CI: '1'
+      - name: Los bestand bouwen en testen
+        run: npm run losbestand && KG_LOSBESTAND=1 npx playwright test -g "los bestand"
+        env:
+          CI: '1'
