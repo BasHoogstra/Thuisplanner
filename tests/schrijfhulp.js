@@ -7,7 +7,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 const boodTexts = d => ((d && d.boodschappen) || []).map(b => b.text).sort();
 const syncText = page => page.textContent('#syncText');
 const readCacheOf = page => page.evaluate(() => {
-  const k = Object.keys(localStorage).find(x => x.startsWith('plannerCache_'));
+  const ks = Object.keys(localStorage), k = ks.find(x => x.startsWith('huisplanCache_')) || ks.find(x => x.startsWith('plannerCache_'));
   return k ? JSON.parse(localStorage.getItem(k)) : null;
 });
 const journaal = page => page.evaluate(() => {
