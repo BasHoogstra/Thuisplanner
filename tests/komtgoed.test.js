@@ -22,7 +22,7 @@ out['RLS-matrix (50 scenario\'s) en tegenproeven, lokaal (alleen als PostgreSQL 
   } catch (e) {
     throw new Error('KomtGoed-databasetests faalden:\n' + String(e.stdout || e.message).split('\n').filter(l => /ERROR|KG-T|TEGENPROEF|MISLUKT|migratie/.test(l)).join('\n'));
   }
-  assert(/KG-RLS-tests geslaagd: 50 van 50/.test(uit), 'Niet alle KG-1-scenario\'s geslaagd:\n' + uit.slice(-800));
+  assert(/KG-RLS-tests geslaagd: 56 van 56/.test(uit), 'Niet alle KG-1-scenario\'s geslaagd:\n' + uit.slice(-800));
   const m = /Tegenproeven gevangen: (\d+) van (\d+)/.exec(uit);
   assert(m && m[1] === m[2], 'Niet elke tegenproef is gevangen:\n' + uit.slice(-800));
 };

@@ -194,6 +194,10 @@ In CI draaien de database-, integratie-, sync- en e2e-tests in de job `supabase-
 - **Realtime na intrekking:** zie §7, bevinding 2, voor wat de server wel en niet garandeert.
 - **Geen offline-wachtrij:** zonder verbinding wordt er niet opgeslagen (bouwplan: "online eerst"). Alleen toevoegingen met een onbekende uitkomst (of een door een verlopen sessie geweigerde eerste poging) blijven staan, met dezelfde UUID, tot ze bevestigd zijn, de gebruiker opnieuw probeert of ze vergeet.
 - **Opslag op het toestel:** zie §8 voor wat wel en niet gegarandeerd is.
+- **Datum van afvinken (K1, 15 oktober 2026):** `taakAfvinken(taak, vandaag)` legt de dag vast die de app als
+  "vandaag" toont. Zonder die parameter gebruikt de module de lokale datum van het toestel (`lokaleDatum`),
+  nooit de UTC-datum. Vroeger kreeg een taak die in Nederland tussen 00:00 en 02:00 werd afgevinkt, de datum
+  van gisteren. De tijdzone van het huishouden (`households.timezone`) wordt nog niet gebruikt.
 - **De demo logt automatisch in** met vaste fictieve accounts en een lokaal wachtwoord. Het is alleen een ontwikkelpagina; inloggen met een e-mailcode is stap 7.
 - **De demo toont boodschappen en afspraken.** Taken en afspraken bewerken kan via de module (en is getest), maar heeft geen eigen knoppen in de demo.
 - **Nog niet gedaan:**

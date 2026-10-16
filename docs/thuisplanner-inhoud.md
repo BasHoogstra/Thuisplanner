@@ -85,6 +85,16 @@ De herhalingsregels van `private.occurs_on` zijn gelijk aan `herhaling.ts` in de
 ## 6. Verwijderen en AVG
 
 - **Account verwijderen of vertrekken:** de privé-afspraken van dat account in dat huishouden verdwijnen echt (met details, deelnemers en voorkomens). Gedeelde afspraken, taken en boodschappen blijven bij het huishouden; het lid blijft bestaan zonder account. Zie sectie 9.
+- **Archiveren (K3, 15 oktober 2026; `docs/thuisplanner-k3-archiveren.md`):** archiveren wist niets.
+  - De privé-afspraken van het gearchiveerde lid zijn voor niemand zichtbaar, ook niet als "Bezet". Dat
+    geldt ook voor hun deelnemers en uitzonderingen.
+  - Gedeelde afspraken blijven zichtbaar en te wijzigen. Een gearchiveerd lid kan wel geen deelnemer meer
+    worden; wie zo'n afspraak wijzigt, laat dat lid weg.
+  - Binnen **30 dagen** haalt een eigenaar of beheerder het lid terug (`restore_member`), en dan zijn de
+    privé-afspraken direct weer van de betrokkene.
+  - Na 30 dagen verwijdert `private.purge_archived_private()` ze definitief. Dat gebeurt dagelijks om 03:17 UTC
+    via `pg_cron` (taak `thuisplanner-archief-opruimen`), en ook direct bij een herstel na de termijn.
+  - De termijn staat op één plek: `private.archive_retention()`.
 - **Huishouden verwijderen:** neemt alle inhoud mee.
 - **Gemarkeerd als verwijderd** (`deleted_at`) blijft voorlopig in de database. Echt opruimen volgt later met een serverjob (bouwplan).
 
@@ -137,7 +147,7 @@ De herhalingsregels van `private.occurs_on` zijn gelijk aan `herhaling.ts` in de
 
 - **"Voor wie" is zichtbaar bij andermans privé-afspraak.** Dat volgt het goedgekeurde advies; wil je het strenger, dan is dat een productkeuze.
 - **Losgemaakte voorkomens houden hun eigen zichtbaarheid.** Maakt de eigenaar later de reeks gedeeld (of privé), dan veranderen eerder losgemaakte voorkomens niet mee. Een gedeelde reeks verwijderen laat andermans privé-voorkomens staan (sectie 9).
-- **Archiveren:** het account blijft aan het (gearchiveerde) profiel gekoppeld, dus de privé-afspraken blijven bestaan, maar niemand kan ze lezen. Ze verdwijnen bij accountverwijdering. Opruimen bij archiveren is een productvraag.
+- **Archiveren:** opgelost in K3. Er geldt een bewaartermijn van 30 dagen, met herstel en daarna definitief opruimen (zie sectie 6).
 - **Een gedeelde afspraak hoort bij het profiel.** Wordt een ander account aan dat profiel gekoppeld, dan mag dat account de gedeelde afspraak wijzigen en privé maken, net als ieder lid. De privé-inhoud hoort dan bij het nieuwe account.
 - **Gedeelde voorkomens van een privé-reeks gaan mee.** Wordt een privé-reeks echt verwijderd (accountverwijdering of vertrek van de eigenaar), dan gaan ook gedeelde losgemaakte voorkomens van die reeks mee, via de reeksverwijzing. Dat kan alleen als de reeks eerst gedeeld was, toen werd aangepast, en daarna weer privé werd gemaakt.
 - **Optimistische versiecontrole bij taken en boodschappen** werkt alleen als de app met `version` filtert (stap 6).

@@ -80,7 +80,8 @@ export interface Acties {
   boodschapVerwijderen(item: BoodschapRij): Promise<Resultaat>;
   taakToevoegen(titel: string, velden?: Record<string, unknown>, opties?: { bewustNieuw?: boolean }): Promise<Resultaat>;
   taakBijwerken(taak: TaakRij, velden: Record<string, unknown>, versie?: number): Promise<Resultaat>;
-  taakAfvinken(taak: TaakRij): Promise<Resultaat>;
+  /** vandaag: de dag die de app als "vandaag" toont (jjjj-mm-dd); zonder: de lokale datum van dit toestel. */
+  taakAfvinken(taak: TaakRij, vandaag?: string): Promise<Resultaat>;
   taakVerwijderen(taak: TaakRij): Promise<Resultaat>;
   afspraakBewaren(a: NieuweAfspraak, opties?: { bewustNieuw?: boolean }): Promise<Resultaat>;
   afspraakVerwijderen(a: { id: string; version: number }): Promise<Resultaat>;
@@ -117,6 +118,8 @@ export declare function maakSync(o: {
 }): Sync;
 
 /** UUID v4 met crypto.randomUUID of, zonder secure context, crypto.getRandomValues (nooit Math.random). */
+/** De kalenderdag op dit toestel (jjjj-mm-dd), niet in UTC. */
+export declare function lokaleDatum(d?: Date): string;
 export declare function uuidV4(c?: Pick<Crypto, 'getRandomValues'> & { randomUUID?: () => string }): string;
 
 export declare function meldingVoor(fout: unknown): Melding | null;

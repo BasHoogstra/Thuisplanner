@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { maakOmgeving, nieuweOpslag, sql, totdat, isRest, isRpc } from './testhulp.mjs';
+import { maakOmgeving, nieuweOpslag, sql, totdat, isRest, isRpc, isOphalen } from './testhulp.mjs';
 
 const MODULE = process.env.KG_SYNC_MODULE ? pathToFileURL(path.resolve(process.env.KG_SYNC_MODULE)).href : '../../../sync/thuisplanner-sync.js';
 const { maakSync } = await import(MODULE);
@@ -48,6 +48,10 @@ test('R1a eerste poging gecommit, antwoord tegengehouden; overlappende herhaling
   const bram = await sessie('bram');
   const opslag = nieuweOpslag();
   const b = await geladen(bram, h, { opslag, geheugen: new Map() });
+  // Het automatische opnieuw ophalen vasthouden tot na stap 4: anders kan de sync de opdracht al zelf
+  // bevestigen (bijvoorbeeld bij een laat Realtime-SUBSCRIBED; de taak staat al op de server) en bereikt de
+  // herhaling de server nooit. Dat hing af van timing.
+  const ophalen = bram.poort(isOphalen('tasks'), { blijvend: true });
   // 1. Eerste poging: de server commit, het antwoord wordt tegengehouden.
   const p1 = bram.poort(isRest('tasks', 'POST'), { eerstUitvoeren: true });
   const eerste = b.acties.taakToevoegen('R1a-fietspomp');
@@ -56,6 +60,7 @@ test('R1a eerste poging gecommit, antwoord tegengehouden; overlappende herhaling
   assert.equal(telTaken(h), 1, 'eerste poging is gecommit');
   // 2. Toegang ingetrokken; 3. overlappende herhaling: 42501.
   await rpcAls(anna, 'archive_member', { p_household: h, p_member: lidId(h, 'Bram') });
+  assert.ok(heeft(b, id), 'de opdracht was al bevestigd vóór de herhaling');
   const herhaling = await b.acties.opnieuwProberen(id);
   assert.equal(herhaling.ok, false);
   assert.ok(heeft(b, id), 'de geweigerde herhaling verwijderde de opdracht terwijl de eerste poging nog liep');
@@ -65,6 +70,8 @@ test('R1a eerste poging gecommit, antwoord tegengehouden; overlappende herhaling
   await eerste;
   assert.ok(heeft(b, id), 'opdracht verdwenen na het verloren eerste antwoord');
   assert.equal(b.openstaand.find(x => x.id === id).staat, 'onzeker');
+  ophalen.geefVrij();
+  ophalen.dicht = true;
   // 5. Toegang hersteld, opnieuw starten en opnieuw proberen: dezelfde UUID, precies één rij.
   await toegangTerug(h, bram);
   await b.stop();
@@ -117,16 +124,27 @@ test(TEGENPROEF ? 'R2 TEGENPROEF: met de oude databasefunctie opent de herhaalde
     const h = await huishouden('R2', ['bram']);
     const bram = await sessie('bram');
     const b = await geladen(bram, h, { opslag: nieuweOpslag(), geheugen: new Map() });
-    bram.poort(isRpc('add_shopping_items'), { eerstUitvoeren: true }).geefVrij({ antwoordWeg: true });
-    const r = await b.acties.boodschapToevoegen('Melk');
-    assert.equal(r.ok, false);
-    assert.equal(melk(h), '1:false');
-    // Een ander gezinslid (Anna) vinkt Melk af.
-    const { error } = await anna.c.from('shopping_items').update({ checked_at: new Date().toISOString() }).eq('household_id', h).eq('name', 'Melk');
-    assert.ifError(error);
-    assert.equal(melk(h), '1:true');
-    // De oorspronkelijke opdracht opnieuw (zelfde UUID).
-    assert.ok((await b.acties.opnieuwProberen(r.id)).ok);
+    // Het automatische opnieuw ophalen vasthouden tot na de herhaling: anders kan de sync de opdracht al zelf
+    // bevestigen (Melk staat op de server) en bereikt de herhaling de server nooit. Dat hing af van timing.
+    const ophalen = bram.poort(isOphalen('shopping_items'), { blijvend: true });
+    let r;
+    try {
+      bram.poort(isRpc('add_shopping_items'), { eerstUitvoeren: true }).geefVrij({ antwoordWeg: true });
+      r = await b.acties.boodschapToevoegen('Melk');
+      assert.equal(r.ok, false);
+      assert.equal(melk(h), '1:false');
+      // Een ander gezinslid (Anna) vinkt Melk af.
+      const { error } = await anna.c.from('shopping_items').update({ checked_at: new Date().toISOString() }).eq('household_id', h).eq('name', 'Melk');
+      assert.ifError(error);
+      assert.equal(melk(h), '1:true');
+      // De oorspronkelijke opdracht opnieuw (zelfde UUID); hij is nog onbevestigd.
+      assert.ok(heeft(b, r.id), 'de opdracht was al bevestigd vóór de herhaling');
+      assert.ok((await b.acties.opnieuwProberen(r.id)).ok);
+      assert.ok(!heeft(b, r.id), 'de herhaling bevestigde de opdracht niet');
+    } finally {
+      ophalen.geefVrij();
+      ophalen.dicht = true;
+    }
     if (TEGENPROEF) {
       assert.equal(melk(h), '1:false', 'tegenproef: verwacht dat de oude functie Melk opnieuw opent');
       return;

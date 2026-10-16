@@ -626,3 +626,62 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   gemaakt. Lokale e2e (`e2e-lokaal`, echte lokale Supabase): 15 geslaagd, 2 screenshots overgeslagen; één
   test hing eerst in het klaarzetten (`beforeEach`, vóór het venster) en slaagde bij opnieuw draaien.
   Geen wijziging aan de Huisplan-app.
+
+## Thuisplanner herstelronde architectuurcontrole — K1 en K2 (15 oktober 2026, alleen lokaal, fictief)
+- Rapport: `docs/thuisplanner-architectuurcontrole.md` (bevindingen, advies en het K3-voorstel in §7).
+- K1: een afgevinkte taak krijgt de dag die de app als "vandaag" toont (ook met de testklok `?nu=`), niet
+  meer de UTC-datum. Een taak die in Nederland tussen 00:00 en 02:00 werd afgevinkt, telde eerder voor
+  gisteren. `taakAfvinken(taak, vandaag)`; zonder datum gebruikt de sync `lokaleDatum()`.
+- K2: nieuwe migratie `20261018120000_index_uitzonderingen.sql` met een index op `event_exceptions`
+  `(household_id, series_id, occurrence_date)`; de sync haalt uitzonderingen per huishouden op.
+- K3 (archiveren gescheiden van verwijderen) is nog niet gebouwd; voorstel ter beslissing.
+- Tests: `afvinken-datum.test.tsx` (met tegenproef in de tijdzone Europe/Amsterdam), alle 127 unittests,
+  demo-e2e (138 geslaagd, 9 overgeslagen zoals altijd). Op een echte lokale Supabase: RLS-matrix 51 van 51
+  (nieuw KG-T51: index per huishouden) en tegenproeven 58 van 58; lokale e2e 15 geslaagd (2 afspraaktests
+  slaagden pas bij opnieuw draaien, zelfde instabiliteit als in deel A). De integratietests konden op deze
+  Windows-computer niet draaien (ze starten `psql` direct en er is geen `psql.exe`); `sync.test.mjs` controleert
+  nu ook de opgeslagen datum, maar die controle draait pas in CI. Geen wijziging aan de Huisplan-app.
+
+## Thuisplanner integratietests H2a en R2 deterministisch gemaakt (15 oktober 2026, alleen tests, lokaal)
+- Oorzaak: na een poging met een verloren antwoord haalt de sync meteen opnieuw op (`vernieuw()`) en bevestigt de
+  opdracht zelf als de rij al op de server staat. Was dat sneller dan de herhaling van de test, dan gaf
+  `opnieuwProberen` `{ ok: false }` (niets meer open) en faalde de test, terwijl het product juist werkte. Op Windows
+  gebeurde dat vaak, omdat elke `sql()` van de test daar via `docker exec` ongeveer 330 ms kost.
+- Oplossing, alleen in de tests: een blijvende poort op de volledige ophaalronde van de tabel (`isOphalen` in
+  `testhulp.mjs`, herkenbaar aan het filter op `deleted_at`) tot na de herhaling. De gerichte controle na een dubbel
+  id gaat gewoon door. Nieuw is ook de expliciete voorwaarde dat de opdracht vóór de herhaling nog openstaat, met een
+  duidelijke melding als de race toch optreedt. H2a controleert daarna ook dat de sync precies twee taken toont.
+- Tests (lokaal, tijdelijke Supabase-stack): H2a en R2 tien keer achter elkaar groen (eerder ongeveer de helft
+  rood); integratie 61 van 61; tegenproeven, waaronder R2 (oude databasefunctie), en sync-tegenproeven 22 van 22,
+  waaronder H2a en H2b. Een afgedwongen race laat de nieuwe voorwaarde falen zoals bedoeld. Geen wijziging aan app,
+  sync of database.
+
+## Thuisplanner K3 — archiveren met een bewaartermijn van 30 dagen (15 oktober 2026, alleen lokaal, fictief)
+- Besloten: variant A met 30 dagen (`docs/thuisplanner-k3-archiveren.md`). Migratie
+  `20261019120000_archief_bewaartermijn.sql`.
+- Archiveren wist niets. De privé-afspraken van het gearchiveerde lid zijn voor niemand meer zichtbaar, ook niet als
+  "Bezet", en dat geldt ook voor hun deelnemers en uitzonderingen (RLS). Gedeelde afspraken blijven zichtbaar en te
+  wijzigen; een gearchiveerd lid kan alleen geen deelnemer meer zijn (bestaande regel).
+- Binnen 30 dagen haalt een eigenaar of beheerder het lid terug (`restore_member`), als gewoon lid. De privé-afspraken
+  zijn dan direct weer van de betrokkene.
+- Na 30 dagen verwijdert `private.purge_archived_private()` de privé-afspraken definitief: dagelijks om 03:17 UTC via
+  `pg_cron` (taak `thuisplanner-archief-opruimen`), en ook direct bij een herstel na de termijn. Het profiel en de
+  gedeelde inhoud blijven. Een beheerder kan andermans privé-afspraken niet wissen. De termijn staat op één plek
+  (`private.archive_retention()`).
+- Tests (lokale Supabase-stack): RLS-matrix 56 van 56 (KG-T52 t/m KG-T56), tegenproeven 66 van 66, de nieuwe
+  K3-integratietest groen (volledige run en drie keer los), unittests en demo-e2e groen. App-e2e tegen de stack:
+  14 van 15 per run. De mislukte test verschilde per run ("onbevestigd: maar wel aangekomen", daarna het klaarzetten
+  van "privé: Eva ziet…") en slaagde los telkens. In het Realtime-log stond tijdens de runs "ReplicationConnectionDown".
+- Niet opgelost (bestaat ook zonder K3, aangetoond met een A/B-proef op een database zonder deze migratie): R1a
+  in `herstel3.test.mjs` faalt hier steeds door dezelfde race als H2a en R2. Wisselvallig in de volledige run: H1b en
+  H2a (time-out, terwijl Realtime haperde).
+- Geen wijziging aan de app of de sync; niet gepusht.
+
+## Thuisplanner integratietest R1a deterministisch gemaakt (16 oktober 2026, alleen tests, lokaal)
+- Zelfde race als H2a en R2: na het (her)verbinden van het Realtime-kanaal haalt de sync alles opnieuw op en
+  bevestigt de opdracht zelf als de taak al op de server staat. Kwam dat vóór de herhaling van de test, dan stond er
+  niets meer open en faalde R1a (lokaal 0 van 3, ook zonder K3).
+- Oplossing, alleen in de test: de ophaalronde voor taken (`isOphalen('tasks')`) blijft vast tot na stap 4, plus de
+  expliciete voorwaarde dat de opdracht vóór de herhaling nog openstaat.
+- Tests (lokaal): R1a 10 van 10 groen; integratie 62 van 62; tegenproeven groen; sync-tegenproeven 22 van 22
+  (nummer 22 nog steeds gevangen door R1a). Geen wijziging aan app, sync of database.

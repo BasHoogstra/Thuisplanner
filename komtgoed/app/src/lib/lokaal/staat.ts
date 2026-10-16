@@ -6,7 +6,7 @@
 //   vaste opdracht-ID bij toevoegen. Conflicten, onbevestigde opdrachten en fouten meldt de sync-module
 //   zelf (toestand.melding); hier komt alleen de "gelukt"-melding bij.
 // - Niet in deze modus: "Ongedaan maken" en de demo-scenario's.
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { BoodschapRij, Resultaat, TaakRij } from '../../../../sync/thuisplanner-sync.js';
 import { boodschappenMelding } from '../boodschappen';
 import type { Melding, Staat } from '../store';
@@ -29,8 +29,12 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
   const [weggeklikt, zetWeggeklikt] = useState<Set<string>>(new Set());
   const [melding, zetMelding] = useState<Melding | null>(null);
   const [keuze, zetKeuze] = useState<Keuze | null>(null);
+  // Afvinken legt de dag vast die de app als "vandaag" toont (ook met de testklok ?nu=), niet de UTC-datum.
+  // Via een ref, zodat de acties niet bij elke dagwissel opnieuw worden gemaakt.
+  const vandaagRef = useRef(vandaag);
+  vandaagRef.current = vandaag;
 
-  const meld = useCallback((tekst: string) => zetMelding({ id: ++meldingTeller, tekst, ongedaan: false }), []);
+  const meld =useCallback((tekst: string) => zetMelding({ id: ++meldingTeller, tekst, ongedaan: false }), []);
   const rij = useCallback(<T extends { id: string }>(lijst: T[] | undefined, id: string) => lijst?.find(x => x.id === id), []);
 
   // Na een actie: gelukt → onze melding; mogelijk dubbel → een keuze; anders meldt de sync-module het.
@@ -81,7 +85,7 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
       },
       wissel: (id: string, melding?: string) => {
         const taak = rij<TaakRij>(t()?.taken, id);
-        if (taak) { void na(a()?.taakAfvinken(taak), melding); return; }
+        if (taak) { void na(a()?.taakAfvinken(taak, vandaagRef.current), melding); return; }
         const b = rij<BoodschapRij>(t()?.boodschappen, id);
         if (b) void na(a()?.boodschapAfvinken(b), melding);
       },
@@ -144,7 +148,6 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
   }, [sessie, na, meld, rij]);
 
   const staat: Staat = { scenario: 'gewoon', items, weggeklikt, vorige: null, melding };
-  void vandaag;
   return { staat, ...acties, keuze, sluitKeuze: () => zetKeuze(null) };
 }
 

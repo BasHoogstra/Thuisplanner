@@ -102,8 +102,10 @@ test('A voegt toe, vinkt af, hernoemt en verwijdert; B ziet het zonder te verver
   // Taken: toevoegen en afvinken
   assert.ok((await b.acties.taakToevoegen('Gymtas')).ok);
   await totdat(() => a.toestand.taken.some(t => t.title === 'Gymtas'), 10000, 'A ziet taak');
-  assert.ok((await a.acties.taakAfvinken(a.toestand.taken.find(t => t.title === 'Gymtas'))).ok);
+  // K1: de server bewaart precies de dag die de app als "vandaag" meegeeft (geen UTC-datum).
+  assert.ok((await a.acties.taakAfvinken(a.toestand.taken.find(t => t.title === 'Gymtas'), '2026-10-16')).ok);
   await totdat(() => b.toestand.taken.find(t => t.title === 'Gymtas')?.done_on, 10000, 'B ziet taak afgevinkt');
+  assert.equal(b.toestand.taken.find(t => t.title === 'Gymtas').done_on, '2026-10-16');
   assert.ok(b.statistiek.seintjes > 0, 'B kreeg geen seintjes (dan was het alleen het vangnet)');
 });
 
@@ -262,4 +264,48 @@ test('Toegang ingetrokken tijdens een sessie: B ziet "geen toegang" en de gegeve
   // Stoppen (uitloggen of ander huishouden kiezen) wist ook alles bij A.
   await a.stop();
   assert.deepEqual([a.toestand.boodschappen, a.toestand.afspraken, a.toestand.status], [[], [], STATUS.GESTOPT]);
+});
+
+// K3 (docs/thuisplanner-k3-archiveren.md): archiveren met een bewaartermijn. Na archiveren verdwijnt de privé-
+// afspraak van het gearchiveerde lid bij een ander lid uit de sync (ook als "Bezet"), zonder dat er inhoud in een
+// seintje of cache komt; de gedeelde afspraak blijft. Terughalen brengt "Bezet" terug. Verwijdert de betrokkene
+// tijdens het archief het eigen account, dan zijn de privé-afspraken direct definitief weg.
+test('K3 archiveren: privé verdwijnt (ook "Bezet"), gedeeld blijft; terughalen brengt "Bezet" terug; account weg = privé weg', { timeout: 90000 }, async () => {
+  const dirk = await persoon('dirk');
+  const hK = (await personen.anna.c.rpc('create_household', { p_name: 'K3 ' + run, p_display_name: 'Anna' })).data;
+  for (const [naam, weergave] of [['dirk', 'Dirk'], ['bram', 'Bram']]) {
+    const tok = (await personen.anna.c.rpc('create_invite', { p_household: hK, p_member: null, p_role: 'member' })).data;
+    assert.ifError((await personen[naam].c.rpc('accept_invite', { p_token: tok, p_display_name: weergave })).error);
+  }
+  const mDirk = (await personen.anna.c.from('household_members').select('id,display_name').eq('household_id', hK)).data.find(m => m.display_name === 'Dirk').id;
+  const d = maakSync({ supabase: dirk.c, huishoudenId: hK, vangnetMs: 60000 });
+  syncs.push(d);
+  await d.start();
+  const b = await startSync('bram', hK);
+  await totdat(() => d.toestand.status === STATUS.VERBONDEN && b.toestand.status === STATUS.VERBONDEN, 30000, 'verbonden');
+  const prive = randomUUID(), gedeeld = randomUUID();
+  assert.ok((await d.acties.afspraakBewaren({ id: prive, start_date: '2026-11-23', start_time: '09:00', end_time: '10:00', visibility: 'private', title: 'K3-geheim' })).ok);
+  assert.ok((await d.acties.afspraakBewaren({ id: gedeeld, start_date: '2026-11-24', start_time: '19:00', end_time: '20:00', visibility: 'household', title: 'K3-gedeeld' })).ok);
+  await totdat(() => b.toestand.afspraken.some(x => x.id === prive && x.is_busy) && b.toestand.afspraken.some(x => x.id === gedeeld), 10000, 'Bram ziet "Bezet" en gedeeld');
+
+  // Archiveren: bij Bram verdwijnt de privé-afspraak (geen "Bezet" meer), de gedeelde blijft. Niets wordt gewist.
+  assert.ifError((await personen.anna.c.rpc('archive_member', { p_household: hK, p_member: mDirk })).error);
+  await totdat(() => !b.toestand.afspraken.some(x => x.id === prive), 10000, 'privé-afspraak weg bij Bram');
+  assert.ok(b.toestand.afspraken.some(x => x.id === gedeeld && x.title === 'K3-gedeeld'), 'gedeelde afspraak verdwenen');
+  assert.ok(!JSON.stringify(b.toestand).includes('K3-geheim'), 'privé-tekst in de cache van Bram');
+  assert.equal(sql(`select count(*) from public.events where id = '${prive}'`), '1', 'archiveren wiste de privé-afspraak');
+
+  // Terughalen: "Bezet" komt terug bij Bram.
+  assert.ifError((await personen.anna.c.rpc('restore_member', { p_household: hK, p_member: mDirk })).error);
+  await b.vernieuw();
+  await totdat(() => b.toestand.afspraken.some(x => x.id === prive && x.is_busy), 10000, '"Bezet" terug bij Bram');
+
+  // Opnieuw archiveren, en dan verwijdert Dirk zijn account: de privé-afspraak is direct definitief weg.
+  assert.ifError((await personen.anna.c.rpc('archive_member', { p_household: hK, p_member: mDirk })).error);
+  await d.stop();
+  dirk.c.realtime.disconnect();
+  assert.ifError((await admin.auth.admin.deleteUser(dirk.id)).error);
+  delete personen.dirk;
+  assert.equal(sql(`select count(*) from public.events where id = '${prive}'`), '0', 'privé-afspraak blijft na verwijderen van het account');
+  assert.equal(sql(`select count(*) from public.events where id = '${gedeeld}'`), '1', 'gedeelde afspraak verdween met het account');
 });

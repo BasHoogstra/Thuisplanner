@@ -20,6 +20,11 @@ export async function totdat(f, ms = 10000, wat = 'voorwaarde') {
 }
 export const isRest = (tabel, methode) => (u, m) => m === methode && new URL(u).pathname === `/rest/v1/${tabel}`;
 export const isRpc = naam => (u, m) => m === 'POST' && new URL(u).pathname === `/rest/v1/rpc/${naam}`;
+// De volledige ophaalronde van de sync voor een tabel (herkenbaar aan het filter op deleted_at), niet de
+// gerichte controle na een dubbel id (select=id&id=eq...). Met een blijvende poort hierop kan de sync een
+// onzekere opdracht niet zelf bevestigen voordat de test hem opnieuw probeert.
+export const isOphalen = tabel => (u, m) => m === 'GET' && new URL(u).pathname === `/rest/v1/${tabel}`
+  && new URL(u).searchParams.has('deleted_at');
 
 // Een verlopen versie van een toegangstoken (zelfde account, exp in het verleden), lokaal getekend met de
 // JWT-sleutel van de lokale stack. PostgREST weigert hem zoals een echt verlopen token (401, PGRST303).
