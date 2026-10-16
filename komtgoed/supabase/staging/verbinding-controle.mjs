@@ -8,7 +8,7 @@
 //   node verbinding-controle.mjs leeg <standbestand>        weigert als het project niet leeg is; bewaart de stand
 //   node verbinding-controle.mjs vergelijk <standbestand>   controleert dat er sindsdien niets is veranderd
 import { createHash, X509Certificate } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -106,6 +106,69 @@ export function leegFouten(s) {
   return f;
 }
 
+// Het schema na de 11 migraties (relaties, functies en policies in public en private), gemeten op een lege lokale
+// Supabase-stack na precies deze migraties (16 oktober 2026). Wijkt staging hiervan af, dan kreeg het niet hetzelfde schema.
+export const VERWACHT_SCHEMA = [
+  { schema: 'private', relaties: 2, functies: 58, policies: 0 },
+  { schema: 'public', relaties: 11, functies: 18, policies: 18 },
+];
+
+/** Alles wat na de push gecontroleerd wordt (alleen lezen). */
+export async function leesNa(client) {
+  await client.query('begin transaction read only');
+  try {
+    const alle = async (sql) => (await client.query(sql)).rows;
+    const versies = (await alle(`select version from supabase_migrations.schema_migrations order by version`)).map(r => r.version);
+    const zonderRls = (await alle(`select relname from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r'
+      and not relrowsecurity order by 1`)).map(r => r.relname);
+    const zonderPolicy = (await alle(`select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
+      and not exists (select 1 from pg_policy p where p.polrelid = c.oid) order by 1`)).map(r => r.relname);
+    const anonRechten = (await alle(`select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r','v')
+      and (has_table_privilege('anon', c.oid, 'select') or has_table_privilege('anon', c.oid, 'insert')
+        or has_table_privilege('anon', c.oid, 'update') or has_table_privilege('anon', c.oid, 'delete')) order by 1`)).map(r => r.relname);
+    const anonPrivate = (await alle(`select has_schema_privilege('anon', 'private', 'usage') as er`))[0].er;
+    const definerPubliek = (await alle(`select proname from pg_proc where pronamespace = 'public'::regnamespace and prosecdef order by 1`)).map(r => r.proname);
+    const realtime = await alle(`select polname, polcmd, array(select rolname::text from pg_roles where oid = any (polroles)) as rollen
+      from pg_policy where polrelid = 'realtime.messages'::regclass order by 1`);
+    const cron = to_regnamespace_bestaat(await alle(`select to_regnamespace('cron') is not null as er`))
+      ? await alle(`select jobname, schedule, command, active from cron.job order by 1`) : [];
+    const schema = await alle(`
+      select n.nspname as schema,
+             (select count(*)::int from pg_class c where c.relnamespace = n.oid and c.relkind in ('r','v','m','p')) as relaties,
+             (select count(*)::int from pg_proc p where p.pronamespace = n.oid) as functies,
+             (select count(*)::int from pg_policy pol join pg_class c on c.oid = pol.polrelid where c.relnamespace = n.oid) as policies
+      from pg_namespace n where n.nspname in ('public', 'private') order by 1`);
+    return { versies, zonderRls, zonderPolicy, anonRechten, anonPrivate, definerPubliek, realtime, cron, schema };
+  } finally {
+    await client.query('rollback');
+  }
+}
+const to_regnamespace_bestaat = rijen => rijen[0]?.er === true;
+
+/** Fouten na de push (leeg = alles zoals bedoeld). verwachteVersies: de migraties in de repository. */
+export function naFouten(n, verwachteVersies, verwachtSchema) {
+  const f = [];
+  if (JSON.stringify(n.versies) !== JSON.stringify(verwachteVersies)) f.push(`migratiegeschiedenis ${JSON.stringify(n.versies)} wijkt af van de repository ${JSON.stringify(verwachteVersies)}`);
+  if (n.zonderRls.length) f.push('tabellen zonder RLS: ' + n.zonderRls.join(', '));
+  if (n.zonderPolicy.length) f.push('tabellen zonder enige policy: ' + n.zonderPolicy.join(', '));
+  if (n.anonRechten.length) f.push('anon heeft rechten op: ' + n.anonRechten.join(', '));
+  if (n.anonPrivate) f.push('anon heeft toegang tot schema private');
+  if (n.definerPubliek.length) f.push('security definer in public: ' + n.definerPubliek.join(', '));
+  const rt = n.realtime.find(p => p.polname === 'thuisplanner_household_luisteren');
+  if (!rt || rt.polcmd !== 'r' || JSON.stringify(rt.rollen) !== '["authenticated"]') f.push('Realtime-policy thuisplanner_household_luisteren ontbreekt of is niet alleen-lezen voor authenticated');
+  if (n.realtime.some(p => p.polname !== 'thuisplanner_household_luisteren')) f.push('onverwachte Realtime-policies: ' + n.realtime.map(p => p.polname).join(', '));
+  const job = n.cron.find(j => j.jobname === 'thuisplanner-archief-opruimen');
+  if (!job || job.schedule !== '17 3 * * *' || job.command !== 'select private.purge_archived_private()' || !job.active) f.push('geplande opruimtaak ontbreekt of wijkt af');
+  if (verwachtSchema && JSON.stringify(n.schema) !== JSON.stringify(verwachtSchema)) f.push(`schema wijkt af van de lokale referentie: ${JSON.stringify(n.schema)} in plaats van ${JSON.stringify(verwachtSchema)}`);
+  return f;
+}
+
+/** De versies van de migraties in de repository (komtgoed/supabase/migrations). */
+export function repoVersies() {
+  const map = path.join(path.dirname(fileURLToPath(import.meta.url)), '../migrations');
+  return readdirSync(map).filter(f => /^\d{14}_[a-z0-9_]+\.sql$/.test(f)).sort().map(f => f.slice(0, 14));
+}
+
 async function verbind() {
   const { KG_STAGING_DB_URL: url, KG_STAGING_REF: ref, PGPASSWORD: wachtwoord } = process.env;
   const fouten = verbindingFouten(url, ref, wachtwoord);
@@ -122,7 +185,20 @@ async function verbind() {
 
 async function hoofd() {
   const [opdracht, bestand] = process.argv.slice(2);
-  if (!['leeg', 'vergelijk'].includes(opdracht) || !bestand) { console.log('gebruik: leeg|vergelijk <standbestand>'); process.exit(2); }
+  if (opdracht === 'na') {
+    const client = await verbind();
+    let n;
+    try { n = await leesNa(client); } finally { await client.end(); }
+    console.log(`migraties ${n.versies.length}: ${n.versies[0] ?? '-'} … ${n.versies.at(-1) ?? '-'}`);
+    console.log(`schema: ${n.schema.map(s => `${s.schema} ${s.relaties} relaties, ${s.functies} functies, ${s.policies} policies`).join('; ')}`);
+    console.log(`Realtime-policies: ${n.realtime.map(p => `${p.polname} (${p.polcmd}, ${p.rollen.join(',')})`).join('; ') || 'geen'}`);
+    console.log(`geplande taken: ${n.cron.map(j => `${j.jobname} ${j.schedule} ${j.active ? 'actief' : 'uit'}`).join('; ') || 'geen'}`);
+    const f = naFouten(n, repoVersies(), VERWACHT_SCHEMA);
+    if (f.length) { console.log('AFWIJKING na de push (niets hersteld):\n- ' + f.join('\n- ')); process.exit(1); }
+    console.log('IN ORDE: migratiegeschiedenis, RLS en policies, rechten, Realtime-policy en geplande taak zoals bedoeld');
+    return;
+  }
+  if (!['leeg', 'vergelijk'].includes(opdracht) || !bestand) { console.log('gebruik: leeg|vergelijk <standbestand> | na'); process.exit(2); }
   const client = await verbind();
   let s;
   try { s = await leesStand(client); } finally { await client.end(); }
