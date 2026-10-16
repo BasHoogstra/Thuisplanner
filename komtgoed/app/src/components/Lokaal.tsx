@@ -17,7 +17,7 @@ const STATUS_TEKST: Record<string, string> = {
   gestopt: 'Gestopt',
 };
 
-export function Inloggen({ sessie, snap }: { sessie: Sessie; snap: Momentopname }) {
+export function Inloggen({ sessie, snap, uitnodiging = false }: { sessie: Sessie; snap: Momentopname; uitnodiging?: boolean }) {
   const { accounts, wachtwoord: lokaalWachtwoord } = sessie.config;
   const [email, zetEmail] = useState(accounts[0]?.email ?? '');
   const [wachtwoord, zetWachtwoord] = useState(lokaalWachtwoord ?? '');
@@ -38,6 +38,7 @@ export function Inloggen({ sessie, snap }: { sessie: Sessie; snap: Momentopname 
             <h1>Inloggen</h1>
             <p className="kop-samenvatting">{staging ? 'Log in met het testaccount dat je hebt gekregen.' : 'Kies een fictief gezinslid om mee te testen.'}</p>
           </header>
+          {uitnodiging && <p className="stil-tekst" role="status">Je hebt een uitnodiging geopend. Log in om hem te bekijken.</p>}
           {snap.fase === 'geen-huishouden' && (
             <p className="stil-tekst" role="alert">Dit account hoort nog bij geen huishouden.{staging ? ' Vraag de beheerder van de testomgeving om je toe te voegen.' : <> Draai eerst <code>npm run lokaal:seed</code>.</>}</p>
           )}
@@ -77,7 +78,7 @@ export function Inloggen({ sessie, snap }: { sessie: Sessie; snap: Momentopname 
 const OMGEVING_LABEL = { lokaal: 'Lokaal', staging: 'Testomgeving' } as const;
 
 /** Vaste markering op het inlogscherm: welke omgeving dit is. */
-function OmgevingsBalk({ omgeving }: { omgeving: 'lokaal' | 'staging' }) {
+export function OmgevingsBalk({ omgeving }: { omgeving: 'lokaal' | 'staging' }) {
   return (
     <div className="demobalk" role="note">
       <span className="demo-label">{OMGEVING_LABEL[omgeving]}</span>

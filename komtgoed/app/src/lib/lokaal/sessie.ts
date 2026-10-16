@@ -81,15 +81,41 @@ export function authOpties(config: Pick<LokaleConfig, 'omgeving'>) {
 
 export type Fase = 'start' | 'uitgelogd' | 'bezig' | 'actief' | 'geen-huishouden';
 
+/** owner = eigenaar (maakte het huishouden), admin = beheerder, member = lid. Zie docs/thuisplanner-onboarding.md. */
+export type Rol = 'owner' | 'admin' | 'member';
+export interface Lidmaatschap { id: string; naam: string; rol: Rol }
+
 export interface Momentopname {
   fase: Fase;
   fout: string | null;
   account: { id: string; email: string } | null;
-  huishouden: { id: string; naam: string } | null;
+  huishouden: Lidmaatschap | null;
+  /** Alle huishoudens van dit account (actieve lidmaatschappen). */
+  huishoudens: Lidmaatschap[];
   toestand: Toestand | null;
 }
 
-const LEEG: Momentopname = { fase: 'start', fout: null, account: null, huishouden: null, toestand: null };
+/** Uitkomst van een beheeractie: gelukt, of een melding in gewone taal. */
+export type Uitkomst<T = undefined> = { ok: true; waarde: T } | { ok: false; fout: string };
+
+const LEEG: Momentopname = { fase: 'start', fout: null, account: null, huishouden: null, huishoudens: [], toestand: null };
+
+// Meldingen van de databasefuncties zijn al in gewone taal en zonder rijgegevens (KG-5C herstelronde 2). Alleen die
+// codes tonen we letterlijk; al het andere (netwerk, onverwacht) wordt een algemene melding.
+const BEKENDE_CODES = new Set(['P0002', '22023', '23505', '42501', '54000', '23514', '22001']);
+export function foutTekst(fout: { code?: string; message?: string } | null | undefined): string {
+  if (fout?.code && BEKENDE_CODES.has(fout.code) && fout.message) return fout.message;
+  return 'Dat lukte nu niet. Controleer de verbinding en probeer het opnieuw.';
+}
+
+// De laatst gekozen huishouden per account (alleen het id; geen inhoud).
+const keuzeSleutel = (account: string) => 'thuisplanner-huishouden:' + account;
+function leesKeuze(account: string): string | null {
+  try { return window.localStorage.getItem(keuzeSleutel(account)); } catch { return null; }
+}
+function bewaarKeuze(account: string, huishouden: string) {
+  try { window.localStorage.setItem(keuzeSleutel(account), huishouden); } catch { /* geen opslag: volgende keer het eerste */ }
+}
 
 // Opslag voor onbevestigde opdrachten (zie de sync-module). Weigert de browser opslag, dan null: de module
 // meldt dat dan zelf (toestand.opslagDuurzaam = false).
@@ -204,11 +230,23 @@ export class Sessie {
     this.zet({ fase: 'bezig', fout: null, account: { id, email } });
     const lid = await this.client.rpc('my_memberships');
     if (!this.actueel(g)) return;
-    const eerste = (lid.data as { household_id: string }[] | null)?.[0];
-    if (lid.error || !eerste) { this.zet({ fase: 'geen-huishouden' }); return; }
+    const rijen = (lid.data as { household_id: string; role?: string }[] | null) ?? [];
+    if (lid.error || rijen.length === 0) { void this.stopSync(); this.zet({ fase: 'geen-huishouden', huishouden: null, huishoudens: [], toestand: null }); return; }
+    // De keuze: het laatst gekozen huishouden van dit account, anders het eerste.
+    const voorkeur = leesKeuze(id);
+    const eerste = rijen.find(r => r.household_id === voorkeur) ?? rijen[0];
     const h = await this.client.from('households').select('name').eq('id', eerste.household_id).maybeSingle();
     if (!this.actueel(g)) return;
     const naam = (h.data as { name?: string } | null)?.name ?? 'Huishouden';
+    // Meer huishoudens: de namen voor het wisselen (alleen de eigen huishoudens; RLS).
+    let huishoudens: Lidmaatschap[] = [{ id: eerste.household_id, naam, rol: (eerste.role ?? 'member') as Rol }];
+    if (rijen.length > 1) {
+      const alle = await this.client.from('households').select('id, name').in('id', rijen.map(r => r.household_id));
+      if (!this.actueel(g)) return;
+      const namen = new Map(((alle.data as { id: string; name: string }[] | null) ?? []).map(x => [x.id, x.name]));
+      huishoudens = rijen.map(r => ({ id: r.household_id, naam: namen.get(r.household_id) ?? 'Huishouden', rol: (r.role ?? 'member') as Rol }))
+        .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+    }
     // Eén sync per sessie. Een vorige (ander account of huishouden) stopt eerst; niet wachten op zijn kanaal.
     void this.stopSync();
     const sync = this.maakSyncFn({
@@ -218,9 +256,61 @@ export class Sessie {
       opWijziging: toestand => { if (this.sync === sync) this.zet({ toestand }); },
     });
     this.sync = sync;
-    this.zet({ fase: 'actief', huishouden: { id: eerste.household_id, naam }, toestand: sync.toestand });
+    this.zet({ fase: 'actief', huishouden: { id: eerste.household_id, naam, rol: (eerste.role ?? 'member') as Rol }, huishoudens, toestand: sync.toestand });
     // Starten loopt verder op de achtergrond; uitloggen tijdens het starten stopt deze sync (this.sync).
     await sync.start();
+  }
+
+  /** Opnieuw beginnen met het huidige account (na aanmaken, accepteren, wisselen of verlaten). */
+  private async opnieuw(): Promise<void> {
+    const account = this.snap.account;
+    if (!account) return;
+    const g = ++this.generatie;
+    await this.begin(g, account.id, account.email);
+  }
+
+  /**
+   * Het eerste (of een volgend) huishouden aanmaken. De database maakt de ingelogde gebruiker eigenaar
+   * (create_household; hoogstens 10 eigen huishoudens). Daarna meteen dat huishouden openen.
+   */
+  async maakHuishouden(naam: string, eigenNaam: string): Promise<Uitkomst<string>> {
+    const account = this.snap.account;
+    if (!account) return { ok: false, fout: 'Log eerst in.' };
+    const r = await this.client.rpc('create_household', { p_name: naam, p_display_name: eigenNaam });
+    if (r.error || typeof r.data !== 'string') return { ok: false, fout: foutTekst(r.error) };
+    bewaarKeuze(account.id, r.data);
+    await this.opnieuw();
+    return { ok: true, waarde: r.data };
+  }
+
+  /**
+   * Een uitnodiging accepteren. Alle regels (eenmalig, verlopen, ingetrokken, maker nog bevoegd, al lid, het juiste
+   * huishouden en profiel) dwingt accept_invite af; de app stuurt alleen het token en de eigen naam.
+   */
+  async accepteerUitnodiging(token: string, eigenNaam: string | null): Promise<Uitkomst<string>> {
+    const account = this.snap.account;
+    if (!account) return { ok: false, fout: 'Log eerst in.' };
+    const r = await this.client.rpc('accept_invite', { p_token: token, p_display_name: eigenNaam || null });
+    if (r.error || typeof r.data !== 'string') return { ok: false, fout: foutTekst(r.error) };
+    bewaarKeuze(account.id, r.data);
+    await this.opnieuw();
+    return { ok: true, waarde: r.data };
+  }
+
+  /** Naar een ander eigen huishouden (alleen een huishouden waarvan je actief lid bent). */
+  async kiesHuishouden(id: string): Promise<void> {
+    const account = this.snap.account;
+    if (!account || !this.snap.huishoudens.some(h => h.id === id)) return;
+    bewaarKeuze(account.id, id);
+    await this.opnieuw();
+  }
+
+  /** Een huishouden verlaten (leave_household): het account wordt losgekoppeld, het lid en de inhoud blijven. */
+  async verlaatHuishouden(id: string): Promise<Uitkomst> {
+    const r = await this.client.rpc('leave_household', { p_household: id });
+    if (r.error) return { ok: false, fout: foutTekst(r.error) };
+    await this.opnieuw();
+    return { ok: true, waarde: undefined };
   }
 
   /**

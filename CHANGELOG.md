@@ -706,3 +706,24 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   - de scripts en `pg_cron` zelf op de lokale stack;
   - demo-e2e (138) en lokale e2e (15/15) groen.
 - Geen wijziging aan de Huisplan-app, de Huisplan-database of GitHub Pages.
+
+## Thuisplanner KG-5H deel 1: onboarding met huishouden en uitnodigen (16 oktober 2026, lokaal)
+- Wie inlogt zonder huishouden, maakt er een aan (en wordt eigenaar), of plakt een uitnodigingslink.
+- In Meer → Huishouden:
+  - leden bekijken en toevoegen (ook kinderen);
+  - uitnodigen via een link met de deelfunctie of kopiëren, 7 dagen geldig en één keer te gebruiken; de eigenaar
+    nodigt standaard uit als beheerder;
+  - open uitnodigingen intrekken;
+  - wisselen als je in meer huishoudens zit.
+- Accepteren gebeurt alleen na een klik. Daarna kun je meteen weer weg ("Toch niet").
+- Het token gaat meteen uit de adresbalk, staat alleen in `sessionStorage` van dat tabblad (en is na 24 uur weg), en
+  overleeft het inloggen.
+- Alleen de bestaande databasefuncties en RLS; geen databasewijziging. Eigenaar en beheerder zijn gelijk voor alle
+  dagelijkse dingen; de eigenaar heeft alleen uitzonderlijke rechten en staat los van een latere betaler.
+- Tests:
+  - unit 150/150 (14 nieuw, met tegenproeven op het wegnemen uit de URL en op niet-automatisch accepteren);
+  - lokale e2e 18/18, waarvan 3 nieuw tegen de echte stack: eerste huishouden, accepteren na inloggen als beheerder,
+    samen live, eenmalig, ingetrokken, twee huishoudens wisselen en gescheiden;
+  - staging-e2e 5/5;
+  - demo-e2e 138.
+- Plan en controles: `docs/thuisplanner-onboarding.md`.

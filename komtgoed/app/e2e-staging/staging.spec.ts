@@ -59,9 +59,10 @@ test('inloggen op de telefoon: blijft bewaard na sluiten en heropenen, zonder to
   await page.getByLabel('E-mailadres').fill('tester1@example.com');
   await page.getByLabel('Wachtwoord').fill('een-sterk-testwachtwoord');
   await page.getByRole('button', { name: 'Inloggen' }).click();
-  // Nog geen huishouden: de staging-tekst (niet de lokale hint), en de sessie staat in localStorage.
-  await expect(page.getByRole('alert')).toContainText('Vraag de beheerder van de testomgeving');
-  await expect(page.getByRole('alert')).not.toContainText('npm run');
+  // Nog geen huishouden: het welkomstscherm (KG-5H) met de markering, en de sessie staat in localStorage.
+  await expect(page.getByRole('heading', { name: 'Welkom' })).toBeVisible();
+  await expect(page.getByText('Je hoort nog bij geen huishouden.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('note')).toContainText('Testomgeving');
   expect(await page.evaluate(() => Object.keys(localStorage))).toContain('thuisplanner-auth');
   expect(page.url()).not.toMatch(/access_token|refresh_token/);
   expect(p1.naarProject.filter(x => x.startsWith('POST /auth/v1/token'))).toHaveLength(1);
@@ -71,7 +72,7 @@ test('inloggen op de telefoon: blijft bewaard na sluiten en heropenen, zonder to
   const opnieuw = await context.newPage();
   const p2 = await proef(opnieuw, antwoord);
   await opnieuw.goto('./');
-  await expect(opnieuw.getByRole('alert')).toContainText('Dit account hoort nog bij geen huishouden');
+  await expect(opnieuw.getByRole('heading', { name: 'Welkom' })).toBeVisible();
   expect(p2.naarProject.filter(x => x.startsWith('POST /auth/v1/token'))).toHaveLength(0);
   expect(p1.overtredingen.concat(p2.overtredingen)).toEqual([]);
 });

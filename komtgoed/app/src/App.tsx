@@ -11,6 +11,8 @@ import { Navigatie } from './components/Navigatie';
 import { ItemVenster, type VensterOpdracht } from './components/ItemVenster';
 import { DemoBalk } from './components/DemoBalk';
 import { Inloggen, KeuzeVenster, LokaleBalk } from './components/Lokaal';
+import { EvenGeduld, UitnodigingAccepteren, Welkom } from './components/Onboarding';
+import { leesUitnodiging, vangUitnodiging, vergeetUitnodiging } from './lib/uitnodiging';
 import { Vandaag } from './screens/Vandaag';
 import { Agenda } from './screens/Agenda';
 import { Boodschappen } from './screens/Boodschappen';
@@ -71,7 +73,21 @@ function LokaleApp({ config }: { config: LokaleConfig }) {
   const sessie = sessieVoor(config);
   const snap = useSessie(sessie);
   useEffect(() => { void sessie.herstel(); }, [sessie]);
-  if (snap.fase !== 'actief' || !snap.toestand || !snap.huishouden) return <Inloggen sessie={sessie} snap={snap} />;
+  // Een uitnodiging uit de link (zie lib/uitnodiging.ts): bij het openen al uit de adresbalk gehaald; ook als de link
+  // wordt geopend terwijl de app al draait.
+  const [uitnodiging, zetUitnodiging] = useState<string | null>(() => leesUitnodiging());
+  useEffect(() => {
+    const opHash = () => { const t = vangUitnodiging(); if (t) zetUitnodiging(t); };
+    window.addEventListener('hashchange', opHash);
+    return () => window.removeEventListener('hashchange', opHash);
+  }, []);
+  const sluitUitnodiging = useCallback(() => { vergeetUitnodiging(); zetUitnodiging(null); }, []);
+
+  if (!snap.account) return <Inloggen sessie={sessie} snap={snap} uitnodiging={uitnodiging !== null} />;
+  // Ingelogd met een uitnodiging: eerst die (ook als je al in een ander huishouden zit). Accepteren gebeurt nooit vanzelf.
+  if (uitnodiging) return <UitnodigingAccepteren sessie={sessie} snap={snap} token={uitnodiging} sluit={sluitUitnodiging} />;
+  if (snap.fase === 'geen-huishouden') return <Welkom sessie={sessie} snap={snap} opUitnodiging={zetUitnodiging} />;
+  if (snap.fase !== 'actief' || !snap.toestand || !snap.huishouden) return <EvenGeduld sessie={sessie} />;
   return <IngelogdeApp sessie={sessie} snap={snap} />;
 }
 
@@ -83,6 +99,13 @@ function IngelogdeApp({ sessie, snap }: { sessie: Sessie; snap: Momentopname }) 
   const hh = useMemo(() => naarHuishouden(t, snap.huishouden!.naam), [t, snap.huishouden]);
   const lokaal: LokaalContext = {
     omgeving: sessie.config.omgeving,
+    beheer: {
+      client: sessie.client,
+      huishouden: snap.huishouden!,
+      huishoudens: snap.huishoudens,
+      leden: t.leden,
+      kies: (id: string) => { void sessie.kiesHuishouden(id); },
+    },
     account: snap.account?.email ?? '',
     status: t.status,
     opslagDuurzaam: t.opslagDuurzaam,

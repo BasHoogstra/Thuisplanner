@@ -340,6 +340,7 @@ a { color: var(--accent); }
 .agenda-kop h1 { margin-bottom: 12px; }
 .agenda-balk { display: flex; flex-direction: column; gap: 10px; }
 .segment.klein { max-width: 320px; }
+.segment.twee { grid-template-columns: repeat(2, 1fr); margin: 12px 0 4px; }
 .segment.klein .segment-knop { min-height: 36px; font-size: 14px; }
 /* Filter: één regel die binnen zichzelf scrollt; de pagina scrollt nooit opzij. */
 .filter-rij { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px; }

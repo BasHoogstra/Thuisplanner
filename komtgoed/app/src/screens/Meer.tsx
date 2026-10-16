@@ -1,4 +1,5 @@
 import { useApp } from '../lib/context';
+import { HuishoudenBeheer } from '../components/HuishoudenBeheer';
 import type { Scenario } from '../data/demo';
 import { HerstelKnoppen } from '../components/Lokaal';
 import type { Item, SyncVelden } from '../lib/types';
@@ -79,8 +80,10 @@ function MeerLokaal() {
         <p className="kop-samenvatting">{huishouden.naam}</p>
       </header>
 
+      <HuishoudenBeheer />
+
       <section aria-labelledby="h-account" className="blok">
-        <h2 id="h-account" className="sectie-kop"><span className="demo-label">Lokaal</span> Account</h2>
+        <h2 id="h-account" className="sectie-kop"><span className="demo-label">{lokaal.omgeving === 'staging' ? 'Testomgeving' : 'Lokaal'}</span> Account</h2>
         <p>Ingelogd als <strong>{lokaal.account}</strong>.</p>
         <button type="button" className="knop stil" onClick={lokaal.uitloggen}>Uitloggen</button>
         <p className="stil-tekst">Uitloggen stopt de synchronisatie op dit toestel. Wat nog niet bevestigd is, blijft hier bewaard

@@ -1,5 +1,7 @@
 import { createContext, useContext } from 'react';
-import type { Melding as SyncMelding, SyncStatus } from '../../../sync/thuisplanner-sync.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { LidRij, Melding as SyncMelding, SyncStatus } from '../../../sync/thuisplanner-sync.js';
+import type { Lidmaatschap } from './lokaal/sessie';
 import type { DemoActies, Staat } from './store';
 import type { GezinsFilter } from './filter';
 import type { Afspraak, Datum, Huishouden, Lid, LidId, Tijd } from './types';
@@ -39,6 +41,14 @@ export interface AppContext extends DemoActies {
 export interface LokaalContext {
   /** lokaal (fictief, eigen netwerk) of staging (de testomgeving online). */
   omgeving: 'lokaal' | 'staging';
+  /** Huishoudbeheer (KG-5H): het huidige huishouden met je rol, je andere huishoudens en de leden. */
+  beheer: {
+    client: SupabaseClient;
+    huishouden: Lidmaatschap;
+    huishoudens: Lidmaatschap[];
+    leden: LidRij[];
+    kies: (id: string) => void;
+  };
   account: string;
   status: SyncStatus;
   /** false: deze browser bewaart niets; onbevestigde opdrachten gaan verloren bij sluiten. */

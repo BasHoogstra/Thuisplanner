@@ -26,6 +26,9 @@ export const WACHTWOORD = 'lokaal-alleen-fictief';
 export const ACCOUNTS = [
   { naam: 'Eva', email: 'eva.demo@test.invalid' },
   { naam: 'Thomas', email: 'thomas.demo@test.invalid' },
+  // Zonder huishouden (KG-5H): om het eerste huishouden aan te maken en uitnodigingen te accepteren.
+  { naam: 'Sanne', email: 'sanne.demo@test.invalid' },
+  { naam: 'Joris', email: 'joris.demo@test.invalid' },
 ];
 export const HUISHOUDEN = 'Familie De Boer';
 
