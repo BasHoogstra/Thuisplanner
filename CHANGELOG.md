@@ -676,3 +676,12 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   in `herstel3.test.mjs` faalt hier steeds door dezelfde race als H2a en R2. Wisselvallig in de volledige run: H1b en
   H2a (time-out, terwijl Realtime haperde).
 - Geen wijziging aan de app of de sync; niet gepusht.
+
+## Thuisplanner integratietest R1a deterministisch gemaakt (16 oktober 2026, alleen tests, lokaal)
+- Zelfde race als H2a en R2: na het (her)verbinden van het Realtime-kanaal haalt de sync alles opnieuw op en
+  bevestigt de opdracht zelf als de taak al op de server staat. Kwam dat vóór de herhaling van de test, dan stond er
+  niets meer open en faalde R1a (lokaal 0 van 3, ook zonder K3).
+- Oplossing, alleen in de test: de ophaalronde voor taken (`isOphalen('tasks')`) blijft vast tot na stap 4, plus de
+  expliciete voorwaarde dat de opdracht vóór de herhaling nog openstaat.
+- Tests (lokaal): R1a 10 van 10 groen; integratie 62 van 62; tegenproeven groen; sync-tegenproeven 22 van 22
+  (nummer 22 nog steeds gevangen door R1a). Geen wijziging aan app, sync of database.
