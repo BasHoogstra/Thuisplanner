@@ -79,14 +79,43 @@ je later één Huisplan-project terug, dan zijn het er twee; meer gaat niet grat
 | Realtime → Settings | "Allow public access" **uit** (alleen privékanalen) |
 
 ### Stap 3 — Schema naar staging (Claude, alleen na jouw akkoord: online databasewijziging)
-Vanuit `komtgoed/`, met de projectkenmerken en het databasewachtwoord die jij lokaal invult. Niets wordt opgeslagen
-in de repository:
+**Geen `supabase link`, geen CLI-inlog.** De Supabase CLI op deze computer is ingelogd op een ander account (dat van
+Huisplan) en ziet het stagingproject niet. Dat blijft zo. De verbinding loopt alleen via `--db-url` met de session pooler
+van dit ene project.
+
+Controle en dry-run, in een tab van het Terminal-paneel, vanuit de repository:
 
 ```
-npx supabase@2.117.0 link --project-ref <kenmerk>
-npx supabase@2.117.0 db push --dry-run     # eerst kijken: alleen de 11 Thuisplanner-migraties
-npx supabase@2.117.0 db push
+powershell -NoProfile -ExecutionPolicy Bypass -File .\komtgoed\supabase\staging\verbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl
 ```
+
+Het script vraagt twee dingen:
+- de session-pooler-URI, met `[YOUR-PASSWORD]` erin (geen geheim);
+- het databasewachtwoord, bij een verborgen prompt. Het komt niet in de geschiedenis, op het scherm of in een bestand;
+  het staat alleen in `PGPASSWORD` van dat ene proces, en wordt aan het eind gewist.
+
+Daarna doet het script:
+1. Vóór het verbinden weigert het alles behalve gebruiker `postgres.<kenmerk>`, de pooler in eu-central-1, poort 5432 en
+   database `postgres`, en elke verwijzing naar Huisplan.
+2. Alleen lezend (read-only transactie): is dit het lege project, met `pg_cron` beschikbaar?
+3. `db push --dry-run`.
+4. Alleen lezend: is er niets veranderd?
+
+`-ExecutionPolicy Bypass` geldt alleen voor dat ene proces; de Windows-instelling verandert niet. De echte push volgt pas
+na een apart akkoord.
+
+**TLS:** de pooler gebruikt een eigen CA van Supabase ("Supabase Root 2021 CA"). Die staat niet in de standaardlijst van
+Node.js of Windows, dus gewone certificaatcontrole geeft `self-signed certificate in certificate chain`. Er wordt **niets**
+uitgeschakeld:
+- `komtgoed/supabase/staging/supabase-root-ca.crt` bevat de Supabase-roots uit de officiële Supabase CLI
+  (`github.com/supabase/cli`, `prod-ca-2021.crt` en `prod-ca-2025.crt`);
+- hun SHA-256-vingerafdrukken staan vast in `verbinding-controle.mjs`; een ander of aangevuld bestand wordt geweigerd;
+- de controle (Node) en de dry-run (CLI, `sslmode=verify-full`) vertrouwen alleen die roots en controleren keten én
+  hostnaam.
+
+Gecontroleerd op 16 oktober 2026: de root die de pooler aanbiedt, heeft dezelfde vingerafdruk als `prod-ca-2021`
+(`80:70:25:AD…CA:FA`). Met deze root slaagt de controle, met een verkeerde hostnaam of een nep-root faalt hij, en zonder
+deze root komt de oorspronkelijke fout terug.
 
 Daarna controle, alleen lezend: de migratielijst, `select jobname, schedule from cron.job` (moet
 `thuisplanner-archief-opruimen` tonen) en de beveiligingsadviseur in het dashboard. De RLS-matrix draait niet op
