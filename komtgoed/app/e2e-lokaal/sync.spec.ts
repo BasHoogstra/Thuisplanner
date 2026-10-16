@@ -22,11 +22,12 @@ test.afterEach(async () => {
 });
 
 test('privé: Eva ziet de privé-afspraak van Thomas alleen als bezet, Thomas ziet de details', async () => {
-  await expect(thomas.getByText('Fysiotherapie')).toBeVisible();
-  await expect(eva.getByRole('button', { name: /^Bezet, 15:00/ })).toBeVisible();
+  // Tussen 15:00 en 16:00 staat de afspraak ook bovenaan ("Hierna"): dan twee keer op het scherm.
+  await expect(thomas.getByText('Fysiotherapie').first()).toBeVisible();
+  await expect(eva.getByRole('button', { name: /^Bezet, 15:00/ }).first()).toBeVisible();
   await expect(eva.locator('body')).not.toContainText('Fysiotherapie');
   await expect(eva.locator('body')).not.toContainText('Praktijk Oost');
-  await eva.getByRole('button', { name: /^Bezet, 15:00/ }).click();
+  await eva.getByRole('button', { name: /^Bezet, 15:00/ }).first().click();
   await expect(venster(eva).getByRole('heading', { name: 'Bezet' })).toBeVisible();
   await expect(venster(eva).getByRole('button', { name: 'Opslaan' })).toHaveCount(0);
 });

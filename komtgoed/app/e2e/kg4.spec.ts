@@ -80,6 +80,7 @@ test.describe('Dagoverzicht', () => {
     await maandDag(page, 'donderdag 22 oktober').click();
     await page.getByRole('button', { name: 'Afspraak toevoegen op donderdag 22 oktober' }).click();
     await venster(page).getByLabel('Wat?').fill('Kinderfeestje');
+    await venster(page).getByRole('button', { name: 'Andere tijd' }).click();
     await venster(page).getByLabel('Van', { exact: true }).fill('14:00');
     await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
     await expect(dagLijst(page)).toContainText('Kinderfeestje');
@@ -102,7 +103,9 @@ test.describe('Herhalende afspraken', () => {
     await venster(page).getByLabel('Wat?').fill('Pianoles');
     await venster(page).getByRole('button', { name: 'Andere dag' }).click();
     await venster(page).getByLabel('Datum').fill('2026-10-14');
+    await venster(page).getByRole('button', { name: 'Andere tijd' }).click();
     await venster(page).getByLabel('Van', { exact: true }).fill('16:00');
+    await venster(page).getByRole('button', { name: /^Meer opties/ }).click();
     await venster(page).getByRole('button', { name: 'Elke week' }).click();
     await venster(page).getByLabel('Tot en met').fill('2026-11-04');
     await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
@@ -119,6 +122,7 @@ test.describe('Herhalende afspraken', () => {
   test('een einddatum vóór de eerste keer wordt geweigerd', async ({ page }) => {
     await page.locator('.nav-plus').click();
     await venster(page).getByLabel('Wat?').fill('Fout');
+    await venster(page).getByRole('button', { name: /^Meer opties/ }).click();
     await venster(page).getByRole('button', { name: 'Elke dag' }).click();
     await venster(page).getByLabel('Tot en met').fill('2026-10-01');
     await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
@@ -163,6 +167,7 @@ test.describe('Herhalende afspraken', () => {
     await venster(page).getByLabel('Wat?').fill('Huur overmaken');
     await venster(page).getByRole('button', { name: 'Andere dag' }).click();
     await venster(page).getByLabel('Datum').fill('2026-10-31');
+    await venster(page).getByRole('button', { name: /^Meer opties/ }).click();
     await venster(page).getByRole('button', { name: 'Elke maand' }).click();
     await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
     await expect(page.getByRole('status')).toContainText('elke maand op de 31e · niet in maanden zonder die dag');

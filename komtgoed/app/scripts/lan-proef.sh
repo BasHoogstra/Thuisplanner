@@ -22,7 +22,7 @@ echo "LAN-proef: app op http://$IP:5180, browsers in een container van $BEELD, C
 node scripts/lokaal.mjs seed
 node scripts/lokaal.mjs dev --host "$IP" > "$LOG" 2>&1 &
 DEV=$!
-trap 'kill $DEV 2>/dev/null || true; pkill -f "[v]ite --mode lokaal --host" || true; node scripts/lokaal.mjs env >/dev/null' EXIT
+trap 'kill $DEV 2>/dev/null || true; pkill -f "[v]ite(\.js)? --mode lokaal --host" || true; node scripts/lokaal.mjs env >/dev/null' EXIT
 for i in $(seq 1 60); do curl -sf "http://$IP:5180/" >/dev/null && break; sleep 1; done
 cat "$LOG"
 

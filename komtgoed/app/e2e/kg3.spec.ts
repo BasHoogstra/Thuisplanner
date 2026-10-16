@@ -45,6 +45,7 @@ test.describe('Agenda: weekweergave', () => {
     await page.getByRole('button', { name: 'Volgende week' }).click();
     await page.getByRole('button', { name: 'Toevoegen op woensdag 14 oktober' }).click();
     await venster(page).getByLabel('Wat?').fill('Oudergesprek');
+    await venster(page).getByRole('button', { name: 'Andere tijd' }).click();
     await venster(page).getByLabel('Van', { exact: true }).fill('15:45');
     await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
     await expect(dag(page, /^woensdag 14 oktober$/)).toContainText('Oudergesprek');
@@ -97,6 +98,7 @@ test.describe('Afspraken openen, bewerken en verwijderen', () => {
 
   test('een eindtijd vóór de begintijd wordt niet opgeslagen', async ({ page }) => {
     await page.getByRole('button', { name: /^Pizza bakken met de buren, 18:00\. Openen$/ }).click();
+    await venster(page).getByRole('button', { name: '+ Eindtijd' }).click();
     await venster(page).getByLabel('Tot', { exact: true }).fill('17:00');
     await venster(page).getByRole('button', { name: 'Opslaan' }).click();
     await expect(venster(page)).toContainText('De eindtijd ligt vóór of op de begintijd.');
@@ -121,11 +123,14 @@ test.describe('Afspraken openen, bewerken en verwijderen', () => {
     await nav(page, 'Agenda');
     await page.getByRole('button', { name: /^Eten bij oma, 17:30\. Openen$/ }).click();
     await expect(venster(page).getByLabel('Wat?')).toHaveValue('Eten bij oma');
+    await venster(page).getByRole('button', { name: /^Meer opties/ }).click();
+    await expect(venster(page).getByLabel('Waar?')).toBeVisible();
     await expect(venster(page).getByLabel(/Privé/)).toHaveCount(0);
   });
 
   test('eigen afspraak privé maken toont een slotje', async ({ page }) => {
     await page.getByRole('button', { name: /^Pizza bakken met de buren, 18:00\. Openen$/ }).click();
+    await venster(page).getByRole('button', { name: /^Meer opties/ }).click();
     await venster(page).getByLabel(/Privé/).check();
     await venster(page).getByRole('button', { name: 'Opslaan' }).click();
     await expect(sectie(page, 'Agenda vandaag').locator('li', { hasText: 'Pizza bakken' })).toContainText('alleen voor jou');

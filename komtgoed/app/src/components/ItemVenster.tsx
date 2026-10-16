@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useApp, type Soort } from '../lib/context';
 import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen, verschilInDagen } from '../lib/datum';
 import { FREQUENTIES, herhalingTekst, vindAfspraak, wordtDubbel } from '../lib/herhaling';
@@ -22,6 +22,8 @@ const PLACEHOLDER: Record<Soort, string> = {
   boodschap: 'Bijvoorbeeld: Eieren, kaas, appels',
 };
 const NAAM: Record<Soort, string> = { afspraak: 'Afspraak', taak: 'Taak', boodschap: 'Boodschap' };
+/** Snelle begintijden; een andere tijd kan via "Andere tijd" (docs/thuisplanner-snelinvoer.md, deel A). */
+export const SNELLE_TIJDEN = ['09:00', '12:00', '15:30', '18:00'];
 
 export type VensterOpdracht =
   | { type: 'nieuw'; soort: Soort; datum?: Datum }
@@ -99,9 +101,25 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
   const [freq, zetFreq] = useState<Frequentie | 'geen'>(voorkomen?.herhaling?.freq ?? 'geen');
   const [herhaalTot, zetHerhaalTot] = useState(voorkomen?.herhaling?.tot ?? '');
   const [fout, zetFout] = useState<{ veld: 'titel' | 'tijd' | 'dag' | 'herhaling'; tekst: string } | null>(null);
+  // Rustiger venster: een snelle tijd is één tik; de klokkiezer en de eindtijd verschijnen pas als je ze vraagt.
+  // Waar, herhalen en privé staan achter "Meer opties", behalve als er al iets is ingevuld: een ingevulde
+  // waarde is nooit onzichtbaar. Eenmaal open, blijft het open.
+  const [andereTijd, zetAndereTijd] = useState(() => start !== '' && !SNELLE_TIJDEN.includes(start));
+  const [toonEind, zetToonEind] = useState(() => eind !== '');
+  const [meerOpen, zetMeerOpen] = useState(() => plek !== '' || prive || (freq !== 'geen' && !reeks && !losgemaakt));
   const veld = useRef<HTMLInputElement>(null);
+  const startVeld = useRef<HTMLInputElement>(null);
+  const eindVeld = useRef<HTMLInputElement>(null);
+  const plekVeld = useRef<HTMLInputElement>(null);
+  // Na een tik op "Andere tijd", "Eindtijd" of "Meer opties" gaat de cursor naar het veld dat dan verschijnt.
+  const focusNa = useRef<RefObject<HTMLInputElement | null> | null>(null);
 
   useEffect(() => { if (!bestaand) veld.current?.focus(); }, [soort, bestaand]);
+  useEffect(() => {
+    if (!focusNa.current) return;
+    focusNa.current.current?.focus();
+    focusNa.current = null;
+  });
 
   const snelDagen = [0, 1, 2].map(n => plusDagen(vandaag, n));
   const andereDag = dag !== 'ooit' && !snelDagen.includes(dag);
@@ -225,6 +243,43 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
 
   const kies = (d: Datum | 'ooit') => { zetDag(d); zetToonDatum(false); setFoutWeg(); };
   const setFoutWeg = () => zetFout(null);
+  /** Een snelle tijd of de hele dag; de hele dag heeft geen eindtijd. */
+  function kiesTijd(t: string) {
+    zetStart(t);
+    zetAndereTijd(false);
+    if (!t) { zetEind(''); zetToonEind(false); }
+    setFoutWeg();
+  }
+
+  const herhalen = (
+    <div className="veld">
+      <span className="veld-label" id="herhaal-label">Herhalen?</span>
+      <div className="keuzes" role="group" aria-labelledby="herhaal-label">
+        {[{ id: 'geen' as const, label: 'Niet' }, ...FREQUENTIES].map(f => (
+          <button type="button" key={f.id} className={'keuze' + (freq === f.id ? ' aan' : '')} aria-pressed={freq === f.id}
+            onClick={() => { zetFreq(f.id); setFoutWeg(); }}>{f.label}</button>
+        ))}
+      </div>
+      {freq !== 'geen' && (
+        <label className="veld-sub tot-veld">
+          <span className="tijd-label">Tot en met <span className="optioneel">(leeg = zonder einde)</span></span>
+          <input type="date" id="item-herhaal-tot" value={herhaalTot} aria-label="Tot en met"
+            onChange={e => { zetHerhaalTot(e.target.value); setFoutWeg(); }} aria-invalid={fout?.veld === 'herhaling'} />
+        </label>
+      )}
+      {fout?.veld === 'herhaling' && <span className="veld-fout">{fout.tekst}</span>}
+    </div>
+  );
+
+  const priveSchakel = (
+    <label className="schakel">
+      <input type="checkbox" id="item-prive" checked={prive} disabled={!!herinvoerId} onChange={e => zetPrive(e.target.checked)} />
+      <span>
+        Privé
+        <small>Anderen zien alleen dat je bezet bent.</small>
+      </span>
+    </label>
+  );
 
   return (
     <Venster titel={herinvoerId ? 'Privé-afspraak opnieuw invoeren' : bestaand ? NAAM[soort] : 'Toevoegen'} sluit={sluit}>
@@ -299,44 +354,39 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
         )}
 
         {soort === 'afspraak' && (
-          <>
-            <div className="veld">
-              <span className="veld-label">Hoe laat? <span className="optioneel">(leeg = hele dag)</span></span>
-              <div className="tijden">
-                <label><span className="tijd-label">Van</span>
-                  <input type="time" id="item-start" value={start} onChange={e => { zetStart(e.target.value); setFoutWeg(); }} />
-                </label>
-                <label><span className="tijd-label">Tot</span>
-                  <input type="time" id="item-eind" value={eind} onChange={e => { zetEind(e.target.value); setFoutWeg(); }}
-                    aria-invalid={fout?.veld === 'tijd'} />
-                </label>
-              </div>
-              {fout?.veld === 'tijd' && <span className="veld-fout">{fout.tekst}</span>}
-            </div>
-            <label className="veld">
-              <span className="veld-label">Waar? <span className="optioneel">(optioneel)</span></span>
-              <input id="item-plek" value={plek} onChange={e => zetPlek(e.target.value)} autoComplete="off" maxLength={80} />
-            </label>
-          </>
-        )}
-
-        {toonHerhaling && (
           <div className="veld">
-            <span className="veld-label" id="herhaal-label">Herhalen?</span>
-            <div className="keuzes" role="group" aria-labelledby="herhaal-label">
-              {[{ id: 'geen' as const, label: 'Niet' }, ...FREQUENTIES].map(f => (
-                <button type="button" key={f.id} className={'keuze' + (freq === f.id ? ' aan' : '')} aria-pressed={freq === f.id}
-                  onClick={() => { zetFreq(f.id); setFoutWeg(); }}>{f.label}</button>
+            <span className="veld-label" id="tijd-label">Hoe laat?</span>
+            <div className="keuzes" role="group" aria-labelledby="tijd-label">
+              <button type="button" className={'keuze' + (start === '' && !andereTijd ? ' aan' : '')}
+                aria-pressed={start === '' && !andereTijd} onClick={() => kiesTijd('')}>Hele dag</button>
+              {SNELLE_TIJDEN.map(t => (
+                <button type="button" key={t} className={'keuze' + (start === t && !andereTijd ? ' aan' : '')}
+                  aria-pressed={start === t && !andereTijd} onClick={() => kiesTijd(t)}>{t}</button>
               ))}
+              <button type="button" className={'keuze' + (andereTijd ? ' aan' : '')} aria-pressed={andereTijd}
+                onClick={() => { zetAndereTijd(true); focusNa.current = startVeld; setFoutWeg(); }}>Andere tijd</button>
             </div>
-            {freq !== 'geen' && (
-              <label className="veld-sub tot-veld">
-                <span className="tijd-label">Tot en met <span className="optioneel">(leeg = zonder einde)</span></span>
-                <input type="date" id="item-herhaal-tot" value={herhaalTot} aria-label="Tot en met"
-                  onChange={e => { zetHerhaalTot(e.target.value); setFoutWeg(); }} aria-invalid={fout?.veld === 'herhaling'} />
-              </label>
+            {(andereTijd || toonEind) && (
+              <div className="tijden">
+                {andereTijd && (
+                  <label><span className="tijd-label">Van</span>
+                    <input ref={startVeld} type="time" id="item-start" value={start} onChange={e => { zetStart(e.target.value); setFoutWeg(); }} />
+                  </label>
+                )}
+                {toonEind && (
+                  <label><span className="tijd-label">Tot</span>
+                    <input ref={eindVeld} type="time" id="item-eind" value={eind} onChange={e => { zetEind(e.target.value); setFoutWeg(); }}
+                      aria-invalid={fout?.veld === 'tijd'} />
+                  </label>
+                )}
+              </div>
             )}
-            {fout?.veld === 'herhaling' && <span className="veld-fout">{fout.tekst}</span>}
+            {start !== '' && !toonEind && (
+              <button type="button" className="tekstknop" onClick={() => { zetToonEind(true); focusNa.current = eindVeld; }}>
+                + Eindtijd
+              </button>
+            )}
+            {fout?.veld === 'tijd' && <span className="veld-fout">{fout.tekst}</span>}
           </div>
         )}
 
@@ -347,14 +397,22 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
           </div>
         )}
 
-        {kanPriveKiezen && (
-          <label className="schakel">
-            <input type="checkbox" id="item-prive" checked={prive} disabled={!!herinvoerId} onChange={e => zetPrive(e.target.checked)} />
-            <span>
-              Privé
-              <small>Anderen zien alleen dat je bezet bent.</small>
-            </span>
-          </label>
+        {soort === 'afspraak' && !meerOpen && (
+          <button type="button" className="meer-knop" aria-expanded={false}
+            onClick={() => { zetMeerOpen(true); focusNa.current = plekVeld; }}>
+            <span>Meer opties</span>
+            <small>{['Waar', toonHerhaling && 'Herhalen', kanPriveKiezen && 'Privé'].filter(Boolean).join(' · ')}</small>
+          </button>
+        )}
+        {soort === 'afspraak' && meerOpen && (
+          <>
+            <label className="veld">
+              <span className="veld-label">Waar? <span className="optioneel">(optioneel)</span></span>
+              <input ref={plekVeld} id="item-plek" value={plek} onChange={e => zetPlek(e.target.value)} autoComplete="off" maxLength={80} />
+            </label>
+            {toonHerhaling && herhalen}
+            {kanPriveKiezen && priveSchakel}
+          </>
         )}
 
         <button type="submit" className="knop breed" onClick={bewaar}>
