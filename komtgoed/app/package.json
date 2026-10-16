@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:staging": "tsc --noEmit && vite build --mode staging",
     "preview": "vite preview",
     "losbestand": "tsc --noEmit && vite build && node scripts/losbestand.mjs",
     "typecheck": "tsc --noEmit",
@@ -16,6 +17,7 @@
     "lokaal": "node scripts/lokaal.mjs dev",
     "lokaal:lan": "node scripts/lokaal.mjs dev --lan",
     "lokaal:seed": "node scripts/lokaal.mjs seed",
+    "e2e:staging": "playwright test -c playwright.staging.config.ts",
     "e2e:lokaal": "playwright test -c playwright.lokaal.config.ts",
     "screenshots:lokaal": "KG_SCREENSHOTS=1 playwright test -c playwright.lokaal.config.ts --grep @screenshot",
     "lan-proef": "bash scripts/lan-proef.sh"

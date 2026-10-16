@@ -2,6 +2,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { supabaseProxy } from './scripts/lokaal-platform.mjs';
+import { bewaking, controleerOmgeving } from './scripts/staging-build';
 
 // Relatieve paden: de build werkt ook vanuit een willekeurige map of als los bestand.
 export default defineConfig(({ mode }) => {
@@ -10,9 +11,14 @@ export default defineConfig(({ mode }) => {
   // door naar de lokale Supabase. Anders geen proxy, zoals voorheen.
   const doel = loadEnv(mode, process.cwd(), 'KG_').KG_SUPABASE_DOEL;
   const proxy = doel ? supabaseProxy(doel) : undefined;
+  // Omgeving bewaken (scripts/staging-build.ts): staging alleen met precies één online project en zonder
+  // demo-gegevens of geheimen; elke build krijgt een _headers-bestand met de beveiligingsheaders.
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  const { staging } = controleerOmgeving(mode, env);
   return {
     base: './',
-    plugins: [react()],
+    plugins: [react(), bewaking(mode, env)],
+    define: staging ? { 'import.meta.env.VITE_OMGEVING': JSON.stringify('staging') } : undefined,
     // De sync-module staat naast de app (../sync); Vite mag die map lezen.
     server: { host: '127.0.0.1', port: 5180, strictPort: true, fs: { allow: ['..'] }, proxy },
     preview: { host: '127.0.0.1', port: 5181, strictPort: true, proxy },

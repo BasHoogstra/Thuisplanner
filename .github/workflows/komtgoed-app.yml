@@ -43,6 +43,10 @@ jobs:
         run: npm run e2e
         env:
           CI: '1'
+      - name: Stagingbuild (verzonnen project) met CSP in de browser
+        run: npm run e2e:staging
+        env:
+          CI: '1'
       - name: Los bestand bouwen en testen
         run: npm run losbestand && KG_LOSBESTAND=1 npx playwright test -g "los bestand"
         env:

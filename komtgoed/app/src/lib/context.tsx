@@ -37,6 +37,8 @@ export interface AppContext extends DemoActies {
  * schermen niets van accounts of synchronisatie.
  */
 export interface LokaalContext {
+  /** lokaal (fictief, eigen netwerk) of staging (de testomgeving online). */
+  omgeving: 'lokaal' | 'staging';
   account: string;
   status: SyncStatus;
   /** false: deze browser bewaart niets; onbevestigde opdrachten gaan verloren bij sluiten. */

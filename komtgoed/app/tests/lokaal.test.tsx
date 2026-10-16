@@ -78,7 +78,7 @@ describe('alleen een lokale Supabase', () => {
 });
 
 describe('levenscyclus van de sessie', () => {
-  const CONFIG: LokaleConfig = { url: 'http://127.0.0.1:54321', anonKey: 'x', accounts: [] };
+  const CONFIG: LokaleConfig = { omgeving: 'lokaal', url: 'http://127.0.0.1:54321', anonKey: 'x', accounts: [] };
 
   function nep() {
     const aanroepen = { getSession: 0, signOut: 0, start: 0, stop: 0, maakSync: 0 };

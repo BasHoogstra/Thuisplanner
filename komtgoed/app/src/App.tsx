@@ -4,7 +4,7 @@ import { naarDatum, naarTijd } from './lib/datum';
 import { Ctx, type AgendaStand, type AppContext, type LokaalContext, type Scherm } from './lib/context';
 import { useDemoStaat, type DemoActies, type Staat } from './lib/store';
 import type { Huishouden } from './lib/types';
-import { lokaleConfig, sessieVoor, useSessie, type LokaleConfig, type Momentopname, type Sessie } from './lib/lokaal/sessie';
+import { appConfig, sessieVoor, useSessie, type LokaleConfig, type Momentopname, type Sessie } from './lib/lokaal/sessie';
 import { useLokaleStaat } from './lib/lokaal/staat';
 import { naarHuishouden } from './lib/lokaal/omzetten';
 import { Navigatie } from './components/Navigatie';
@@ -47,12 +47,12 @@ function useKlok(): Date {
  * Twee modi met dezelfde schermen:
  * - demo (standaard): alles in het geheugen van dit tabblad, fictieve gegevens uit data/demo.ts;
  * - lokaal: een lokale Supabase met fictieve accounts (zie scripts/lokaal.mjs en docs/thuisplanner-app.md).
- * De modus volgt uit de bouwomgeving (VITE_SUPABASE_URL en VITE_SUPABASE_ANON_KEY). Een niet-lokaal adres
- * wordt geweigerd, nooit stil vervangen door de demo.
+ * De modus volgt uit de bouwomgeving (VITE_SUPABASE_URL en VITE_SUPABASE_ANON_KEY; staging alleen met
+ * VITE_OMGEVING=staging, zie lib/omgeving.ts). Een niet-toegestaan adres wordt geweigerd, nooit stil vervangen door de demo.
  */
 export function App() {
   const keuze = useMemo(() => {
-    try { return { config: lokaleConfig(), fout: null }; } catch (e) { return { config: null, fout: (e as Error).message }; }
+    try { return { config: appConfig(), fout: null }; } catch (e) { return { config: null, fout: (e as Error).message }; }
   }, []);
   if (keuze.fout) return <div className="schil"><main className="hoofd"><div className="scherm"><p role="alert">{keuze.fout}</p></div></main></div>;
   if (keuze.config) return <LokaleApp config={keuze.config} />;
@@ -82,6 +82,7 @@ function IngelogdeApp({ sessie, snap }: { sessie: Sessie; snap: Momentopname }) 
   const t = snap.toestand!;
   const hh = useMemo(() => naarHuishouden(t, snap.huishouden!.naam), [t, snap.huishouden]);
   const lokaal: LokaalContext = {
+    omgeving: sessie.config.omgeving,
     account: snap.account?.email ?? '',
     status: t.status,
     opslagDuurzaam: t.opslagDuurzaam,
@@ -94,7 +95,7 @@ function IngelogdeApp({ sessie, snap }: { sessie: Sessie; snap: Momentopname }) 
     uitloggen: () => { void sessie.uitloggen(); },
   };
   return (
-    <Schil klok={klok} data={data} huishouden={hh} lokaal={lokaal} balk={<LokaleBalk />} titelSoort="lokaal">
+    <Schil klok={klok} data={data} huishouden={hh} lokaal={lokaal} balk={<LokaleBalk />} titelSoort={sessie.config.omgeving === 'staging' ? 'testomgeving' : 'lokaal'}>
       {keuze && <KeuzeVenster keuze={keuze} sluit={sluitKeuze} />}
     </Schil>
   );

@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Sync, Toestand } from '../../sync/thuisplanner-sync.js';
 import { Sessie, useSessie, type LokaleConfig } from '../src/lib/lokaal/sessie';
 
-const CONFIG: LokaleConfig = { url: 'http://127.0.0.1:54321', anonKey: 'x', accounts: [] };
+const CONFIG: LokaleConfig = { omgeving: 'lokaal', url: 'http://127.0.0.1:54321', anonKey: 'x', accounts: [] };
 
 interface Uitgesteld<T = unknown> { naam: string; los: (v: T) => void; belofte: Promise<T> }
 

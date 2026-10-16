@@ -685,3 +685,24 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   expliciete voorwaarde dat de opdracht vóór de herhaling nog openstaat.
 - Tests (lokaal): R1a 10 van 10 groen; integratie 62 van 62; tegenproeven groen; sync-tegenproeven 22 van 22
   (nummer 22 nog steeds gevangen door R1a). Geen wijziging aan app, sync of database.
+
+## Thuisplanner-staging voorbereid (16 oktober 2026, alleen lokaal; online nog niets aangemaakt)
+- Besluiten: Cloudflare Pages (`thuisplanner-staging`), een eigen Supabase-project in de organisatie Thuisplanner
+  (Frankfurt), Cloudflare Access, twee testers, alleen gratis abonnementen. Stappen en instellingen: `docs/thuisplanner-staging.md`.
+- Stagingmodus (`npm run build:staging`):
+  - alleen precies `https://<20 letters>.supabase.co`, nooit een Huisplan-project;
+  - geen demo-accounts of -wachtwoord, en geen geheime sleutels: zowel de app als de build weigert dat, en de build
+    controleert achteraf ook de gebouwde bestanden;
+  - een vaste markering "Testomgeving";
+  - de sessie blijft op de telefoon bewaard (`localStorage`), en een sessie uit de URL wordt nooit overgenomen.
+- Elke build krijgt `_headers` voor Cloudflare Pages: een strenge CSP (`connect-src` alleen de eigen site plus het
+  stagingproject), `noindex`, `no-referrer`, `nosniff`, `frame-ancestors 'none'` en cacheregels.
+- SQL-scripts voor het dashboard: twee testers in één testhuishouden (`staging/testers.sql`), en de verwijdering na
+  30 dagen controleren (`staging/archief-proef.sql`, `staging/archief-controle.sql`).
+- Tests:
+  - unit 136/136 (9 nieuw);
+  - stagingbuild in de browser met CSP, 5/5 (`npm run e2e:staging`, ook in CI), met tegenproeven;
+  - buildbewaking: acht onjuiste configuraties geweigerd;
+  - de scripts en `pg_cron` zelf op de lokale stack;
+  - demo-e2e (138) en lokale e2e (15/15) groen.
+- Geen wijziging aan de Huisplan-app, de Huisplan-database of GitHub Pages.

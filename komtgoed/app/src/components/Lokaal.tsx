@@ -22,6 +22,7 @@ export function Inloggen({ sessie, snap }: { sessie: Sessie; snap: Momentopname 
   const [email, zetEmail] = useState(accounts[0]?.email ?? '');
   const [wachtwoord, zetWachtwoord] = useState(lokaalWachtwoord ?? '');
   const bezig = snap.fase === 'bezig' || snap.fase === 'start';
+  const staging = sessie.config.omgeving === 'staging';
 
   const log = (e: { preventDefault(): void }, adres = email) => {
     e.preventDefault();
@@ -30,18 +31,15 @@ export function Inloggen({ sessie, snap }: { sessie: Sessie; snap: Momentopname 
 
   return (
     <div className="schil">
-      <div className="demobalk" role="note">
-        <span className="demo-label">Lokaal</span>
-        <span className="demobalk-tekst">Fictief gezin · lokale testdatabase op dit netwerk</span>
-      </div>
+      <OmgevingsBalk omgeving={sessie.config.omgeving} />
       <main className="hoofd" aria-label="Inloggen">
         <div className="scherm">
           <header className="kop">
             <h1>Inloggen</h1>
-            <p className="kop-samenvatting">Kies een fictief gezinslid om mee te testen.</p>
+            <p className="kop-samenvatting">{staging ? 'Log in met het testaccount dat je hebt gekregen.' : 'Kies een fictief gezinslid om mee te testen.'}</p>
           </header>
           {snap.fase === 'geen-huishouden' && (
-            <p className="stil-tekst" role="alert">Dit account hoort nog bij geen huishouden. Draai eerst <code>npm run lokaal:seed</code>.</p>
+            <p className="stil-tekst" role="alert">Dit account hoort nog bij geen huishouden.{staging ? ' Vraag de beheerder van de testomgeving om je toe te voegen.' : <> Draai eerst <code>npm run lokaal:seed</code>.</>}</p>
           )}
           {accounts.length > 0 && (
             <section className="blok" aria-labelledby="h-accounts">
@@ -69,14 +67,26 @@ export function Inloggen({ sessie, snap }: { sessie: Sessie; snap: Momentopname 
             {snap.fout && <p className="veld-fout" role="alert">{snap.fout}</p>}
             <button type="submit" className="knop breed" disabled={bezig} onClick={log}>{bezig ? 'Even geduld…' : 'Inloggen'}</button>
           </form>
-          <p className="stil-tekst">Alleen voor de lokale test: deze accounts en dit gezin zijn verzonnen.</p>
+          <p className="stil-tekst">{staging ? 'Testomgeving: gebruik alleen verzonnen gegevens, geen echte afspraken of namen.' : 'Alleen voor de lokale test: deze accounts en dit gezin zijn verzonnen.'}</p>
         </div>
       </main>
     </div>
   );
 }
 
-/** Bovenaan, klein: lokaal, wie je bent, de verbinding, en wat de gebruiker moet weten. */
+const OMGEVING_LABEL = { lokaal: 'Lokaal', staging: 'Testomgeving' } as const;
+
+/** Vaste markering op het inlogscherm: welke omgeving dit is. */
+function OmgevingsBalk({ omgeving }: { omgeving: 'lokaal' | 'staging' }) {
+  return (
+    <div className="demobalk" role="note">
+      <span className="demo-label">{OMGEVING_LABEL[omgeving]}</span>
+      <span className="demobalk-tekst">{omgeving === 'staging' ? 'Alleen om te testen · verzonnen gegevens' : 'Fictief gezin · lokale testdatabase op dit netwerk'}</span>
+    </div>
+  );
+}
+
+/** Bovenaan, klein: welke omgeving, wie je bent, de verbinding, en wat de gebruiker moet weten. */
 export function LokaleBalk() {
   const { lokaal, gaNaar } = useApp();
   if (!lokaal) return null;
@@ -84,7 +94,7 @@ export function LokaleBalk() {
   return (
     <>
       <div className="demobalk" role="note">
-        <span className="demo-label">Lokaal</span>
+        <span className="demo-label">{OMGEVING_LABEL[lokaal.omgeving]}</span>
         <span className="demobalk-tekst">
           {lokaal.account} · <span className={'sync-status ' + status} data-status={status}>{STATUS_TEKST[status] ?? status}</span>
           {openstaand.length > 0 && <> · {openstaand.length} niet bevestigd</>}
