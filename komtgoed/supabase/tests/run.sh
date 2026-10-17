@@ -5,7 +5,7 @@
 # komtgoed/supabase/migrations/*.sql uit. Raakt geen enkel Supabase-project en maakt geen netwerkverbinding.
 # Met --db: gebruikt een al draaiende LOKALE Supabase-stack (supabase start), waarop de migraties al staan.
 #
-#   komtgoed/supabase/tests/run.sh                          # matrix op de nabootsing (verwacht: 64 van 64)
+#   komtgoed/supabase/tests/run.sh                          # matrix op de nabootsing (verwacht: 71 van 71)
 #   komtgoed/supabase/tests/run.sh --tegenproef             # daarna: elke sabotage moet het juiste scenario laten falen
 #   komtgoed/supabase/tests/run.sh --db postgresql://postgres:postgres@127.0.0.1:55322/postgres [--tegenproef]
 #   ... --gelijktijdig   daarna ook de gelijktijdigheidstests (tests/integratie/gelijktijdig.test.mjs, met
@@ -17,7 +17,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 KG="$(cd "$HERE/.." && pwd)"
 PGBIN="${PGBIN:-/usr/lib/postgresql/16/bin}"
-VERWACHT="KG-RLS-tests geslaagd: 64 van 64"
+VERWACHT="KG-RLS-tests geslaagd: 71 van 71"
 
 DB_URL=""; TEGENPROEF=0; GELIJKTIJDIG=0
 while [ $# -gt 0 ]; do

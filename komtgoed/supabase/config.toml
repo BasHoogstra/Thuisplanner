@@ -23,8 +23,10 @@ enabled = false
 enabled = true
 
 [db.seed]
-# Geen seed: KG-1 bevat geen (voorbeeld)data.
-enabled = false
+# Alleen lokaal (supabase start en db reset; nooit bij db push naar een online project): de lokale ontwikkelmodus
+# voor de fictieve accounts. Zie seed.sql.
+enabled = true
+sql_paths = ["./seed.sql"]
 
 [realtime]
 # Aan sinds KG-5B, alleen om te bewijzen dat er niets uitlekt: geen tabel staat in een publicatie

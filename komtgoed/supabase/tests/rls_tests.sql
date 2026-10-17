@@ -14,10 +14,27 @@
 begin;
 
 -- Hulpmiddelen (verdwijnen met de rollback).
+-- Een actieve sessie in auth.sessions (de toegangspoort controleert die), als postgres aangemaakt.
+create function pg_temp.sessie(p_id uuid, p_user uuid) returns void language plpgsql security definer as $$
+begin
+  insert into auth.sessions (id, user_id) values (p_id, p_user) on conflict (id) do nothing;
+end $$;
+-- Inloggen zoals na een code: amr 'otp' en een bestaande sessie (session_id = het account-id).
 create function pg_temp.als(p_user text) returns void language plpgsql as $$
 begin
+  perform pg_temp.sessie(current_setting('test.' || p_user)::uuid, current_setting('test.' || p_user)::uuid);
   perform set_config('request.jwt.claims',
-    json_build_object('sub', current_setting('test.' || p_user), 'role', 'authenticated')::text, true);
+    json_build_object('sub', current_setting('test.' || p_user), 'role', 'authenticated',
+      'amr', json_build_array(json_build_object('method', 'otp', 'timestamp', 1)),
+      'session_id', current_setting('test.' || p_user))::text, true);
+end $$;
+-- Inloggen met een andere manier (bijvoorbeeld 'password'), of een sessie die niet (meer) bestaat.
+create function pg_temp.als_met(p_user text, p_amr jsonb, p_sessie text) returns void language plpgsql as $$
+begin
+  perform pg_temp.sessie(current_setting('test.' || p_user)::uuid, current_setting('test.' || p_user)::uuid);
+  perform set_config('request.jwt.claims',
+    (jsonb_build_object('sub', current_setting('test.' || p_user), 'role', 'authenticated', 'session_id', p_sessie)
+     || case when p_amr is null then '{}'::jsonb else jsonb_build_object('amr', p_amr) end)::text, true);
 end $$;
 create function pg_temp.ok(p_naam text) returns void language plpgsql as $$
 begin
@@ -48,6 +65,10 @@ begin
 end $$;
 grant execute on all functions in schema pg_temp to authenticated, anon;
 
+-- De productiestand van de poort (ook als de lokale seed de ontwikkelmodus aanzette; alles wordt teruggedraaid),
+-- met de testpoort G1 open voor de bestaande scenario's; KG-T65 tot en met T70 toetsen de poort zelf.
+update private.instellingen set wachtwoordsessies_toegestaan = false, sessiecontrole = true, onderhoud = null,
+  registratie_open = true, codes_aan = true, huishouden_open = true;
 select set_config('test.anna',   gen_random_uuid()::text, true);
 select set_config('test.lisa', gen_random_uuid()::text, true);
 select set_config('test.kees',  gen_random_uuid()::text, true);
@@ -1658,7 +1679,9 @@ select set_config('test.hv', public.create_household('Smit', 'Olaf')::text, true
 -- Een token met een vervalst, "geverifieerd" adres: de database mag daar nooit op vertrouwen.
 create function pg_temp.als_vervalst(p_user text, p_email text) returns void language plpgsql as $$
 begin
+  perform pg_temp.sessie(current_setting('test.' || p_user)::uuid, current_setting('test.' || p_user)::uuid);
   perform set_config('request.jwt.claims', json_build_object('sub', current_setting('test.' || p_user), 'role', 'authenticated',
+    'amr', json_build_array(json_build_object('method', 'otp', 'timestamp', 1)), 'session_id', current_setting('test.' || p_user),
     'email', p_email, 'email_verified', true, 'user_metadata', json_build_object('email', p_email, 'email_verified', true))::text, true);
 end $$;
 
@@ -2016,6 +2039,186 @@ do $$ declare f text; def text; r record; begin
 end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 64' as resultaat;
+-- =============================================================================================
+-- KG-5H deel 2: de toegangspoort (migratie 20261021120000). Ida (eigenaar van Van Dijk) logt in op verschillende
+-- manieren. Alleen een code-sessie (amr 'otp') die nog bestaat, heeft toegang; buiten onderhoud.
+-- =============================================================================================
+create function pg_temp.ziet_iets() returns bigint language plpgsql as $$
+begin
+  return pg_temp.aantal('select id from public.households') + pg_temp.aantal('select id from public.household_members')
+    + pg_temp.aantal('select id from public.household_invites') + pg_temp.aantal('select id from public.events')
+    + pg_temp.aantal('select event_id from public.event_details') + pg_temp.aantal('select id from public.event_overview')
+    + pg_temp.aantal('select id from public.tasks') + pg_temp.aantal('select id from public.shopping_items')
+    + pg_temp.aantal('select user_id from public.profiles') + pg_temp.aantal('select * from public.my_memberships()')
+    + pg_temp.aantal('select * from public.my_invites()');
+end $$;
+grant execute on function pg_temp.ziet_iets() to authenticated;
+reset role;
+insert into public.profiles (user_id, display_name) values (current_setting('test.ida')::uuid, 'Ida') on conflict do nothing;
+select set_config('test.topic_hu', private.household_topic(current_setting('test.hu')::uuid), true);
+set local role authenticated;
+
+-- KG-T65 Een wachtwoordsessie (amr 'password') ziet en wijzigt niets: geen tabel, view, RPC of Realtime-kanaal. De
+-- RPC's geven de stabiele code TPA01. Dezelfde gebruiker met een code-sessie ziet alles weer.
+do $$ declare hu text := current_setting('test.hu'); wachtwoord jsonb := '[{"method": "password", "timestamp": 1}]'; begin
+  perform pg_temp.als('ida');
+  if pg_temp.ziet_iets() = 0 then raise exception 'KG-T65: Ida ziet met een code-sessie niets (testopzet)'; end if;
+  perform pg_temp.als_met('ida', wachtwoord, current_setting('test.ida'));
+  if public.mijn_toegang() is distinct from 'code-nodig' then raise exception 'KG-T65: mijn_toegang geeft geen code-nodig'; end if;
+  if pg_temp.ziet_iets() <> 0 then raise exception 'KG-T65: een wachtwoordsessie ziet gegevens'; end if;
+  if pg_temp.fout(format('select public.create_household(%L, %L)', 'Kaap', 'Kaap')) is distinct from 'TPA01' then raise exception 'KG-T65: wachtwoordsessie maakt een huishouden'; end if;
+  if pg_temp.fout(format('select public.create_invite(%L)', hu)) is distinct from 'TPA01' then raise exception 'KG-T65: wachtwoordsessie nodigt uit'; end if;
+  if pg_temp.fout(format('select public.add_member(%L, %L)', hu, 'Kaap')) is distinct from 'TPA01' then raise exception 'KG-T65: wachtwoordsessie voegt een lid toe'; end if;
+  if pg_temp.fout(format('select public.leave_household(%L)', hu)) is distinct from 'TPA01' then raise exception 'KG-T65: wachtwoordsessie verlaat een huishouden'; end if;
+  if pg_temp.fout(format('select * from public.add_shopping_items(%L, array[gen_random_uuid()], array[%L])', hu, 'Kaap')) is distinct from 'TPA01' then raise exception 'KG-T65: wachtwoordsessie voegt een boodschap toe'; end if;
+  if pg_temp.geraakt(format($q$ update public.households set name = 'Gekaapt' where id = %L $q$, hu)) <> 0 then raise exception 'KG-T65: wachtwoordsessie wijzigt de huishoudnaam'; end if;
+  if pg_temp.geraakt($q$ update public.profiles set display_name = 'Gekaapt' $q$) <> 0 then raise exception 'KG-T65: wachtwoordsessie wijzigt het profiel'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.profiles (user_id, display_name) values (%L, 'x') $q$, current_setting('test.ida'))) then raise exception 'KG-T65: wachtwoordsessie maakt een profiel'; end if;
+  if private.may_listen(current_setting('test.topic_hu')) then raise exception 'KG-T65: wachtwoordsessie mag luisteren op het Realtime-kanaal'; end if;
+  if pg_temp.fout(format('select public.household_channel(%L)', hu)) is null then raise exception 'KG-T65: wachtwoordsessie krijgt de kanaalnaam'; end if;
+  perform pg_temp.als('ida');
+  if pg_temp.ziet_iets() = 0 or public.mijn_toegang() <> 'ok' then raise exception 'KG-T65: na een code-sessie geen toegang meer'; end if;
+  perform pg_temp.ok('KG-T65');
+end $$;
+
+-- KG-T66 Een sessie die niet (meer) bestaat (ingetrokken, of "uitloggen op alle toestellen") heeft direct geen toegang,
+-- ook met een nog geldig toegangstoken: TPA02. Opnieuw inloggen (een nieuwe sessie) geeft weer toegang.
+do $$ declare otp jsonb := '[{"method": "otp", "timestamp": 1}]'; begin
+  perform pg_temp.als_met('ida', otp, gen_random_uuid()::text);
+  if public.mijn_toegang() is distinct from 'sessie-ingetrokken' then raise exception 'KG-T66: een onbekende sessie wordt niet herkend'; end if;
+  if pg_temp.ziet_iets() <> 0 then raise exception 'KG-T66: een onbekende sessie ziet gegevens'; end if;
+  if pg_temp.fout(format('select public.create_invite(%L)', current_setting('test.hu'))) is distinct from 'TPA02' then raise exception 'KG-T66: een onbekende sessie geeft niet TPA02'; end if;
+  perform pg_temp.als_met('ida', otp, 'geen-uuid');
+  if pg_temp.ziet_iets() <> 0 then raise exception 'KG-T66: een misvormde session_id geeft toegang'; end if;
+  perform pg_temp.als_met('ida', otp, null);
+  if pg_temp.ziet_iets() <> 0 then raise exception 'KG-T66: een token zonder session_id geeft toegang'; end if;
+  -- Ingetrokken: de sessie verdwijnt uit auth.sessions (zoals bij signOut global of de noodstop), het token niet.
+  perform pg_temp.als('ida');
+  reset role;
+  delete from auth.sessions where id = current_setting('test.ida')::uuid;
+  set local role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', current_setting('test.ida'), 'role', 'authenticated',
+    'amr', otp, 'session_id', current_setting('test.ida'))::text, true);
+  if pg_temp.ziet_iets() <> 0 then raise exception 'KG-T66: een ingetrokken sessie ziet nog gegevens'; end if;
+  perform pg_temp.als('ida');
+  if pg_temp.ziet_iets() = 0 then raise exception 'KG-T66: na opnieuw inloggen geen toegang'; end if;
+  perform pg_temp.ok('KG-T66');
+end $$;
+
+-- KG-T67 Alleen 'otp' (eventueel met 'totp') telt. Geen amr, een amr met daarnaast een andere methode, een andere
+-- methode (magiclink, oauth, anonymous, recovery) of een amr die geen lijst is: geen toegang (fail-closed).
+do $$ declare s text := current_setting('test.ida'); a jsonb; begin
+  foreach a in array array[null, '[]', '{"method": "otp"}', '[{"method": "otp"}, {"method": "password"}]', '[{"method": "magiclink"}]',
+                           '[{"method": "oauth"}]', '[{"method": "anonymous"}]', '[{"method": "recovery"}]', '[{"methode": "otp"}]']::jsonb[] loop
+    perform pg_temp.als_met('ida', a, s);
+    if pg_temp.ziet_iets() <> 0 or public.mijn_toegang() = 'ok' then raise exception 'KG-T67: amr % geeft toegang', coalesce(a::text, 'ontbreekt'); end if;
+  end loop;
+  perform pg_temp.als_met('ida', '[{"method": "otp"}, {"method": "totp"}]', s);
+  if public.mijn_toegang() <> 'ok' then raise exception 'KG-T67: otp met totp (MFA) wordt geweigerd'; end if;
+  perform pg_temp.ok('KG-T67');
+end $$;
+
+-- KG-T68 Wachtwoordsessies alleen als de instelling aan staat (lokale ontwikkeling); standaard uit.
+reset role;
+do $$ declare s text := current_setting('test.ida'); begin
+  if (select wachtwoordsessies_toegestaan or not sessiecontrole or onderhoud is not null or not codes_aan from private.instellingen) then
+    raise exception 'KG-T68: de instellingen staan niet standaard veilig'; end if;
+  if (select pg_get_expr(d.adbin, d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+      where d.adrelid = 'private.instellingen'::regclass and a.attname = 'wachtwoordsessies_toegestaan') <> 'false' then
+    raise exception 'KG-T68: wachtwoordsessies niet standaard uit'; end if;
+  update private.instellingen set wachtwoordsessies_toegestaan = true;
+  set local role authenticated;
+  perform pg_temp.als_met('ida', '[{"method": "password"}]', s);
+  if public.mijn_toegang() <> 'ok' then raise exception 'KG-T68: lokale wachtwoordmodus werkt niet'; end if;
+  perform pg_temp.als_met('ida', '[{"method": "oauth"}]', s);
+  if public.mijn_toegang() = 'ok' then raise exception 'KG-T68: de lokale modus laat ook andere methoden toe'; end if;
+  reset role;
+  update private.instellingen set wachtwoordsessies_toegestaan = false;
+  set local role authenticated;
+  perform pg_temp.als_met('ida', '[{"method": "password"}]', s);
+  if public.mijn_toegang() = 'ok' then raise exception 'KG-T68: na uitzetten nog toegang met een wachtwoord'; end if;
+  perform pg_temp.ok('KG-T68');
+end $$;
+
+-- KG-T69 Noodstop "onderhoud: dicht": niemand heeft toegang, ook niet met een geldige code-sessie (TPA03). Daarna weer.
+reset role;
+update private.instellingen set onderhoud = 'dicht';
+set local role authenticated;
+do $$ begin
+  perform pg_temp.als('ida');
+  if public.mijn_toegang() is distinct from 'onderhoud' or pg_temp.ziet_iets() <> 0 then raise exception 'KG-T69: onderhoud laat toegang toe'; end if;
+  if pg_temp.fout(format('select public.create_invite(%L)', current_setting('test.hu'))) is distinct from 'TPA03' then raise exception 'KG-T69: onderhoud geeft niet TPA03'; end if;
+end $$;
+reset role;
+update private.instellingen set onderhoud = null;
+set local role authenticated;
+do $$ begin
+  perform pg_temp.als('ida');
+  if pg_temp.ziet_iets() = 0 then raise exception 'KG-T69: na onderhoud geen toegang'; end if;
+  perform pg_temp.ok('KG-T69');
+end $$;
+
+-- KG-T70 Testpoort G1: met de poort dicht maakt alleen een tester een eigen huishouden (TPB01 voor anderen). Een
+-- uitnodiging accepteren kan iedereen. Open: iedereen.
+reset role;
+select set_config('test.pia', gen_random_uuid()::text, true);
+insert into auth.users (id, email, email_confirmed_at) values (current_setting('test.pia')::uuid, 'pia@test.invalid', now());
+update private.instellingen set huishouden_open = false;
+set local role authenticated;
+do $$ declare t text; begin
+  perform pg_temp.als('pia');
+  if public.mag_huishouden_maken() then raise exception 'KG-T70: een niet-tester mag een huishouden maken'; end if;
+  if pg_temp.fout($q$ select public.create_household('Pia', 'Pia') $q$) is distinct from 'TPB01' then raise exception 'KG-T70: een niet-tester maakt een huishouden'; end if;
+  perform pg_temp.als('olaf');
+  t := public.create_invite(current_setting('test.hv')::uuid, null, 'member', 7, 'pia@test.invalid');
+  perform pg_temp.als('pia');
+  begin
+    perform public.accept_invite(t, 'Pia');
+  exception when others then raise exception 'KG-T70: een niet-tester kan een uitnodiging niet accepteren (%)', sqlerrm;
+  end;
+end $$;
+reset role;
+insert into private.testers (email) values ('pia@test.invalid');
+set local role authenticated;
+do $$ begin
+  perform pg_temp.als('pia');
+  if not public.mag_huishouden_maken() then raise exception 'KG-T70: een tester mag geen huishouden maken'; end if;
+  if pg_temp.fout($q$ select public.create_household('Pia eigen', 'Pia') $q$) is not null then raise exception 'KG-T70: een tester kan geen huishouden maken'; end if;
+end $$;
+reset role;
+delete from private.testers where email = 'pia@test.invalid';
+update private.instellingen set huishouden_open = true;
+set local role authenticated;
+do $$ begin
+  perform pg_temp.als('pia');
+  if not public.mag_huishouden_maken() then raise exception 'KG-T70: met de poort open mag het niet'; end if;
+  perform pg_temp.ok('KG-T70');
+end $$;
+
+-- KG-T71 Catalogus: alleen de poort zelf leest auth.uid() of auth.jwt(); geen policy gebruikt auth.uid(); de
+-- instellingen en de testerslijst zijn niet via de API te lezen of te wijzigen; Storage geeft geen toegang.
+reset role;
+do $$ declare r record; begin
+  for r in select n.nspname || '.' || p.proname as naam from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname in ('public', 'private') and (p.prosrc like '%auth.uid()%' or p.prosrc like '%auth.jwt()%')
+             and p.proname not in ('toegang_status', 'uid', 'require_uid') loop
+    raise exception 'KG-T71: % gebruikt auth.uid() of auth.jwt() buiten de poort', r.naam;
+  end loop;
+  for r in select schemaname || '.' || tablename || ' ' || policyname as naam from pg_policies
+           where coalesce(qual, '') || coalesce(with_check, '') ~ 'auth\.(uid|jwt)\(' loop
+    raise exception 'KG-T71: policy % gebruikt auth.uid() of auth.jwt()', r.naam;
+  end loop;
+  if has_table_privilege('authenticated', 'private.instellingen', 'select') or has_table_privilege('authenticated', 'private.instellingen', 'update')
+     or has_table_privilege('authenticated', 'private.testers', 'select') or has_table_privilege('anon', 'private.testers', 'insert') then
+    raise exception 'KG-T71: instellingen of testerslijst via de API bereikbaar'; end if;
+  if to_regclass('storage.objects') is not null then
+    if exists (select 1 from pg_policies where schemaname = 'storage') then raise exception 'KG-T71: er zijn storage-policies'; end if;
+    execute 'select count(*) from storage.buckets' into r;
+  end if;
+  perform pg_temp.ok('KG-T71');
+end $$;
+set local role authenticated;
+
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 71' as resultaat;
 
 rollback;

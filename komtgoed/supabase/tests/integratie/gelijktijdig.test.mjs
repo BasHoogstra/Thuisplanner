@@ -28,9 +28,11 @@ const accounts = [];
 const huishoudens = [];
 const bewaard = {};           // tegenproef: originele functiedefinities
 
-// Binnen een transactie optreden als een ingelogde gebruiker (zoals PostgREST dat doet).
+// Binnen een transactie optreden als een ingelogde gebruiker (zoals PostgREST dat doet), na inloggen met een code: de
+// toegangspoort (KG-5H deel 2) eist amr 'otp' en een bestaande sessie (session_id = het account-id, zie account()).
 async function als(c, uid) {
-  await c.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: uid, role: 'authenticated' })]);
+  await c.query(`select set_config('request.jwt.claims', $1, true)`,
+    [JSON.stringify({ sub: uid, role: 'authenticated', amr: [{ method: 'otp', timestamp: 1 }], session_id: uid })]);
   await c.query('set local role authenticated');
 }
 async function alsDoe(uid, sql, params = []) {
@@ -45,6 +47,7 @@ async function alsDoe(uid, sql, params = []) {
 async function account(naam) {
   const id = randomUUID();
   await db.query('insert into auth.users (id, email) values ($1, $2)', [id, `${naam}-${run}@test.invalid`]);
+  await db.query('insert into auth.sessions (id, user_id) values ($1, $1)', [id]);
   accounts.push(id);
   return id;
 }
