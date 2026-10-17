@@ -21,6 +21,44 @@ const EXTENSION_FUNCS = ['gen_random_bytes', 'gen_salt', 'crypt', 'digest', 'hma
   'pgp_sym_decrypt', 'pgp_pub_encrypt', 'pgp_pub_decrypt', 'armor', 'dearmor', 'encrypt', 'decrypt',
   'uuid_generate_v1', 'uuid_generate_v1mc', 'uuid_generate_v3', 'uuid_generate_v4', 'uuid_generate_v5'];
 
+// Edge Functions met de service-rol (bouwverslag deel 2, §7.3 P-7). De service-rol omzeilt RLS en dus de toegangspoort.
+// Alleen deze functies mogen hem gebruiken, en elk alleen met het bewijs dat hij eerst controleert wie er aanroept.
+const SERVICE_ROL_TOEGESTAAN = {
+  'stuur-code': { bewijs: /webhookGeldig\(/, reden: 'alleen na de handtekening van de Auth-hook (Standard Webhooks)' },
+  'controleer-code': { bewijs: /'k1_controleer'/, reden: 'vóór het inloggen; elke poging loopt door de grenzen in k1_controleer' },
+  'stuur-uitnodiging': { bewijs: /rpc\/uitnodigingsmail_verzoek[\s\S]*SUPABASE_ANON_KEY|SUPABASE_ANON_KEY[\s\S]*rpc\/uitnodigingsmail_verzoek/,
+    reden: 'eerst de sessie van de gebruiker via de database (toegangspoort), met zijn eigen token' },
+};
+/** Fouten voor een lijst Edge Functions ({ naam, bron }); _gedeeld telt als gedeelde code. Leeg = in orde. */
+function serviceRolFouten(functies) {
+  const f = [];
+  for (const { naam, bron } of functies) {
+    if (naam.startsWith('_gedeeld/')) {
+      if (/SUPABASE_SERVICE_ROLE_KEY/.test(bron) && naam !== '_gedeeld/k1.ts') f.push(`${naam} leest de service-rolsleutel (alleen _gedeeld/k1.ts mag dat, in rpc)`);
+      continue;
+    }
+    const gebruikt = /SUPABASE_SERVICE_ROLE_KEY/.test(bron) || /import\s*\{[^}]*\brpc\b[^}]*\}\s*from\s*['"]\.\.\/_gedeeld\/k1\.ts['"]/.test(bron);
+    if (!gebruikt) continue;
+    const regel = SERVICE_ROL_TOEGESTAAN[naam];
+    if (!regel) f.push(`${naam} gebruikt de service-rol maar staat niet op de lijst (SERVICE_ROL_TOEGESTAAN in statisch.js)`);
+    else if (!regel.bewijs.test(bron)) f.push(`${naam} gebruikt de service-rol zonder de controle vooraf (${regel.reden})`);
+  }
+  return f;
+}
+function leesFuncties() {
+  const map = path.join(KG, 'functions');
+  const uit = [];
+  for (const d of fs.readdirSync(map, { withFileTypes: true }).filter(x => x.isDirectory())) {
+    if (d.name === '_gedeeld') {
+      for (const b of fs.readdirSync(path.join(map, d.name)).filter(x => x.endsWith('.ts'))) uit.push({ naam: '_gedeeld/' + b, bron: fs.readFileSync(path.join(map, d.name, b), 'utf8') });
+    } else {
+      const bron = fs.readdirSync(path.join(map, d.name)).filter(x => x.endsWith('.ts')).map(b => fs.readFileSync(path.join(map, d.name, b), 'utf8')).join('\n');
+      uit.push({ naam: d.name, bron });
+    }
+  }
+  return uit;
+}
+
 const checks = {
   'migraties: geldige namen en oplopende, unieke versies'() {
     const files = migraties();
@@ -80,7 +118,7 @@ const checks = {
     assert(/rollback;\s*$/i.test(sql), 'rls_tests.sql moet met rollback; eindigen');
     assert(!/\bcommit\b/i.test(sql), 'rls_tests.sql mag geen commit bevatten');
     const nummers = [...new Set([...sql.matchAll(/pg_temp\.ok\('(KG-T\d\d)'\)/g)].map(m => m[1]))];
-    assert(nummers.length === 72, 'Verwacht 72 genummerde scenario\'s, gevonden ' + nummers.length);
+    assert(nummers.length === 75, 'Verwacht 75 genummerde scenario\'s, gevonden ' + nummers.length);
   },
 
   'tegenproeven: elke regel noemt een bestaand scenario'() {
@@ -145,6 +183,23 @@ const checks = {
       const env = s.slice(s.indexOf('export function schrijfEnv'), s.indexOf('/** Start Vite'));
       assert(env.includes('VITE_SUPABASE_ANON_KEY') && !/SERVICE_ROLE/.test(env), 'scripts/lokaal.mjs zet meer dan de anon-sleutel in de browseromgeving');
     }
+  },
+
+  'Edge Functions: de service-rol alleen in de toegestane functies, en alleen na de controle vooraf'() {
+    const fouten = serviceRolFouten(leesFuncties());
+    assert(fouten.length === 0, fouten.join('\n'));
+    // Tegenproeven: elke sabotage moet gevonden worden (zo blijft de controle zelf scherp).
+    const echt = Object.fromEntries(leesFuncties().map(x => [x.naam, x.bron]));
+    const proeven = [
+      ['een nieuwe functie met rpc', [{ naam: 'nieuw', bron: "import { json, rpc } from '../_gedeeld/k1.ts';" }]],
+      ['een nieuwe functie met de sleutel zelf', [{ naam: 'nieuw', bron: "Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')" }]],
+      ['stuur-uitnodiging zonder sessiecontrole', [{ naam: 'stuur-uitnodiging', bron: echt['stuur-uitnodiging'].replace(/rpc\/uitnodigingsmail_verzoek/g, 'rpc/iets_anders') }]],
+      ['stuur-code zonder handtekening', [{ naam: 'stuur-code', bron: echt['stuur-code'].replace(/webhookGeldig\(/g, 'altijdGeldig(') }]],
+      ['controleer-code zonder grenzen', [{ naam: 'controleer-code', bron: echt['controleer-code'].replace(/'k1_controleer'/g, "'k1_zonder_grens'") }]],
+      ['gedeelde code met de sleutel', [{ naam: '_gedeeld/nieuw.ts', bron: "Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')" }]],
+    ];
+    for (const [wat, invoer] of proeven) assert(serviceRolFouten(invoer).length > 0, 'Tegenproef niet gevangen: ' + wat);
+    return `${Object.keys(SERVICE_ROL_TOEGESTAAN).length} functies op de lijst; ${proeven.length} tegenproeven gevangen`;
   },
 
   'bestaande Huisplan-bestanden ongewijzigd door deze branch'() {

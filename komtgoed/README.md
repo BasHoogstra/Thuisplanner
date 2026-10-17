@@ -63,3 +63,28 @@ Zonder secrets en zonder verbinding met een online Supabase-project.
   vakantie).
 - **Huisplan blijft ongemoeid:** `index.html`, `test/index.html`, `supabase/` en Firebase worden niet
   aangeraakt (gecontroleerd in `statisch.js`).
+
+## Regels voor nieuwe databasecode en Edge Functions (toegangspoort, deel 2)
+
+Alleen een sessie die met een code is gestart, krijgt toegang (zie `docs/thuisplanner-deel2-bouwverslag.md` §7).
+Voor elke nieuwe migratie of functie geldt:
+
+- **Database:**
+  - Gebruik nooit `auth.uid()`, `auth.jwt()`, `auth.role()`, `auth.email()` of `current_setting('request.jwt…')`.
+    Gebruik `private.require_uid()` of een van de poortfuncties (`has_role`, `is_active_member`, `my_household_ids`,
+    `is_my_event`, `may_listen`).
+  - Een policy gaat altijd via een poortfunctie.
+  - Een view is altijd `security_invoker`.
+  - Functies in `public` zijn `security invoker` en geven alleen door aan `private`.
+- **Edge Functions:**
+  - Gebruik de service-rol (`rpc` uit `_gedeeld/k1.ts`) alleen als de functie eerst controleert wie er aanroept:
+    - met de handtekening van een hook;
+    - met de grenzen van K1;
+    - of met de sessie van de gebruiker via de database.
+  - Een nieuwe functie met de service-rol moet op de lijst `SERVICE_ROL_TOEGESTAAN` in `supabase/tests/statisch.js`.
+- **Bewaking:** dit wordt automatisch bewaakt:
+  - KG-T71 en KG-T73 tot en met KG-T75 in de RLS-matrix (met tegenproeven);
+  - `statisch.js`;
+  - de nacontrole (`staging/verbinding-controle.mjs`, ook: `private` niet via de API).
+
+  Een uitzondering kan alleen bewust: in de lijst `kg_zonder_poort` in `rls_tests.sql`, met een reden.

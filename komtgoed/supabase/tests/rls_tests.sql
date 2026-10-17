@@ -2195,18 +2195,31 @@ do $$ begin
   perform pg_temp.ok('KG-T70');
 end $$;
 
--- KG-T71 Catalogus: alleen de poort zelf leest auth.uid() of auth.jwt(); geen policy gebruikt auth.uid(); de
--- instellingen en de testerslijst zijn niet via de API te lezen of te wijzigen; Storage geeft geen toegang.
+-- KG-T71 Catalogus: alleen de poort zelf leest de identiteit uit het token; geen policy doet dat; de instellingen en de
+-- testerslijst zijn niet via de API te lezen of te wijzigen; Storage geeft geen toegang.
+-- "Het token lezen" is elke aanroep van auth.uid/jwt/role/email (ook met aanhalingstekens of spaties) en elk gebruik van
+-- request.jwt (current_setting('request.jwt.claims') of request.jwt.claim.*). Gezocht wordt in alle eigen schema's
+-- (alles behalve de systeemschema's en die van Supabase), niet alleen in public en private.
 reset role;
+-- Eigen schema's: wat Thuisplanner zelf maakt. Ook een nieuw schema valt er automatisch onder.
+create function pg_temp.eigen_schema(s name) returns boolean language sql immutable as $$
+  select s !~ '^(pg_|_)' and s not in ('information_schema', 'auth', 'storage', 'realtime', 'graphql', 'graphql_public',
+    'extensions', 'supabase_functions', 'supabase_migrations', 'vault', 'net', 'cron', 'pgbouncer', 'pgsodium', 'pgsodium_masks')
+$$;
+-- Leest deze tekst de identiteit uit het token?
+create function pg_temp.leest_token(t text) returns boolean language sql immutable as $$
+  select coalesce(t, '') ~* '"?\mauth"?\s*\.\s*"?(uid|jwt|role|email)"?\s*\(' or coalesce(t, '') ~* 'request\.jwt'
+$$;
 do $$ declare r record; begin
   for r in select n.nspname || '.' || p.proname as naam from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname in ('public', 'private') and (p.prosrc like '%auth.uid()%' or p.prosrc like '%auth.jwt()%')
-             and p.proname not in ('toegang_status', 'uid', 'require_uid') loop
-    raise exception 'KG-T71: % gebruikt auth.uid() of auth.jwt() buiten de poort', r.naam;
+           where pg_temp.eigen_schema(n.nspname) and pg_temp.leest_token(p.prosrc)
+             and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')   -- niet van een extensie
+             and not (n.nspname = 'private' and p.proname in ('toegang_status', 'uid', 'require_uid')) loop
+    raise exception 'KG-T71: % leest het token buiten de poort', r.naam;
   end loop;
   for r in select schemaname || '.' || tablename || ' ' || policyname as naam from pg_policies
-           where coalesce(qual, '') || coalesce(with_check, '') ~ 'auth\.(uid|jwt)\(' loop
-    raise exception 'KG-T71: policy % gebruikt auth.uid() of auth.jwt()', r.naam;
+           where pg_temp.leest_token(coalesce(qual, '') || ' ' || coalesce(with_check, '')) loop
+    raise exception 'KG-T71: policy % leest het token', r.naam;
   end loop;
   if has_table_privilege('authenticated', 'private.instellingen', 'select') or has_table_privilege('authenticated', 'private.instellingen', 'update')
      or has_table_privilege('authenticated', 'private.testers', 'select') or has_table_privilege('anon', 'private.testers', 'insert') then
@@ -2252,8 +2265,82 @@ do $$ declare t text; f text; n bigint; begin
   end if;
   perform pg_temp.ok('KG-T72');
 end $$;
+
+-- KG-T73 tot en met KG-T75: de poort als positieve eis (bouwverslag deel 2, §7.3). Niet "zoek verboden tekst", maar
+-- "bewijs dat de poort gebruikt wordt". Een nieuwe functie, policy of view die dat niet aantoonbaar doet, laat de matrix
+-- falen totdat iemand bewust kiest (een regel in de uitzonderingslijst, met een reden).
+--
+-- De poortfuncties: private.uid en private.require_uid, en (transitief) elke functie in private die er een aanroept.
+reset role;
+create temp table kg_poort (naam name primary key);
+do $$ declare n integer; begin
+  insert into kg_poort values ('uid'), ('require_uid');
+  loop
+    insert into kg_poort select distinct p.proname from pg_proc p
+      where p.pronamespace = 'private'::regnamespace and p.proname not in (select naam from kg_poort)
+        and exists (select 1 from kg_poort g where p.prosrc ~ ('private\.' || g.naam || '\('));
+    get diagnostics n = row_count;
+    exit when n = 0;
+  end loop;
+end $$;
+create function pg_temp.via_poort(t text) returns boolean language sql stable as $$
+  select exists (select 1 from kg_poort g where coalesce(t, '') ~ ('private\.' || g.naam || '\('))
+$$;
+
+-- KG-T73 Catalogus van policies: elke policy op een eigen tabel, op realtime.messages en op storage.objects gaat via de
+-- poort. Uitgezonderd: de policies van de extensie pg_cron (schema cron, buiten de API).
+do $$ declare r record; begin
+  for r in select schemaname || '.' || tablename || ' ' || policyname as naam from pg_policies
+           where (pg_temp.eigen_schema(schemaname) or (schemaname, tablename) in (('realtime', 'messages'), ('storage', 'objects'), ('storage', 'buckets')))
+             and not pg_temp.via_poort(coalesce(qual, '') || ' ' || coalesce(with_check, '')) loop
+    raise exception 'KG-T73: policy % gaat niet via de poort', r.naam;
+  end loop;
+  perform pg_temp.ok('KG-T73');
+end $$;
+
+-- KG-T74 Catalogus van functies: elke functie die authenticated of anon mag uitvoeren, gaat via de poort: een functie
+-- in private is zelf een poortfunctie (zie kg_poort), een functie elders roept er een aan. Triggers en functies van
+-- extensies tellen niet mee. Uitzonderingen, met reden:
+create temp table kg_zonder_poort (naam text primary key, reden text not null);
+insert into kg_zonder_poort values
+  ('private.toegang_status', 'de poort zelf: leest het token en zegt of er toegang is'),
+  ('public.mijn_toegang', 'zegt ook een wachtwoordsessie "code-nodig", zodat de app uitlegt wat er moet gebeuren; geeft geen gegevens'),
+  ('private.clean_name', 'zuivere tekstfunctie, leest geen tabel'),
+  ('private.lock_household', 'alleen een rijslot, geeft niets terug; private is niet via de API bereikbaar (nacontrole)'),
+  ('private.lock_household_shared', 'idem');
+do $$ declare r record; begin
+  for r in select n.nspname || '.' || p.proname as naam from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where pg_temp.eigen_schema(n.nspname) and p.prokind = 'f' and p.prorettype <> 'trigger'::regtype
+             and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
+             and (has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'))
+             and not (n.nspname = 'private' and p.proname in (select naam from kg_poort))
+             and not (n.nspname <> 'private' and pg_temp.via_poort(p.prosrc))
+             and (n.nspname || '.' || p.proname) not in (select naam from kg_zonder_poort) loop
+    raise exception 'KG-T74: % is aan te roepen zonder de poort', r.naam;
+  end loop;
+  -- De uitzonderingslijst blijft actueel: een functie die er niet meer is, staat er ook niet meer op.
+  for r in select z.naam from kg_zonder_poort z
+           where not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname || '.' || p.proname = z.naam) loop
+    raise exception 'KG-T74: uitzondering % bestaat niet meer', r.naam;
+  end loop;
+  perform pg_temp.ok('KG-T74');
+end $$;
+
+-- KG-T75 Catalogus van relaties: elke view in een eigen schema is security_invoker (anders leest hij met de rechten van
+-- de eigenaar en omzeilt hij RLS); geen materialized view, en geen tabel zonder RLS, die authenticated of anon kan lezen.
+do $$ declare r record; begin
+  for r in select n.nspname || '.' || c.relname as naam, c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where pg_temp.eigen_schema(n.nspname) and c.relkind in ('v', 'm', 'r', 'p')
+             and (has_table_privilege('authenticated', c.oid, 'select') or has_table_privilege('anon', c.oid, 'select'))
+             and ((c.relkind = 'v' and not coalesce('security_invoker=true' = any (c.reloptions) or 'security_invoker=on' = any (c.reloptions), false))
+               or c.relkind = 'm'
+               or (c.relkind in ('r', 'p') and not c.relrowsecurity)) loop
+    raise exception 'KG-T75: % (%) omzeilt RLS', r.naam, r.relkind;
+  end loop;
+  perform pg_temp.ok('KG-T75');
+end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 72' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 75' as resultaat;
 
 rollback;

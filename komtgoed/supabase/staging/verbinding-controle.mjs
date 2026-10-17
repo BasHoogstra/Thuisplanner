@@ -143,6 +143,18 @@ export const VERWACHTE_TAKEN = [
 ];
 
 /**
+ * Welke schema's de API (PostgREST) blootstelt (bouwverslag deel 2, §7.2 P-6). `private` heeft functies die alleen veilig
+ * zijn zolang het schema niet via de API bereikbaar is. Een verzoek met `Accept-Profile: private` hoort PGRST106 te
+ * geven, en die melding noemt de blootgestelde schema's: precies public en graphql_public. Leeg = in orde.
+ */
+export function schemaFouten(status, body) {
+  if (body?.code !== 'PGRST106') return [`schema private is via de API bereikbaar of gaf een onverwacht antwoord (${status} ${body?.code ?? ''})`];
+  const lijst = String(body.hint ?? body.message ?? '').match(/exposed:\s*(.+)$/i)?.[1]?.split(',').map(s => s.trim()).filter(Boolean).sort();
+  if (!lijst) return ['de lijst met blootgestelde schema\'s is niet te lezen'];
+  return JSON.stringify(lijst) === '["graphql_public","public"]' ? [] : [`blootgestelde schema's ${JSON.stringify(lijst)} in plaats van alleen public en graphql_public`];
+}
+
+/**
  * De instellingen van Supabase Auth, zoals GET /auth/v1/settings ze geeft (deel 2): alleen e-mail, nooit automatisch
  * bevestigen, geen anonieme accounts, geen telefoon, SAML of passkeys. Aanmelden blijft aan: een nieuw adres krijgt een
  * code (de besloten test zit in de database, niet in Auth). Leeg = in orde.
@@ -278,7 +290,9 @@ async function hoofd() {
       const r = await fetch(`https://${process.env.KG_STAGING_REF}.supabase.co/auth/v1/settings`, { headers: { apikey: anon } });
       if (!r.ok) f.push(`Auth-instellingen niet te lezen (${r.status})`);
       else f.push(...authFouten(await r.json()));
-    } else console.log('Auth-instellingen: OVERGESLAGEN (zet KG_STAGING_ANON_KEY om ze te controleren)');
+      const s = await fetch(`https://${process.env.KG_STAGING_REF}.supabase.co/rest/v1/`, { headers: { apikey: anon, 'Accept-Profile': 'private' } });
+      f.push(...schemaFouten(s.status, await s.json().catch(() => null)));
+    } else console.log('Auth-instellingen en blootgestelde schema\'s: OVERGESLAGEN (zet KG_STAGING_ANON_KEY om ze te controleren)');
     if (f.length) { console.log('AFWIJKING na de push (niets hersteld):\n- ' + f.join('\n- ')); process.exit(1); }
     console.log('IN ORDE: migratiegeschiedenis, RLS en policies, rechten, Realtime-policy, geplande taken, opruiming van e-mailadressen, schakelaars van de poort en opslag zoals bedoeld');
     return;

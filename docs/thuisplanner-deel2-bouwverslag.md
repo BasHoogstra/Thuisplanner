@@ -74,8 +74,8 @@ De kolom "Waartegen" zegt per testset tegen wat precies.
 
 | Testset | Waartegen | Uitkomst |
 | --- | --- | --- |
-| RLS-matrix | Lokale Supabase-stack in Docker (echte PostgreSQL 17) | 72 van 72 |
-| SQL-tegenproeven | Idem | 101 van 101 |
+| RLS-matrix | Lokale Supabase-stack in Docker (echte PostgreSQL 17) | 75 van 75 (met de poortcatalogus, §7.4) |
+| SQL-tegenproeven | Idem | 111 van 111 |
 | Auth- en database-integratie (11 bestanden, waaronder poort, K1 en uitnodigingsmail) | Lokale stack: echte GoTrue, PostgREST, Realtime, Edge Runtime en Mailpit | 88 van 88 |
 | K1- en D6-tegenproeven (sabotage per regel) | Idem | 17 van 17 |
 | Sync-tegenproeven | Idem | 22 van 22 |
@@ -240,7 +240,7 @@ eigen akkoord nodig, want ze maken accounts en mails aan in een online project.
 | R-f | Een gestolen telefoon met open sessie | "Uitloggen op alle toestellen" werkt direct; R1/R2 (herstel met passkey) vóór de commerciële start |
 | R-g | Supabase verraadt bij `signUp` met een wachtwoord of een adres bestaat (P2) | Valt buiten de app; de app gebruikt alleen `signInWithOtp` met `shouldCreateUser: true` (één antwoord) |
 | R-h | Schermtests zijn traag onder volle belasting | Ruimere grens; zie §3. Geen invloed op de app |
-| R-i | Een toekomstige functie, policy of view omzeilt de poort zonder `auth.uid()` te gebruiken (§7.2, P-1 tot en met P-8) | KG-T71, KG-T46 en de integratietests vangen de bekende routes; de versterking in §7.3 maakt het een positieve eis. Bouwen vóór de bèta |
+| R-i | Een toekomstige functie, policy of view omzeilt de poort (§7.2, P-1 tot en met P-8) | Gebouwd als positieve eis (§7.4): KG-T71 en KG-T73 tot en met KG-T75, de statische controle en de nacontrole. Nog over: CI verplicht maken voor `main` |
 
 ## 6. Stappen vóór vrienden en kennissen kunnen testen
 
@@ -260,7 +260,7 @@ Elke stap heeft een eigen akkoord. De volgorde is een voorstel.
    - deze branch;
    - de afwijkingen in §2;
    - een beveiligingsreview van K1, de poort en de uitnodigingsmail.
-2. **Versterking van de poortbewaking (§7.3)** bouwen en lokaal bewijzen.
+2. **Versterking van de poortbewaking:** lokaal gebouwd (§7.4); nog over is CI als verplichte controle voor `main`.
 3. **Automatische verzending van uitnodigingsmails** (`docs/thuisplanner-uitnodigingsmail-verzending.md`):
    - akkoord op het voorstel;
    - bouwen;
@@ -339,9 +339,9 @@ Een nieuwe functie of policy kan de poort nog omzeilen zonder dat een test faalt
 | P-7 | Edge Functions met de service-rol | Een nieuwe functie die met de service-rol werkt zonder eerst de sessie via de database te controleren (zoals `stuur-uitnodiging` dat wel doet) |
 | P-8 | De Realtime-policy wordt alleen in de nacontrole op naam gecontroleerd | Een tweede policy op `realtime.messages` geeft de nacontrole wel ("onverwachte Realtime-policies"), maar pas ná een push |
 
-### 7.3 Voorstel: van "zoek verboden tekst" naar "bewijs de poort" (nog niet gebouwd)
+### 7.3 Voorstel: van "zoek verboden tekst" naar "bewijs de poort" (gebouwd, zie §7.4)
 
-Dit is een lokale testwijziging, zonder migratie en zonder online stap. Ze wacht op je akkoord.
+Dit is een lokale testwijziging, zonder migratie en zonder online stap. Akkoord gegeven op 17 oktober 2026.
 
 1. **KG-T72, catalogus van policies (P-3, P-8).** Elke policy voor `authenticated` (of `public`) op een tabel in
    `public`, op `realtime.messages` en op `storage.objects` moet een van de poortfuncties aanroepen:
@@ -388,3 +388,34 @@ Dit is een lokale testwijziging, zonder migratie en zonder online stap. Ze wacht
 
 Met deze versterking faalt CI bij elke nieuwe functie, policy of view die de poort niet aantoonbaar gebruikt. Dat
 gebeurt vóór de wijziging staging of de bèta bereikt.
+
+### 7.4 Gebouwd en lokaal bewezen (17 oktober 2026)
+
+De versterking uit §7.3 is lokaal gebouwd. Omdat KG-T72 al bestond (K1), heten de nieuwe scenario's anders dan in §7.3:
+
+| Voorstel §7.3 | Gebouwd als | Wat het eist | Tegenproeven (moeten als eerste falen in dit scenario) |
+| --- | --- | --- | --- |
+| 3 | **KG-T71, verbreed** | Geen functie in een eigen schema, en geen policy, leest het token buiten `private.uid`/`require_uid`/`toegang_status`. Gezocht wordt naar `auth.uid`, `auth.jwt`, `auth.role` en `auth.email` (ook met aanhalingstekens en spaties) en naar `request.jwt`. Eigen schema's zijn alles behalve de systeemschema's en die van Supabase, dus ook een nieuw schema. Functies van extensies tellen niet mee | `current_setting('request.jwt.claim.sub')` in `private`; `"auth"."uid" ()` in een nieuw schema `kg_api`; `auth.role()` |
+| 1 | **KG-T73**, policies | Elke policy op een eigen tabel, op `realtime.messages` en op Storage roept een poortfunctie aan. De poortfuncties worden afgeleid: `private.uid` en `private.require_uid`, plus elke functie in `private` die er (via andere functies) een aanroept. Alleen de policies van de extensie pg_cron vallen erbuiten | Een policy `to anon using (…)` op `households` en op `shopping_items`, zonder poort |
+| 2 | **KG-T74**, functies | Elke functie die `authenticated` of `anon` mag uitvoeren, in elk eigen schema, gaat via de poort. Er zijn vijf uitzonderingen, elk met een reden in `kg_zonder_poort`: `toegang_status`, `mijn_toegang`, `clean_name`, `lock_household` en `lock_household_shared`. Een uitzondering die niet meer bestaat, laat de test ook falen | Een `security definer`-functie die een `p_user` vertrouwt; een functie in een nieuw schema die alle huishoudens geeft |
+| 4 | **KG-T75**, relaties | Elke view in een eigen schema is `security_invoker`. Geen materialized view, en geen tabel zonder RLS, die `authenticated` of `anon` kan lezen | Een view zonder `security_invoker`; een materialized view; een tabel zonder RLS in `private` met leesrecht |
+| 6 | **statisch.js**, Edge Functions | De service-rol (`SUPABASE_SERVICE_ROLE_KEY` of `rpc` uit `_gedeeld/k1.ts`) alleen in `stuur-code` (met de handtekening), `controleer-code` (met de grenzen) en `stuur-uitnodiging` (met de sessiecontrole via de database). Elk met het bewijs in de broncode (`SERVICE_ROL_TOEGESTAAN`) | Zes, ingebouwd in de controle zelf: een nieuwe functie met `rpc`, een nieuwe functie met de sleutel, elk van de drie zonder zijn bewijs, en gedeelde code met de sleutel |
+| 5 | **De nacontrole** (`schemaFouten`) | Een verzoek met `Accept-Profile: private` geeft PGRST106, en de blootgestelde schema's zijn precies `public` en `graphql_public`. Draait mee met `KG_STAGING_ANON_KEY` | Lokaal nagespeeld: `private` bereikbaar (200) en een extra schema `api`; beide gevonden |
+| 8 | **README** | De regels staan in `komtgoed/README.md`, onder "Regels voor nieuwe databasecode en Edge Functions" | – |
+
+**Uitkomsten (lokale stack, na een reset):**
+- RLS-matrix 75 van 75;
+- SQL-tegenproeven 111 van 111 (waarvan 10 nieuw);
+- statische controles geslaagd (met de 6 ingebouwde tegenproeven).
+
+**Kanttekeningen**
+- **De tegenproeven vragen een schone database.** Na de e2e- en integratietests (met hun achtergebleven testgegevens)
+  vielen vier oude tegenproeven eerst in een ander scenario. Ze werden dus wel gevangen, maar niet door het verwachte
+  scenario. Na een reset waren het er 111 van 111. CI begint altijd schoon.
+- **De matrix op de nabootsing** (een lege PostgreSQL met `supabase_stub.sql`, de eerste CI-job) kon ik hier niet
+  draaien: er is geen PostgreSQL 16 op deze computer. De nabootsing maakt alleen objecten in `auth`, `storage`,
+  `realtime` en `extensions`, en die vallen buiten de eigen schema's. CI draait die job na een push.
+- **De Huisplan-testrunner** (`tests/komtgoed.test.js`) vraagt een globale Playwright. Het Thuisplanner-deel daarvan
+  (statisch en matrix) is hierboven rechtstreeks gedraaid.
+- **Nog niet gebouwd** (punt 8, tweede helft): CI als verplichte controle voor `main`. Dat is een instelling in GitHub en
+  vraagt je akkoord.
