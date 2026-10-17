@@ -53,13 +53,16 @@ export function controleerOmgeving(mode: string, env: Record<string, string | un
   return { staging: false, ref: null };
 }
 
+/** Cloudflare Turnstile (de captcha bij het aanvragen van een code), alleen als er een sitekey is ingesteld. */
+const TURNSTILE = 'https://challenges.cloudflare.com';
+
 /** De _headers voor Cloudflare Pages. */
-export function headersBestand(ref: string | null): string {
-  const connect = ref ? `'self' https://${ref}.supabase.co wss://${ref}.supabase.co` : `'self'`;
+export function headersBestand(ref: string | null, turnstile = false): string {
+  const connect = (ref ? `'self' https://${ref}.supabase.co wss://${ref}.supabase.co` : `'self'`) + (turnstile ? ` ${TURNSTILE}` : '');
   const csp = [
-    `default-src 'self'`, `script-src 'self'`, `style-src 'self'`, `img-src 'self' data:`, `font-src 'self'`,
-    `connect-src ${connect}`, `worker-src 'self'`, `manifest-src 'self'`, `object-src 'none'`, `base-uri 'none'`,
-    `form-action 'self'`, `frame-ancestors 'none'`,
+    `default-src 'self'`, `script-src 'self'${turnstile ? ' ' + TURNSTILE : ''}`, `style-src 'self'`, `img-src 'self' data:`, `font-src 'self'`,
+    `connect-src ${connect}`, `frame-src ${turnstile ? TURNSTILE : "'none'"}`, `worker-src 'self'`, `manifest-src 'self'`, `object-src 'none'`,
+    `base-uri 'none'`, `form-action 'self'`, `frame-ancestors 'none'`,
   ].join('; ');
   return [
     '/*',
@@ -109,7 +112,7 @@ export function bewaking(mode: string, env: Record<string, string | undefined>):
         const fouten = verbodenInhoud(code, ref);
         if (fouten.length) this.error(`${naam} bevat ${fouten.join(', ')}; de build is gestopt.`);
       }
-      this.emitFile({ type: 'asset', fileName: '_headers', source: headersBestand(ref) });
+      this.emitFile({ type: 'asset', fileName: '_headers', source: headersBestand(ref, !!env.VITE_TURNSTILE_SITEKEY) });
     },
   };
 }

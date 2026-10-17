@@ -3,7 +3,7 @@
 // "Uitnodigingen voor jou" (op het bevestigde e-mailadres van dit account, zonder link) of uit een link. Alleen via de
 // bestaande databasefuncties; de database maakt de maker eigenaar en dwingt alle regels van uitnodigingen af, ook dat
 // een uitnodiging op e-mailadres alleen voor dat bevestigde adres geldt. Werkt lokaal en op staging (dezelfde sessie).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Momentopname, Sessie, UitnodigingVoorMij } from '../lib/lokaal/sessie';
 import { bewaarUitnodiging, tokenUit, vergeetUitnodiging } from '../lib/uitnodiging';
 import { OmgevingsBalk } from './Lokaal';
@@ -68,11 +68,13 @@ export function Welkom({ sessie, snap, opUitnodiging, opBekijk }: {
   const [linkFout, zetLinkFout] = useState<string | null>(null);
   const [bezig, zetBezig] = useState(false);
   const uitnodigingen = snap.uitnodigingen ?? [];
+  useNaamVoorstel(sessie, zetEigenNaam);
 
   const maak = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     if (!geldigeNaam(naam) || !geldigeNaam(eigenNaam)) { zetFout('Vul een naam voor het huishouden en je eigen naam in (1 tot 80 tekens).'); return; }
     zetBezig(true); zetFout(null);
+    void sessie.bewaarNaam?.(eigenNaam.trim());
     const r = await sessie.maakHuishouden(naam.trim(), eigenNaam.trim());
     if (!r.ok) { zetFout(r.fout); zetBezig(false); }
   };
@@ -94,6 +96,13 @@ export function Welkom({ sessie, snap, opUitnodiging, opBekijk }: {
 
       <UitnodigingenVoorJou lijst={uitnodigingen} opBekijk={opBekijk} />
 
+      {snap.magHuishouden === false ? (
+        <section className="blok" aria-labelledby="h-besloten">
+          <h2 id="h-besloten" className="sectie-kop">Besloten test</h2>
+          <p>Thuisplanner is nog in een besloten test. Je kunt meedoen met een uitnodiging van iemand die al meedoet.</p>
+          <p className="stil-tekst">Ben je uitgenodigd op een ander e-mailadres? Log dan uit en log in met dat adres.</p>
+        </section>
+      ) : (
       <form className="blok" onSubmit={maak} noValidate aria-labelledby="h-nieuw">
         <h2 id="h-nieuw" className="sectie-kop">Nieuw huishouden</h2>
         <label className="veld">
@@ -108,10 +117,11 @@ export function Welkom({ sessie, snap, opUitnodiging, opBekijk }: {
         <button type="submit" className="knop breed" disabled={bezig}>{bezig ? 'Even geduld…' : 'Huishouden aanmaken'}</button>
         <p className="stil-tekst">Je wordt beheerder van dit huishouden. Daarna kun je in Meer je partner of andere gezinsleden toevoegen.</p>
       </form>
+      )}
 
       {uitnodigingen.length === 0 && (
         <p className="stil-tekst">Ben je uitgenodigd op je e-mailadres? Dan verschijnt de uitnodiging hier vanzelf, zodra je bent
-          ingelogd met dat adres.</p>
+          ingelogd met dat adres. Je bent nu ingelogd als <strong>{snap.account?.email}</strong>.</p>
       )}
 
       <form className="blok" onSubmit={plak} noValidate aria-labelledby="h-uitnodiging">
@@ -124,9 +134,18 @@ export function Welkom({ sessie, snap, opUitnodiging, opBekijk }: {
         <button type="submit" className="knop breed stil">Verder</button>
       </form>
 
-      <button type="button" className="knop stil" onClick={() => void sessie.uitloggen()}>Uitloggen</button>
+      <button type="button" className="knop stil" onClick={() => void sessie.uitloggen()}>Uitloggen en ander adres gebruiken</button>
     </Pagina>
   );
+}
+
+/** De naam uit het eigen profiel voorstellen (D5: één keer vragen), zonder iets te overschrijven wat al is ingevuld. */
+function useNaamVoorstel(sessie: Sessie, zet: (f: (oud: string) => string) => void) {
+  useEffect(() => {
+    let weg = false;
+    void sessie.leesNaam?.().then(n => { if (!weg && n) zet(oud => oud || n); });
+    return () => { weg = true; };
+  }, [sessie, zet]);
 }
 
 /** S2: een uitnodiging bekijken en (alleen op verzoek) accepteren, uit de lijst of uit een link. */
@@ -139,12 +158,14 @@ export function UitnodigingAccepteren({ sessie, snap, bron, sluit }: { sessie: S
   const [weigeren, zetWeigeren] = useState(false);
   const u = bron.soort === 'lijst' ? bron.u : null;
   const naamNodig = !u?.profiel;
+  useNaamVoorstel(sessie, zetEigenNaam);
 
   const accepteer = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     if (eigenNaam.trim().length > 80) { zetFout({ tekst: 'Je naam is te lang (hoogstens 80 tekens).' }); return; }
     zetBezig(true); zetFout(null);
     const naam = naamNodig ? eigenNaam.trim() || null : null;
+    if (naam) void sessie.bewaarNaam?.(naam);
     const r = bron.soort === 'link' ? await sessie.accepteerUitnodiging(bron.token, naam) : await sessie.accepteerUitnodigingOpId(bron.u.id, naam);
     zetBezig(false);
     if (!r.ok) { zetFout({ tekst: r.fout, code: r.code }); return; }

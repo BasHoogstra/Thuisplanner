@@ -27,6 +27,9 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: ['./tests/setup.ts'],
       include: ['tests/**/*.test.{ts,tsx}'],
+      // Schermtests met userEvent in jsdom duren onder volle parallelle belasting (plus de lokale Docker-stack) soms
+      // langer dan de standaard 5 s; afzonderlijk zijn ze ruim binnen 1 s. Een ruimere grens, geen overgeslagen test.
+      testTimeout: 20_000,
     },
   };
 });

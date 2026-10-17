@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LidRij, Melding as SyncMelding, SyncStatus } from '../../../sync/thuisplanner-sync.js';
-import type { Lidmaatschap, UitnodigingVoorMij } from './lokaal/sessie';
+import type { Lidmaatschap, UitnodigingVoorMij, Uitkomst } from './lokaal/sessie';
 import type { DemoActies, Staat } from './store';
 import type { GezinsFilter } from './filter';
 import type { Afspraak, Datum, Huishouden, Lid, LidId, Tijd } from './types';
@@ -58,6 +58,13 @@ export interface LokaalContext {
     later: () => void;
   };
   account: string;
+  /** Account in Meer (KG-5H deel 2): overal uitloggen en het adres wijzigen. */
+  accountBeheer: {
+    uitloggenOveral: () => Promise<void>;
+    wijzigAdres: (nieuw: string) => Promise<Uitkomst>;
+    bevestigAdres: (email: string, code: string) => Promise<Uitkomst<'gewijzigd' | 'nog-een'>>;
+    wijziging: { nieuw: string } | null;
+  };
   status: SyncStatus;
   /** false: deze browser bewaart niets; onbevestigde opdrachten gaan verloren bij sluiten. */
   opslagDuurzaam: boolean | null;

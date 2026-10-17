@@ -184,7 +184,7 @@ test('schermwissels en StrictMode stoppen de synchronisatie niet; uitloggen wel'
   await expect(eva.getByRole('checkbox', { name: 'Sleutels bijmaken' })).toBeVisible(SYNC);
 
   await nav(eva, 'Meer');
-  await eva.getByRole('button', { name: 'Uitloggen' }).click();
+  await eva.getByRole('button', { name: 'Uitloggen', exact: true }).click();
   await expect(eva.getByRole('heading', { name: 'Inloggen' })).toBeVisible();
   await expect(eva.locator('body')).not.toContainText('Sleutels bijmaken');
 });
@@ -237,7 +237,7 @@ test('screenshots @screenshot', async () => {
   await eva.screenshot({ path: pad('08-eva-meer-herstelkeuzes'), fullPage: true });
   await eva.unroute(TAKEN);
 
-  await eva.getByRole('button', { name: 'Uitloggen' }).click();
+  await eva.getByRole('button', { name: 'Uitloggen', exact: true }).click();
   await expect(eva.getByRole('heading', { name: 'Inloggen' })).toBeVisible();
   await eva.screenshot({ path: pad('09-inloggen-fictieve-accounts'), fullPage: true });
 });

@@ -2,6 +2,7 @@ import { useApp } from '../lib/context';
 import { HuishoudenBeheer } from '../components/HuishoudenBeheer';
 import type { Scenario } from '../data/demo';
 import { HerstelKnoppen } from '../components/Lokaal';
+import { Account } from '../components/Account';
 import type { Item, SyncVelden } from '../lib/types';
 
 const naamVan = (i: Item) => (i.soort === 'boodschap' ? i.naam
@@ -82,13 +83,7 @@ function MeerLokaal() {
 
       <HuishoudenBeheer />
 
-      <section aria-labelledby="h-account" className="blok">
-        <h2 id="h-account" className="sectie-kop"><span className="demo-label">{lokaal.omgeving === 'staging' ? 'Testomgeving' : 'Lokaal'}</span> Account</h2>
-        <p>Ingelogd als <strong>{lokaal.account}</strong>.</p>
-        <button type="button" className="knop stil" onClick={lokaal.uitloggen}>Uitloggen</button>
-        <p className="stil-tekst">Uitloggen stopt de synchronisatie op dit toestel. Wat nog niet bevestigd is, blijft hier bewaard
-          (wissen bij uitloggen is nog een open productbesluit).</p>
-      </section>
+      <Account />
 
       <section aria-labelledby="h-onbevestigd" className="blok">
         <h2 id="h-onbevestigd" className="sectie-kop">Niet bevestigd</h2>

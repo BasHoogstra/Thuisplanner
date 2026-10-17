@@ -10,7 +10,7 @@ import { naarHuishouden } from './lib/lokaal/omzetten';
 import { Navigatie } from './components/Navigatie';
 import { ItemVenster, type VensterOpdracht } from './components/ItemVenster';
 import { DemoBalk } from './components/DemoBalk';
-import { Inloggen, KeuzeVenster, LokaleBalk } from './components/Lokaal';
+import { Inloggen, KeuzeVenster, LokaleBalk, Wachten } from './components/Lokaal';
 import { EvenGeduld, UitnodigingAccepteren, Welkom } from './components/Onboarding';
 import { leesUitnodiging, vangUitnodiging, vergeetUitnodiging } from './lib/uitnodiging';
 import { Vandaag } from './screens/Vandaag';
@@ -88,10 +88,15 @@ function LokaleApp({ config }: { config: LokaleConfig }) {
   const [later, zetLater] = useState<ReadonlySet<string>>(() => new Set());
   // Terug in de app (ander tabblad, telefoon weer aan): is er intussen een uitnodiging bijgekomen of vervallen?
   useEffect(() => {
-    const opZicht = () => { if (document.visibilityState === 'visible') void sessie.verversUitnodigingen(); };
+    const opZicht = () => { if (document.visibilityState === 'visible') { void sessie.opnieuwVerbinden(); void sessie.verversUitnodigingen(); } };
+    // Netwerk terug: direct opnieuw proberen (nooit uitloggen door een netwerkstoring; zie Sessie.wachtOpVerbinding).
+    const opOnline = () => { void sessie.opnieuwVerbinden(); };
     document.addEventListener('visibilitychange', opZicht);
-    return () => document.removeEventListener('visibilitychange', opZicht);
+    window.addEventListener('online', opOnline);
+    return () => { document.removeEventListener('visibilitychange', opZicht); window.removeEventListener('online', opOnline); };
   }, [sessie]);
+
+  if (snap.fase === 'verbinding' || snap.fase === 'onderhoud') return <Wachten sessie={sessie} snap={snap} />;
 
   if (!snap.account) return <Inloggen sessie={sessie} snap={snap} uitnodiging={uitnodiging !== null} />;
   // Ingelogd met een uitnodiging: eerst die (ook als je al in een ander huishouden zit). Accepteren gebeurt nooit vanzelf.
@@ -125,6 +130,12 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
     },
     uitnodigingen,
     account: snap.account?.email ?? '',
+    accountBeheer: {
+      uitloggenOveral: () => sessie.uitloggenOveral(),
+      wijzigAdres: (n: string) => sessie.wijzigAdres(n),
+      bevestigAdres: (e: string, c: string) => sessie.bevestigAdres(e, c),
+      wijziging: snap.adreswijziging,
+    },
     status: t.status,
     opslagDuurzaam: t.opslagDuurzaam,
     syncMelding: t.melding,

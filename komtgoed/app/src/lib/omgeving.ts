@@ -37,6 +37,9 @@ export function stagingFouten(env: Record<string, string | undefined>, isVerbode
     fouten.push('VITE_SUPABASE_URL moet precies https://<projectkenmerk>.supabase.co zijn (en geen Huisplan-project).');
   }
   if (!env.VITE_SUPABASE_ANON_KEY) fouten.push('VITE_SUPABASE_ANON_KEY ontbreekt.');
+  if (env.VITE_TURNSTILE_SITEKEY !== undefined && !/^0x[0-9A-Za-z_-]{10,}$/.test(env.VITE_TURNSTILE_SITEKEY)) {
+    fouten.push('VITE_TURNSTILE_SITEKEY is geen sitekey van Cloudflare Turnstile (begint met 0x).');
+  }
   for (const k of Object.keys(env)) {
     if (!k.startsWith('VITE_')) continue;
     if (k.startsWith('VITE_DEMO_')) fouten.push(`${k} hoort niet in een stagingbuild (alleen lokaal).`);

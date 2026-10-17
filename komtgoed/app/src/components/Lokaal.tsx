@@ -1,12 +1,12 @@
 // Onderdelen die alleen in de lokale Supabase-modus verschijnen: inloggen, de statusbalk (verbinding,
 // opslag, meldingen van de sync-module), de keuze bij een mogelijk dubbele toevoeging en het label op een
 // rij die de server nog niet heeft bevestigd.
-import { useState } from 'react';
 import { useApp } from '../lib/context';
 import type { Keuze } from '../lib/lokaal/staat';
 import type { Momentopname, Sessie } from '../lib/lokaal/sessie';
 import type { SyncVelden } from '../lib/types';
 import { Venster } from './Venster';
+import { CodeInloggen } from './CodeInloggen';
 
 const STATUS_TEKST: Record<string, string> = {
   laden: 'Laden…',
@@ -17,17 +17,14 @@ const STATUS_TEKST: Record<string, string> = {
   gestopt: 'Gestopt',
 };
 
+/**
+ * Inloggen en aanmelden: e-mailadres, zes cijfers, ingelogd (CodeInloggen). Lokaal staan daarnaast de fictieve accounts
+ * klaar (die loggen met het lokale testwachtwoord in; dat kan alleen in de lokale ontwikkelmodus van de database).
+ */
 export function Inloggen({ sessie, snap, uitnodiging = false }: { sessie: Sessie; snap: Momentopname; uitnodiging?: boolean }) {
   const { accounts, wachtwoord: lokaalWachtwoord } = sessie.config;
-  const [email, zetEmail] = useState(accounts[0]?.email ?? '');
-  const [wachtwoord, zetWachtwoord] = useState(lokaalWachtwoord ?? '');
   const bezig = snap.fase === 'bezig' || snap.fase === 'start';
   const staging = sessie.config.omgeving === 'staging';
-
-  const log = (e: { preventDefault(): void }, adres = email) => {
-    e.preventDefault();
-    void sessie.inloggen(adres, wachtwoord);
-  };
 
   return (
     <div className="schil">
@@ -35,40 +32,46 @@ export function Inloggen({ sessie, snap, uitnodiging = false }: { sessie: Sessie
       <main className="hoofd" aria-label="Inloggen">
         <div className="scherm">
           <header className="kop">
-            <h1>Inloggen</h1>
-            <p className="kop-samenvatting">{staging ? 'Log in met het testaccount dat je hebt gekregen.' : 'Kies een fictief gezinslid om mee te testen.'}</p>
+            <h1>Thuisplanner</h1>
+            <p className="kop-samenvatting">De planning van je huishouden, samen bijgehouden.</p>
           </header>
           {uitnodiging && <p className="stil-tekst" role="status">Je hebt een uitnodiging geopend. Log in om hem te bekijken.</p>}
-          {snap.fase === 'geen-huishouden' && (
-            <p className="stil-tekst" role="alert">Dit account hoort nog bij geen huishouden.{staging ? ' Vraag de beheerder van de testomgeving om je toe te voegen.' : <> Draai eerst <code>npm run lokaal:seed</code>.</>}</p>
-          )}
-          {accounts.length > 0 && (
+          {accounts.length > 0 && lokaalWachtwoord && (
             <section className="blok" aria-labelledby="h-accounts">
-              <h2 id="h-accounts" className="sectie-kop">Fictieve accounts</h2>
+              <h2 id="h-accounts" className="sectie-kop">Fictieve accounts (alleen lokaal)</h2>
               <div className="keuzes">
                 {accounts.map(a => (
                   <button key={a.email} type="button" className="keuze" disabled={bezig}
-                    onClick={e => { zetEmail(a.email); log(e, a.email); }}>
+                    onClick={() => { void sessie.inloggen(a.email, lokaalWachtwoord); }}>
                     Inloggen als {a.naam}
                   </button>
                 ))}
               </div>
             </section>
           )}
-          <form className="blok" onSubmit={log} noValidate>
-            <label className="veld">
-              <span className="veld-label">E-mailadres</span>
-              <input id="login-email" type="email" value={email} onChange={e => zetEmail(e.target.value)} autoComplete="username" />
-            </label>
-            <label className="veld">
-              <span className="veld-label">Wachtwoord</span>
-              <input id="login-wachtwoord" type="password" value={wachtwoord} onChange={e => zetWachtwoord(e.target.value)}
-                autoComplete="current-password" />
-            </label>
-            {snap.fout && <p className="veld-fout" role="alert">{snap.fout}</p>}
-            <button type="submit" className="knop breed" disabled={bezig} onClick={log}>{bezig ? 'Even geduld…' : 'Inloggen'}</button>
-          </form>
-          <p className="stil-tekst">{staging ? 'Testomgeving: gebruik alleen verzonnen gegevens, geen echte afspraken of namen.' : 'Alleen voor de lokale test: deze accounts en dit gezin zijn verzonnen.'}</p>
+          <CodeInloggen key={snap.fout ?? 'start'} sessie={sessie} uitnodiging={uitnodiging} startFout={snap.fout} />
+          <p className="stil-tekst">{staging ? 'Testomgeving: Thuisplanner is nog in ontwikkeling.' : 'Alleen voor de lokale test: deze accounts en dit gezin zijn verzonnen.'}</p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/** Geen netwerk (er is wel een opgeslagen inlogsessie), of de noodstop "onderhoud": nooit uitloggen, wel uitleggen. */
+export function Wachten({ sessie, snap }: { sessie: Sessie; snap: Momentopname }) {
+  const verbinding = snap.fase === 'verbinding';
+  return (
+    <div className="schil">
+      <OmgevingsBalk omgeving={sessie.config.omgeving} />
+      <main className="hoofd" aria-label={verbinding ? 'Geen verbinding' : 'Even niet beschikbaar'}>
+        <div className="scherm">
+          <header className="kop">
+            <h1>{verbinding ? 'Geen verbinding' : 'Even niet beschikbaar'}</h1>
+            <p className="kop-samenvatting" role="status">
+              {verbinding ? 'Je bent nog ingelogd. Zodra er weer verbinding is, gaat Thuisplanner vanzelf verder.' : snap.fout}
+            </p>
+          </header>
+          {verbinding && <button type="button" className="knop breed" onClick={() => void sessie.opnieuwVerbinden()}>Opnieuw proberen</button>}
         </div>
       </main>
     </div>

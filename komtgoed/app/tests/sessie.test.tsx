@@ -32,7 +32,7 @@ function nepOmgeving({ ingelogd = null as string | null, stop = 'direct' as 'dir
   const sb = {
     auth,
     // my_invites (KG-5H deel 1b) komt direct terug; de stappen hieronder gaan over de lidmaatschappen.
-    rpc: async (naam: string) => { if (naam === 'my_invites') return { data: [], error: null }; await wacht('memberships'); return { data: client.sessie ? [{ household_id: 'h-' + client.sessie }] : [], error: null }; },
+    rpc: async (naam: string) => { if (naam === 'my_invites') return { data: [], error: null }; if (naam === 'mijn_toegang') return { data: 'ok', error: null }; if (naam === 'mag_huishouden_maken') return { data: true, error: null }; await wacht('memberships'); return { data: client.sessie ? [{ household_id: 'h-' + client.sessie }] : [], error: null }; },
     from: () => ({ select: () => ({ eq: (_k: string, h: string) => ({ maybeSingle: async () => { await wacht('huishouden'); return { data: { name: 'Naam ' + h } }; } }) }) }),
   } as unknown as SupabaseClient;
   const maakSync = ((o: { huishoudenId: string }) => {
