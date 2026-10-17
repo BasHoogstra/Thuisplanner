@@ -9,7 +9,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HIER = path.dirname(fileURLToPath(import.meta.url));
-const BRON = readFileSync(path.resolve(HIER, '../../../sync/thuisplanner-sync.js'), 'utf8');
+// Regeleinden gelijkgetrokken: in een Windows-checkout (core.autocrlf) heeft de module CRLF, de proeven zoeken op \n.
+const BRON = readFileSync(path.resolve(HIER, '../../../sync/thuisplanner-sync.js'), 'utf8').replace(/\r\n/g, '\n');
 
 // [bevinding, test (naampatroon), omschrijving, [[zoek, vervang], ...]]
 const PROEVEN = [
@@ -79,7 +80,7 @@ try {
     }
     const bestand = path.join(map, `proef-${i + 1}.js`);
     writeFileSync(bestand, code);
-    const r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-timeout=600000', '--test-force-exit',
+    const r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-timeout=600000', '--test-force-exit', '--test-reporter=tap',
       `--test-name-pattern=${patroon}`, { H: 'herstel2.test.mjs', R: 'herstel3.test.mjs' }[patroon[1]] || 'herstel.test.mjs'], { cwd: HIER, env: { ...process.env, KG_SYNC_MODULE: bestand }, encoding: 'utf8' });
     const geslaagd = /^# pass [1-9]/m.test(r.stdout) && /^# fail 0/m.test(r.stdout);
     const gefaald = /^# fail [1-9]/m.test(r.stdout);

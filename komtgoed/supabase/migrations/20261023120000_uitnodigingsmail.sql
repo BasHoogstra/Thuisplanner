@@ -247,11 +247,26 @@ grant execute on function private.uitnodigingsmail_pak(uuid, integer), private.u
 
 create function public.uitnodigingsmail_pak(p_household uuid default null, p_max integer default 10)
 returns table (id uuid, aan text, huishouden text, uitnodiger text, geldig_tot timestamptz)
-language sql security invoker set search_path = '' as $$ select * from private.uitnodigingsmail_pak(p_household, p_max) $$;
+language plpgsql security invoker set search_path = '' as $$
+begin
+  return query select * from private.uitnodigingsmail_pak(p_household, p_max);
+exception when others then
+  raise exception using errcode = sqlstate, message = sqlerrm;   -- zonder DETAIL/HINT
+end $$;
 create function public.uitnodigingsmail_klaar(p_id uuid, p_uitkomst text, p_bericht text default null)
-returns void language sql security invoker set search_path = '' as $$ select private.uitnodigingsmail_klaar(p_id, p_uitkomst, p_bericht) $$;
+returns void language plpgsql security invoker set search_path = '' as $$
+begin
+  perform private.uitnodigingsmail_klaar(p_id, p_uitkomst, p_bericht);
+exception when others then
+  raise exception using errcode = sqlstate, message = sqlerrm;
+end $$;
 create function public.uitnodigingsmail_niet_bezorgd(p_bericht text)
-returns integer language sql security invoker set search_path = '' as $$ select private.uitnodigingsmail_niet_bezorgd(p_bericht) $$;
+returns integer language plpgsql security invoker set search_path = '' as $$
+begin
+  return private.uitnodigingsmail_niet_bezorgd(p_bericht);
+exception when others then
+  raise exception using errcode = sqlstate, message = sqlerrm;
+end $$;
 revoke all on function public.uitnodigingsmail_pak(uuid, integer), public.uitnodigingsmail_klaar(uuid, text, text),
   public.uitnodigingsmail_niet_bezorgd(text) from public, anon, authenticated;
 grant execute on function public.uitnodigingsmail_pak(uuid, integer), public.uitnodigingsmail_klaar(uuid, text, text),
