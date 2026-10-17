@@ -24,6 +24,14 @@ export const TOEGANG_TEKSTEN: Record<string, string> = {
   TPB01: 'Thuisplanner is nog in een besloten test. Je kunt meedoen met een uitnodiging van iemand die al meedoet.',
 };
 
+/** De uitnodigingsmail (migratie 20261023120000_uitnodigingsmail.sql). */
+export const MAIL_TEKSTEN: Record<string, string> = {
+  TPM01: 'Je hebt deze uitnodiging net gemaild. Over 10 minuten kan het weer; deel anders de link.',
+  TPM02: 'Deze uitnodiging is al 3 keer gemaild. Deel de link, of controleer het adres en nodig opnieuw uit.',
+  TPM03: 'Vandaag zijn er al veel uitnodigingen gemaild vanuit dit huishouden. Deel de link; morgen kan mailen weer.',
+  TPM04: 'Deze uitnodiging is niet meer open. Maak zo nodig een nieuwe.',
+};
+
 /** Inloggen met een code (Edge Function controleer-code, K1). NETWERK is van de app zelf. */
 export const CODE_TEKSTEN: Record<string, string> = {
   TPK00: 'Vul de zes cijfers uit de mail in.',
@@ -47,6 +55,7 @@ export const ALGEMEEN = 'Dat lukte nu niet. Controleer de verbinding en probeer 
 export function foutTekst(fout: { code?: string; message?: string } | null | undefined): string {
   if (fout?.code && UITNODIGING_TEKSTEN[fout.code]) return UITNODIGING_TEKSTEN[fout.code];
   if (fout?.code && TOEGANG_TEKSTEN[fout.code]) return TOEGANG_TEKSTEN[fout.code];
+  if (fout?.code && MAIL_TEKSTEN[fout.code]) return MAIL_TEKSTEN[fout.code];
   if (fout?.code && LETTERLIJK.has(fout.code) && fout.message) return fout.message;
   return ALGEMEEN;
 }

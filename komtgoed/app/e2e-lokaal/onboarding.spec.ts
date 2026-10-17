@@ -170,7 +170,7 @@ test('op e-mailadres: Sanne deelt geen link; Joris logt in, ziet de uitnodiging 
   const sanne = await telefoon(browser, { naam: 'Sanne' });
   await maakHuishouden(sanne, 'Familie Test', 'Sanne');
   await uitnodiging(sanne, { rol: 'Lid', email: 'Joris.Demo@test.invalid' });
-  await expect(sanne.getByText(/de link is dan niet nodig/)).toBeVisible();
+  await expect(sanne.getByText(/de link kun je ook zelf delen/)).toBeVisible();
   await expect(sanne.getByText('Voor iemand nieuw · joris.demo@test.invalid')).toBeVisible(SYNC);
 
   // Joris opent de app gewoon (geen link) en logt in.

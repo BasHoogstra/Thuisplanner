@@ -125,6 +125,14 @@ test('uitnodiging op e-mailadres accepteren met een code: link openen, code, naa
   await sanne.getByLabel('E-mailadres (optioneel)').fill(email);
   await sanne.getByRole('button', { name: 'Uitnodiging maken' }).click();
   const link = await sanne.getByLabel('Uitnodigingslink', { exact: true }).inputValue();
+  // D6: de uitnodigingsmail gaat vanzelf, zonder token; de uitnodiger ziet dat hij verstuurd is.
+  await expect(sanne.getByText(/^Mail verstuurd om \d\d:\d\d\.$/)).toBeVisible(SYNC);
+  const r = await (await fetch(`${MAIL}/api/v1/search?query=${encodeURIComponent('to:' + email)}&limit=5`)).json();
+  expect(r.messages).toHaveLength(1);
+  const mail = await (await fetch(`${MAIL}/api/v1/message/${r.messages[0].ID}`)).json();
+  expect(mail.Subject).toBe('Sanne nodigt je uit voor Thuisplanner');
+  expect(mail.Text).toContain(`log in met dit e-mailadres (${email})`);
+  expect(mail.Text + mail.HTML).not.toContain(link.split('/').pop()!);
 
   const gast = await telefoon(browser, link);
   const t = teller(gast);

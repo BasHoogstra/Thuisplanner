@@ -4,8 +4,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../lib/context';
 import { UitnodigingenVoorJou } from './Onboarding';
-import { magBeheerderUitnodigen, magBeheren, nodigUit, openUitnodigingen, ROL_TEKST, trekIn, voegLidToe,
-  type NieuweUitnodiging, type OpenUitnodiging } from '../lib/lokaal/beheer';
+import { magBeheerderUitnodigen, magBeheren, mailOpnieuw, mailStatussen, mailTekst, magOpnieuwMailen, nodigUit, openUitnodigingen, ROL_TEKST,
+  trekIn, verstuurMails, voegLidToe, type MailStatus, type NieuweUitnodiging, type OpenUitnodiging } from '../lib/lokaal/beheer';
 import type { Rol } from '../lib/lokaal/sessie';
 
 const datumTekst = (d: Date | string) => new Date(d).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' });
@@ -17,11 +17,18 @@ export function HuishoudenBeheer() {
   const beheren = magBeheren(rol);
   const [open, zetOpen] = useState<OpenUitnodiging[]>([]);
   const [melding, zetMelding] = useState<string | null>(null);
+  const [mails, zetMails] = useState<Map<string, MailStatus>>(new Map());
 
-  const ververs = useCallback(async () => {
+  const ververs = useCallback(async (versturen = true) => {
     if (!beheer || !beheren) return;
-    const r = await openUitnodigingen(beheer.client, beheer.huishouden.id);
+    const [r, m] = await Promise.all([openUitnodigingen(beheer.client, beheer.huishouden.id), mailStatussen(beheer.client, beheer.huishouden.id)]);
     if (r.ok) zetOpen(r.waarde);
+    zetMails(m);
+    // Wacht er nog een mail (net gemaakt, of een eerdere poging lukte niet), dan nu versturen en opnieuw kijken.
+    if (versturen && [...m.values()].some(x => x.status === 'wacht')) {
+      await verstuurMails(beheer.client, beheer.huishouden.id);
+      zetMails(await mailStatussen(beheer.client, beheer.huishouden.id));
+    }
   }, [beheer, beheren]);
   useEffect(() => { void ververs(); }, [ververs]);
 
@@ -70,7 +77,8 @@ export function HuishoudenBeheer() {
             <div className="blok" aria-labelledby="h-open">
               <h3 id="h-open" className="sectie-kop">Open uitnodigingen</h3>
               <ul className="lijst">
-                {open.map(u => <OpenRij key={u.id} u={u} naam={naamVan(u.lidId)} opIngetrokken={() => { zetMelding('Uitnodiging ingetrokken.'); void ververs(); }} />)}
+                {open.map(u => <OpenRij key={u.id} u={u} naam={naamVan(u.lidId)} mail={mails.get(u.id)} opNieuw={() => void ververs()}
+                  opIngetrokken={() => { zetMelding('Uitnodiging ingetrokken.'); void ververs(false); }} />)}
               </ul>
             </div>
           )}
@@ -186,8 +194,8 @@ function Uitnodigen({ rol, opNieuw }: { rol: Rol | undefined; opNieuw: () => voi
             <input id="uitnodiging-gemaakt" readOnly value={link.link} onFocus={e => e.target.select()} spellCheck={false} />
           </label>
           {link.email ? (
-            <p className="stil-tekst">Geldig tot {datumTekst(link.verloopt)}, één keer te gebruiken, en alleen door wie inlogt met <strong>{link.email}</strong>.
-              Die ziet de uitnodiging ook gewoon na het inloggen; de link is dan niet nodig.</p>
+            <p className="stil-tekst">We mailen <strong>{link.email}</strong> dat er een uitnodiging klaarstaat (zonder link). Geldig tot {datumTekst(link.verloopt)},
+              één keer te gebruiken, en alleen door wie inlogt met dat adres. Die ziet de uitnodiging na het inloggen; de link kun je ook zelf delen.</p>
           ) : (
             <p className="stil-tekst">Geldig tot {datumTekst(link.verloopt)} en één keer te gebruiken. Stuur hem alleen naar degene die je uitnodigt.</p>
           )}
@@ -201,10 +209,18 @@ function Uitnodigen({ rol, opNieuw }: { rol: Rol | undefined; opNieuw: () => voi
   );
 }
 
-function OpenRij({ u, naam, opIngetrokken }: { u: OpenUitnodiging; naam: string; opIngetrokken: () => void }) {
+function OpenRij({ u, naam, mail, opNieuw, opIngetrokken }: { u: OpenUitnodiging; naam: string; mail: MailStatus | undefined; opNieuw: () => void; opIngetrokken: () => void }) {
   const beheer = useApp().lokaal!.beheer;
   const [zeker, zetZeker] = useState(false);
   const [fout, zetFout] = useState<string | null>(null);
+  const [bezig, zetBezig] = useState(false);
+  const nogEens = async () => {
+    zetBezig(true); zetFout(null);
+    const r = await mailOpnieuw(beheer.client, u.id);
+    zetBezig(false);
+    if (!r.ok) { zetFout(r.fout); return; }
+    opNieuw();
+  };
   const trek = async () => {
     const r = await trekIn(beheer.client, u.id);
     if (!r.ok) { zetFout(r.fout); return; }
@@ -217,6 +233,10 @@ function OpenRij({ u, naam, opIngetrokken }: { u: OpenUitnodiging; naam: string;
         <span className="rij-sub">
           {u.rol === 'admin' ? 'Beheerder' : 'Lid'} · {u.geweigerd ? 'geweigerd' : `geldig tot ${datumTekst(u.verloopt)}`}
         </span>
+        {mail && !u.geweigerd && <span className="rij-sub">{mailTekst(mail)}</span>}
+        {mail && !u.geweigerd && magOpnieuwMailen(mail) && (
+          <button type="button" className="keuze" disabled={bezig} onClick={() => void nogEens()}>Mail nog eens sturen</button>
+        )}
         {fout && <span className="veld-fout" role="alert">{fout}</span>}
       </span>
       {u.geweigerd ? null : !zeker

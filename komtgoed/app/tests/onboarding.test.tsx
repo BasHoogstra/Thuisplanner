@@ -382,13 +382,14 @@ describe('S3: Meer → Huishouden, per rol', () => {
     await waitFor(() => expect((screen.getByLabelText('Uitnodigingslink') as HTMLInputElement).value).toMatch(new RegExp(`#/uitnodiging/${T}$`)));
     expect(screen.getByText(/één keer te gebruiken/)).toBeTruthy();
   });
-  it('uitnodigen op e-mailadres: het adres gaat mee en de uitleg noemt het; daarna is het veld leeg', async () => {
+  it('uitnodigen op e-mailadres: het adres gaat mee en de uitleg noemt het en zegt dat we mailen; daarna is het veld leeg', async () => {
     const n = toon('owner');
     fireEvent.change(screen.getByLabelText('E-mailadres (optioneel)'), { target: { value: 'Joris@Example.com' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Uitnodiging maken' })); });
     expect(n.aanroepen.find(a => a.naam === 'create_invite')?.args).toMatchObject({ p_email: 'Joris@Example.com' });
     await waitFor(() => expect(screen.getByText('joris@example.com')).toBeTruthy());
-    expect(screen.getByText(/de link is dan niet nodig/)).toBeTruthy();
+    expect(screen.getByText(/We mailen/)).toBeTruthy();
+    expect(screen.getByText(/de link kun je ook zelf delen/)).toBeTruthy();
     expect((screen.getByLabelText('E-mailadres (optioneel)') as HTMLInputElement).value).toBe('');
   });
   it('uitnodigingen voor jou staan ook in Meer, voor elke rol', () => {

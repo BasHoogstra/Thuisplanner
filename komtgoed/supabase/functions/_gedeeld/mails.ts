@@ -5,9 +5,9 @@ import type { Mail } from './k1.ts';
 const VOORBEELD = 'De code staat in deze mail. Hij is 10 minuten geldig.';
 const escape = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
-function opmaak(alinea: string[], code?: string): string {
+function opmaak(alinea: string[], code?: string, voorbeeld = VOORBEELD): string {
   return `<!doctype html><html lang="nl"><body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1b2421">
-<div style="display:none;max-height:0;overflow:hidden">${escape(VOORBEELD)}</div>
+<div style="display:none;max-height:0;overflow:hidden">${escape(voorbeeld)}</div>
 ${alinea.slice(0, 1).map(a => `<p>${escape(a)}</p>`).join('')}
 ${code ? `<p style="font-size:30px;font-weight:700;letter-spacing:4px;margin:16px 0">${code}</p>` : ''}
 ${alinea.slice(1).map(a => `<p>${escape(a)}</p>`).join('')}
@@ -45,10 +45,23 @@ export function wijzigingNieuw(aan: string, code: string): Mail {
   return { aan, onderwerp: 'Bevestig je nieuwe e-mailadres voor Thuisplanner', tekst: `${VOORBEELD}\n\n${a[0]}\n\n${code}\n\n${a[1]}\n`, html: opmaak(a, code) };
 }
 
-export function uitnodiging(aan: string, door: string | null, huishouden: string, appUrl: string, geldigTot: string): Mail {
-  const wie = door ?? 'Iemand';
-  const a = [`${wie} nodigt je uit voor het huishouden ${huishouden} in Thuisplanner.`,
+/**
+ * Een naam van een gebruiker in de mail (uitnodiger, huishouden): kort, op één regel, en zonder iets dat op een link of
+ * adres lijkt. Zo blijft de tekst vast en is de uitnodigingsmail geen kanaal voor reclame of phishing.
+ */
+export function veiligeNaam(naam: string | null, anders: string): string {
+  const n = (naam ?? '').replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '').replace(/\s+/g, ' ').trim();
+  if (!n || n.length > 40 || /[@<>/\\:]|www\.|\.[a-z]{2,}\b/i.test(n)) return anders;
+  return n;
+}
+
+/** De uitnodigingsmail (D6, B4): geen token en geen link met een geheim, alleen de app en "log in met dit adres". */
+export function uitnodiging(aan: string, door: string | null, huishouden: string | null, appUrl: string, geldigTot: string): Mail {
+  const wie = veiligeNaam(door, 'Iemand');
+  const waar = veiligeNaam(huishouden, '');
+  const a = [`${wie} nodigt je uit voor ${waar ? `het huishouden ${waar}` : 'een huishouden'} in Thuisplanner.`,
     `Open Thuisplanner en log in met dit e-mailadres (${aan}). De uitnodiging staat dan voor je klaar. Geldig tot ${geldigTot}.`,
-    `Thuisplanner: ${appUrl}`, 'Ken je de afzender niet? Dan kun je deze mail negeren.'];
-  return { aan, onderwerp: `${wie} nodigt je uit voor ${huishouden}`, tekst: a.join('\n\n') + '\n', html: opmaak(a) };
+    `Thuisplanner: ${appUrl}`, 'Ken je de afzender niet? Dan kun je deze mail negeren. Er gebeurt niets zolang je niet inlogt.'];
+  return { aan, onderwerp: `${wie} nodigt je uit voor Thuisplanner`, tekst: a.join('\n\n') + '\n',
+    html: opmaak(a, undefined, 'Log in met dit e-mailadres om de uitnodiging te zien.') };
 }

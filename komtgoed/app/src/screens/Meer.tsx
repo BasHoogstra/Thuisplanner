@@ -131,8 +131,8 @@ function MeerLokaal() {
       <section aria-labelledby="h-wat" className="blok">
         <h2 id="h-wat" className="sectie-kop">Wat werkt er in deze lokale versie?</h2>
         <ul className="uitleg">
-          <li><strong>Echt (lokale database):</strong> inloggen met een fictief account; afspraken, taken en boodschappen toevoegen, aanpassen, afvinken en verwijderen; herhalende afspraken (één keer of de hele reeks); wijzigingen verschijnen op het andere toestel; privé-afspraken van een ander zie je als "bezet" (de server stuurt de details niet mee); een gelijktijdige wijziging wordt geweigerd in plaats van overschreven.</li>
-          <li><strong>Nog niet:</strong> ongedaan maken, uitnodigen, accounts aanmaken in de app, meldingen, herhalende taken, het meedenk-signaal onthouden (wegklikken geldt alleen voor dit tabblad).</li>
+          <li><strong>Echt (lokale database):</strong> inloggen met een code uit je mail (of met een fictief account); een huishouden aanmaken; uitnodigen, ook per mail; afspraken, taken en boodschappen toevoegen, aanpassen, afvinken en verwijderen; herhalende afspraken (één keer of de hele reeks); wijzigingen verschijnen op het andere toestel; privé-afspraken van een ander zie je als "bezet" (de server stuurt de details niet mee); een gelijktijdige wijziging wordt geweigerd in plaats van overschreven.</li>
+          <li><strong>Nog niet:</strong> ongedaan maken, meldingen, herhalende taken, het meedenk-signaal onthouden (wegklikken geldt alleen voor dit tabblad).</li>
           <li><strong>Alleen lokaal:</strong> een testdatabase op dit netwerk met een verzonnen gezin. Dit is geen productieversie.</li>
         </ul>
       </section>

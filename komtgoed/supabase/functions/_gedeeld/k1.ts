@@ -94,13 +94,26 @@ export async function rpc<T>(naam: string, args: Record<string, unknown>): Promi
     body: JSON.stringify(args),
   });
   if (!r.ok) throw new Error(`rpc ${naam}: ${r.status}`);
-  return (await r.json()) as T;
+  // Een functie zonder resultaat (void) geeft 204 zonder body.
+  const tekst = await r.text();
+  return (tekst ? JSON.parse(tekst) : null) as T;
 }
 
 export interface Mail { aan: string; onderwerp: string; tekst: string; html: string }
 
 /** Versturen via de ingestelde aanbieder. Lokaal Mailpit; zonder ingestelde aanbieder weigert dit (fail-closed). */
-export async function verstuur(m: Mail): Promise<void> {
+/** De aanbieder antwoordde en nam de mail niet aan; `opnieuw`: tijdelijk (5xx, 429), anders definitief (4xx). */
+export class NietAangenomen extends Error {
+  constructor(readonly status: number) { super(`niet aangenomen: ${status}`); }
+  get opnieuw(): boolean { return this.status >= 500 || this.status === 429; }
+}
+
+/**
+ * Verstuurt één mail en geeft het bericht-id van de aanbieder. Een NietAangenomen-fout betekent: zeker niet verstuurd.
+ * Elke andere fout (time-out, verbinding weg) is onzeker: de mail kan al verstuurd zijn. `sleutel` is de
+ * idempotentiesleutel voor een aanbieder die dat ondersteunt (dezelfde sleutel = hoogstens één mail).
+ */
+export async function verstuur(m: Mail, sleutel?: string): Promise<string | null> {
   const adapter = instelling('MAIL_ADAPTER');
   const afzender = Deno.env.get('MAIL_AFZENDER') ?? 'Thuisplanner <noreply@thuisplanner.test>';
   const [, naam, email] = afzender.match(/^(.*?)\s*<(.+)>$/) ?? [null, 'Thuisplanner', afzender];
@@ -110,12 +123,15 @@ export async function verstuur(m: Mail): Promise<void> {
     if (adapter === 'mailpit') {
       const r = await fetch(`${instelling('MAILPIT_URL')}/api/v1/send`, {
         method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ From: { Email: email, Name: naam }, To: [{ Email: m.aan }], Subject: m.onderwerp, Text: m.tekst, HTML: m.html }),
+        // Mailpit kent geen idempotentie; de sleutel gaat als kop mee, zodat de tests hem zien.
+        body: JSON.stringify({ From: { Email: email, Name: naam }, To: [{ Email: m.aan }], Subject: m.onderwerp, Text: m.tekst, HTML: m.html,
+          ...(sleutel ? { Headers: { 'X-Thuisplanner-Sleutel': sleutel } } : {}) }),
       });
-      if (!r.ok) throw new Error(`mailpit: ${r.status}`);
-      return;
+      if (!r.ok) throw new NietAangenomen(r.status);
+      const b = await r.json().catch(() => ({}));
+      return typeof b.ID === 'string' ? b.ID : null;
     }
-    // De echte aanbieder (na de vergelijking B6) komt hier als eigen adapter, met een idempotentiesleutel.
+    // De echte aanbieder (na de vergelijking B6) komt hier als eigen adapter, met de idempotentiesleutel.
     throw new Error(`onbekende mailaanbieder ${adapter}`);
   } finally {
     clearTimeout(klok);

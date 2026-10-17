@@ -126,18 +126,37 @@ export function leegFouten(s) {
   return f;
 }
 
-// Het schema na de 12 migraties (relaties, functies en policies in public en private), gemeten op een lege lokale
-// Supabase-stack na precies deze migraties (17 oktober 2026). Wijkt staging hiervan af, dan kreeg het niet hetzelfde schema.
+// Het schema na de 15 migraties (relaties, functies en policies in public en private), gemeten op een lege lokale
+// Supabase-stack na precies deze migraties (17 oktober 2026, met deel 2: toegangspoort, K1 en de uitnodigingsmail).
+// Wijkt staging hiervan af, dan kreeg het niet hetzelfde schema.
 export const VERWACHT_SCHEMA = [
-  { schema: 'private', relaties: 2, functies: 68, policies: 0 },
-  { schema: 'public', relaties: 11, functies: 21, policies: 18 },
+  { schema: 'private', relaties: 9, functies: 88, policies: 0 },
+  { schema: 'public', relaties: 11, functies: 34, policies: 18 },
 ];
 
 // De dagelijkse taken (pg_cron): naam, tijdstip en opdracht.
 export const VERWACHTE_TAKEN = [
   { jobname: 'thuisplanner-archief-opruimen', schedule: '17 3 * * *', command: 'select private.purge_archived_private()' },
+  { jobname: 'thuisplanner-codes-opruimen', schedule: '41 3 * * *', command: 'select private.k1_opruimen()' },
   { jobname: 'thuisplanner-uitnodigingen-opschonen', schedule: '29 3 * * *', command: 'select private.purge_invite_emails()' },
+  { jobname: 'thuisplanner-uitnodigingsmails-opruimen', schedule: '53 3 * * *', command: 'select private.uitnodigingsmails_opruimen()' },
 ];
+
+/**
+ * De instellingen van Supabase Auth, zoals GET /auth/v1/settings ze geeft (deel 2): alleen e-mail, nooit automatisch
+ * bevestigen, geen anonieme accounts, geen telefoon, SAML of passkeys. Aanmelden blijft aan: een nieuw adres krijgt een
+ * code (de besloten test zit in de database, niet in Auth). Leeg = in orde.
+ */
+export function authFouten(s) {
+  const f = [];
+  const aan = Object.entries(s?.external ?? {}).filter(([, v]) => v === true).map(([k]) => k);
+  if (JSON.stringify(aan) !== '["email"]') f.push(`inlogmethoden ${JSON.stringify(aan)} in plaats van alleen ["email"]`);
+  if (s?.mailer_autoconfirm !== false) f.push('e-mailadressen worden automatisch bevestigd (mailer_autoconfirm)');
+  if (s?.disable_signup !== false) f.push('aanmelden staat uit in Auth: nieuwe genodigden kunnen dan geen code krijgen');
+  if (s?.saml_enabled !== false) f.push('SAML staat aan');
+  if (s?.passkeys_enabled === true) f.push('passkeys staan aan (nog niet ontworpen, R1)');
+  return f;
+}
 
 /** Alles wat na de push gecontroleerd wordt (alleen lezen). */
 export async function leesNa(client) {
@@ -172,7 +191,14 @@ export async function leesNa(client) {
         count(*) filter (where invited_email is not null and (accepted_at is not null or revoked_at is not null or declined_at is not null))::int as gesloten,
         count(*) filter (where invited_email is not null and expires_at <= now() - interval '2 days')::int as verlopen
       from public.household_invites`))[0] : null;
-    return { versies, zonderRls, zonderPolicy, anonRechten, anonPrivate, definerPubliek, realtime, cron, schema, adressen };
+    // Deel 2: de schakelaars van de toegangspoort en K1 (alleen de stand, geen inhoud), en de opslag (Storage).
+    const metInstellingen = (await alle(`select to_regclass('private.instellingen') is not null as er`))[0].er;
+    const instellingen = metInstellingen ? (await alle(`select wachtwoordsessies_toegestaan, sessiecontrole, onderhoud, huishouden_open,
+        registratie_open, codes_aan from private.instellingen`))[0] ?? null : null;
+    const metOpslag = (await alle(`select to_regclass('storage.buckets') is not null as er`))[0].er;
+    const opslag = metOpslag ? (await alle(`select (select count(*) from storage.buckets)::int as buckets,
+        (select count(*) from pg_policy where polrelid = 'storage.objects'::regclass)::int as policies`))[0] : { buckets: 0, policies: 0 };
+    return { versies, zonderRls, zonderPolicy, anonRechten, anonPrivate, definerPubliek, realtime, cron, schema, adressen, instellingen, opslag };
   } finally {
     await client.query('rollback');
   }
@@ -202,6 +228,13 @@ export function naFouten(n, verwachteVersies, verwachtSchema) {
     if (n.adressen.gesloten) f.push(`${n.adressen.gesloten} gesloten uitnodiging(en) met een e-mailadres`);
     if (n.adressen.verlopen) f.push(`${n.adressen.verlopen} uitnodiging(en) langer dan 2 dagen verlopen en nog met een e-mailadres: de opschoning draait niet`);
   }
+  if (!n.instellingen) f.push('private.instellingen ontbreekt (toegangspoort)');
+  else {
+    // Online nooit wachtwoordsessies (alleen de lokale ontwikkelstack zet die aan, via seed.sql), en de sessiecontrole aan.
+    if (n.instellingen.wachtwoordsessies_toegestaan !== false) f.push('wachtwoordsessies zijn toegestaan: dat mag alleen lokaal (seed.sql)');
+    if (n.instellingen.sessiecontrole !== true) f.push('de sessiecontrole van de toegangspoort staat uit');
+  }
+  if (n.opslag && (n.opslag.buckets || n.opslag.policies)) f.push(`Storage is in gebruik (${n.opslag.buckets} buckets, ${n.opslag.policies} policies): niet ontworpen en niet door de poort getoetst`);
   if (verwachtSchema && JSON.stringify(n.schema) !== JSON.stringify(verwachtSchema)) f.push(`schema wijkt af van de lokale referentie: ${JSON.stringify(n.schema)} in plaats van ${JSON.stringify(verwachtSchema)}`);
   return f;
 }
@@ -237,9 +270,17 @@ async function hoofd() {
     console.log(`Realtime-policies: ${n.realtime.map(p => `${p.polname} (${p.polcmd}, ${p.rollen.join(',')})`).join('; ') || 'geen'}`);
     console.log(`geplande taken: ${n.cron.map(j => `${j.jobname} ${j.schedule} ${j.active ? 'actief' : 'uit'}`).join('; ') || 'geen'}`);
     if (n.adressen) console.log(`e-mailadressen bij uitnodigingen: ${n.adressen.gesloten} bij gesloten, ${n.adressen.verlopen} bij lang verlopen (beide horen 0 te zijn)`);
+    if (n.instellingen) console.log(`schakelaars: ${Object.entries(n.instellingen).map(([k, v]) => `${k} ${v}`).join(', ')}`);
     const f = naFouten(n, repoVersies(), VERWACHT_SCHEMA);
+    // De Auth-instellingen (openbaar met de anon-sleutel; geen geheim). Zonder KG_STAGING_ANON_KEY: overgeslagen en gemeld.
+    const anon = process.env.KG_STAGING_ANON_KEY;
+    if (anon) {
+      const r = await fetch(`https://${process.env.KG_STAGING_REF}.supabase.co/auth/v1/settings`, { headers: { apikey: anon } });
+      if (!r.ok) f.push(`Auth-instellingen niet te lezen (${r.status})`);
+      else f.push(...authFouten(await r.json()));
+    } else console.log('Auth-instellingen: OVERGESLAGEN (zet KG_STAGING_ANON_KEY om ze te controleren)');
     if (f.length) { console.log('AFWIJKING na de push (niets hersteld):\n- ' + f.join('\n- ')); process.exit(1); }
-    console.log('IN ORDE: migratiegeschiedenis, RLS en policies, rechten, Realtime-policy, geplande taken en opruiming van e-mailadressen zoals bedoeld');
+    console.log('IN ORDE: migratiegeschiedenis, RLS en policies, rechten, Realtime-policy, geplande taken, opruiming van e-mailadressen, schakelaars van de poort en opslag zoals bedoeld');
     return;
   }
   if (!['leeg', 'bijwerken', 'vergelijk'].includes(opdracht) || !bestand) { console.log('gebruik: leeg|bijwerken|vergelijk <standbestand> | na'); process.exit(2); }

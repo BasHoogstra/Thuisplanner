@@ -78,5 +78,9 @@ verify_jwt = false
 [functions.controleer-code]
 verify_jwt = false
 
+# Controleert zelf de sessie van de gebruiker, via de database (toegangspoort).
+[functions.stuur-uitnodiging]
+verify_jwt = false
+
 [analytics]
 enabled = false
