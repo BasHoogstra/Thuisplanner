@@ -754,3 +754,36 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   - statische controles.
 - Bouwverslag en afwijkingen: `docs/thuisplanner-uitnodiging-email.md` §12. Nog niet op staging; daarvoor is een apart
   akkoord nodig.
+
+## Thuisplanner KG-5H deel 2: inloggen met een e-mailcode (17 oktober 2026, lokaal)
+- Inloggen en aanmelden met een code van zes cijfers uit de mail, zonder wachtwoord. Eigen codelaag (K1): de code
+  staat versleuteld en gehasht in de database, met grenzen per code, per account, per toestel en voor onbekenden, ook
+  onder gelijktijdige verzoeken. Supabase geeft zelf de sessie uit.
+- Toegangspoort: alleen een sessie die met een code is gestart, krijgt toegang (RLS, RPC's, Realtime, Edge Functions).
+  Een vooraf gezet of later toegevoegd wachtwoord geeft nergens toegang. "Uitloggen op alle toestellen" werkt direct.
+- Besloten test: alleen testers of genodigden maken een huishouden (G1).
+- App:
+  - het codescherm, dat herladen overleeft (M1);
+  - altijd zichtbaar met welk adres je bent ingelogd (M2);
+  - geen uitlog bij een netwerkfout;
+  - Account met uitloggen overal en adres wijzigen met twee codes;
+  - de naam wordt één keer gevraagd.
+- Uitnodigingsmail (D6):
+  - de mail bevat geen token;
+  - hoogstens één mail per poging;
+  - "nog eens sturen" hoogstens 3 keer, één per 10 minuten;
+  - 20 per huishouden per dag;
+  - een status bij de uitnodiger.
+- Nacontrole voor staging bijgewerkt (15 migraties, schakelaars van de poort, Storage, Auth-instellingen).
+- Tests:
+  - RLS 72/72 en tegenproeven 101/101;
+  - integratie 88/88;
+  - K1- en D6-tegenproeven 17/17;
+  - sync-tegenproeven 22/22;
+  - unit 188/188;
+  - lokale e2e 24 (2 overgeslagen);
+  - staging-e2e 5/5;
+  - demo-e2e 138;
+  - statische controles.
+- Bouwverslag, afwijkingen, wat lokaal bewezen is en de stappen vóór testers: `docs/thuisplanner-deel2-bouwverslag.md`.
+  Niet gepusht en niet op staging.
