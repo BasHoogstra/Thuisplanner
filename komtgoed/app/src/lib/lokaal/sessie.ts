@@ -8,7 +8,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { useSyncExternalStore } from 'react';
 import { maakSync, type Sync, type Toestand } from '../../../../sync/thuisplanner-sync.js';
+import { foutTekst } from '../foutcodes';
 import { stagingFouten } from '../omgeving';
+
+export { foutTekst };
 
 export interface DemoAccount { naam: string; email: string }
 
@@ -85,6 +88,21 @@ export type Fase = 'start' | 'uitgelogd' | 'bezig' | 'actief' | 'geen-huishouden
 export type Rol = 'owner' | 'admin' | 'member';
 export interface Lidmaatschap { id: string; naam: string; rol: Rol }
 
+/**
+ * Een open uitnodiging voor het bevestigde e-mailadres van dit account (my_invites, KG-5H deel 1b). Zonder adres,
+ * token of huishoud-id: alleen wat je nodig hebt om te beslissen.
+ */
+export interface UitnodigingVoorMij {
+  id: string;
+  huishouden: string;
+  /** De naam van wie uitnodigde, in dat huishouden. */
+  doorWie: string | null;
+  /** Het bestaande profiel waaraan je gekoppeld wordt, of null (dan ontstaat een nieuw lid met jouw naam). */
+  profiel: string | null;
+  rol: 'admin' | 'member';
+  geldigTot: string;
+}
+
 export interface Momentopname {
   fase: Fase;
   fout: string | null;
@@ -92,21 +110,22 @@ export interface Momentopname {
   huishouden: Lidmaatschap | null;
   /** Alle huishoudens van dit account (actieve lidmaatschappen). */
   huishoudens: Lidmaatschap[];
+  /** Open uitnodigingen voor het bevestigde e-mailadres van dit account. */
+  uitnodigingen: UitnodigingVoorMij[];
   toestand: Toestand | null;
 }
 
 /** Uitkomst van een beheeractie: gelukt, of een melding in gewone taal. */
-export type Uitkomst<T = undefined> = { ok: true; waarde: T } | { ok: false; fout: string };
+export type Uitkomst<T = undefined> = { ok: true; waarde: T } | { ok: false; fout: string; code?: string };
 
-const LEEG: Momentopname = { fase: 'start', fout: null, account: null, huishouden: null, huishoudens: [], toestand: null };
+const mislukt = (fout: { code?: string; message?: string } | null | undefined) =>
+  ({ ok: false as const, fout: foutTekst(fout), ...(fout?.code ? { code: fout.code } : {}) });
 
-// Meldingen van de databasefuncties zijn al in gewone taal en zonder rijgegevens (KG-5C herstelronde 2). Alleen die
-// codes tonen we letterlijk; al het andere (netwerk, onverwacht) wordt een algemene melding.
-const BEKENDE_CODES = new Set(['P0002', '22023', '23505', '42501', '54000', '23514', '22001']);
-export function foutTekst(fout: { code?: string; message?: string } | null | undefined): string {
-  if (fout?.code && BEKENDE_CODES.has(fout.code) && fout.message) return fout.message;
-  return 'Dat lukte nu niet. Controleer de verbinding en probeer het opnieuw.';
-}
+const LEEG: Momentopname = { fase: 'start', fout: null, account: null, huishouden: null, huishoudens: [], uitnodigingen: [], toestand: null };
+
+interface UitnodigingRij { id: string; household_name: string; invited_by: string | null; member_name: string | null; role: 'admin' | 'member'; expires_at: string }
+const naarUitnodiging = (r: UitnodigingRij): UitnodigingVoorMij =>
+  ({ id: r.id, huishouden: r.household_name, doorWie: r.invited_by, profiel: r.member_name, rol: r.role, geldigTot: r.expires_at });
 
 // De laatst gekozen huishouden per account (alleen het id; geen inhoud).
 const keuzeSleutel = (account: string) => 'thuisplanner-huishouden:' + account;
@@ -228,10 +247,10 @@ export class Sessie {
 
   private async begin(g: number, id: string, email: string) {
     this.zet({ fase: 'bezig', fout: null, account: { id, email } });
-    const lid = await this.client.rpc('my_memberships');
+    const [lid, uitnodigingen] = await Promise.all([this.client.rpc('my_memberships'), this.haalUitnodigingen()]);
     if (!this.actueel(g)) return;
     const rijen = (lid.data as { household_id: string; role?: string }[] | null) ?? [];
-    if (lid.error || rijen.length === 0) { void this.stopSync(); this.zet({ fase: 'geen-huishouden', huishouden: null, huishoudens: [], toestand: null }); return; }
+    if (lid.error || rijen.length === 0) { void this.stopSync(); this.zet({ fase: 'geen-huishouden', huishouden: null, huishoudens: [], uitnodigingen, toestand: null }); return; }
     // De keuze: het laatst gekozen huishouden van dit account, anders het eerste.
     const voorkeur = leesKeuze(id);
     const eerste = rijen.find(r => r.household_id === voorkeur) ?? rijen[0];
@@ -256,9 +275,23 @@ export class Sessie {
       opWijziging: toestand => { if (this.sync === sync) this.zet({ toestand }); },
     });
     this.sync = sync;
-    this.zet({ fase: 'actief', huishouden: { id: eerste.household_id, naam, rol: (eerste.role ?? 'member') as Rol }, huishoudens, toestand: sync.toestand });
+    this.zet({ fase: 'actief', huishouden: { id: eerste.household_id, naam, rol: (eerste.role ?? 'member') as Rol }, huishoudens, uitnodigingen, toestand: sync.toestand });
     // Starten loopt verder op de achtergrond; uitloggen tijdens het starten stopt deze sync (this.sync).
     await sync.start();
+  }
+
+  /** Open uitnodigingen voor dit account; bij een fout (geen verbinding) een lege lijst: er verschijnt dan niets. */
+  private async haalUitnodigingen(): Promise<UitnodigingVoorMij[]> {
+    const r = await this.client.rpc('my_invites');
+    return r.error ? [] : ((r.data as UitnodigingRij[] | null) ?? []).map(naarUitnodiging);
+  }
+
+  /** De lijst met uitnodigingen opnieuw ophalen (bij terugkeer naar de app). Verandert verder niets. */
+  async verversUitnodigingen(): Promise<void> {
+    if (!this.snap.account) return;
+    const g = this.generatie;
+    const uitnodigingen = await this.haalUitnodigingen();
+    if (this.actueel(g) && this.snap.account) this.zet({ uitnodigingen });
   }
 
   /** Opnieuw beginnen met het huidige account (na aanmaken, accepteren, wisselen of verlaten). */
@@ -291,10 +324,31 @@ export class Sessie {
     const account = this.snap.account;
     if (!account) return { ok: false, fout: 'Log eerst in.' };
     const r = await this.client.rpc('accept_invite', { p_token: token, p_display_name: eigenNaam || null });
-    if (r.error || typeof r.data !== 'string') return { ok: false, fout: foutTekst(r.error) };
+    if (r.error || typeof r.data !== 'string') return mislukt(r.error);
     bewaarKeuze(account.id, r.data);
     await this.opnieuw();
     return { ok: true, waarde: r.data };
+  }
+
+  /**
+   * Een uitnodiging uit "Uitnodigingen voor jou" accepteren (accept_invite_by_id). De database controleert dezelfde
+   * regels als bij de link, en daarnaast dat de uitnodiging aan het bevestigde e-mailadres van dit account gekoppeld is.
+   */
+  async accepteerUitnodigingOpId(id: string, eigenNaam: string | null): Promise<Uitkomst<string>> {
+    const account = this.snap.account;
+    if (!account) return { ok: false, fout: 'Log eerst in.' };
+    const r = await this.client.rpc('accept_invite_by_id', { p_invite: id, p_display_name: eigenNaam || null });
+    if (r.error || typeof r.data !== 'string') { void this.verversUitnodigingen(); return mislukt(r.error); }
+    bewaarKeuze(account.id, r.data);
+    await this.opnieuw();
+    return { ok: true, waarde: r.data };
+  }
+
+  /** Een uitnodiging voor jou weigeren (decline_invite): gesloten, het e-mailadres is direct weg. */
+  async weigerUitnodiging(id: string): Promise<Uitkomst> {
+    const r = await this.client.rpc('decline_invite', { p_invite: id });
+    await this.verversUitnodigingen();
+    return r.error ? mislukt(r.error) : { ok: true, waarde: undefined };
   }
 
   /** Naar een ander eigen huishouden (alleen een huishouden waarvan je actief lid bent). */

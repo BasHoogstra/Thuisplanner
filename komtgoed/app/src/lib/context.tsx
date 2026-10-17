@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LidRij, Melding as SyncMelding, SyncStatus } from '../../../sync/thuisplanner-sync.js';
-import type { Lidmaatschap } from './lokaal/sessie';
+import type { Lidmaatschap, UitnodigingVoorMij } from './lokaal/sessie';
 import type { DemoActies, Staat } from './store';
 import type { GezinsFilter } from './filter';
 import type { Afspraak, Datum, Huishouden, Lid, LidId, Tijd } from './types';
@@ -48,6 +48,14 @@ export interface LokaalContext {
     huishoudens: Lidmaatschap[];
     leden: LidRij[];
     kies: (id: string) => void;
+  };
+  /** Uitnodigingen voor het bevestigde e-mailadres van dit account (KG-5H deel 1b). */
+  uitnodigingen: {
+    lijst: UitnodigingVoorMij[];
+    /** Voor de melding op Vandaag: zonder wat je met "Later" hebt weggezet (tot de app opnieuw opent). */
+    melding: UitnodigingVoorMij[];
+    bekijk: (u: UitnodigingVoorMij) => void;
+    later: () => void;
   };
   account: string;
   status: SyncStatus;

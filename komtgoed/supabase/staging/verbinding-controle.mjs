@@ -6,7 +6,10 @@
 // en KG_STAGING_REF (het verwachte projectkenmerk). Alles wat niet precies klopt, wordt geweigerd vóór er
 // verbinding is. Het wachtwoord wordt nooit getoond.
 //   node verbinding-controle.mjs leeg <standbestand>        weigert als het project niet leeg is; bewaart de stand
+//   node verbinding-controle.mjs bijwerken <standbestand>   weigert tenzij de geschiedenis precies een begin van de
+//                                                           repository is en er nieuwe migraties klaarstaan; bewaart de stand
 //   node verbinding-controle.mjs vergelijk <standbestand>   controleert dat er sindsdien niets is veranderd
+//   node verbinding-controle.mjs na                         nacontrole na een push (ook later te herhalen)
 import { createHash, X509Certificate } from 'node:crypto';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -73,6 +76,7 @@ export async function leesStand(client) {
       current_setting('transaction_read_only') as alleen_lezen`);
     const migratieschema = (await een(`select to_regclass('supabase_migrations.schema_migrations') is not null as er`)).er;
     const migraties = migratieschema ? Number((await een('select count(*) as n from supabase_migrations.schema_migrations')).n) : 0;
+    const versies = migratieschema ? (await alle('select version from supabase_migrations.schema_migrations order by version')).map(r => r.version) : [];
     const vingerafdruk = await alle(`
       select n.nspname as schema,
              (select count(*) from pg_class c where c.relnamespace = n.oid and c.relkind in ('r','v','m','p')) as relaties,
@@ -89,10 +93,26 @@ export async function leesStand(client) {
     const privaat = (await een(`select to_regnamespace('private') is not null as er`)).er;
     const gebruikers = (await een(`select to_regclass('auth.users') is not null as er`)).er
       ? Number((await een('select count(*) as n from auth.users')).n) : 0;
-    return { wie, migratieschema, migraties, publiek, privaat, gebruikers, pgCron, extensies, vingerafdruk };
+    return { wie, migratieschema, migraties, versies, publiek, privaat, gebruikers, pgCron, extensies, vingerafdruk };
   } finally {
     await client.query('rollback');
   }
+}
+
+/**
+ * Mag dit project worden bijgewerkt? Alleen een bestaande Thuisplanner-database waarvan de migratiegeschiedenis
+ * precies het begin is van die in de repository, met ten minste één nieuwe migratie. Geeft ook de nieuwe versies.
+ */
+export function bijwerkFouten(s, repo) {
+  const f = [];
+  if (!s.privaat) f.push('het schema private ontbreekt: dit is geen Thuisplanner-database');
+  if (!s.versies.length) f.push('er staan nog geen migraties in de geschiedenis: gebruik de eerste push (zonder -Bijwerken)');
+  else if (s.versies.length > repo.length || s.versies.some((v, i) => v !== repo[i])) {
+    f.push(`de migratiegeschiedenis ${JSON.stringify(s.versies)} is geen begin van de repository ${JSON.stringify(repo)}`);
+  } else if (s.versies.length === repo.length) f.push('er staan geen nieuwe migraties klaar');
+  if (!s.pgCron.beschikbaar) f.push('pg_cron is niet beschikbaar');
+  if (s.wie.alleen_lezen !== 'on') f.push('de controle liep niet alleen-lezend');
+  return { fouten: f, nieuw: f.length ? [] : repo.slice(s.versies.length) };
 }
 
 /** Is dit een leeg, nieuw project (nog geen Thuisplanner-schema, geen migraties, geen gebruikers buiten de testers)? */
@@ -106,11 +126,17 @@ export function leegFouten(s) {
   return f;
 }
 
-// Het schema na de 11 migraties (relaties, functies en policies in public en private), gemeten op een lege lokale
-// Supabase-stack na precies deze migraties (16 oktober 2026). Wijkt staging hiervan af, dan kreeg het niet hetzelfde schema.
+// Het schema na de 12 migraties (relaties, functies en policies in public en private), gemeten op een lege lokale
+// Supabase-stack na precies deze migraties (17 oktober 2026). Wijkt staging hiervan af, dan kreeg het niet hetzelfde schema.
 export const VERWACHT_SCHEMA = [
-  { schema: 'private', relaties: 2, functies: 58, policies: 0 },
-  { schema: 'public', relaties: 11, functies: 18, policies: 18 },
+  { schema: 'private', relaties: 2, functies: 68, policies: 0 },
+  { schema: 'public', relaties: 11, functies: 21, policies: 18 },
+];
+
+// De dagelijkse taken (pg_cron): naam, tijdstip en opdracht.
+export const VERWACHTE_TAKEN = [
+  { jobname: 'thuisplanner-archief-opruimen', schedule: '17 3 * * *', command: 'select private.purge_archived_private()' },
+  { jobname: 'thuisplanner-uitnodigingen-opschonen', schedule: '29 3 * * *', command: 'select private.purge_invite_emails()' },
 ];
 
 /** Alles wat na de push gecontroleerd wordt (alleen lezen). */
@@ -138,7 +164,15 @@ export async function leesNa(client) {
              (select count(*)::int from pg_proc p where p.pronamespace = n.oid) as functies,
              (select count(*)::int from pg_policy pol join pg_class c on c.oid = pol.polrelid where c.relnamespace = n.oid) as policies
       from pg_namespace n where n.nspname in ('public', 'private') order by 1`);
-    return { versies, zonderRls, zonderPolicy, anonRechten, anonPrivate, definerPubliek, realtime, cron, schema };
+    // De controle op de daadwerkelijke opruiming van e-mailadressen (KG-5H deel 1b). Alleen aantallen, nooit adressen.
+    // Een verlopen uitnodiging mag haar adres hoogstens tot de volgende dagelijkse opschoning houden (marge: 2 dagen).
+    const metAdres = Number((await alle(`select count(*) as n from information_schema.columns
+      where table_schema = 'public' and table_name = 'household_invites' and column_name = 'invited_email'`))[0].n) > 0;
+    const adressen = metAdres ? (await alle(`select
+        count(*) filter (where invited_email is not null and (accepted_at is not null or revoked_at is not null or declined_at is not null))::int as gesloten,
+        count(*) filter (where invited_email is not null and expires_at <= now() - interval '2 days')::int as verlopen
+      from public.household_invites`))[0] : null;
+    return { versies, zonderRls, zonderPolicy, anonRechten, anonPrivate, definerPubliek, realtime, cron, schema, adressen };
   } finally {
     await client.query('rollback');
   }
@@ -157,8 +191,17 @@ export function naFouten(n, verwachteVersies, verwachtSchema) {
   const rt = n.realtime.find(p => p.polname === 'thuisplanner_household_luisteren');
   if (!rt || rt.polcmd !== 'r' || JSON.stringify(rt.rollen) !== '["authenticated"]') f.push('Realtime-policy thuisplanner_household_luisteren ontbreekt of is niet alleen-lezen voor authenticated');
   if (n.realtime.some(p => p.polname !== 'thuisplanner_household_luisteren')) f.push('onverwachte Realtime-policies: ' + n.realtime.map(p => p.polname).join(', '));
-  const job = n.cron.find(j => j.jobname === 'thuisplanner-archief-opruimen');
-  if (!job || job.schedule !== '17 3 * * *' || job.command !== 'select private.purge_archived_private()' || !job.active) f.push('geplande opruimtaak ontbreekt of wijkt af');
+  for (const t of VERWACHTE_TAKEN) {
+    const job = n.cron.find(j => j.jobname === t.jobname);
+    if (!job || job.schedule !== t.schedule || job.command !== t.command || !job.active) f.push(`geplande taak ${t.jobname} ontbreekt of wijkt af`);
+  }
+  const onverwacht = n.cron.filter(j => !VERWACHTE_TAKEN.some(t => t.jobname === j.jobname));
+  if (onverwacht.length) f.push('onverwachte geplande taken: ' + onverwacht.map(j => j.jobname).join(', '));
+  if (!n.adressen) f.push('household_invites heeft geen kolom invited_email');
+  else {
+    if (n.adressen.gesloten) f.push(`${n.adressen.gesloten} gesloten uitnodiging(en) met een e-mailadres`);
+    if (n.adressen.verlopen) f.push(`${n.adressen.verlopen} uitnodiging(en) langer dan 2 dagen verlopen en nog met een e-mailadres: de opschoning draait niet`);
+  }
   if (verwachtSchema && JSON.stringify(n.schema) !== JSON.stringify(verwachtSchema)) f.push(`schema wijkt af van de lokale referentie: ${JSON.stringify(n.schema)} in plaats van ${JSON.stringify(verwachtSchema)}`);
   return f;
 }
@@ -193,12 +236,13 @@ async function hoofd() {
     console.log(`schema: ${n.schema.map(s => `${s.schema} ${s.relaties} relaties, ${s.functies} functies, ${s.policies} policies`).join('; ')}`);
     console.log(`Realtime-policies: ${n.realtime.map(p => `${p.polname} (${p.polcmd}, ${p.rollen.join(',')})`).join('; ') || 'geen'}`);
     console.log(`geplande taken: ${n.cron.map(j => `${j.jobname} ${j.schedule} ${j.active ? 'actief' : 'uit'}`).join('; ') || 'geen'}`);
+    if (n.adressen) console.log(`e-mailadressen bij uitnodigingen: ${n.adressen.gesloten} bij gesloten, ${n.adressen.verlopen} bij lang verlopen (beide horen 0 te zijn)`);
     const f = naFouten(n, repoVersies(), VERWACHT_SCHEMA);
     if (f.length) { console.log('AFWIJKING na de push (niets hersteld):\n- ' + f.join('\n- ')); process.exit(1); }
-    console.log('IN ORDE: migratiegeschiedenis, RLS en policies, rechten, Realtime-policy en geplande taak zoals bedoeld');
+    console.log('IN ORDE: migratiegeschiedenis, RLS en policies, rechten, Realtime-policy, geplande taken en opruiming van e-mailadressen zoals bedoeld');
     return;
   }
-  if (!['leeg', 'vergelijk'].includes(opdracht) || !bestand) { console.log('gebruik: leeg|vergelijk <standbestand> | na'); process.exit(2); }
+  if (!['leeg', 'bijwerken', 'vergelijk'].includes(opdracht) || !bestand) { console.log('gebruik: leeg|bijwerken|vergelijk <standbestand> | na'); process.exit(2); }
   const client = await verbind();
   let s;
   try { s = await leesStand(client); } finally { await client.end(); }
@@ -210,6 +254,12 @@ async function hoofd() {
     if (f.length) { console.log('NIET LEEG of niet geschikt:\n- ' + f.join('\n- ')); process.exit(1); }
     writeFileSync(bestand, afdruk);
     console.log('LEEG en geschikt: stand bewaard (' + createHash('sha256').update(afdruk).digest('hex').slice(0, 12) + ')');
+  } else if (opdracht === 'bijwerken') {
+    const { fouten, nieuw } = bijwerkFouten(s, repoVersies());
+    if (fouten.length) { console.log('NIET BIJ TE WERKEN:\n- ' + fouten.join('\n- ')); process.exit(1); }
+    writeFileSync(bestand, afdruk);
+    console.log(`BIJ TE WERKEN: ${s.versies.length} migraties al uitgevoerd, ${nieuw.length} nieuw (${nieuw.join(', ')}); stand bewaard (`
+      + createHash('sha256').update(afdruk).digest('hex').slice(0, 12) + ')');
   } else {
     const voor = readFileSync(bestand, 'utf8');
     if (voor !== afdruk) { console.log('GEWIJZIGD sinds de eerste controle:\nvoor: ' + voor + '\nna:   ' + afdruk); process.exit(1); }

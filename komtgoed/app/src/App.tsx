@@ -4,7 +4,7 @@ import { naarDatum, naarTijd } from './lib/datum';
 import { Ctx, type AgendaStand, type AppContext, type LokaalContext, type Scherm } from './lib/context';
 import { useDemoStaat, type DemoActies, type Staat } from './lib/store';
 import type { Huishouden } from './lib/types';
-import { appConfig, sessieVoor, useSessie, type LokaleConfig, type Momentopname, type Sessie } from './lib/lokaal/sessie';
+import { appConfig, sessieVoor, useSessie, type LokaleConfig, type Momentopname, type Sessie, type UitnodigingVoorMij } from './lib/lokaal/sessie';
 import { useLokaleStaat } from './lib/lokaal/staat';
 import { naarHuishouden } from './lib/lokaal/omzetten';
 import { Navigatie } from './components/Navigatie';
@@ -82,16 +82,33 @@ function LokaleApp({ config }: { config: LokaleConfig }) {
     return () => window.removeEventListener('hashchange', opHash);
   }, []);
   const sluitUitnodiging = useCallback(() => { vergeetUitnodiging(); zetUitnodiging(null); }, []);
+  // Een uitnodiging uit "Uitnodigingen voor jou" die je bekijkt (het hele object: na accepteren staat hij niet meer in de lijst).
+  const [bekijk, zetBekijk] = useState<UitnodigingVoorMij | null>(null);
+  // "Later" op Vandaag: de melding blijft weg tot de app opnieuw opent; de lijst in Meer blijft.
+  const [later, zetLater] = useState<ReadonlySet<string>>(() => new Set());
+  // Terug in de app (ander tabblad, telefoon weer aan): is er intussen een uitnodiging bijgekomen of vervallen?
+  useEffect(() => {
+    const opZicht = () => { if (document.visibilityState === 'visible') void sessie.verversUitnodigingen(); };
+    document.addEventListener('visibilitychange', opZicht);
+    return () => document.removeEventListener('visibilitychange', opZicht);
+  }, [sessie]);
 
   if (!snap.account) return <Inloggen sessie={sessie} snap={snap} uitnodiging={uitnodiging !== null} />;
   // Ingelogd met een uitnodiging: eerst die (ook als je al in een ander huishouden zit). Accepteren gebeurt nooit vanzelf.
-  if (uitnodiging) return <UitnodigingAccepteren sessie={sessie} snap={snap} token={uitnodiging} sluit={sluitUitnodiging} />;
-  if (snap.fase === 'geen-huishouden') return <Welkom sessie={sessie} snap={snap} opUitnodiging={zetUitnodiging} />;
+  if (uitnodiging) return <UitnodigingAccepteren sessie={sessie} snap={snap} bron={{ soort: 'link', token: uitnodiging }} sluit={sluitUitnodiging} />;
+  if (bekijk) return <UitnodigingAccepteren key={bekijk.id} sessie={sessie} snap={snap} bron={{ soort: 'lijst', u: bekijk }} sluit={() => zetBekijk(null)} />;
+  if (snap.fase === 'geen-huishouden') return <Welkom sessie={sessie} snap={snap} opUitnodiging={zetUitnodiging} opBekijk={zetBekijk} />;
   if (snap.fase !== 'actief' || !snap.toestand || !snap.huishouden) return <EvenGeduld sessie={sessie} />;
-  return <IngelogdeApp sessie={sessie} snap={snap} />;
+  const uitnodigingen: LokaalContext['uitnodigingen'] = {
+    lijst: snap.uitnodigingen,
+    melding: snap.uitnodigingen.filter(u => !later.has(u.id)),
+    bekijk: zetBekijk,
+    later: () => zetLater(new Set([...later, ...snap.uitnodigingen.map(u => u.id)])),
+  };
+  return <IngelogdeApp sessie={sessie} snap={snap} uitnodigingen={uitnodigingen} />;
 }
 
-function IngelogdeApp({ sessie, snap }: { sessie: Sessie; snap: Momentopname }) {
+function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: Momentopname; uitnodigingen: LokaalContext['uitnodigingen'] }) {
   const klok = useKlok();
   const vandaag = naarDatum(klok);
   const { keuze, sluitKeuze, opnieuwProberen, vergeten, herinvoeren, syncMeldingWeg, ...data } = useLokaleStaat(sessie, snap, vandaag);
@@ -106,6 +123,7 @@ function IngelogdeApp({ sessie, snap }: { sessie: Sessie; snap: Momentopname }) 
       leden: t.leden,
       kies: (id: string) => { void sessie.kiesHuishouden(id); },
     },
+    uitnodigingen,
     account: snap.account?.email ?? '',
     status: t.status,
     opslagDuurzaam: t.opslagDuurzaam,

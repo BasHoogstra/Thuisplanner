@@ -7,6 +7,7 @@ import {
 } from '../lib/vandaag';
 import { AfspraakRij, TaakRij, Wie, tijdTekst } from '../components/Rijen';
 import { IcPijl } from '../components/Iconen';
+import { UitnodigingMelding } from '../components/Onboarding';
 import { nieuwId } from '../lib/store';
 
 export function Vandaag() {
@@ -34,6 +35,10 @@ export function Vandaag() {
 
       <div className="vandaag-raster">
         <div className="kolom-hoofd">
+          {app.lokaal && (
+            <UitnodigingMelding lijst={app.lokaal.uitnodigingen.melding} opBekijk={app.lokaal.uitnodigingen.bekijk}
+              opAlle={() => app.gaNaar('meer')} opLater={app.lokaal.uitnodigingen.later} />
+          )}
           {rustig && (
             <section className="rust" aria-label="Rustige dag">
               <div className="rust-cirkel" aria-hidden="true" />

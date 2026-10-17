@@ -727,3 +727,30 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   - staging-e2e 5/5;
   - demo-e2e 138.
 - Plan en controles: `docs/thuisplanner-onboarding.md`.
+
+## Thuisplanner KG-5H deel 1b: uitnodigingen op e-mailadres (17 oktober 2026, lokaal)
+- Een beheerder kan iemand uitnodigen op een e-mailadres (optioneel). Alleen een account met dat **bevestigde** adres
+  ziet en accepteert de uitnodiging. De database dwingt dat af, ook via de link. Het adres komt uit `auth.users` en
+  nooit uit het token.
+- De genodigde ziet na het inloggen "Uitnodigingen voor jou", zonder link of plakken. Dat staat op het welkomstscherm,
+  als één rustige melding op Vandaag (met "Later") en in Meer. Accepteren en weigeren kan, ook voor wie al in een
+  huishouden zit, en met meer uitnodigingen naast elkaar. De beheerder ziet "geweigerd".
+- Opnieuw uitnodigen op hetzelfde adres trekt de vorige uitnodiging in. Er staan hoogstens 10 uitnodigingen per
+  huishouden open.
+- Een uitnodiging zonder adres (link) werkt zoals in deel 1.
+- Privacy: het adres verdwijnt bij elke sluiting (trigger plus controle) en na het verlopen (dagelijkse taak
+  `thuisplanner-uitnodigingen-opschonen`). Alleen eigenaar en beheerder zien het. Geen enkele functie meldt of een adres
+  een account heeft.
+- Stabiele foutcodes TPU01–TPU10; de app vertaalt alleen de code (contracttest).
+- Stagingcontrole: een veilige modus `-Bijwerken` voor een tweede migratie, en een nacontrole op de daadwerkelijke
+  opruiming van adressen. Niets uitgevoerd op staging.
+- Tests:
+  - RLS 64/64 en tegenproeven 85/85, met misbruikscenario's;
+  - Auth-integratie 2/2;
+  - unit 164/164;
+  - lokale e2e 21/21;
+  - staging-e2e 5/5;
+  - demo-e2e 138;
+  - statische controles.
+- Bouwverslag en afwijkingen: `docs/thuisplanner-uitnodiging-email.md` §12. Nog niet op staging; daarvoor is een apart
+  akkoord nodig.

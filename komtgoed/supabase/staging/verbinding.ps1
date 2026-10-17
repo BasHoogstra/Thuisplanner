@@ -3,6 +3,8 @@
 #
 #   controle en dry-run:  powershell -NoProfile -ExecutionPolicy Bypass -File .\komtgoed\supabase\staging\verbinding.ps1 -Ref <kenmerk>
 #   echte push:           ... -Ref <kenmerk> -Push   (alleen na een apart akkoord; vraagt nog een bevestiging)
+#   bijwerken:            ... -Ref <kenmerk> -Bijwerken [-Push]   voor een project waarop eerdere migraties al staan:
+#                         alleen als de geschiedenis precies het begin van de repository is, met nieuwe migraties erna
 #
 # - De session-pooler-URI plak je met de tekst [YOUR-PASSWORD] erin: daar staat geen geheim in.
 # - Het wachtwoord typ je bij een verborgen prompt. Het komt niet in de terminalgeschiedenis (Read-Host wordt niet
@@ -13,8 +15,10 @@
 # - Volgorde: verbinding controleren (vóór verbinden) -> alleen lezend: is dit het lege stagingproject? ->
 #   dry-run, of met -Push: repository-controle, bevestiging en db push -> alleen lezend: nacontrole.
 # - Bij een fout stopt het script meteen. Het voert nooit zelf een herstel of tweede poging uit.
-param([Parameter(Mandatory = $true)][string]$Ref, [switch]$Push)
+param([Parameter(Mandatory = $true)][string]$Ref, [switch]$Push, [switch]$Bijwerken)
 $ErrorActionPreference = 'Stop'
+# Het aantal migraties in de repository dat deze versie van het script verwacht (bij elke nieuwe migratie bijwerken).
+$VerwachtAantal = 12
 $hier = Split-Path -Parent $MyInvocation.MyCommand.Path
 $komtgoed = (Resolve-Path (Join-Path $hier '..\..')).Path
 $controle = Join-Path $hier 'verbinding-controle.mjs'
@@ -34,7 +38,7 @@ try {
     Write-Host "`n== 0. Repository: migraties gecommit en ongewijzigd" -ForegroundColor Cyan
     $migraties = @(Get-ChildItem (Join-Path $komtgoed 'supabase\migrations') -Filter '*.sql' | Sort-Object Name)
     $migraties | ForEach-Object { Write-Host ('  ' + $_.Name) }
-    if ($migraties.Count -ne 11) { Stop-Hier "er staan $($migraties.Count) migraties in de repository in plaats van 11." }
+    if ($migraties.Count -ne $VerwachtAantal) { Stop-Hier "er staan $($migraties.Count) migraties in de repository in plaats van $VerwachtAantal." }
     $vuil = git -C $komtgoed status --porcelain -- supabase/migrations
     if ($vuil) { Stop-Hier "niet-gecommitte wijzigingen in supabase/migrations: $vuil" }
     Write-Host ('  commit ' + (git -C $komtgoed rev-parse --short HEAD) + ', branch ' + (git -C $komtgoed rev-parse --abbrev-ref HEAD))
@@ -51,8 +55,13 @@ try {
   $root = (Join-Path $hier 'supabase-root-ca.crt') -replace '\\', '/'
   $cliUrl = $env:KG_STAGING_DB_URL + '?sslmode=verify-full&sslrootcert=' + $root
 
-  Write-Host "`n== 1. Alleen lezend: verbinding en lege database" -ForegroundColor Cyan
-  node $controle leeg $stand
+  if ($Bijwerken) {
+    Write-Host "`n== 1. Alleen lezend: verbinding, bestaande Thuisplanner-database en welke migraties nieuw zijn" -ForegroundColor Cyan
+    node $controle bijwerken $stand
+  } else {
+    Write-Host "`n== 1. Alleen lezend: verbinding en lege database" -ForegroundColor Cyan
+    node $controle leeg $stand
+  }
   if ($LASTEXITCODE -ne 0) { Stop-Hier 'de controle vooraf slaagde niet. Er is niets uitgevoerd.' }
 
   if (-not $Push) {
@@ -68,7 +77,14 @@ try {
   }
 
   Write-Host "`n== 2. Echte push naar $Ref" -ForegroundColor Yellow
-  $ok = Read-Host "Typ precies 'push $Ref' om de 11 migraties uit te voeren (iets anders stopt)"
+  if ($Bijwerken) {
+    # Vlak voor de push nog eens: is er sinds stap 1 niets veranderd?
+    node $controle vergelijk $stand
+    if ($LASTEXITCODE -ne 0) { Stop-Hier 'de stand is veranderd sinds de controle vooraf. Er is niets uitgevoerd.' }
+    $ok = Read-Host "Typ precies 'push $Ref' om alleen de nieuwe migraties uit stap 1 uit te voeren (iets anders stopt)"
+  } else {
+    $ok = Read-Host "Typ precies 'push $Ref' om de $VerwachtAantal migraties uit te voeren (iets anders stopt)"
+  }
   if ($ok -cne "push $Ref") { Stop-Hier 'geen bevestiging gegeven. Er is niets uitgevoerd.' }
   Push-Location $komtgoed
   try { npx --yes supabase@2.117.0 db push --db-url $cliUrl; $pushCode = $LASTEXITCODE }

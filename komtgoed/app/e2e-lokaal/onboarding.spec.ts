@@ -31,10 +31,11 @@ async function maakHuishouden(p: Page, naam: string, eigen: string) {
   await expect(p.locator('.sync-status')).toHaveText('Verbonden', SYNC);
 }
 
-async function uitnodiging(p: Page, { voor = 'Iemand nieuw', rol }: { voor?: string; rol?: 'Beheerder' | 'Lid' } = {}) {
+async function uitnodiging(p: Page, { voor = 'Iemand nieuw', rol, email }: { voor?: string; rol?: 'Beheerder' | 'Lid'; email?: string } = {}) {
   await nav(p, 'Meer');
   await p.getByLabel('Voor wie').selectOption({ label: voor });
   if (rol) await p.getByRole('radio', { name: rol }).click();
+  if (email) await p.getByLabel('E-mailadres (optioneel)').fill(email);
   await p.getByRole('button', { name: 'Uitnodiging maken' }).click();
   const link = await p.getByLabel('Uitnodigingslink', { exact: true }).inputValue();
   expect(link).toMatch(/#\/uitnodiging\/[0-9a-f]{64}$/);
@@ -109,7 +110,7 @@ test('eenmalig en ingetrokken: een gebruikte of ingetrokken link werkt niet, met
   await thomas.goto(eerste);
   await thomas.getByLabel('Jouw naam').fill('Thomas');
   await thomas.getByRole('button', { name: 'Accepteren', exact: true }).click();
-  await expect(thomas.getByRole('alert')).toHaveText('Uitnodiging is al gebruikt', SYNC);
+  await expect(thomas.getByRole('alert')).toHaveText('Deze uitnodiging is al gebruikt.', SYNC);
 
   // Een tweede uitnodiging, ingetrokken voordat iemand hem gebruikt.
   await nav(sanne, 'Vandaag');
@@ -120,7 +121,7 @@ test('eenmalig en ingetrokken: een gebruikte of ingetrokken link werkt niet, met
   await thomas.goto(tweede);
   await thomas.getByLabel('Jouw naam').fill('Thomas');
   await thomas.getByRole('button', { name: 'Accepteren', exact: true }).click();
-  await expect(thomas.getByRole('alert')).toHaveText('Uitnodiging is ingetrokken', SYNC);
+  await expect(thomas.getByRole('alert')).toHaveText('Deze uitnodiging is ingetrokken.', SYNC);
   // Thomas zit nog steeds alleen in De Boer; Sanne ziet De Boer niet.
   await thomas.getByRole('button', { name: 'Niet accepteren' }).click();
   await nav(thomas, 'Meer');
@@ -162,4 +163,82 @@ test('twee huishoudens: Thomas accepteert een tweede, kan wisselen, en de huisho
   await expect(thomas.locator('.sync-status')).toHaveText('Verbonden', SYNC);
   await nav(thomas, 'Boodschappen');
   await expect(thomas.getByText('Alleen-bij-Test')).toBeVisible(SYNC);
+});
+
+// KG-5H deel 1b (docs/thuisplanner-uitnodiging-email.md): uitnodigen op e-mailadres, zonder link te delen.
+test('op e-mailadres: Sanne deelt geen link; Joris logt in, ziet de uitnodiging en accepteert vanuit de lijst', async ({ browser }) => {
+  const sanne = await telefoon(browser, { naam: 'Sanne' });
+  await maakHuishouden(sanne, 'Familie Test', 'Sanne');
+  await uitnodiging(sanne, { rol: 'Lid', email: 'Joris.Demo@test.invalid' });
+  await expect(sanne.getByText(/de link is dan niet nodig/)).toBeVisible();
+  await expect(sanne.getByText('Voor iemand nieuw · joris.demo@test.invalid')).toBeVisible(SYNC);
+
+  // Joris opent de app gewoon (geen link) en logt in.
+  const joris = await telefoon(browser, { naam: 'Joris' });
+  await expect(joris.getByRole('heading', { name: 'Uitnodigingen voor jou' })).toBeVisible(SYNC);
+  await expect(joris.getByText(/Van Sanne · als lid/)).toBeVisible();
+  await joris.getByRole('button', { name: 'Uitnodiging voor Familie Test bekijken' }).click();
+  await expect(joris.getByText(/Sanne nodigt je uit voor/)).toBeVisible();
+  await joris.getByLabel('Jouw naam').fill('Joris');
+  await joris.getByRole('button', { name: 'Accepteren', exact: true }).click();
+  await expect(joris.getByRole('heading', { name: 'Welkom bij Familie Test' })).toBeVisible(SYNC);
+  await joris.getByRole('button', { name: 'Naar Vandaag' }).click();
+  await expect(joris.locator('.sync-status')).toHaveText('Verbonden', SYNC);
+
+  // In de database: lid, en het adres is weg.
+  const db = await alsAccount('sanne.demo@test.invalid');
+  const inv = (await db.from('household_invites').select('accepted_at, invited_email')).data ?? [];
+  expect(inv).toHaveLength(1);
+  expect(inv[0].accepted_at).not.toBeNull();
+  expect(inv[0].invited_email).toBeNull();
+});
+
+test('op e-mailadres voor iemand die al een huishouden heeft: één melding op Vandaag, accepteren, daarna twee huishoudens', async ({ browser }) => {
+  const sanne = await telefoon(browser, { naam: 'Sanne' });
+  await maakHuishouden(sanne, 'Familie Test', 'Sanne');
+  await uitnodiging(sanne, { rol: 'Lid', email: 'thomas.demo@test.invalid' });
+
+  const thomas = await telefoon(browser, { naam: 'Thomas' });
+  await expect(thomas.locator('.sync-status')).toHaveText('Verbonden', SYNC);
+  const melding = thomas.getByRole('region', { name: 'Uitnodiging' });
+  await expect(melding).toHaveText(/Je bent uitgenodigd voor Familie Test\./, SYNC);
+  // Later: weg van Vandaag, maar nog in Meer.
+  await melding.getByRole('button', { name: 'Later' }).click();
+  await expect(melding).toHaveCount(0);
+  await nav(thomas, 'Meer');
+  await thomas.getByRole('button', { name: 'Uitnodiging voor Familie Test bekijken' }).click();
+  await thomas.getByLabel('Jouw naam').fill('Thomas');
+  await thomas.getByRole('button', { name: 'Accepteren', exact: true }).click();
+  await expect(thomas.getByRole('heading', { name: 'Welkom bij Familie Test' })).toBeVisible(SYNC);
+  await thomas.getByRole('button', { name: 'Naar Vandaag' }).click();
+  await expect(thomas.getByRole('region', { name: 'Uitnodiging' })).toHaveCount(0);
+  await nav(thomas, 'Meer');
+  await expect(thomas.getByRole('button', { name: 'Naar Familie De Boer' })).toBeVisible(SYNC);
+});
+
+test('een gekoppelde link werkt niet voor een ander account; weigeren door de genodigde is zichtbaar voor de beheerder', async ({ browser }) => {
+  const sanne = await telefoon(browser, { naam: 'Sanne' });
+  await maakHuishouden(sanne, 'Familie Test', 'Sanne');
+  const link = await uitnodiging(sanne, { rol: 'Lid', email: 'joris.demo@test.invalid' });
+
+  // Thomas krijgt de link doorgestuurd: geweigerd, zonder het adres te noemen.
+  const thomas = await telefoon(browser, { naam: 'Thomas' });
+  await expect(thomas.locator('.sync-status')).toHaveText('Verbonden', SYNC);
+  await thomas.goto(link);
+  await thomas.getByLabel('Jouw naam').fill('Thomas');
+  await thomas.getByRole('button', { name: 'Accepteren', exact: true }).click();
+  await expect(thomas.getByRole('alert')).toHaveText(/ander e-mailadres/, SYNC);
+  await expect(thomas.getByText(/joris/i)).toHaveCount(0);
+  await expect(thomas.getByRole('button', { name: 'Uitloggen en met een ander adres inloggen' })).toBeVisible();
+
+  // Joris weigert vanuit de lijst; Sanne ziet "geweigerd".
+  const joris = await telefoon(browser, { naam: 'Joris' });
+  await joris.getByRole('button', { name: 'Uitnodiging voor Familie Test bekijken' }).click();
+  await joris.getByRole('button', { name: 'Weigeren' }).click();
+  await joris.getByRole('button', { name: 'Ja, weigeren' }).click();
+  await expect(joris.getByRole('heading', { name: 'Welkom' })).toBeVisible(SYNC);
+  await expect(joris.getByRole('heading', { name: 'Uitnodigingen voor jou' })).toHaveCount(0);
+  await nav(sanne, 'Vandaag');
+  await nav(sanne, 'Meer');
+  await expect(sanne.getByText(/Lid · geweigerd/)).toBeVisible(SYNC);
 });

@@ -710,7 +710,7 @@ end $$;
 -- huishouden wijzigt, vergrendelt eerst het huishouden (of het account, bij aanmaken).
 reset role;
 do $$ declare f text; def text; begin
-  foreach f in array array['add_member', 'create_invite', 'revoke_invite', 'accept_invite', 'set_member_role',
+  foreach f in array array['add_member', 'create_invite', 'revoke_invite', 'accept_invite', 'accept_invite_by_id', 'decline_invite', 'set_member_role',
     'archive_member', 'restore_member', 'transfer_ownership', 'leave_household', 'delete_household', 'before_account_delete',
     'ensure_owner', 'guard_member', 'guard_household'] loop
     select pg_get_functiondef(p.oid) into def from pg_proc p where p.pronamespace = 'private'::regnamespace and p.proname = f;
@@ -1623,6 +1623,399 @@ do $$ declare ha text := current_setting('test.ha'); mb text := current_setting(
   perform pg_temp.ok('KG-T56');
 end $$;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 56' as resultaat;
+-- =============================================================================================
+-- KG-5H deel 1b: uitnodigingen op e-mailadres (docs/thuisplanner-uitnodiging-email.md).
+-- Huishouden HU (Van Dijk): Ida eigenaar, Hugo beheerder, Gijs gewoon lid. Huishouden HV (Smit): Olaf eigenaar.
+-- Jan: bevestigd adres, nog geen huishouden. Nina: adres nog NIET bevestigd. Zoë: bevestigd, buitenstaander; zij
+-- probeert andermans uitnodiging te gebruiken (doorgestuurde link, id, een vervalst adres in het token).
+-- Elke aanroep die door een fout in de migratie kan mislukken, staat in een blok met de naam van het scenario.
+-- =============================================================================================
+reset role;
+select set_config('test.ida',  gen_random_uuid()::text, true);
+select set_config('test.hugo', gen_random_uuid()::text, true);
+select set_config('test.gijs', gen_random_uuid()::text, true);
+select set_config('test.olaf', gen_random_uuid()::text, true);
+select set_config('test.jan',  gen_random_uuid()::text, true);
+select set_config('test.nina', gen_random_uuid()::text, true);
+select set_config('test.zoe',  gen_random_uuid()::text, true);
+insert into auth.users (id, email, email_confirmed_at) values
+  (current_setting('test.ida')::uuid,  'ida@test.invalid',  now()),
+  (current_setting('test.hugo')::uuid, 'hugo@test.invalid', now()),
+  (current_setting('test.gijs')::uuid, 'gijs@test.invalid', now()),
+  (current_setting('test.olaf')::uuid, 'olaf@test.invalid', now()),
+  (current_setting('test.jan')::uuid,  'jan@test.invalid',  now()),
+  (current_setting('test.nina')::uuid, 'nina@test.invalid', null),
+  (current_setting('test.zoe')::uuid,  'zoe@test.invalid',  now());
+set local role authenticated;
+select pg_temp.als('ida');
+select set_config('test.hu', public.create_household('Van Dijk', 'Ida')::text, true);
+select set_config('test.tok_gijs', public.create_invite(current_setting('test.hu')::uuid), true);
+select set_config('test.tok_hugo', public.create_invite(current_setting('test.hu')::uuid, null, 'admin'), true);
+select pg_temp.als('gijs'); select public.accept_invite(current_setting('test.tok_gijs'), 'Gijs');
+select pg_temp.als('hugo'); select public.accept_invite(current_setting('test.tok_hugo'), 'Hugo');
+select pg_temp.als('olaf');
+select set_config('test.hv', public.create_household('Smit', 'Olaf')::text, true);
+-- Een token met een vervalst, "geverifieerd" adres: de database mag daar nooit op vertrouwen.
+create function pg_temp.als_vervalst(p_user text, p_email text) returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', current_setting('test.' || p_user), 'role', 'authenticated',
+    'email', p_email, 'email_verified', true, 'user_metadata', json_build_object('email', p_email, 'email_verified', true))::text, true);
+end $$;
+
+-- KG-T57 Uitnodigen op adres: genormaliseerd opgeslagen. Het adres zien alleen eigenaar en beheerder; een gewoon lid,
+-- de genodigde, een buitenstaander en anon niet. Of een adres een account heeft, maakt voor de uitkomst niets uit.
+do $$ declare hu uuid := current_setting('test.hu')::uuid; begin
+  perform pg_temp.als('ida');
+  begin
+    perform set_config('test.tok_jan', public.create_invite(hu, null, 'member', 7, '  Jan@Test.INVALID '), true);
+    perform set_config('test.tok_nina', public.create_invite(hu, null, 'member', 7, 'nina@test.invalid'), true);
+    perform set_config('test.tok_niemand', public.create_invite(hu, null, 'member', 7, 'bestaat-niet@test.invalid'), true);
+  exception when others then raise exception 'KG-T57: uitnodigen op adres faalt (%)', sqlerrm;
+  end;
+  if current_setting('test.tok_jan') !~ '^[0-9a-f]{64}$' or current_setting('test.tok_niemand') !~ '^[0-9a-f]{64}$' then
+    raise exception 'KG-T57: uitkomst verschilt tussen een adres met en zonder account'; end if;
+  if (select array_agg(invited_email order by invited_email) from public.household_invites where household_id = hu and invited_email is not null)
+     is distinct from array['bestaat-niet@test.invalid', 'jan@test.invalid', 'nina@test.invalid'] then
+    raise exception 'KG-T57: adressen niet genormaliseerd of niet zichtbaar voor de eigenaar'; end if;
+  perform pg_temp.als('hugo');
+  if pg_temp.aantal('select invited_email from public.household_invites where invited_email is not null') <> 3 then raise exception 'KG-T57: beheerder ziet de adressen niet'; end if;
+  perform pg_temp.ok('KG-T57');
+end $$;
+do $$ declare w text; begin
+  foreach w in array array['gijs', 'jan', 'nina', 'zoe'] loop
+    perform pg_temp.als(w);
+    if pg_temp.aantal('select invited_email from public.household_invites') <> 0 then raise exception 'KG-T57: % ziet adressen van uitnodigingen', w; end if;
+  end loop;
+  perform pg_temp.als('gijs');
+  if pg_temp.fout(format($q$ select public.create_invite(%L, null, 'member', 7, 'x@test.invalid') $q$, current_setting('test.hu'))) is distinct from '42501' then
+    raise exception 'KG-T57: gewoon lid nodigt uit op adres'; end if;
+  perform pg_temp.als('zoe');
+  if pg_temp.fout(format($q$ select public.create_invite(%L, null, 'member', 7, 'x@test.invalid') $q$, current_setting('test.hu'))) is distinct from '42501' then
+    raise exception 'KG-T57: buitenstaander nodigt uit op adres'; end if;
+end $$;
+reset role;
+select set_config('test.inv_jan',  (select id::text from public.household_invites where invited_email = 'jan@test.invalid'), true);
+select set_config('test.inv_nina', (select id::text from public.household_invites where invited_email = 'nina@test.invalid'), true);
+do $$ begin
+  if has_column_privilege('anon', 'public.household_invites', 'invited_email', 'select') then raise exception 'KG-T57: anon kan het adres lezen'; end if;
+end $$;
+set local role authenticated;
+
+-- KG-T58 "Uitnodigingen voor jou" (my_invites): alleen met een bevestigd, gelijk adres uit auth.users. Niets voor een
+-- onbevestigd adres, een ander account, een vervalst adres in het token, of anon. Geen adres, token of huishoud-id in
+-- de uitvoer; wel huishouden, wie uitnodigde, rol en geldig tot.
+do $$ declare r jsonb; w text; begin
+  perform pg_temp.als('jan');
+  if pg_temp.aantal('select * from public.my_invites()') <> 1 then raise exception 'KG-T58: Jan ziet zijn uitnodiging niet'; end if;
+  select to_jsonb(m) into r from public.my_invites() m;
+  if r->>'household_name' is distinct from 'Van Dijk' or r->>'invited_by' is distinct from 'Ida' or r->>'role' is distinct from 'member'
+     or r->>'member_name' is not null or r->>'expires_at' is null or (r->>'id')::uuid is distinct from current_setting('test.inv_jan')::uuid then
+    raise exception 'KG-T58: verkeerde gegevens in de lijst: %', r; end if;
+  if r::text ~* '@|household_id|token|email' then raise exception 'KG-T58: adres, token of huishoud-id in de uitvoer: %', r; end if;
+  perform pg_temp.als('nina');
+  if pg_temp.aantal('select * from public.my_invites()') <> 0 then raise exception 'KG-T58: een onbevestigd adres ziet een uitnodiging'; end if;
+  foreach w in array array['zoe', 'ida', 'hugo', 'gijs', 'olaf'] loop
+    perform pg_temp.als(w);
+    if pg_temp.aantal('select * from public.my_invites()') <> 0 then raise exception 'KG-T58: % ziet andermans uitnodiging', w; end if;
+  end loop;
+  perform pg_temp.als_vervalst('zoe', 'jan@test.invalid');
+  if pg_temp.aantal('select * from public.my_invites()') <> 0 then raise exception 'KG-T58: een adres uit het token geeft toegang tot de lijst'; end if;
+  perform pg_temp.als_vervalst('nina', 'nina@test.invalid');
+  if pg_temp.aantal('select * from public.my_invites()') <> 0 then raise exception 'KG-T58: "email_verified" in het token vervangt de bevestiging'; end if;
+  perform pg_temp.ok('KG-T58');
+end $$;
+set local role anon;
+do $$ begin
+  if not pg_temp.faalt('select * from public.my_invites()') then raise exception 'KG-T58: anon roept my_invites aan'; end if;
+  if not pg_temp.faalt(format($q$ select public.accept_invite_by_id(%L, 'Anon') $q$, current_setting('test.inv_jan'))) then raise exception 'KG-T58: anon accepteert via id'; end if;
+  if not pg_temp.faalt(format($q$ select public.decline_invite(%L) $q$, current_setting('test.inv_jan'))) then raise exception 'KG-T58: anon weigert'; end if;
+  if not pg_temp.faalt('select private.my_email()') then raise exception 'KG-T58: anon roept private.my_email aan'; end if;
+end $$;
+set local role authenticated;
+
+-- KG-T59 Voorwaarde 1: een gekoppelde uitnodiging accepteert of weigert alleen het account met dat bevestigde adres,
+-- via de link én via het id. Misbruik: een doorgestuurde link, het id, een vervalst adres in het token, een
+-- onbevestigd account met het juiste adres, de eigenaar of beheerder zelf. Een geweigerde poging verandert niets en
+-- verraadt het adres niet. Daarna lukt het Jan, en is het adres direct weg.
+do $$ declare tok text := current_setting('test.tok_jan'); iid text := current_setting('test.inv_jan');
+  hu uuid := current_setting('test.hu')::uuid; m text; w text; begin
+  perform pg_temp.als('zoe');
+  if pg_temp.fout(format('select public.accept_invite(%L, %L)', tok, 'Zoë')) is distinct from 'TPU06' then raise exception 'KG-T59: doorgestuurde gekoppelde link werkt voor een ander account'; end if;
+  if pg_temp.fout(format('select public.accept_invite_by_id(%L, %L)', iid, 'Zoë')) is distinct from 'TPU06' then raise exception 'KG-T59: ander account accepteert via het id'; end if;
+  if pg_temp.fout(format('select public.decline_invite(%L)', iid)) is distinct from 'TPU01' then raise exception 'KG-T59: ander account weigert de uitnodiging'; end if;
+  perform pg_temp.als_vervalst('zoe', 'jan@test.invalid');
+  if pg_temp.fout(format('select public.accept_invite(%L, %L)', tok, 'Zoë')) is distinct from 'TPU06' then raise exception 'KG-T59: een adres uit het token geeft toegang (link)'; end if;
+  if pg_temp.fout(format('select public.accept_invite_by_id(%L, %L)', iid, 'Zoë')) is distinct from 'TPU06' then raise exception 'KG-T59: een adres uit het token geeft toegang (id)'; end if;
+  if pg_temp.fout(format('select public.decline_invite(%L)', iid)) is distinct from 'TPU01' then raise exception 'KG-T59: een adres uit het token mag weigeren'; end if;
+  perform pg_temp.als('nina');
+  if pg_temp.fout(format('select public.accept_invite(%L, %L)', current_setting('test.tok_nina'), 'Nina')) is distinct from 'TPU06' then raise exception 'KG-T59: onbevestigd adres accepteert via de link'; end if;
+  if pg_temp.fout(format('select public.accept_invite_by_id(%L, %L)', current_setting('test.inv_nina'), 'Nina')) is distinct from 'TPU06' then raise exception 'KG-T59: onbevestigd adres accepteert via het id'; end if;
+  if pg_temp.fout(format('select public.decline_invite(%L)', current_setting('test.inv_nina'))) is distinct from 'TPU01' then raise exception 'KG-T59: onbevestigd adres weigert'; end if;
+  foreach w in array array['ida', 'hugo', 'gijs', 'olaf'] loop
+    perform pg_temp.als(w);
+    if pg_temp.fout(format('select public.accept_invite_by_id(%L, %L)', iid, 'X')) is distinct from 'TPU06' then raise exception 'KG-T59: % accepteert andermans gekoppelde uitnodiging', w; end if;
+    if pg_temp.fout(format('select public.decline_invite(%L)', iid)) is distinct from 'TPU01' then raise exception 'KG-T59: % weigert namens de genodigde', w; end if;
+  end loop;
+  -- De weigering noemt het adres niet, en geeft geen DETAIL of HINT.
+  perform pg_temp.als('zoe');
+  begin
+    perform public.accept_invite(tok, 'Zoë');
+    raise exception 'KG-T59: geen weigering';
+  exception when sqlstate 'TPU06' then
+    get stacked diagnostics m = message_text;
+    if m ~* 'jan|@' then raise exception 'KG-T59: de weigering noemt het adres: %', m; end if;
+  end;
+  if pg_temp.detail(format('select public.accept_invite(%L, %L)', tok, 'Zoë')) <> '' then raise exception 'KG-T59: weigering met DETAIL of HINT'; end if;
+  -- Niets veranderd: de uitnodiging staat open met het adres, en niemand is erbij gekomen.
+  perform pg_temp.als('ida');
+  if pg_temp.aantal(format($q$ select 1 from public.household_invites where id = %L and invited_email = 'jan@test.invalid'
+       and accepted_at is null and revoked_at is null and declined_at is null $q$, iid)) <> 1 then raise exception 'KG-T59: een geweigerde poging veranderde de uitnodiging'; end if;
+  if pg_temp.aantal(format('select 1 from public.household_members where household_id = %L', hu)) <> 3 then raise exception 'KG-T59: een geweigerde poging voegde een lid toe'; end if;
+  -- Jan zelf, met de link: lukt.
+  perform pg_temp.als('jan');
+  begin
+    if public.accept_invite(tok, 'Jan') is distinct from hu then raise exception 'KG-T59: Jan komt in een verkeerd huishouden'; end if;
+  exception when others then raise exception 'KG-T59: Jan kan zijn eigen gekoppelde uitnodiging niet accepteren (%)', sqlerrm;
+  end;
+  perform pg_temp.als('ida');
+  if pg_temp.aantal(format('select 1 from public.household_invites where id = %L and accepted_at is not null and invited_email is null', iid)) <> 1 then
+    raise exception 'KG-T59: het adres blijft na accepteren'; end if;
+  perform pg_temp.ok('KG-T59');
+end $$;
+
+-- KG-T60 Voorwaarde 2: wie al lid is van een huishouden, ziet en accepteert een nieuwe uitnodiging en is daarna lid van
+-- beide. Meerdere uitnodigingen staan naast elkaar. Na het bevestigen van het adres verschijnen ze. Weigeren sluit de
+-- uitnodiging, wist het adres direct, en de beheerder ziet "geweigerd".
+do $$ declare hv uuid := current_setting('test.hv')::uuid; id_hv uuid; begin
+  perform pg_temp.als('olaf');
+  begin
+    perform set_config('test.tok_jan_hv', public.create_invite(hv, null, 'admin', 7, 'jan@test.invalid'), true);
+    perform set_config('test.tok_nina_hv', public.create_invite(hv, null, 'member', 7, 'NINA@test.invalid'), true);
+  exception when others then raise exception 'KG-T60: uitnodigen faalt (%)', sqlerrm;
+  end;
+  perform pg_temp.als('jan');
+  if pg_temp.aantal('select * from public.my_invites()') <> 1 then raise exception 'KG-T60: lid van een ander huishouden ziet de nieuwe uitnodiging niet'; end if;
+  select m.id into id_hv from public.my_invites() m where m.household_name = 'Smit' and m.role = 'admin' and m.invited_by = 'Olaf';
+  begin
+    if public.accept_invite_by_id(id_hv, 'Jan') is distinct from hv then raise exception 'KG-T60: verkeerd huishouden'; end if;
+  exception when others then raise exception 'KG-T60: accepteren uit de lijst faalt (%)', sqlerrm;
+  end;
+  if (select count(*) from public.my_memberships()) <> 2 then raise exception 'KG-T60: Jan is niet lid van beide huishoudens'; end if;
+  if not exists (select 1 from public.my_memberships() where household_id = hv and role = 'admin') then raise exception 'KG-T60: rol uit de uitnodiging niet overgenomen'; end if;
+  if pg_temp.aantal('select * from public.my_invites()') <> 0 then raise exception 'KG-T60: een geaccepteerde uitnodiging blijft in de lijst'; end if;
+  if pg_temp.fout(format('select public.accept_invite_by_id(%L, %L)', id_hv, 'Jan')) is distinct from 'TPU03' then raise exception 'KG-T60: tweede keer accepteren geeft niet "al gebruikt"'; end if;
+  perform pg_temp.ok('KG-T60');
+end $$;
+reset role;
+update auth.users set email_confirmed_at = now() where id = current_setting('test.nina')::uuid;
+set local role authenticated;
+do $$ declare hv uuid := current_setting('test.hv')::uuid; begin
+  perform pg_temp.als('nina');
+  if (select array_agg(household_name order by household_name) from public.my_invites()) is distinct from array['Smit', 'Van Dijk'] then
+    raise exception 'KG-T60: Nina ziet na het bevestigen niet beide uitnodigingen'; end if;
+  begin
+    perform public.decline_invite((select m.id from public.my_invites() m where m.household_name = 'Smit'));
+  exception when others then raise exception 'KG-T60: weigeren faalt (%)', sqlerrm;
+  end;
+  if (select array_agg(household_name) from public.my_invites()) is distinct from array['Van Dijk'] then raise exception 'KG-T60: een geweigerde uitnodiging blijft in de lijst'; end if;
+  if pg_temp.fout(format('select public.accept_invite(%L, %L)', current_setting('test.tok_nina_hv'), 'Nina')) is distinct from 'TPU10' then raise exception 'KG-T60: een geweigerde link werkt nog'; end if;
+  perform pg_temp.als('olaf');
+  if pg_temp.aantal(format('select 1 from public.household_invites where household_id = %L and declined_at is not null and invited_email is null', hv)) <> 1 then
+    raise exception 'KG-T60: weigeren wist het adres niet of de beheerder ziet het niet'; end if;
+  -- Intrekken na weigeren verandert niets (de genodigde sloot hem al).
+  perform public.revoke_invite((select id from public.household_invites where household_id = hv and declined_at is not null));
+  if pg_temp.aantal(format('select 1 from public.household_invites where household_id = %L and declined_at is not null and revoked_at is null', hv)) <> 1 then
+    raise exception 'KG-T60: intrekken overschreef "geweigerd"'; end if;
+end $$;
+
+-- KG-T61 Alleen open uitnodigingen: verlopen, ingetrokken (ook indirect, doordat de maker zijn rol kwijtraakt) en voor
+-- een huishouden waar je al lid bent, staan niet in de lijst en geven bij accepteren hun eigen code. Opnieuw
+-- uitnodigen op hetzelfde adres trekt de vorige in. Bij elke sluiting is het adres weg.
+do $$ declare hu uuid := current_setting('test.hu')::uuid; z1 uuid; z2 uuid; z3 uuid; t1 text; t2 text; t3 text; m_hugo uuid; begin
+  perform pg_temp.als('ida');
+  begin
+    t1 := public.create_invite(hu, null, 'member', 7, 'zoe@test.invalid');
+  exception when others then raise exception 'KG-T61: uitnodigen faalt (%)', sqlerrm;
+  end;
+  z1 := (select id from public.household_invites where invited_email = 'zoe@test.invalid');
+  reset role;
+  update public.household_invites set created_at = now() - interval '9 days', expires_at = now() - interval '2 days' where id = z1;
+  set local role authenticated;
+  perform pg_temp.als('zoe');
+  if pg_temp.aantal('select * from public.my_invites()') <> 0 then raise exception 'KG-T61: verlopen uitnodiging in de lijst'; end if;
+  if pg_temp.fout(format('select public.accept_invite(%L, %L)', t1, 'Zoë')) is distinct from 'TPU02' then raise exception 'KG-T61: verlopen link geeft niet TPU02'; end if;
+  if pg_temp.fout(format('select public.accept_invite_by_id(%L, %L)', z1, 'Zoë')) is distinct from 'TPU02' then raise exception 'KG-T61: verlopen id geeft niet TPU02'; end if;
+  -- Opnieuw uitnodigen op hetzelfde adres (andere schrijfwijze): de vorige vervalt, met adres.
+  perform pg_temp.als('ida');
+  begin
+    t2 := public.create_invite(hu, null, 'member', 7, 'ZOE@test.invalid');
+  exception when others then raise exception 'KG-T61: opnieuw uitnodigen faalt (%)', sqlerrm;
+  end;
+  z2 := (select id from public.household_invites where invited_email = 'zoe@test.invalid');
+  if z2 is null or z2 = z1 then raise exception 'KG-T61: nieuwe uitnodiging niet gevonden'; end if;
+  if pg_temp.aantal(format('select 1 from public.household_invites where id = %L and revoked_at is not null and invited_email is null', z1)) <> 1 then
+    raise exception 'KG-T61: opnieuw uitnodigen trekt de vorige niet in of laat het adres staan'; end if;
+  perform pg_temp.als('zoe');
+  if pg_temp.aantal('select * from public.my_invites()') <> 1 then raise exception 'KG-T61: de nieuwe uitnodiging staat niet in de lijst'; end if;
+  -- Ingetrokken door de eigenaar.
+  perform pg_temp.als('ida');
+  perform public.revoke_invite(z2);
+  if pg_temp.aantal(format('select 1 from public.household_invites where id = %L and invited_email is null', z2)) <> 1 then raise exception 'KG-T61: intrekken laat het adres staan'; end if;
+  perform pg_temp.als('zoe');
+  if pg_temp.aantal('select * from public.my_invites()') <> 0 then raise exception 'KG-T61: ingetrokken uitnodiging in de lijst'; end if;
+  if pg_temp.fout(format('select public.accept_invite(%L, %L)', t2, 'Zoë')) is distinct from 'TPU04' then raise exception 'KG-T61: ingetrokken link geeft niet TPU04'; end if;
+  -- Indirect: Hugo (beheerder) nodigt uit en verliest zijn beheerrol. De uitnodiging vervalt, met adres.
+  perform pg_temp.als('hugo');
+  begin
+    t3 := public.create_invite(hu, null, 'member', 7, 'zoe@test.invalid');
+  exception when others then raise exception 'KG-T61: beheerder nodigt uit, faalt (%)', sqlerrm;
+  end;
+  perform pg_temp.als('zoe');
+  if (select invited_by from public.my_invites()) is distinct from 'Hugo' then raise exception 'KG-T61: lijst noemt niet wie uitnodigde'; end if;
+  perform pg_temp.als('ida');
+  z3 := (select id from public.household_invites where invited_email = 'zoe@test.invalid');
+  m_hugo := (select id from public.household_members where household_id = hu and display_name = 'Hugo');
+  if pg_temp.fout(format($q$ select public.set_member_role(%L, %L, 'member') $q$, hu, m_hugo)) is not null then
+    raise exception 'KG-T61: rol wijzigen faalt als er een uitnodiging met adres open staat'; end if;
+  if pg_temp.aantal(format('select 1 from public.household_invites where id = %L and revoked_at is not null and invited_email is null', z3)) <> 1 then
+    raise exception 'KG-T61: uitnodiging van een maker zonder rol vervalt niet, of het adres blijft'; end if;
+  perform pg_temp.als('zoe');
+  if pg_temp.aantal('select * from public.my_invites()') <> 0 then raise exception 'KG-T61: uitnodiging van een maker zonder rol in de lijst'; end if;
+  perform pg_temp.als('ida');
+  perform public.set_member_role(hu, m_hugo, 'admin');
+  -- Al lid: Jan opnieuw uitgenodigd in Van Dijk.
+  begin
+    perform set_config('test.tok_jan_weer', public.create_invite(hu, null, 'member', 7, 'jan@test.invalid'), true);
+  exception when others then raise exception 'KG-T61: uitnodigen faalt (%)', sqlerrm;
+  end;
+  perform pg_temp.als('jan');
+  if pg_temp.aantal('select * from public.my_invites()') <> 0 then raise exception 'KG-T61: uitnodiging voor een huishouden waar je al lid bent in de lijst'; end if;
+  if pg_temp.fout(format('select public.accept_invite(%L, %L)', current_setting('test.tok_jan_weer'), 'Jan')) is distinct from 'TPU07' then raise exception 'KG-T61: al lid geeft niet TPU07'; end if;
+  perform pg_temp.ok('KG-T61');
+end $$;
+
+-- KG-T62 Opruiming: de controle maakt een gesloten uitnodiging met adres onmogelijk (ook als de trigger zou
+-- ontbreken); de dagelijkse opruiming wist alleen de adressen van verlopen uitnodigingen, onder vergrendeling, en is
+-- idempotent; de geplande taak bestaat waar pg_cron er is.
+reset role;
+do $$ declare hu uuid := current_setting('test.hu')::uuid; oud uuid; vers uuid; n integer; job bigint; begin
+  insert into public.household_invites (household_id, role, token_hash, created_by, created_at, expires_at, invited_email)
+    values (hu, 'member', encode(extensions.digest('kg-t62-oud', 'sha256'), 'hex'), current_setting('test.ida')::uuid,
+            now() - interval '9 days', now() - interval '2 days', 'oud@test.invalid') returning id into oud;
+  insert into public.household_invites (household_id, role, token_hash, created_by, invited_email)
+    values (hu, 'member', encode(extensions.digest('kg-t62-vers', 'sha256'), 'hex'), current_setting('test.ida')::uuid, 'vers@test.invalid')
+    returning id into vers;
+  alter table public.household_invites disable trigger household_invites_wipe_email;
+  begin
+    update public.household_invites set revoked_at = now() where id = vers;
+    raise exception 'KG-T62: een gesloten uitnodiging met adres is mogelijk';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into public.household_invites (household_id, role, token_hash, created_by, accepted_at, invited_email)
+      values (hu, 'member', encode(extensions.digest('kg-t62-dicht', 'sha256'), 'hex'), current_setting('test.ida')::uuid, now(), 'dicht@test.invalid');
+    raise exception 'KG-T62: een gesloten uitnodiging met adres is in te voegen';
+  exception when check_violation then null;
+  end;
+  alter table public.household_invites enable trigger household_invites_wipe_email;
+  begin
+    update public.household_invites set invited_email = 'Groot@Test.invalid' where id = vers;
+    raise exception 'KG-T62: een niet-genormaliseerd adres is op te slaan';
+  exception when check_violation then null;
+  end;
+  n := private.purge_invite_emails();
+  if n < 1 then raise exception 'KG-T62: de opruiming wiste niets'; end if;
+  if (select invited_email from public.household_invites where id = oud) is not null then raise exception 'KG-T62: het adres van een verlopen uitnodiging blijft'; end if;
+  if (select invited_email from public.household_invites where id = vers) is distinct from 'vers@test.invalid' then raise exception 'KG-T62: de opruiming wiste een open uitnodiging'; end if;
+  if (select accepted_at is null and revoked_at is null and declined_at is null from public.household_invites where id = oud) is not true then
+    raise exception 'KG-T62: de opruiming veranderde meer dan het adres'; end if;
+  if private.purge_invite_emails() <> 0 then raise exception 'KG-T62: een tweede opruiming wist nog iets'; end if;
+  if exists (select 1 from public.household_invites where invited_email is not null and (accepted_at is not null or revoked_at is not null
+             or declined_at is not null or expires_at <= now())) then raise exception 'KG-T62: er staat nog een adres bij een gesloten of verlopen uitnodiging'; end if;
+  if position('private.lock_household(' in pg_get_functiondef('private.purge_invite_emails()'::regprocedure)) = 0 then raise exception 'KG-T62: opruimen vergrendelt het huishouden niet'; end if;
+  if to_regnamespace('cron') is not null then
+    execute $q$ select count(*) from cron.job where jobname = 'thuisplanner-uitnodigingen-opschonen' and command = 'select private.purge_invite_emails()' and active $q$ into job;
+    if job <> 1 then raise exception 'KG-T62: geplande opschoning ontbreekt'; end if;
+  end if;
+  delete from public.household_invites where id = vers;
+  perform pg_temp.ok('KG-T62');
+end $$;
+set local role authenticated;
+
+-- KG-T63 Grenzen: hoogstens 10 open uitnodigingen per huishouden (TPU08); een ongeldig adres geeft TPU09, vóór de
+-- limiet; een leeg adres is een gewone uitnodiging; opnieuw uitnodigen op een adres dat al open staat, past binnen de
+-- limiet omdat de vorige vervalt.
+do $$ declare hu uuid := current_setting('test.hu')::uuid; open_ integer; t text; a text; leeg uuid; begin
+  perform pg_temp.als('ida');
+  begin
+    t := public.create_invite(hu, null, 'member', 7, '   ');
+  exception when others then raise exception 'KG-T63: leeg adres faalt (%)', sqlerrm;
+  end;
+  leeg := (select id from public.household_invites where household_id = hu and accepted_at is null and revoked_at is null
+           and declined_at is null and invited_email is null order by created_at desc, id limit 1);
+  begin
+    perform public.create_invite(hu, null, 'member', 7, 'herhaal@test.invalid');
+  exception when others then raise exception 'KG-T63: uitnodigen faalt (%)', sqlerrm;
+  end;
+  open_ := (select count(*) from public.household_invites where household_id = hu and accepted_at is null and revoked_at is null
+            and declined_at is null and expires_at > now());
+  while open_ < 10 loop
+    if pg_temp.fout(format('select public.create_invite(%L)', hu)) is not null then raise exception 'KG-T63: uitnodiging % van 10 faalt', open_ + 1; end if;
+    open_ := open_ + 1;
+  end loop;
+  if pg_temp.fout(format('select public.create_invite(%L)', hu)) is distinct from 'TPU08' then raise exception 'KG-T63: elfde open uitnodiging toegestaan'; end if;
+  if pg_temp.fout(format($q$ select public.create_invite(%L, null, 'member', 7, 'nog-een@test.invalid') $q$, hu)) is distinct from 'TPU08' then raise exception 'KG-T63: elfde uitnodiging op adres toegestaan'; end if;
+  if pg_temp.fout(format($q$ select public.create_invite(%L, null, 'member', 7, 'herhaal@test.invalid') $q$, hu)) is not null then raise exception 'KG-T63: opnieuw uitnodigen op een open adres valt buiten de limiet'; end if;
+  foreach a in array array['geen-adres', 'a@b', 'a b@c.nl', 'a@@c.nl', repeat('a', 250) || '@c.nl'] loop
+    if pg_temp.fout(format($q$ select public.create_invite(%L, null, 'member', 7, %L) $q$, hu, a)) is distinct from 'TPU09' then raise exception 'KG-T63: ongeldig adres "%" geaccepteerd', left(a, 20); end if;
+  end loop;
+  perform public.revoke_invite(leeg);
+  if pg_temp.fout(format('select public.create_invite(%L)', hu)) is not null then raise exception 'KG-T63: na intrekken kan er niet weer één bij'; end if;
+  perform pg_temp.ok('KG-T63');
+end $$;
+
+-- KG-T64 Voorwaarde 3: een uitnodiging zonder adres werkt ongewijzigd met de link, maar bestaat niet voor de lijst-route
+-- (id) of voor weigeren. De link geeft stabiele codes. Catalogus: de hulpfuncties zijn niet via de API aan te roepen,
+-- de nieuwe functies vergrendelen het huishouden en hebben een vast search_path.
+do $$ declare t text; iid uuid; begin
+  perform pg_temp.als('olaf');
+  t := public.create_invite(current_setting('test.hv')::uuid);
+  iid := (select id from public.household_invites where household_id = current_setting('test.hv')::uuid and accepted_at is null
+          and revoked_at is null and declined_at is null and invited_email is null order by created_at desc, id limit 1);
+  perform pg_temp.als('zoe');
+  if pg_temp.fout(format('select public.accept_invite_by_id(%L, %L)', iid, 'Zoë')) is distinct from 'TPU01' then raise exception 'KG-T64: een uitnodiging zonder adres is via het id te accepteren'; end if;
+  if pg_temp.fout(format('select public.decline_invite(%L)', iid)) is distinct from 'TPU01' then raise exception 'KG-T64: een uitnodiging zonder adres is te weigeren'; end if;
+  if pg_temp.fout(format('select public.accept_invite_by_id(%L, %L)', gen_random_uuid(), 'Zoë')) is distinct from 'TPU01' then raise exception 'KG-T64: onbekend id geeft niet TPU01'; end if;
+  if pg_temp.fout(format('select public.accept_invite(%L, %L)', repeat('0', 64), 'Zoë')) is distinct from 'TPU01' then raise exception 'KG-T64: onbekende link geeft niet TPU01'; end if;
+  if pg_temp.fout($q$ select public.accept_invite('niet-hex', 'Zoë') $q$) is distinct from 'TPU01' then raise exception 'KG-T64: misvormde link geeft niet TPU01'; end if;
+  begin
+    if public.accept_invite(t, 'Zoë') is distinct from current_setting('test.hv')::uuid then raise exception 'KG-T64: verkeerd huishouden'; end if;
+  exception when others then raise exception 'KG-T64: een link zonder adres werkt niet meer (%)', sqlerrm;
+  end;
+  if pg_temp.fout(format('select public.accept_invite(%L, %L)', t, 'Zoë')) is distinct from 'TPU03' then raise exception 'KG-T64: gebruikte link geeft niet TPU03'; end if;
+  perform pg_temp.ok('KG-T64');
+end $$;
+reset role;
+do $$ declare f text; def text; r record; begin
+  foreach f in array array['private.my_email()', 'private.clean_email(text)', 'private.invite_limit()', 'private.invite_wipe_email()',
+    'private.invite_check_open(public.household_invites)', 'private.accept_invite_row(uuid, text, boolean)', 'private.purge_invite_emails()'] loop
+    if has_function_privilege('authenticated', f, 'execute') or has_function_privilege('anon', f, 'execute') then raise exception 'KG-T64: % via de API aan te roepen', f; end if;
+  end loop;
+  foreach f in array array['create_invite', 'accept_invite', 'accept_invite_by_id', 'decline_invite', 'revoke_invite'] loop
+    select pg_get_functiondef(p.oid) into def from pg_proc p where p.pronamespace = 'private'::regnamespace and p.proname = f;
+    if def is null or position('private.lock_household(' in def) = 0 then raise exception 'KG-T64: private.% vergrendelt het huishouden niet', f; end if;
+  end loop;
+  for r in select p.proname, p.proconfig from pg_proc p where p.pronamespace = 'private'::regnamespace and p.proname in
+      ('my_email', 'clean_email', 'invite_limit', 'invite_wipe_email', 'invite_check_open', 'accept_invite_row', 'create_invite',
+       'accept_invite_by_id', 'decline_invite', 'my_invites', 'purge_invite_emails') loop
+    if r.proconfig is null or not ('search_path=""' = any (r.proconfig)) then raise exception 'KG-T64: private.% zonder vast search_path', r.proname; end if;
+  end loop;
+  if (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname = 'create_invite') <> 1 then raise exception 'KG-T64: meer dan één create_invite in public'; end if;
+  if not exists (select 1 from pg_trigger where tgname = 'household_invites_wipe_email' and tgrelid = 'public.household_invites'::regclass and tgenabled = 'O') then
+    raise exception 'KG-T64: trigger household_invites_wipe_email ontbreekt of staat uit'; end if;
+end $$;
+set local role authenticated;
+
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 64' as resultaat;
 
 rollback;

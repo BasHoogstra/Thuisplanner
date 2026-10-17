@@ -1,8 +1,9 @@
-// Meer → Huishouden (KG-5H deel 1, S3 en S4): leden, lid toevoegen, uitnodigen, open uitnodigingen, wisselen.
-// Eigenaar en beheerder zien dezelfde knoppen; alleen "als beheerder uitnodigen" is voor de eigenaar (de database
-// dwingt dat af). Gewone leden zien de ledenlijst.
+// Meer → Huishouden (KG-5H deel 1 en 1b, S3 en S4): uitnodigingen voor jou, leden, lid toevoegen, uitnodigen (optioneel op
+// e-mailadres), open uitnodigingen, wisselen. Eigenaar en beheerder zien dezelfde knoppen; alleen "als beheerder
+// uitnodigen" is voor de eigenaar (de database dwingt dat af). Gewone leden zien de ledenlijst.
 import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../lib/context';
+import { UitnodigingenVoorJou } from './Onboarding';
 import { magBeheerderUitnodigen, magBeheren, nodigUit, openUitnodigingen, ROL_TEKST, trekIn, voegLidToe,
   type NieuweUitnodiging, type OpenUitnodiging } from '../lib/lokaal/beheer';
 import type { Rol } from '../lib/lokaal/sessie';
@@ -32,6 +33,8 @@ export function HuishoudenBeheer() {
     <section aria-labelledby="h-huishouden" className="blok">
       <h2 id="h-huishouden" className="sectie-kop">Huishouden</h2>
       <p><strong>{beheer.huishouden.naam}</strong> · jij bent {ROL_TEKST[rol ?? 'member'].toLowerCase()}</p>
+
+      {lokaal?.uitnodigingen && <UitnodigingenVoorJou lijst={lokaal.uitnodigingen.lijst} opBekijk={lokaal.uitnodigingen.bekijk} kop="h3" />}
 
       {beheer.huishoudens.length > 1 && (
         <div className="blok" aria-labelledby="h-wisselen">
@@ -120,6 +123,7 @@ function Uitnodigen({ rol, opNieuw }: { rol: Rol | undefined; opNieuw: () => voi
   const profielen = beheer.leden.filter(l => l.status === 'active' && l.kind === 'adult' && !l.has_account);
   const mag = magBeheerderUitnodigen(rol);
   const [voor, zetVoor] = useState<string>('nieuw');
+  const [email, zetEmail] = useState('');
   const [nieuweRol, zetNieuweRol] = useState<'admin' | 'member'>(mag ? 'admin' : 'member');
   const [fout, zetFout] = useState<string | null>(null);
   const [bezig, zetBezig] = useState(false);
@@ -129,10 +133,11 @@ function Uitnodigen({ rol, opNieuw }: { rol: Rol | undefined; opNieuw: () => voi
   const maak = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     zetBezig(true); zetFout(null); zetGekopieerd(false);
-    const r = await nodigUit(beheer.client, beheer.huishouden.id, voor === 'nieuw' ? null : voor, mag ? nieuweRol : 'member');
+    const r = await nodigUit(beheer.client, beheer.huishouden.id, voor === 'nieuw' ? null : voor, mag ? nieuweRol : 'member', { email });
     zetBezig(false);
     if (!r.ok) { zetFout(r.fout); return; }
     zetLink(r.waarde);
+    zetEmail('');
     opNieuw();
   };
   const deel = async () => {
@@ -154,6 +159,12 @@ function Uitnodigen({ rol, opNieuw }: { rol: Rol | undefined; opNieuw: () => voi
           {profielen.map(l => <option key={l.id} value={l.id}>{l.display_name}</option>)}
         </select>
       </label>
+      <label className="veld">
+        <span className="veld-label">E-mailadres (optioneel)</span>
+        <input id="uitnodiging-email" type="email" inputMode="email" value={email} maxLength={254} onChange={e => zetEmail(e.target.value)}
+          autoComplete="off" autoCapitalize="none" spellCheck={false} aria-describedby="uitnodiging-email-hulp" />
+      </label>
+      <p id="uitnodiging-email-hulp" className="veld-hulp">Dan kan alleen iemand met dit adres accepteren. Die ziet de uitnodiging na het inloggen ook zonder link.</p>
       {mag ? (
         <div className="segment twee" role="radiogroup" aria-label="Rol">
           {(['admin', 'member'] as const).map(r => (
@@ -174,7 +185,12 @@ function Uitnodigen({ rol, opNieuw }: { rol: Rol | undefined; opNieuw: () => voi
             <span className="veld-label">Uitnodigingslink</span>
             <input id="uitnodiging-gemaakt" readOnly value={link.link} onFocus={e => e.target.select()} spellCheck={false} />
           </label>
-          <p className="stil-tekst">Geldig tot {datumTekst(link.verloopt)} en één keer te gebruiken. Stuur hem alleen naar degene die je uitnodigt.</p>
+          {link.email ? (
+            <p className="stil-tekst">Geldig tot {datumTekst(link.verloopt)}, één keer te gebruiken, en alleen door wie inlogt met <strong>{link.email}</strong>.
+              Die ziet de uitnodiging ook gewoon na het inloggen; de link is dan niet nodig.</p>
+          ) : (
+            <p className="stil-tekst">Geldig tot {datumTekst(link.verloopt)} en één keer te gebruiken. Stuur hem alleen naar degene die je uitnodigt.</p>
+          )}
           <div className="keuzes">
             {typeof navigator.share === 'function' && <button type="button" className="keuze" onClick={() => void deel()}>Delen</button>}
             <button type="button" className="keuze" onClick={() => void kopieer()}>{gekopieerd ? 'Gekopieerd' : 'Kopiëren'}</button>
@@ -197,11 +213,13 @@ function OpenRij({ u, naam, opIngetrokken }: { u: OpenUitnodiging; naam: string;
   return (
     <li className="rij">
       <span className="rij-inhoud">
-        <span className="rij-titel">Voor {naam}</span>
-        <span className="rij-sub">{u.rol === 'admin' ? 'Beheerder' : 'Lid'} · geldig tot {datumTekst(u.verloopt)}</span>
+        <span className="rij-titel">Voor {naam}{u.email ? ` · ${u.email}` : ''}</span>
+        <span className="rij-sub">
+          {u.rol === 'admin' ? 'Beheerder' : 'Lid'} · {u.geweigerd ? 'geweigerd' : `geldig tot ${datumTekst(u.verloopt)}`}
+        </span>
         {fout && <span className="veld-fout" role="alert">{fout}</span>}
       </span>
-      {!zeker
+      {u.geweigerd ? null : !zeker
         ? <button type="button" className="knop stil klein" onClick={() => zetZeker(true)}>Intrekken</button>
         : <button type="button" className="knop gevaar klein" onClick={() => void trek()}>Zeker intrekken</button>}
     </li>

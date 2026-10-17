@@ -5,9 +5,9 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LidRij } from '../../sync/thuisplanner-sync.js';
 import { bewaarUitnodiging, leesUitnodiging, maakLink, tokenUit, vangUitnodiging, vergeetUitnodiging } from '../src/lib/uitnodiging';
-import { foutTekst, Sessie, type LokaleConfig, type Momentopname } from '../src/lib/lokaal/sessie';
+import { foutTekst, Sessie, type LokaleConfig, type Momentopname, type UitnodigingVoorMij } from '../src/lib/lokaal/sessie';
 import { nodigUit, openUitnodigingen, trekIn, voegLidToe, GELDIG_DAGEN } from '../src/lib/lokaal/beheer';
-import { UitnodigingAccepteren, Welkom } from '../src/components/Onboarding';
+import { UitnodigingAccepteren, UitnodigingMelding, Welkom } from '../src/components/Onboarding';
 import { HuishoudenBeheer } from '../src/components/HuishoudenBeheer';
 import { Ctx, type AppContext } from '../src/lib/context';
 
@@ -60,7 +60,7 @@ describe('uitnodigingstoken', () => {
 });
 
 // Een nepclient die elke RPC vastlegt en een vooraf ingesteld antwoord geeft.
-function nepClient(antwoorden: Record<string, { data?: unknown; error?: { code?: string; message?: string } | null }>, lidmaatschappen: { household_id: string; role: string }[] = []) {
+function nepClient(antwoorden: Record<string, { data?: unknown; error?: { code?: string; message?: string } | null }>, lidmaatschappen: { household_id: string; role: string }[] = [], tabelRijen: unknown[] = []) {
   const aanroepen: { naam: string; args: unknown }[] = [];
   const lijst = { current: lidmaatschappen };
   const client = {
@@ -74,7 +74,7 @@ function nepClient(antwoorden: Record<string, { data?: unknown; error?: { code?:
       const q: Record<string, unknown> = {};
       const keten = () => q;
       Object.assign(q, {
-        select: keten, eq: keten, is: keten, gt: keten, order: async () => ({ data: [], error: null }),
+        select: keten, eq: keten, is: keten, gt: keten, order: async () => ({ data: tabelRijen, error: null }),
         in: async (_k: string, ids: string[]) => ({ data: ids.map(id => ({ id, name: 'Huishouden ' + id })), error: null }),
         maybeSingle: async () => ({ data: { name: tabel === 'households' ? 'Gekozen' : '' }, error: null }),
       });
@@ -126,15 +126,52 @@ describe('sessie: huishouden aanmaken, accepteren en kiezen', () => {
     expect(s2.momentopname().huishouden?.id).toBe('h-b');
   });
 
-  it('meldingen: die van de databasefuncties letterlijk, al het andere algemeen (geen technische details)', async () => {
-    expect(foutTekst({ code: '22023', message: 'Uitnodiging is verlopen' })).toBe('Uitnodiging is verlopen');
-    expect(foutTekst({ code: 'P0002', message: 'Uitnodiging niet gevonden' })).toBe('Uitnodiging niet gevonden');
+  it('meldingen: uitnodigingen via hun stabiele code, de rest letterlijk of algemeen (geen technische details)', async () => {
+    expect(foutTekst({ code: '22023', message: 'Geldigheid moet 1 tot 30 dagen zijn' })).toBe('Geldigheid moet 1 tot 30 dagen zijn');
     expect(foutTekst({ code: 'XX000', message: 'interne fout met details' })).toMatch(/lukte nu niet/);
     expect(foutTekst({ message: 'Failed to fetch' })).toMatch(/lukte nu niet/);
-    const n = nepClient({ accept_invite: { error: { code: '22023', message: 'Uitnodiging is al gebruikt' } } }, [{ household_id: 'h-a', role: 'owner' }]);
+    const n = nepClient({ accept_invite: { error: { code: 'TPU03', message: 'Uitnodiging is al gebruikt' } } }, [{ household_id: 'h-a', role: 'owner' }]);
     const s = new Sessie(CONFIG, { maakClient: () => n.client, maakSync: nepSync });
     await s.herstel();
-    expect(await s.accepteerUitnodiging(T, 'X')).toEqual({ ok: false, fout: 'Uitnodiging is al gebruikt' });
+    expect(await s.accepteerUitnodiging(T, 'X')).toEqual({ ok: false, fout: 'Deze uitnodiging is al gebruikt.', code: 'TPU03' });
+    expect(s.momentopname().huishouden?.id).toBe('h-a');
+  });
+
+  const RIJ = { id: 'i1', household_name: 'Familie Test', invited_by: 'Sanne', member_name: null, role: 'admin', expires_at: '2026-10-24T10:00:00Z' };
+  it('uitnodigingen voor jou: na inloggen opgehaald (zonder adres of token), ook zonder huishouden; een fout geeft een lege lijst', async () => {
+    const n = nepClient({ my_invites: { data: [RIJ] } });
+    const s = new Sessie(CONFIG, { maakClient: () => n.client, maakSync: nepSync });
+    await s.herstel();
+    expect(s.momentopname()).toMatchObject({ fase: 'geen-huishouden', uitnodigingen: [
+      { id: 'i1', huishouden: 'Familie Test', doorWie: 'Sanne', profiel: null, rol: 'admin', geldigTot: '2026-10-24T10:00:00Z' }] });
+    const n2 = nepClient({ my_invites: { error: { code: 'PGRST202', message: 'not found' } } }, [{ household_id: 'h-a', role: 'owner' }]);
+    const s2 = new Sessie(CONFIG, { maakClient: () => n2.client, maakSync: nepSync });
+    await s2.herstel();
+    expect(s2.momentopname()).toMatchObject({ fase: 'actief', uitnodigingen: [], fout: null });
+  });
+
+  it('accepteren uit de lijst stuurt alleen het id en de naam; weigeren alleen het id; daarna een verse lijst', async () => {
+    const n = nepClient({ my_invites: { data: [RIJ] }, accept_invite_by_id: { data: 'h-b' }, decline_invite: {} }, [{ household_id: 'h-a', role: 'owner' }]);
+    const s = new Sessie(CONFIG, { maakClient: () => n.client, maakSync: nepSync });
+    await s.herstel();
+    expect(s.momentopname().uitnodigingen).toHaveLength(1);
+    n.lijst.current = [{ household_id: 'h-a', role: 'owner' }, { household_id: 'h-b', role: 'admin' }];
+    expect(await s.accepteerUitnodigingOpId('i1', 'Joris')).toEqual({ ok: true, waarde: 'h-b' });
+    expect(n.aanroepen.find(a => a.naam === 'accept_invite_by_id')?.args).toEqual({ p_invite: 'i1', p_display_name: 'Joris' });
+    expect(s.momentopname().huishouden).toMatchObject({ id: 'h-b', rol: 'admin' });
+    const voor = n.aanroepen.filter(a => a.naam === 'my_invites').length;
+    expect(await s.weigerUitnodiging('i2')).toEqual({ ok: true, waarde: undefined });
+    expect(n.aanroepen.find(a => a.naam === 'decline_invite')?.args).toEqual({ p_invite: 'i2' });
+    expect(n.aanroepen.filter(a => a.naam === 'my_invites').length).toBe(voor + 1);
+  });
+
+  it('een geweigerde poging uit de lijst geeft de tekst bij de code en ververst de lijst', async () => {
+    const n = nepClient({ my_invites: { data: [RIJ] }, accept_invite_by_id: { error: { code: 'TPU04', message: 'x' } } }, [{ household_id: 'h-a', role: 'owner' }]);
+    const s = new Sessie(CONFIG, { maakClient: () => n.client, maakSync: nepSync });
+    await s.herstel();
+    const voor = n.aanroepen.filter(a => a.naam === 'my_invites').length;
+    expect(await s.accepteerUitnodigingOpId('i1', null)).toEqual({ ok: false, fout: 'Deze uitnodiging is ingetrokken.', code: 'TPU04' });
+    await waitFor(() => expect(n.aanroepen.filter(a => a.naam === 'my_invites').length).toBe(voor + 1));
     expect(s.momentopname().huishouden?.id).toBe('h-a');
   });
 });
@@ -144,8 +181,8 @@ describe('beheer: de juiste functies met de juiste gegevens', () => {
     const n = nepClient({ add_member: { data: 'm1' }, create_invite: { data: T }, revoke_invite: {} });
     expect(await voegLidToe(n.client, 'h1', 'Lotte', 'child')).toEqual({ ok: true, waarde: 'm1' });
     expect(n.aanroepen.at(-1)).toEqual({ naam: 'add_member', args: { p_household: 'h1', p_display_name: 'Lotte', p_kind: 'child' } });
-    const u = await nodigUit(n.client, 'h1', null, 'admin', new Date('2026-10-16T10:00:00Z'));
-    expect(n.aanroepen.at(-1)).toEqual({ naam: 'create_invite', args: { p_household: 'h1', p_member: null, p_role: 'admin', p_days: GELDIG_DAGEN } });
+    const u = await nodigUit(n.client, 'h1', null, 'admin', { nu: new Date('2026-10-16T10:00:00Z') });
+    expect(n.aanroepen.at(-1)).toEqual({ naam: 'create_invite', args: { p_household: 'h1', p_member: null, p_role: 'admin', p_days: GELDIG_DAGEN, p_email: null } });
     expect(GELDIG_DAGEN).toBe(7);
     expect(u.ok && u.waarde.link).toMatch(new RegExp(`#/uitnodiging/${T}$`));
     expect(u.ok && u.waarde.link).not.toMatch(/\?/);
@@ -153,19 +190,43 @@ describe('beheer: de juiste functies met de juiste gegevens', () => {
     expect(n.aanroepen.at(-1)).toEqual({ naam: 'revoke_invite', args: { p_invite: 'i1' } });
     expect(await openUitnodigingen(n.client, 'h1')).toEqual({ ok: true, waarde: [] });
   });
+
+  it('uitnodigen op e-mailadres: het adres gaat mee (de database normaliseert en controleert); leeg = zonder adres', async () => {
+    const n = nepClient({ create_invite: { data: T } });
+    const u = await nodigUit(n.client, 'h1', null, 'member', { email: '  Joris@Example.com ' });
+    expect(n.aanroepen.at(-1)?.args).toMatchObject({ p_email: 'Joris@Example.com' });
+    expect(u.ok && u.waarde.email).toBe('joris@example.com');
+    await nodigUit(n.client, 'h1', null, 'member', { email: '   ' });
+    expect(n.aanroepen.at(-1)?.args).toMatchObject({ p_email: null });
+    const fout = nepClient({ create_invite: { error: { code: 'TPU09', message: 'Ongeldig e-mailadres' } } });
+    const r = await nodigUit(fout.client, 'h1', null, 'member', { email: 'geen-adres' });
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.fout).toMatch(/e-mailadres lijkt niet te kloppen/);
+  });
+
+  it('open uitnodigingen tonen het adres en "geweigerd"', async () => {
+    const n = nepClient({}, [], [
+      { id: 'i1', member_id: null, role: 'member', expires_at: '2026-10-24T10:00:00Z', invited_email: 'joris@example.com', declined_at: null },
+      { id: 'i2', member_id: null, role: 'member', expires_at: '2026-10-24T10:00:00Z', invited_email: null, declined_at: '2026-10-17T10:00:00Z' }]);
+    expect(await openUitnodigingen(n.client, 'h1')).toEqual({ ok: true, waarde: [
+      { id: 'i1', lidId: null, rol: 'member', verloopt: '2026-10-24T10:00:00Z', email: 'joris@example.com', geweigerd: false },
+      { id: 'i2', lidId: null, rol: 'member', verloopt: '2026-10-24T10:00:00Z', email: null, geweigerd: true }] });
+  });
 });
 
 // Schermen met een nep-sessie.
 function nepSessie(extra: Partial<Record<string, unknown>> = {}) {
   return { config: CONFIG, uitloggen: vi.fn(async () => {}), momentopname: () => ({ huishouden: { id: 'h-b', naam: 'Familie B' } }), ...extra } as unknown as Sessie;
 }
-const SNAP = { fase: 'geen-huishouden', fout: null, account: { id: 'u1', email: 'tester@example.com' }, huishouden: null, huishoudens: [], toestand: null } as Momentopname;
+const SNAP = { fase: 'geen-huishouden', fout: null, account: { id: 'u1', email: 'tester@example.com' }, huishouden: null, huishoudens: [], uitnodigingen: [], toestand: null } as Momentopname;
+const U: UitnodigingVoorMij = { id: 'i1', huishouden: 'Familie Test', doorWie: 'Sanne', profiel: null, rol: 'admin', geldigTot: '2026-10-24T10:00:00Z' };
 
 describe('S1 en S2', () => {
   it('S1: aanmaken met twee namen; een ongeldige link geeft een melding, een geldige gaat naar de uitnodiging', async () => {
     const maakHuishouden = vi.fn(async () => ({ ok: true, waarde: 'h1' }));
     const opUitnodiging = vi.fn();
-    render(<Welkom sessie={nepSessie({ maakHuishouden })} snap={SNAP} opUitnodiging={opUitnodiging} />);
+    render(<Welkom sessie={nepSessie({ maakHuishouden })} snap={SNAP} opUitnodiging={opUitnodiging} opBekijk={vi.fn()} />);
+    expect(screen.getByText(/verschijnt de uitnodiging hier vanzelf/)).toBeTruthy();
     expect(screen.getByText(/Testomgeving/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Huishouden aanmaken' }));
     expect(maakHuishouden).not.toHaveBeenCalled();
@@ -187,7 +248,7 @@ describe('S1 en S2', () => {
     bewaarUitnodiging(T);
     const accepteerUitnodiging = vi.fn(async () => ({ ok: true, waarde: 'h-b' }));
     const sluit = vi.fn();
-    const { unmount } = render(<UitnodigingAccepteren sessie={nepSessie({ accepteerUitnodiging })} snap={SNAP} token={T} sluit={sluit} />);
+    const { unmount } = render(<UitnodigingAccepteren sessie={nepSessie({ accepteerUitnodiging })} snap={SNAP} bron={{ soort: 'link', token: T }} sluit={sluit} />);
     expect(accepteerUitnodiging).not.toHaveBeenCalled();
     expect(screen.getByText('tester@example.com')).toBeTruthy();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accepteren' })); });
@@ -198,7 +259,7 @@ describe('S1 en S2', () => {
     unmount();
 
     bewaarUitnodiging(T);
-    render(<UitnodigingAccepteren sessie={nepSessie({ accepteerUitnodiging })} snap={SNAP} token={T} sluit={sluit} />);
+    render(<UitnodigingAccepteren sessie={nepSessie({ accepteerUitnodiging })} snap={SNAP} bron={{ soort: 'link', token: T }} sluit={sluit} />);
     fireEvent.click(screen.getByRole('button', { name: 'Niet accepteren' }));
     expect(leesUitnodiging()).toBeNull();
     expect(sluit).toHaveBeenCalled();
@@ -206,10 +267,82 @@ describe('S1 en S2', () => {
 
   it('S2: een fout van de database wordt getoond en het scherm blijft staan', async () => {
     const accepteerUitnodiging = vi.fn(async () => ({ ok: false, fout: 'Uitnodiging is verlopen' }));
-    render(<UitnodigingAccepteren sessie={nepSessie({ accepteerUitnodiging })} snap={SNAP} token={T} sluit={vi.fn()} />);
+    render(<UitnodigingAccepteren sessie={nepSessie({ accepteerUitnodiging })} snap={SNAP} bron={{ soort: 'link', token: T }} sluit={vi.fn()} />);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accepteren' })); });
     expect(screen.getByRole('alert').textContent).toBe('Uitnodiging is verlopen');
     expect(screen.getByRole('button', { name: 'Accepteren' })).toBeTruthy();
+  });
+
+  it('S1: "Uitnodigingen voor jou" bovenaan; Bekijken opent de uitnodiging (accepteren gebeurt daar, nooit vanzelf)', () => {
+    const opBekijk = vi.fn();
+    const accepteerUitnodigingOpId = vi.fn();
+    render(<Welkom sessie={nepSessie({ accepteerUitnodigingOpId })} snap={{ ...SNAP, uitnodigingen: [U] }} opUitnodiging={vi.fn()} opBekijk={opBekijk} />);
+    expect(screen.getByRole('heading', { name: 'Uitnodigingen voor jou' })).toBeTruthy();
+    expect(screen.getByText('Familie Test')).toBeTruthy();
+    expect(screen.getByText(/Van Sanne · als beheerder · geldig tot 24 oktober/)).toBeTruthy();
+    expect(screen.queryByText(/verschijnt de uitnodiging hier vanzelf/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Uitnodiging voor Familie Test bekijken' }));
+    expect(opBekijk).toHaveBeenCalledWith(U);
+    expect(accepteerUitnodigingOpId).not.toHaveBeenCalled();
+  });
+
+  it('S2 uit de lijst: wie, welk huishouden en welke rol; accepteren met het id; Later doet niets; weigeren na bevestigen', async () => {
+    const accepteerUitnodigingOpId = vi.fn(async () => ({ ok: true, waarde: 'h-b' }));
+    const weigerUitnodiging = vi.fn(async () => ({ ok: true, waarde: undefined }));
+    const sluit = vi.fn();
+    const { unmount } = render(<UitnodigingAccepteren sessie={nepSessie({ accepteerUitnodigingOpId, weigerUitnodiging })} snap={SNAP} bron={{ soort: 'lijst', u: U }} sluit={sluit} />);
+    expect(screen.getByText(/Sanne nodigt je uit voor/).textContent).toMatch(/Familie Test, als beheerder/);
+    fireEvent.click(screen.getByRole('button', { name: 'Later' }));
+    expect(sluit).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Weigeren' }));
+    expect(weigerUitnodiging).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ja, weigeren' })); });
+    expect(weigerUitnodiging).toHaveBeenCalledWith('i1');
+    expect(sluit).toHaveBeenCalledTimes(2);
+    unmount();
+
+    render(<UitnodigingAccepteren sessie={nepSessie({ accepteerUitnodigingOpId })} snap={SNAP} bron={{ soort: 'lijst', u: U }} sluit={sluit} />);
+    fireEvent.change(screen.getByLabelText('Jouw naam'), { target: { value: ' Joris ' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accepteren' })); });
+    expect(accepteerUitnodigingOpId).toHaveBeenCalledWith('i1', 'Joris');
+    expect(screen.getByRole('heading', { name: 'Welkom bij Familie B' })).toBeTruthy();
+  });
+
+  it('S2 uit de lijst voor een bestaand profiel: geen naamveld, de koppeling staat erbij', async () => {
+    const accepteerUitnodigingOpId = vi.fn(async () => ({ ok: true, waarde: 'h-b' }));
+    render(<UitnodigingAccepteren sessie={nepSessie({ accepteerUitnodigingOpId })} snap={SNAP} bron={{ soort: 'lijst', u: { ...U, profiel: 'Partner' } }} sluit={vi.fn()} />);
+    expect(screen.queryByLabelText('Jouw naam')).toBeNull();
+    expect(screen.getByText('Partner')).toBeTruthy();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accepteren' })); });
+    expect(accepteerUitnodigingOpId).toHaveBeenCalledWith('i1', null);
+  });
+
+  it('S2 met een link voor een ander adres (TPU06): uitleg en uitloggen; de link blijft in dit tabblad', async () => {
+    bewaarUitnodiging(T);
+    const uitloggen = vi.fn(async () => {});
+    const accepteerUitnodiging = vi.fn(async () => ({ ok: false, fout: foutTekst({ code: 'TPU06' }), code: 'TPU06' }));
+    render(<UitnodigingAccepteren sessie={nepSessie({ accepteerUitnodiging, uitloggen })} snap={SNAP} bron={{ soort: 'link', token: T }} sluit={vi.fn()} />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accepteren' })); });
+    expect(screen.getByRole('alert').textContent).toMatch(/ander e-mailadres/);
+    fireEvent.click(screen.getByRole('button', { name: 'Uitloggen en met een ander adres inloggen' }));
+    expect(uitloggen).toHaveBeenCalled();
+    expect(leesUitnodiging()).toBe(T);
+  });
+
+  it('Vandaag: één rustige melding; Bekijken opent die ene, bij meer naar de lijst; Later', () => {
+    const opBekijk = vi.fn(); const opAlle = vi.fn(); const opLater = vi.fn();
+    const { rerender, container } = render(<UitnodigingMelding lijst={[U]} opBekijk={opBekijk} opAlle={opAlle} opLater={opLater} />);
+    expect(screen.getByText(/Je bent uitgenodigd voor/).textContent).toBe('Je bent uitgenodigd voor Familie Test.');
+    fireEvent.click(screen.getByRole('button', { name: 'Bekijken' }));
+    expect(opBekijk).toHaveBeenCalledWith(U);
+    rerender(<UitnodigingMelding lijst={[U, { ...U, id: 'i2', huishouden: 'Smit' }]} opBekijk={opBekijk} opAlle={opAlle} opLater={opLater} />);
+    expect(screen.getByText('Je hebt 2 uitnodigingen.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Bekijken' }));
+    expect(opAlle).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Later' }));
+    expect(opLater).toHaveBeenCalled();
+    rerender(<UitnodigingMelding lijst={[]} opBekijk={opBekijk} opAlle={opAlle} opLater={opLater} />);
+    expect(container.textContent).toBe('');
   });
 });
 
@@ -245,8 +378,27 @@ describe('S3: Meer → Huishouden, per rol', () => {
     expect(screen.getByRole('radio', { name: 'Beheerder' }).getAttribute('aria-checked')).toBe('true');
     fireEvent.change(screen.getByLabelText('Voor wie'), { target: { value: 'm-partner' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Uitnodiging maken' })); });
-    expect(n.aanroepen.find(a => a.naam === 'create_invite')?.args).toEqual({ p_household: 'h1', p_member: 'm-partner', p_role: 'admin', p_days: 7 });
+    expect(n.aanroepen.find(a => a.naam === 'create_invite')?.args).toEqual({ p_household: 'h1', p_member: 'm-partner', p_role: 'admin', p_days: 7, p_email: null });
     await waitFor(() => expect((screen.getByLabelText('Uitnodigingslink') as HTMLInputElement).value).toMatch(new RegExp(`#/uitnodiging/${T}$`)));
     expect(screen.getByText(/één keer te gebruiken/)).toBeTruthy();
+  });
+  it('uitnodigen op e-mailadres: het adres gaat mee en de uitleg noemt het; daarna is het veld leeg', async () => {
+    const n = toon('owner');
+    fireEvent.change(screen.getByLabelText('E-mailadres (optioneel)'), { target: { value: 'Joris@Example.com' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Uitnodiging maken' })); });
+    expect(n.aanroepen.find(a => a.naam === 'create_invite')?.args).toMatchObject({ p_email: 'Joris@Example.com' });
+    await waitFor(() => expect(screen.getByText('joris@example.com')).toBeTruthy());
+    expect(screen.getByText(/de link is dan niet nodig/)).toBeTruthy();
+    expect((screen.getByLabelText('E-mailadres (optioneel)') as HTMLInputElement).value).toBe('');
+  });
+  it('uitnodigingen voor jou staan ook in Meer, voor elke rol', () => {
+    const n = nepClient({});
+    const bekijk = vi.fn();
+    const ctx = { lokaal: { omgeving: 'staging',
+      uitnodigingen: { lijst: [{ id: 'i9', huishouden: 'Smit', doorWie: 'Olaf', profiel: null, rol: 'member', geldigTot: '2026-10-24T10:00:00Z' }], melding: [], bekijk, later: vi.fn() },
+      beheer: { client: n.client, huishouden: { id: 'h1', naam: 'Familie Test', rol: 'member' }, huishoudens: [], leden, kies: vi.fn() } } } as unknown as AppContext;
+    render(<Ctx.Provider value={ctx}><HuishoudenBeheer /></Ctx.Provider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Uitnodiging voor Smit bekijken' }));
+    expect(bekijk).toHaveBeenCalledWith(expect.objectContaining({ id: 'i9' }));
   });
 });
