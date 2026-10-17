@@ -57,9 +57,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Lokale Supabase starten
+      - name: Lokale geheimen voor de codelaag (K1), willekeurig en alleen voor deze run
         working-directory: komtgoed
-        run: $SUPABASE start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,postgres-meta
+        run: node supabase/k1-lokaal.mjs
+      - name: Lokale Supabase starten
+        # Met de Edge Runtime: de Send Email-hook (K1) en controleer-code draaien daarin.
+        working-directory: komtgoed
+        run: $SUPABASE start -x studio,imgproxy,storage-api,logflare,vector,supavisor,postgres-meta
       - name: RLS-matrix en tegenproeven op de echte stack
         run: bash komtgoed/supabase/tests/run.sh --db "$DB_URL" --tegenproef
       - name: Integratie (API, Auth, Realtime) en gelijktijdigheid

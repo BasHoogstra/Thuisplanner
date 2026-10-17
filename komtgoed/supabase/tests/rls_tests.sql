@@ -2219,6 +2219,41 @@ do $$ declare r record; begin
 end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 71' as resultaat;
+-- KG-T72 K1 (eigen codelaag, migratie 20261022120000): de tabellen en de serverfuncties zijn niet via de API te bereiken
+-- (alleen de service-rol, voor de Edge Functions); de vaste regel H >= U + M * D wordt in de database afgedwongen; een
+-- ingelogd account trekt alleen de eigen toestellen in; waar pg_cron bestaat, staat de opruiming gepland.
+reset role;
+do $$ declare t text; f text; n bigint; begin
+  foreach t in array array['private.k1_grenzen', 'private.k1_codes', 'private.k1_accounts', 'private.k1_toestellen'] loop
+    if has_table_privilege('authenticated', t, 'select') or has_table_privilege('anon', t, 'select')
+       or has_table_privilege('authenticated', t, 'update') or has_table_privilege('authenticated', t, 'insert') then
+      raise exception 'KG-T72: % via de API bereikbaar', t; end if;
+  end loop;
+  foreach f in array array['public.k1_nieuwe_code(text, uuid, text, text, text)', 'public.k1_code_vervalt(uuid)',
+    'public.k1_controleer(text, text, text, text, boolean)', 'public.k1_toestellen_intrekken(uuid)',
+    'private.k1_nieuwe_code(text, uuid, text, text, text)', 'private.k1_controleer(text, text, text, text, boolean)', 'private.k1_opruimen()'] loop
+    if has_function_privilege('authenticated', f, 'execute') or has_function_privilege('anon', f, 'execute') then
+      raise exception 'KG-T72: % via de API aan te roepen', f; end if;
+  end loop;
+  if not pg_temp.faalt('update private.k1_grenzen set u_onbekend = 90') then raise exception 'KG-T72: de regel H >= U + M * D wordt niet afgedwongen'; end if;
+  -- Twee accounts met elk een toestel; Ida trekt de hare in, die van Hugo blijft.
+  insert into private.k1_toestellen (user_id, token_hmac) values (current_setting('test.ida')::uuid, repeat('a', 64)), (current_setting('test.hugo')::uuid, repeat('b', 64));
+  set local role authenticated;
+  perform pg_temp.als('ida');
+  if public.mijn_toestellen_intrekken() <> 1 then raise exception 'KG-T72: eigen toestel niet ingetrokken'; end if;
+  perform pg_temp.als_met('ida', '[{"method": "password"}]', current_setting('test.ida'));
+  if pg_temp.fout('select public.mijn_toestellen_intrekken()') is distinct from 'TPA01' then raise exception 'KG-T72: een wachtwoordsessie trekt toestellen in'; end if;
+  reset role;
+  if (select count(*) from private.k1_toestellen where user_id = current_setting('test.hugo')::uuid and not ingetrokken) <> 1 then
+    raise exception 'KG-T72: toestel van een ander account ingetrokken'; end if;
+  if to_regnamespace('cron') is not null then
+    execute $q$ select count(*) from cron.job where jobname = 'thuisplanner-codes-opruimen' and command = 'select private.k1_opruimen()' and active $q$ into n;
+    if n <> 1 then raise exception 'KG-T72: geplande opruiming van codes ontbreekt'; end if;
+  end if;
+  perform pg_temp.ok('KG-T72');
+end $$;
+set local role authenticated;
+
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 72' as resultaat;
 
 rollback;

@@ -95,3 +95,7 @@ KG-T69|create or replace function private.toegang_status() returns text language
 KG-T70|create or replace function private.mag_huishouden_maken() returns boolean language sql stable security definer set search_path = '' as $$ select (select private.uid()) is not null $$;
 KG-T71|grant select on private.instellingen to authenticated;
 KG-T71|create function private.kg_lek() returns uuid language sql stable set search_path = '' as $$ select auth.uid() $$;
+KG-T72|grant select on private.k1_codes to authenticated;
+KG-T72|grant execute on function public.k1_controleer(text, text, text, text, boolean) to authenticated;
+KG-T72|alter table private.k1_grenzen drop constraint k1_grenzen_regel;
+KG-T72|create or replace function private.mijn_toestellen_intrekken() returns integer language plpgsql security definer set search_path = '' as $$ declare n integer; begin update private.k1_toestellen set ingetrokken = true where not ingetrokken; get diagnostics n = row_count; return n; end $$;

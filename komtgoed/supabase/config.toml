@@ -53,5 +53,30 @@ additional_redirect_urls = ["http://127.0.0.1:3100"]
 jwt_expiry = 3600
 enable_signup = true
 
+# KG-5H deel 2: inloggen alleen met een code (K1). Zie docs/thuisplanner-deel2-bouwscope.md. Online gelden dezelfde
+# waarden (checklist en nacontrole), behalve max_frequency: online 60s, lokaal 1s zodat de tests snel kunnen.
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+secure_password_change = true
+max_frequency = "1s"
+# De interne code van Supabase: 10 cijfers, nooit gemaild (de Send Email-hook stuurt de eigen code van 6 cijfers).
+otp_length = 10
+otp_expiry = 600
+
+# Alle mail van Supabase Auth loopt via de codelaag (functions/stuur-code). Het geheim komt uit supabase/.env
+# (k1-lokaal.mjs; nooit in de repository).
+[auth.hook.send_email]
+enabled = true
+uri = "http://host.docker.internal:55321/functions/v1/stuur-code"
+secrets = "env(K1_HOOK_SECRET)"
+
+[functions.stuur-code]
+verify_jwt = false
+
+[functions.controleer-code]
+verify_jwt = false
+
 [analytics]
 enabled = false
