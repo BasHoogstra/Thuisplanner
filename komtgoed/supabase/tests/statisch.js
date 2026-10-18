@@ -205,6 +205,26 @@ const checks = {
     return `${Object.keys(SERVICE_ROL_TOEGESTAAN).length} functies op de lijst; ${proeven.length} tegenproeven gevangen`;
   },
 
+  'website: geen scripts of bronnen van buiten in de bron, geen verzonnen bedrijfsgegevens, de bouw buiten git'() {
+    const map = path.join(ROOT, 'komtgoed', 'website');
+    const src = path.join(map, 'src');
+    const bestanden = [...fs.readdirSync(src).filter(f => f.endsWith('.html')).map(f => path.join(src, f)),
+      ...fs.readdirSync(path.join(src, 'delen')).map(f => path.join(src, 'delen', f))];
+    for (const f of bestanden) {
+      const html = fs.readFileSync(f, 'utf8');
+      assert(!/<script|<iframe|<form|\son[a-z]+=|javascript:/i.test(html), path.relative(ROOT, f) + ' bevat een script, frame, formulier of event-handler');
+      for (const [, url] of html.matchAll(/\s(?:src|href)="(https?:\/\/[^"]+)"/g)) {
+        assert(/^https:\/\/(app\.)?mijnthuisplanner\.nl(\/|$)/.test(url), path.relative(ROOT, f) + ' laadt of linkt naar ' + url);
+      }
+    }
+    // Bedrijfsgegevens komen alleen van de eigenaar: in de repository ofwel leeg, ofwel ingevuld zonder testwaarden.
+    const g = JSON.parse(fs.readFileSync(path.join(map, 'gegevens.json'), 'utf8'));
+    for (const [k, v] of Object.entries(g.bedrijf)) {
+      if (typeof v === 'string') assert(!/test\.invalid|proef|voorbeeld|12345678|example/i.test(v), 'gegevens.json: bedrijf.' + k + ' lijkt een testwaarde');
+    }
+    assert(fs.readFileSync(path.join(map, '.gitignore'), 'utf8').includes('dist/'), 'website/dist hoort niet in git');
+  },
+
   'bestaande Huisplan-bestanden ongewijzigd door deze branch'() {
     const beschermd = ['index.html', 'test/index.html', 'supabase'];
     let basis;

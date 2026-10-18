@@ -20,7 +20,8 @@
     "e2e:staging": "playwright test -c playwright.staging.config.ts",
     "e2e:lokaal": "playwright test -c playwright.lokaal.config.ts",
     "screenshots:lokaal": "KG_SCREENSHOTS=1 playwright test -c playwright.lokaal.config.ts --grep @screenshot",
-    "lan-proef": "bash scripts/lan-proef.sh"
+    "lan-proef": "bash scripts/lan-proef.sh",
+    "e2e:website": "playwright test -c playwright.website.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",

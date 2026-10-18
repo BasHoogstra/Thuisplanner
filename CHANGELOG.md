@@ -805,3 +805,18 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   - unit 188/188;
   - lokale e2e 24, staging-e2e 5/5, demo-e2e 138.
 - Beschikbaarheid online, afhankelijkheden en kosten: `docs/thuisplanner-uitnodigingsmail-verzending.md` §6. Niets online.
+
+## Thuisplanner: publieke website, gedeelde ontwerpbasis en Lettermint (18 oktober 2026, lokaal)
+- Website voor mijnthuisplanner.nl (`komtgoed/website`):
+  - een hoofdpagina, privacy, "Welke mails sturen wij?", bedrijfsgegevens en 404;
+  - zonder JavaScript, cookies of bronnen van buiten (CSP), en geen afhankelijkheden;
+  - de knop "Meedoen met de bèta", die later met één instelling naar de app gaat;
+  - de publicatiebouw weigert lege bedrijfsgegevens.
+- Gedeelde ontwerpbasis (`komtgoed/ontwerp`): kleuren (licht en donker), typografie, en een voorstel voor pictogram en logo. De app gebruikt ze zonder zichtbare wijziging; het tabbladpictogram komt uit dezelfde bron.
+- Lettermint-koppeling voor codes en uitnodigingen:
+  - de idempotentiesleutel gaat altijd mee, maar telt pas als bewezen na een online proef;
+  - een 409 is onzeker;
+  - ondertekende bezorgmeldingen.
+- De omgevingen staan in `komtgoed/omgevingen.json`. Het pushscript kent `-Omgeving staging|beta|productie` en weigert een projectkenmerk van een andere omgeving.
+- Tests: website-bouw, website-e2e (390 en 1280 px), ontwerpbasis, Lettermint-adapter, omgevingen; de volledige bestaande sets opnieuw (zie `docs/thuisplanner-website.md`).
+- Niets online: geen Pages-project, geen DNS, geen push.
