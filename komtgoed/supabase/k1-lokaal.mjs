@@ -26,8 +26,19 @@ const waarden = {
   MAIL_AFZENDER: 'Thuisplanner (lokaal) <noreply@thuisplanner.test>',
   K1_CAPTCHA: 'uit',
   APP_URL: 'http://127.0.0.1:5180/',
+  // D6: het wachtrijgeheim (ook in Vault, via seed-lokaal.sql) en de nagebootste aanbieder van de lokale tests
+  // (tests/integratie/testaanbieder.mjs, op de API-poort + 7).
+  WACHTRIJ_GEHEIM: bestaand.WACHTRIJ_GEHEIM ?? randomBytes(32).toString('hex'),
+  TESTAANBIEDER_URL: bestaand.TESTAANBIEDER_URL ?? 'http://host.docker.internal:55328',
+  TESTAANBIEDER_GEHEIM: bestaand.TESTAANBIEDER_GEHEIM ?? randomBytes(32).toString('hex'),
 };
 const kop = '# Lokale geheimen van Thuisplanner K1 (komtgoed/supabase/k1-lokaal.mjs). Niet committen, niet online gebruiken.\n';
 writeFileSync(auth, kop + `K1_HOOK_SECRET=${hook}\n`);
 writeFileSync(functies, kop + Object.entries(waarden).map(([k, v]) => `${k}=${v}`).join('\n') + '\n');
-console.log('Lokale K1-geheimen staan klaar (supabase/.env en supabase/functions/.env).');
+// Vault (alleen lokaal, via [db.seed]): waar de database de wachtrij aanroept, en met welk geheim. De gateway (Kong)
+// is binnen het Docker-netwerk van de stack bereikbaar onder zijn containernaam.
+const project = readFileSync(join(HIER, 'config.toml'), 'utf8').match(/^project_id\s*=\s*"([^"]+)"/m)?.[1] ?? 'komtgoed';
+writeFileSync(join(HIER, 'seed-lokaal.sql'), '-- Gemaakt door k1-lokaal.mjs: alleen lokaal, niet committen.\n'
+  + `select vault.create_secret('http://supabase_kong_${project}:8000/functions/v1/stuur-uitnodiging', 'thuisplanner_wachtrij_url');\n`
+  + `select vault.create_secret('${waarden.WACHTRIJ_GEHEIM}', 'thuisplanner_wachtrij_geheim');\n`);
+console.log('Lokale K1-geheimen staan klaar (supabase/.env, supabase/functions/.env en supabase/seed-lokaal.sql).');

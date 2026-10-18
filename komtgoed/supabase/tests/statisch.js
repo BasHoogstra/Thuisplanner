@@ -26,8 +26,10 @@ const EXTENSION_FUNCS = ['gen_random_bytes', 'gen_salt', 'crypt', 'digest', 'hma
 const SERVICE_ROL_TOEGESTAAN = {
   'stuur-code': { bewijs: /webhookGeldig\(/, reden: 'alleen na de handtekening van de Auth-hook (Standard Webhooks)' },
   'controleer-code': { bewijs: /'k1_controleer'/, reden: 'vóór het inloggen; elke poging loopt door de grenzen in k1_controleer' },
-  'stuur-uitnodiging': { bewijs: /rpc\/uitnodigingsmail_verzoek[\s\S]*SUPABASE_ANON_KEY|SUPABASE_ANON_KEY[\s\S]*rpc\/uitnodigingsmail_verzoek/,
-    reden: 'eerst de sessie van de gebruiker via de database (toegangspoort), met zijn eigen token' },
+  'stuur-uitnodiging': { bewijs: /instelling\('WACHTRIJ_GEHEIM'\)[\s\S]*geheimGelijk\(geheim, verwacht\)[\s\S]*return json\(401/,
+    reden: 'alleen met het wachtrijgeheim van de database (Vault), in constante tijd vergeleken' },
+  'mail-bezorging': { bewijs: /aanbieder\.bezorging\(req, body\)[\s\S]*if \(!melding\) return json\(401/,
+    reden: 'alleen een melding met een geldige handtekening van de aanbieder' },
 };
 /** Fouten voor een lijst Edge Functions ({ naam, bron }); _gedeeld telt als gedeelde code. Leeg = in orde. */
 function serviceRolFouten(functies) {
@@ -193,7 +195,8 @@ const checks = {
     const proeven = [
       ['een nieuwe functie met rpc', [{ naam: 'nieuw', bron: "import { json, rpc } from '../_gedeeld/k1.ts';" }]],
       ['een nieuwe functie met de sleutel zelf', [{ naam: 'nieuw', bron: "Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')" }]],
-      ['stuur-uitnodiging zonder sessiecontrole', [{ naam: 'stuur-uitnodiging', bron: echt['stuur-uitnodiging'].replace(/rpc\/uitnodigingsmail_verzoek/g, 'rpc/iets_anders') }]],
+      ['stuur-uitnodiging zonder het wachtrijgeheim', [{ naam: 'stuur-uitnodiging', bron: echt['stuur-uitnodiging'].replace(/geheimGelijk\(geheim, verwacht\)/g, 'true') }]],
+      ['mail-bezorging zonder handtekening', [{ naam: 'mail-bezorging', bron: echt['mail-bezorging'].replace(/if \(!melding\) return json\(401, \{\}\);/g, '') }]],
       ['stuur-code zonder handtekening', [{ naam: 'stuur-code', bron: echt['stuur-code'].replace(/webhookGeldig\(/g, 'altijdGeldig(') }]],
       ['controleer-code zonder grenzen', [{ naam: 'controleer-code', bron: echt['controleer-code'].replace(/'k1_controleer'/g, "'k1_zonder_grens'") }]],
       ['gedeelde code met de sleutel', [{ naam: '_gedeeld/nieuw.ts', bron: "Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')" }]],

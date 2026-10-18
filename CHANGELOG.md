@@ -787,3 +787,21 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   - statische controles.
 - Bouwverslag, afwijkingen, wat lokaal bewezen is en de stappen vóór testers: `docs/thuisplanner-deel2-bouwverslag.md`.
   Niet gepusht en niet op staging.
+
+## Thuisplanner D6: uitnodigingsmails automatisch versturen (18 oktober 2026, lokaal)
+- De database verstuurt de uitnodigingsmail zelf, ook als niemand de app open heeft:
+  - een seintje na elke nieuwe mail (pg_net, met de URL en het geheim uit Vault);
+  - een vangnet dat elke minuut kijkt (pg_cron).
+- Opnieuw proberen bij een storing na 1, 4 en 9 minuten, daarna "mislukt"; 429 volgt de wachttijd van de aanbieder.
+- Nooit dubbel: een onzekere poging (verloren antwoord) gaat alleen opnieuw met een bewezen idempotente aanbieder.
+- "Aangenomen", "bezorgd" en "niet bezorgd" zijn apart, via ondertekende meldingen (`mail-bezorging`).
+- De koppeling met de mailaanbieder is verwisselbaar (`functions/_gedeeld/aanbieder.ts`); de definitieve aanbieder volgt later.
+- De app verstuurt niets meer zelf en toont alleen de stand.
+- De nacontrole kent pg_net, Vault, de vijfde taak en de stand van de wachtrij.
+- Tests:
+  - integratie 95/95;
+  - K1- en D6-tegenproeven 26/26;
+  - RLS 75/75, tegenproeven 111/111;
+  - unit 188/188;
+  - lokale e2e 24, staging-e2e 5/5, demo-e2e 138.
+- Beschikbaarheid online, afhankelijkheden en kosten: `docs/thuisplanner-uitnodigingsmail-verzending.md` §6. Niets online.

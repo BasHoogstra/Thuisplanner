@@ -63,24 +63,26 @@ export async function trekIn(c: SupabaseClient, uitnodiging: string): Promise<Ui
   return r.error ? { ok: false, fout: foutTekst(r.error) } : { ok: true, waarde: undefined };
 }
 
-/** De uitnodigingsmail (D6): de laatste mail per open uitnodiging, voor de uitnodiger. */
-export type MailStand = 'wacht' | 'bezig' | 'verstuurd' | 'onzeker' | 'mislukt' | 'niet_bezorgd' | 'vervallen' | 'daglimiet';
-export interface MailStatus { nummer: number; status: MailStand; verstuurd: string | null; opnieuwVanaf: string | null }
+/**
+ * De uitnodigingsmail (D6): de laatste mail per open uitnodiging, voor de uitnodiger. De database verstuurt hem zelf
+ * (seintje en vangnet); de app toont alleen de stand. "aangenomen" (de aanbieder nam hem aan) is iets anders dan
+ * "bezorgd" (de aanbieder meldt aflevering) en "niet_bezorgd".
+ */
+export type MailStand = 'wacht' | 'bezig' | 'aangenomen' | 'bezorgd' | 'onzeker' | 'mislukt' | 'niet_bezorgd' | 'vervallen' | 'daglimiet';
+export interface MailStatus { nummer: number; status: MailStand; aangenomen: string | null; bezorgd: string | null; opnieuwVanaf: string | null }
 
 export async function mailStatussen(c: SupabaseClient, huishouden: string): Promise<Map<string, MailStatus>> {
   const r = await c.rpc('uitnodigingsmails', { p_household: huishouden });
   const uit = new Map<string, MailStatus>();
   if (r.error || !Array.isArray(r.data)) return uit;
-  for (const m of r.data as { invite_id: string; nummer: number; status: MailStand; verstuurd: string | null; opnieuw_vanaf: string | null }[]) {
-    uit.set(m.invite_id, { nummer: m.nummer, status: m.status, verstuurd: m.verstuurd, opnieuwVanaf: m.opnieuw_vanaf });
+  for (const m of r.data as { invite_id: string; nummer: number; status: MailStand; aangenomen_op: string | null; bezorgd_op: string | null; opnieuw_vanaf: string | null }[]) {
+    uit.set(m.invite_id, { nummer: m.nummer, status: m.status, aangenomen: m.aangenomen_op, bezorgd: m.bezorgd_op, opnieuwVanaf: m.opnieuw_vanaf });
   }
   return uit;
 }
 
-/** Laat de Edge Function de wachtende mails van dit huishouden versturen (met de sessie van deze gebruiker). */
-export async function verstuurMails(c: SupabaseClient, huishouden: string): Promise<void> {
-  try { await c.functions.invoke('stuur-uitnodiging', { body: { huishouden } }); } catch { /* volgende keer opnieuw */ }
-}
+/** Wordt er nog aan deze mail gewerkt (dan kijkt het scherm zo nog eens)? */
+export const mailBezig = (m: MailStatus) => m.status === 'wacht' || m.status === 'bezig';
 
 export async function mailOpnieuw(c: SupabaseClient, uitnodiging: string): Promise<Uitkomst> {
   const r = await c.rpc('uitnodigingsmail_opnieuw', { p_invite: uitnodiging });
@@ -96,8 +98,9 @@ const tijdTekst = (iso: string, nu: Date) => {
 /** De regel onder een open uitnodiging. Delen via de link blijft altijd mogelijk. */
 export function mailTekst(m: MailStatus, nu = new Date()): string {
   switch (m.status) {
-    case 'wacht': case 'bezig': return 'Mail wordt verstuurd. Lukt het niet meteen, dan proberen we het opnieuw.';
-    case 'verstuurd': return `Mail verstuurd om ${m.verstuurd ? tijdTekst(m.verstuurd, nu) : 'onbekend'}.`;
+    case 'wacht': case 'bezig': return 'Mail wordt verstuurd. Lukt het niet meteen, dan proberen we het vanzelf opnieuw.';
+    case 'aangenomen': return `Mail verstuurd om ${m.aangenomen ? tijdTekst(m.aangenomen, nu) : 'onbekend'}. Nog geen bevestiging dat hij is aangekomen.`;
+    case 'bezorgd': return `Mail bezorgd om ${m.bezorgd ? tijdTekst(m.bezorgd, nu) : 'onbekend'}.`;
     case 'onzeker': return 'Mail misschien niet aangekomen. Stuur hem nog eens, of deel de link.';
     case 'mislukt': return 'Mail kon niet worden verstuurd. Controleer het adres, of deel de link.';
     case 'niet_bezorgd': return 'Mail niet bezorgd: controleer het adres.';
@@ -108,4 +111,4 @@ export function mailTekst(m: MailStatus, nu = new Date()): string {
 
 /** Mag "Mail nog eens sturen" nu? (De database beslist; dit is alleen om de knop te tonen.) */
 export const magOpnieuwMailen = (m: MailStatus, nu = new Date()) =>
-  m.nummer < 3 && !['wacht', 'bezig'].includes(m.status) && (!m.opnieuwVanaf || new Date(m.opnieuwVanaf) <= nu);
+  m.nummer < 3 && !mailBezig(m) && m.status !== 'bezorgd' && (!m.opnieuwVanaf || new Date(m.opnieuwVanaf) <= nu);

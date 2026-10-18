@@ -4,7 +4,8 @@
 //
 // Alleen inloggen (signup, magiclink, email) en het wijzigen van het adres (email_change) zijn toegestaan. Al het
 // andere (recovery, reauthentication, invite) weigert deze hook: Thuisplanner kent geen wachtwoorden.
-import { adresHmac, codeHmac, instelling, json, log, rpc, versleutel, verstuur, webhookGeldig, willekeurigeCode, type Mail } from '../_gedeeld/k1.ts';
+import { adresHmac, codeHmac, instelling, json, log, rpc, versleutel, webhookGeldig, willekeurigeCode, type Mail } from '../_gedeeld/k1.ts';
+import { verstuur } from '../_gedeeld/aanbieder.ts';
 import { beslotenTest, inlogcode, wijzigingNieuw, wijzigingOud } from '../_gedeeld/mails.ts';
 
 // Supabase Auth: een HTTP-hook meldt een fout met status 200 en { error: { http_code, message } }; een 4xx of 5xx

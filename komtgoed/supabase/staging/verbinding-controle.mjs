@@ -126,11 +126,11 @@ export function leegFouten(s) {
   return f;
 }
 
-// Het schema na de 15 migraties (relaties, functies en policies in public en private), gemeten op een lege lokale
-// Supabase-stack na precies deze migraties (17 oktober 2026, met deel 2: toegangspoort, K1 en de uitnodigingsmail).
+// Het schema na de 16 migraties (relaties, functies en policies in public en private), gemeten op een lege lokale
+// Supabase-stack na precies deze migraties (18 oktober 2026, met deel 2: toegangspoort, K1, de uitnodigingsmail en de automatische verzending).
 // Wijkt staging hiervan af, dan kreeg het niet hetzelfde schema.
 export const VERWACHT_SCHEMA = [
-  { schema: 'private', relaties: 9, functies: 88, policies: 0 },
+  { schema: 'private', relaties: 9, functies: 94, policies: 0 },
   { schema: 'public', relaties: 11, functies: 34, policies: 18 },
 ];
 
@@ -140,6 +140,7 @@ export const VERWACHTE_TAKEN = [
   { jobname: 'thuisplanner-codes-opruimen', schedule: '41 3 * * *', command: 'select private.k1_opruimen()' },
   { jobname: 'thuisplanner-uitnodigingen-opschonen', schedule: '29 3 * * *', command: 'select private.purge_invite_emails()' },
   { jobname: 'thuisplanner-uitnodigingsmails-opruimen', schedule: '53 3 * * *', command: 'select private.uitnodigingsmails_opruimen()' },
+  { jobname: 'thuisplanner-uitnodigingsmails-versturen', schedule: '* * * * *', command: 'select private.uitnodigingsmail_ronde()' },
 ];
 
 /**
@@ -206,11 +207,19 @@ export async function leesNa(client) {
     // Deel 2: de schakelaars van de toegangspoort en K1 (alleen de stand, geen inhoud), en de opslag (Storage).
     const metInstellingen = (await alle(`select to_regclass('private.instellingen') is not null as er`))[0].er;
     const instellingen = metInstellingen ? (await alle(`select wachtwoordsessies_toegestaan, sessiecontrole, onderhoud, huishouden_open,
-        registratie_open, codes_aan from private.instellingen`))[0] ?? null : null;
+        registratie_open, codes_aan, mail_testaanbieder from private.instellingen`))[0] ?? null : null;
     const metOpslag = (await alle(`select to_regclass('storage.buckets') is not null as er`))[0].er;
     const opslag = metOpslag ? (await alle(`select (select count(*) from storage.buckets)::int as buckets,
         (select count(*) from pg_policy where polrelid = 'storage.objects'::regclass)::int as policies`))[0] : { buckets: 0, policies: 0 };
-    return { versies, zonderRls, zonderPolicy, anonRechten, anonPrivate, definerPubliek, realtime, cron, schema, adressen, instellingen, opslag };
+    // D6, automatische verzending: pg_net aan, de twee namen in Vault (alleen of ze bestaan; de waarden worden nooit
+    // gelezen), en de stand van de wachtrij (alleen aantallen).
+    const pgNet = (await alle(`select count(*)::int as n from pg_extension where extname = 'pg_net'`))[0].n === 1;
+    const metVault = (await alle(`select to_regclass('vault.secrets') is not null as er`))[0].er;
+    const vaultNamen = metVault ? (await alle(`select name from vault.secrets where name in ('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_geheim') order by 1`)).map(r => r.name) : [];
+    const metStand = (await alle(`select to_regprocedure('private.uitnodigingsmail_stand()') is not null as er`))[0].er;
+    const wachtrij = metStand ? (await alle(`select * from private.uitnodigingsmail_stand()`))[0] : null;
+    return { versies, zonderRls, zonderPolicy, anonRechten, anonPrivate, definerPubliek, realtime, cron, schema, adressen, instellingen, opslag,
+      pgNet, vaultNamen, wachtrij };
   } finally {
     await client.query('rollback');
   }
@@ -245,6 +254,14 @@ export function naFouten(n, verwachteVersies, verwachtSchema) {
     // Online nooit wachtwoordsessies (alleen de lokale ontwikkelstack zet die aan, via seed.sql), en de sessiecontrole aan.
     if (n.instellingen.wachtwoordsessies_toegestaan !== false) f.push('wachtwoordsessies zijn toegestaan: dat mag alleen lokaal (seed.sql)');
     if (n.instellingen.sessiecontrole !== true) f.push('de sessiecontrole van de toegangspoort staat uit');
+  }
+  if (n.instellingen && n.instellingen.mail_testaanbieder != null) f.push('de testaanbieder voor mail staat aan: dat mag alleen lokaal');
+  if (!n.pgNet) f.push('pg_net staat niet aan: uitnodigingsmails gaan niet automatisch');
+  for (const naam of ['thuisplanner_wachtrij_geheim', 'thuisplanner_wachtrij_url']) {
+    if (!(n.vaultNamen ?? []).includes(naam)) f.push(`Vault mist ${naam}: uitnodigingsmails blijven wachten`);
+  }
+  if (n.wachtrij && (n.wachtrij.wacht_lang || n.wachtrij.bezig_over_termijn)) {
+    f.push(`${n.wachtrij.wacht_lang} uitnodigingsmail(s) wachten langer dan 10 minuten en ${n.wachtrij.bezig_over_termijn} hangen: de verzending draait niet`);
   }
   if (n.opslag && (n.opslag.buckets || n.opslag.policies)) f.push(`Storage is in gebruik (${n.opslag.buckets} buckets, ${n.opslag.policies} policies): niet ontworpen en niet door de poort getoetst`);
   if (verwachtSchema && JSON.stringify(n.schema) !== JSON.stringify(verwachtSchema)) f.push(`schema wijkt af van de lokale referentie: ${JSON.stringify(n.schema)} in plaats van ${JSON.stringify(verwachtSchema)}`);
@@ -282,6 +299,7 @@ async function hoofd() {
     console.log(`Realtime-policies: ${n.realtime.map(p => `${p.polname} (${p.polcmd}, ${p.rollen.join(',')})`).join('; ') || 'geen'}`);
     console.log(`geplande taken: ${n.cron.map(j => `${j.jobname} ${j.schedule} ${j.active ? 'actief' : 'uit'}`).join('; ') || 'geen'}`);
     if (n.adressen) console.log(`e-mailadressen bij uitnodigingen: ${n.adressen.gesloten} bij gesloten, ${n.adressen.verlopen} bij lang verlopen (beide horen 0 te zijn)`);
+    if (n.wachtrij) console.log(`uitnodigingsmails: ${Object.entries(n.wachtrij).map(([k, v]) => `${k} ${v}`).join(', ')}; Vault: ${(n.vaultNamen ?? []).join(', ') || 'leeg'}; pg_net ${n.pgNet ? 'aan' : 'uit'}`);
     if (n.instellingen) console.log(`schakelaars: ${Object.entries(n.instellingen).map(([k, v]) => `${k} ${v}`).join(', ')}`);
     const f = naFouten(n, repoVersies(), VERWACHT_SCHEMA);
     // De Auth-instellingen (openbaar met de anon-sleutel; geen geheim). Zonder KG_STAGING_ANON_KEY: overgeslagen en gemeld.

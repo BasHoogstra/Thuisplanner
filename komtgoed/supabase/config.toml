@@ -26,7 +26,7 @@ enabled = true
 # Alleen lokaal (supabase start en db reset; nooit bij db push naar een online project): de lokale ontwikkelmodus
 # voor de fictieve accounts. Zie seed.sql.
 enabled = true
-sql_paths = ["./seed.sql"]
+sql_paths = ["./seed.sql", "./seed-lokaal.sql"]
 
 [realtime]
 # Aan sinds KG-5B, alleen om te bewijzen dat er niets uitlekt: geen tabel staat in een publicatie
@@ -78,8 +78,12 @@ verify_jwt = false
 [functions.controleer-code]
 verify_jwt = false
 
-# Controleert zelf de sessie van de gebruiker, via de database (toegangspoort).
+# Alleen de database roept haar aan (pg_net, met het wachtrijgeheim uit Vault).
 [functions.stuur-uitnodiging]
+verify_jwt = false
+
+# Bezorgmeldingen van de mailaanbieder, ondertekend (zie functions/_gedeeld/aanbieder.ts).
+[functions.mail-bezorging]
 verify_jwt = false
 
 [analytics]

@@ -67,6 +67,10 @@ jobs:
       - name: RLS-matrix en tegenproeven op de echte stack
         run: bash komtgoed/supabase/tests/run.sh --db "$DB_URL" --tegenproef
       - name: Integratie (API, Auth, Realtime) en gelijktijdigheid
+        # De nagebootste mailaanbieder (testaanbieder.mjs) moet vanuit de containers bereikbaar zijn; op Linux kan dat
+        # niet via 127.0.0.1. De runner is tijdelijk en heeft geen andere gebruikers.
+        env:
+          TESTAANBIEDER_ADRES: 0.0.0.0
         run: |
           (cd komtgoed/supabase/tests/integratie && npm ci --no-audit --no-fund)
           bash komtgoed/supabase/tests/integratie/run.sh

@@ -1,73 +1,57 @@
-// Thuisplanner D6: de uitnodigingsmails van één huishouden versturen. De wachtrij staat in de database (migratie
-// uitnodigingsmail); deze functie pakt de rijen die aan de beurt zijn en verstuurt ze. De app roept haar aan na het maken
-// van een uitnodiging, na "nog eens sturen", en als de beheerder het huishouden opent terwijl er nog een mail wacht.
+// Thuisplanner D6: de wachtrij van uitnodigingsmails verwerken (docs/thuisplanner-uitnodigingsmail-verzending.md).
+// Alleen de database roept deze functie aan: het seintje na een nieuwe mail en het vangnet elke minuut (pg_net, met het
+// wachtrijgeheim uit Vault). Zonder het juiste geheim (in constante tijd vergeleken): 401 en er gebeurt niets. Er is geen
+// route voor gebruikers of de app.
 //
-// Alleen een eigenaar of beheerder met een geldige codesessie: de controle loopt met zijn eigen token door de database
-// (uitnodigingsmail_verzoek, dus door de toegangspoort). Daarna werkt de functie met de service-rol, alleen voor dat
-// huishouden. De mail bevat geen token (B4) en de tekst ligt vast (veiligeNaam).
+// De functie antwoordt meteen (202) en werkt op de achtergrond verder (EdgeRuntime.waitUntil), zodat een korte
+// time-out van pg_net de verwerking niet afbreekt. Hoogstens 20 seconden per aanroep, in porties van 10; wat overblijft,
+// pakt de volgende ronde op. Twee gelijktijdige aanroepen pakken nooit dezelfde rij (SKIP LOCKED in de database).
 //
-// Hoogstens één mail per rij: een time-out of een andere onzekere fout maakt de rij "onzeker" (niet opnieuw); alleen
-// een aanbieder die de mail aantoonbaar niet aannam (5xx/429) geeft een nieuwe poging.
-//
-// Antwoorden: 200 { verstuurd, opnieuw, onzeker, mislukt }, 401 { code: 'TPA01' } (geen geldige sessie),
-// 403 { code: 'TPU01' } (geen beheerder), 400 (geen huishouden), 503 (storing).
-import { instelling, json, log, NietAangenomen, rpc, verstuur } from '../_gedeeld/k1.ts';
+// Per mail: de aanbieder neemt aan (aangenomen), weigert tijdelijk (opnieuw), weigert definitief (mislukt), of er komt
+// geen antwoord (onzeker; alleen met een bewezen idempotente aanbieder later nog eens, met dezelfde sleutel = de rij-id).
+// De mail bevat geen token (B4) en de tekst ligt vast (veiligeNaam).
+import { geheimGelijk, instelling, json, log, rpc } from '../_gedeeld/k1.ts';
+import { kiesAanbieder, NietAangenomen } from '../_gedeeld/aanbieder.ts';
 import { uitnodiging } from '../_gedeeld/mails.ts';
 
-function cors(): Record<string, string> {
-  return { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS' };
-}
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const BUDGET_MS = 20_000;
 const datum = (iso: string) => new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'long', timeZone: 'Europe/Amsterdam' }).format(new Date(iso));
 
-/** Mag deze gebruiker (zijn eigen token) de mails van dit huishouden laten versturen? */
-async function magVersturen(token: string, huishouden: string): Promise<'ja' | 'nee' | 'geen-sessie'> {
-  const r = await fetch(`${instelling('SUPABASE_URL')}/rest/v1/rpc/uitnodigingsmail_verzoek`, {
-    method: 'POST',
-    headers: { apikey: instelling('SUPABASE_ANON_KEY'), Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ p_household: huishouden }),
-  });
-  if (r.ok) return (await r.json()) === true ? 'ja' : 'nee';
-  if (r.status === 401 || r.status === 403) return 'geen-sessie';
-  const fout = await r.json().catch(() => ({}));
-  if (typeof fout.code === 'string' && fout.code.startsWith('TPA')) return 'geen-sessie';
-  throw new Error(`uitnodigingsmail_verzoek: ${r.status}`);
+type Rij = { id: string; aan: string; huishouden: string | null; uitnodiger: string | null; geldig_tot: string };
+
+async function verwerk(): Promise<void> {
+  const aanbieder = kiesAanbieder(await rpc<string | null>('mail_testaanbieder', {}));
+  const telling = { aangenomen: 0, opnieuw: 0, onzeker: 0, mislukt: 0 };
+  const start = Date.now();
+  while (Date.now() - start < BUDGET_MS) {
+    const rijen = await rpc<Rij[]>('uitnodigingsmail_pak', { p_max: 10, p_idempotent: aanbieder.idempotent });
+    if (!rijen.length) break;
+    for (const r of rijen) {
+      let uitkomst: keyof typeof telling = 'aangenomen';
+      let bericht: string | null = null;
+      let wachtS: number | null = null;
+      try {
+        bericht = (await aanbieder.verstuur(uitnodiging(r.aan, r.uitnodiger, r.huishouden, instelling('APP_URL'), datum(r.geldig_tot)), r.id)).berichtId;
+      } catch (e) {
+        if (e instanceof NietAangenomen) { uitkomst = e.opnieuw ? 'opnieuw' : 'mislukt'; wachtS = e.wachtS; }
+        else uitkomst = 'onzeker';
+      }
+      await rpc('uitnodigingsmail_klaar', { p_id: r.id, p_uitkomst: uitkomst, p_bericht: bericht, p_wacht_s: wachtS, p_idempotent: aanbieder.idempotent });
+      telling[uitkomst]++;
+    }
+  }
+  log('stuur-uitnodiging', { aanbieder: aanbieder.naam, ...telling });
 }
 
 Deno.serve(async req => {
-  const kop = cors();
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: kop });
-  if (req.method !== 'POST') return json(405, {}, kop);
-  const token = req.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
-  let b: { huishouden?: unknown };
-  try { b = await req.json(); } catch { return json(400, {}, kop); }
-  const huishouden = typeof b.huishouden === 'string' && UUID.test(b.huishouden) ? b.huishouden : null;
-  if (!huishouden) return json(400, {}, kop);
-  if (!token) return json(401, { code: 'TPA01' }, kop);
-  try {
-    const mag = await magVersturen(token, huishouden);
-    if (mag === 'geen-sessie') return json(401, { code: 'TPA01' }, kop);
-    if (mag === 'nee') return json(403, { code: 'TPU01' }, kop);
-    const rijen = await rpc<{ id: string; aan: string; huishouden: string | null; uitnodiger: string | null; geldig_tot: string }[]>(
-      'uitnodigingsmail_pak', { p_household: huishouden, p_max: 10 });
-    const telling = { verstuurd: 0, opnieuw: 0, onzeker: 0, mislukt: 0 };
-    for (const r of rijen) {
-      let uitkomst: keyof typeof telling = 'verstuurd';
-      let bericht: string | null = null;
-      try {
-        bericht = await verstuur(uitnodiging(r.aan, r.uitnodiger, r.huishouden, instelling('APP_URL'), datum(r.geldig_tot)), r.id);
-      } catch (e) {
-        uitkomst = e instanceof NietAangenomen ? (e.opnieuw ? 'opnieuw' : 'mislukt') : 'onzeker';
-      }
-      await rpc('uitnodigingsmail_klaar', { p_id: r.id, p_uitkomst: uitkomst, p_bericht: bericht });
-      telling[uitkomst]++;
-    }
-    log('stuur-uitnodiging', telling);
-    return json(200, telling, kop);
-  } catch {
-    log('stuur-uitnodiging', { uitkomst: 'storing' });
-    return json(503, {}, kop);
-  }
+  if (req.method !== 'POST') return json(405, {});
+  const geheim = req.headers.get('x-thuisplanner-wachtrij') ?? '';
+  let verwacht: string;
+  try { verwacht = instelling('WACHTRIJ_GEHEIM'); } catch { return json(503, {}); }
+  if (verwacht.length < 32 || !geheimGelijk(geheim, verwacht)) return json(401, {});
+  const werk = verwerk().catch(() => log('stuur-uitnodiging', { uitkomst: 'storing' }));
+  const rt = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;
+  if (rt?.waitUntil) { rt.waitUntil(werk); return json(202, {}); }
+  await werk;
+  return json(200, {});
 });

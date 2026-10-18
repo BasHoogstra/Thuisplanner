@@ -125,9 +125,14 @@ test('uitnodiging op e-mailadres accepteren met een code: link openen, code, naa
   await sanne.getByLabel('E-mailadres (optioneel)').fill(email);
   await sanne.getByRole('button', { name: 'Uitnodiging maken' }).click();
   const link = await sanne.getByLabel('Uitnodigingslink', { exact: true }).inputValue();
-  // D6: de uitnodigingsmail gaat vanzelf, zonder token; de uitnodiger ziet dat hij verstuurd is.
-  await expect(sanne.getByText(/^Mail verstuurd om \d\d:\d\d\.$/)).toBeVisible(SYNC);
-  const r = await (await fetch(`${MAIL}/api/v1/search?query=${encodeURIComponent('to:' + email)}&limit=5`)).json();
+  // D6: de database verstuurt de uitnodigingsmail vanzelf, zonder token; de uitnodiger ziet dat de aanbieder hem
+  // aannam (Mailpit meldt geen bezorging, dus nog geen "bezorgd").
+  await expect(sanne.getByText(/^Mail verstuurd om \d\d:\d\d\. Nog geen bevestiging dat hij is aangekomen\.$/)).toBeVisible({ timeout: 20_000 });
+  let r = { messages: [] as { ID: string }[] };
+  for (let i = 0; i < 40 && !r.messages?.length; i++) {
+    r = await (await fetch(`${MAIL}/api/v1/search?query=${encodeURIComponent('to:' + email)}&limit=5`)).json();
+    if (!r.messages?.length) await new Promise(k => setTimeout(k, 250));
+  }
   expect(r.messages).toHaveLength(1);
   const mail = await (await fetch(`${MAIL}/api/v1/message/${r.messages[0].ID}`)).json();
   expect(mail.Subject).toBe('Sanne nodigt je uit voor Thuisplanner');

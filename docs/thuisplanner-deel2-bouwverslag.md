@@ -37,7 +37,7 @@ Ook dit is alleen lokale documentatie.
 2. **CORS `*` op `controleer-code` en `stuur-uitnodiging`.** Geen cookies of inloggegevens via de browser; de lokale
    gateway zet zelf `*`. CORS is hier geen beveiligingsgrens. De bescherming zit in de grenzen, de captcha, de eenmalige
    `token_hash` en (bij de uitnodigingsmail) de sessiecontrole via de database.
-3. **Geen geplande taak die mails verstuurt (tijdelijk, niet definitief).** Nu verstuurt de app wachtende mails:
+3. **Geen geplande taak die mails verstuurt (opgelost op 18 oktober 2026: zie §8).** Nu verstuurt de app wachtende mails:
    - bij het maken van een uitnodiging;
    - bij "nog eens sturen";
    - zodra een beheerder het huishouden opent.
@@ -213,6 +213,7 @@ eigen akkoord nodig, want ze maken accounts en mails aan in een online project.
 | H16 | pg_cron: de vier taken (straks vijf) | De nacontrole ziet ze actief; na een nacht is de opruiming gedraaid (verlopen adressen weg) |
 | H17 | De echte Cloudflare Pages-headers (CSP en de andere headers) op het eigen adres | Dezelfde CSP als in de staging-e2e; geen overtredingen in de browser |
 | H18 | Het gratis tegoed na een week testen | Ruim binnen de grenzen voor Edge Functions, mails en database |
+| H19 | De automatische verzending (§8): pg_net, Vault, de vijfde taak, een mail zonder dat iemand de app open heeft, en het gedrag na pauzeren en hervatten (bèta) | De mail komt binnen een minuut; de nacontrole meldt geen afwijking; na het hervatten draaien de taken weer |
 
 ### 4.3 Alleen op echte telefoons te toetsen
 
@@ -234,7 +235,7 @@ eigen akkoord nodig, want ze maken accounts en mails aan in een online project.
 | --- | --- | --- |
 | R-a | Geen mailaanbieder en geen domein: online komt er nog geen code aan | Een blokkade vóór testers; zie §6 stap 2 |
 | R-b | Supabase verandert de `amr`-claim of de hook-API | Fail-closed poort; de integratietests vangen het bij elke update van de CLI of GoTrue |
-| R-c | Een wachtende mail blijft wachten tot een beheerder de app opent (afwijking 3) | Geen definitieve oplossing. Het voorstel voor automatische verzending staat in `docs/thuisplanner-uitnodigingsmail-verzending.md`; tot dan gaat de mail niet naar externe testers. De uitnodiging blijft geldig en zichtbaar na het inloggen, en de link delen blijft |
+| R-c | Opgelost (§8). Was: een wachtende mail blijft wachten tot een beheerder de app opent (afwijking 3) | Geen definitieve oplossing. Het voorstel voor automatische verzending staat in `docs/thuisplanner-uitnodigingsmail-verzending.md`; tot dan gaat de mail niet naar externe testers. De uitnodiging blijft geldig en zichtbaar na het inloggen, en de link delen blijft |
 | R-d | Supabase-limieten (S1/S2) zijn onbekend | Meten op staging en daarna op de bèta, vóór testers (H8 en H9) |
 | R-e | Safari wist de sessie na 7 dagen | De gebruiker logt opnieuw in met een code; niets gaat verloren wat al bevestigd is |
 | R-f | Een gestolen telefoon met open sessie | "Uitloggen op alle toestellen" werkt direct; R1/R2 (herstel met passkey) vóór de commerciële start |
@@ -419,3 +420,96 @@ De versterking uit §7.3 is lokaal gebouwd. Omdat KG-T72 al bestond (K1), heten 
   (statisch en matrix) is hierboven rechtstreeks gedraaid.
 - **Nog niet gebouwd** (punt 8, tweede helft): CI als verplichte controle voor `main`. Dat is een instelling in GitHub en
   vraagt je akkoord.
+
+## 8. Automatische verzending van uitnodigingsmails (lokaal gebouwd, 18 oktober 2026)
+
+Akkoord op 18 oktober 2026 met de architectuur, de limieten en de wachttijden uit
+`docs/thuisplanner-uitnodigingsmail-verzending.md`. Gebouwd als migratie 16 (`20261024120000_uitnodigingsmail_automatisch`).
+Daarbij horen:
+- een verwisselbare koppeling met de mailaanbieder (`functions/_gedeeld/aanbieder.ts`);
+- de nieuwe Edge Function `mail-bezorging`;
+- `stuur-uitnodiging` in wachtrijmodus;
+- de app, die alleen nog de stand toont.
+
+Afwijking 3 uit §2 is hiermee opgelost. De uitwerkingen W1 tot en met W8 en de beschikbaarheid online (pg_net, pg_cron,
+Vault, kosten en afhankelijkheden) staan in dat document, §6 en §7.
+
+### 8.1 De zes voorwaarden van het akkoord
+
+| # | Voorwaarde | Hoe | Bewijs (lokaal) |
+| --- | --- | --- | --- |
+| 1 | pg_net, pg_cron en Vault beschikbaar en geschikt voor staging, bèta en productie; afhankelijkheden en kosten vastgelegd | Nagegaan in de documentatie van Supabase (§6 van het verzenddocument). Geschikt, met drie afhankelijkheden: pauzeren van gratis projecten (productie vraagt een betaald abonnement), pg_net is bèta, Vault gaat niet mee bij een herstel naar een nieuw project | Lokaal met dezelfde onderdelen (pg_net 0.20.4, pg_cron 1.6.4, Vault 0.3.1). Online pas te bewijzen (H19) |
+| 2 | De koppeling met de mailaanbieder verwisselbaar | Eén interface; adapters `mailpit` en `test`. Een echte aanbieder wordt een extra adapter | De integratietests draaien met beide adapters, en de wachtrij weet niet welke |
+| 3 | Onderscheid tussen aangenomen, bezorgd en niet bezorgd | Drie toestanden met eigen tijdstippen. Alleen een ondertekende melding maakt een mail bezorgd of niet bezorgd; een bounce gaat voor | V1 (ook een valse handtekening en een onbekend bericht); unit (de teksten) |
+| 4 | Geen dubbele verzending zolang de aanbieder geen bewezen idempotentie heeft; vooral getest: mogelijk verstuurd, antwoord verloren | Een onzekere poging blijft "onzeker" tenzij de adapter idempotent is. Elke adapter is nu niet idempotent, behalve de idempotente testaanbieder. Twee wegen getest: het antwoord gaat verloren (time-out na het versturen), en de functie stopt halverwege (een vastgelopen poging) | T16 (geen tweede mail, ook na rondes en "later"); T16 met idempotentie (dezelfde sleutel, precies één mail); tegenproeven 14, 16, 17, 18 en 26 |
+| 5 | Betrouwbaar bij storingen, gelijktijdige verzoeken en herstarts | Seintje en vangnet; SKIP LOCKED; een termijn op "bezig"; de wachtrij in gewone (gelogde) tabellen | Gelijktijdig (30 mails, 5 extra aanroepen: elke mail precies één keer); de functie weg (container gestopt); Vault leeg; het seintje verloren (de echte pg_cron pakt het op); een herstart van de database |
+| 6 | De bestaande beveiligingscontroles behouden; alle relevante tests uitvoeren | De poortcatalogus (KG-T71 en KG-T73 tot en met KG-T75) dekt de nieuwe functies. De statische controle kent `mail-bezorging` en het nieuwe bewijs van `stuur-uitnodiging`. Geen gebruikersroute meer | §8.2 |
+
+### 8.2 Testresultaten (lokale stack, na een reset)
+
+| Testset | Uitkomst |
+| --- | --- |
+| RLS-matrix | 75 van 75 (de poortcatalogus dekt de nieuwe functies) |
+| SQL-tegenproeven | 111 van 111 |
+| Statische controles | geslaagd (4 Edge Functions met de service-rol op de lijst, 7 ingebouwde tegenproeven) |
+| Integratie (11 bestanden) | 95 van 95 (waarvan 14 voor de uitnodigingsmail) |
+| K1- en D6-tegenproeven | 26 van 26 (waarvan 13 nieuw voor de automatische verzending) |
+| Sync-tegenproeven | 22 van 22 |
+| Nacontrole (lokaal) | alleen de bedoelde afwijking (lokale wachtwoordsessies); 6 gerichte afwijkingen nagespeeld en alle gevonden |
+| App-unittests | 188 van 188 |
+| Lokale e2e | 24 geslaagd, 2 overgeslagen (screenshots). De eerste run direct na een reset van de database gaf 3 fouten: `lokaal.mjs seed` liep vast en de run duurde 5 minuten in plaats van 2. Dat is hetzelfde patroon als in §3 (de stack is vlak na een reset traag). Direct daarna was alles groen |
+| Staging-e2e (lokale simulatie, niet de online staging) | 5 van 5 |
+| Demo-e2e | 138 geslaagd, 9 overgeslagen |
+
+De integratietest `uitnodigingsmail.test.mjs` (14 tests) toetst:
+
+| Test | Wat |
+| --- | --- |
+| V1 | Niemand opent de app, met het vangnet even uit: alleen het seintje verstuurt. Aangenomen ≠ bezorgd. T18 alleen met een geldige handtekening |
+| Mailpit | De lokale ontwikkelstand: de mail zonder token, met vaste tekst |
+| T16 | Het antwoord gaat verloren na het versturen; een vastgelopen poging; een late uitkomst; een trage weigering. Steeds "onzeker" en nooit een tweede mail |
+| T16 met idempotentie | Na een verloren antwoord dezelfde sleutel: precies één mail |
+| Opnieuw proberen | Na 1, 4 en 9 minuten, daarna mislukt; 429 met de wachttijd van de aanbieder; een 4xx meteen mislukt |
+| T17 en de daglimiet | Als in deel 2, nu met automatische verzending |
+| Ingetrokken | Ingetrokken en opnieuw uitnodigen; de wachtrij bevat geen adres |
+| Gelijktijdig | 30 uitnodigingen en 5 extra aanroepen |
+| Teruggedraaid | Een teruggedraaide uitnodiging geeft geen seintje |
+| Poort | Alleen het wachtrijgeheim. Geen gebruiker, geen service-rolsleutel als token, geen anon-sleutel en geen wachtwoordsessie |
+| Herstel | De functie gestopt; Vault leeg |
+| Vangnet | De echte pg_cron, tot 90 s |
+| Herstart | Een herstart van de database |
+
+### 8.3 Resterende risico's van de automatische verzending
+
+| # | Risico | Wat het beperkt |
+| --- | --- | --- |
+| A-1 | Zonder bewezen idempotente aanbieder blijft een verloren antwoord "onzeker": de genodigde krijgt dan misschien geen mail, en de uitnodiger moet zelf kiezen | Bewust: liever geen mail dan twee. De uitnodiger ziet het, en de uitnodiging zelf blijft zichtbaar na het inloggen |
+| A-2 | Een gratis project wordt na een week rust gepauzeerd; de verzending staat dan stil | Staging intern: acceptabel. Bèta: H19. Productie: een betaald abonnement |
+| A-3 | pg_net is bij Supabase bèta; een wijziging van de API stopt het seintje en het vangnet | De mails blijven wachten (niets kwijt, niets dubbel); de nacontrole slaat alarm |
+| A-4 | Bezorgmeldingen hangen af van de aanbieder; zonder webhook blijft het bij "aangenomen" | De tekst zegt eerlijk "Nog geen bevestiging dat hij is aangekomen" |
+| A-5 | Een herstel naar een nieuw project neemt Vault niet mee | Toegevoegd aan het herstelprotocol (H0, vereiste 6); de nacontrole meldt het |
+| A-6 | De testaanbieder is code in de Edge Function | Alleen met een lokale `TESTAANBIEDER_URL` én een databaseinstelling; online staat de URL niet en eist de nacontrole dat de instelling leeg is |
+| A-7 | In CI (Linux) moet de testaanbieder op 0.0.0.0 luisteren, en `host.docker.internal` moet vanuit de containers werken. Dat geldt ook voor de bestaande Auth-hook | `TESTAANBIEDER_ADRES` in de workflow. Pas bewezen bij de eerste CI-run na een push |
+
+### 8.4 Gehoste tests erbij (vóór de bèta)
+
+- **H19, de eerste keer per omgeving:**
+  - pg_net en Vault aan;
+  - de vijfde taak actief;
+  - de twee Vault-waarden gezet;
+  - een uitnodiging zonder dat iemand de app open heeft: de mail komt binnen een minuut;
+  - het gedrag van de taken na het pauzeren en hervatten van een gratis project (de bèta).
+- **H14 en H15** (zie §4.2) gelden nu voor deze opzet: V1 tot en met V9 met de echte aanbieder, en de bezorgmeldingen
+  via `mail-bezorging`.
+
+### 8.5 Beslissingen voor jou
+
+1. **De mailaanbieder (B6)**, met als harde eisen:
+   - EU;
+   - een HTTP-API (geen SMTP; die poorten zijn geblokkeerd);
+   - een gedocumenteerde idempotentiesleutel, die we ook zelf bewijzen voordat de adapter zich idempotent mag noemen;
+   - een ondertekende bezorg- en bounce-webhook;
+   - een gratis instap.
+2. **Het Supabase-abonnement voor productie.** Een betaald abonnement is nodig, omdat gratis projecten pauzeren en er
+   hoogstens twee gratis projecten zijn (staging en bèta). Het besluit kan later, maar vóór productie.
+3. **De bèta op het gratis plan:** het risico van pauzeren accepteren (H19 meet het), of de bèta al op een betaald plan.

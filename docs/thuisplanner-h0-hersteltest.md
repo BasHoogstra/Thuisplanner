@@ -67,6 +67,12 @@ Die horen bij de eerste oefening met een echte back-upomgeving, na een apart akk
 4. De controlesom vóór het versleutelen, en controleren na het ontsleutelen.
 5. Een maandelijkse hersteloefening, zoals deze: een lege stack met de migraties, laden, de vingerafdruk, de
    nacontrole, de RLS-matrix en een inlogvergelijking.
+6. **Vault (sinds de automatische uitnodigingsmail, 18 oktober 2026).** De twee Vault-waarden
+   (`thuisplanner_wachtrij_url` en `thuisplanner_wachtrij_geheim`) gaan niet mee naar een **nieuw** project. Elk project
+   heeft een eigen hoofdsleutel, dus een `pg_dump` van `vault.secrets` is daar niet te ontsleutelen.
+   - Sluit `vault` uit van de export.
+   - Zet beide waarden na het herstel opnieuw (een nieuw wachtrijgeheim ook als functiegeheim).
+   - De nacontrole meldt het als ze ontbreken. Tot dan wachten uitnodigingsmails; er gaat niets verloren.
 
 Werkbestanden staan in de scratchmap van deze sessie, niet in de repository: de vingerafdruk, de scripts, de
 versleutelde export en de testsleutels.

@@ -67,7 +67,8 @@ export async function ontsleutel(waarde: string): Promise<string> {
   return new TextDecoder().decode(pt);
 }
 
-function gelijk(a: string, b: string): boolean {
+/** Vergelijken in constante tijd (geheimen, handtekeningen). */
+export function geheimGelijk(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let v = 0;
   for (let i = 0; i < a.length; i++) v |= a.charCodeAt(i) ^ b.charCodeAt(i);
@@ -82,7 +83,7 @@ export async function webhookGeldig(geheim: string, kop: Headers, body: string):
   const sleutel = uitB64(geheim.replace(/^v1,/, '').replace(/^whsec_/, ''));
   const k = await crypto.subtle.importKey('raw', sleutel, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const verwacht = b64(await crypto.subtle.sign('HMAC', k, tekst.encode(`${id}.${tijd}.${body}`)));
-  return handtekeningen.split(' ').some(h => gelijk(h.replace(/^v1,/, ''), verwacht));
+  return handtekeningen.split(' ').some(h => geheimGelijk(h.replace(/^v1,/, ''), verwacht));
 }
 
 /** Een RPC met de service-rol (alleen in de Edge Functions). */
@@ -101,42 +102,7 @@ export async function rpc<T>(naam: string, args: Record<string, unknown>): Promi
 
 export interface Mail { aan: string; onderwerp: string; tekst: string; html: string }
 
-/** Versturen via de ingestelde aanbieder. Lokaal Mailpit; zonder ingestelde aanbieder weigert dit (fail-closed). */
-/** De aanbieder antwoordde en nam de mail niet aan; `opnieuw`: tijdelijk (5xx, 429), anders definitief (4xx). */
-export class NietAangenomen extends Error {
-  constructor(readonly status: number) { super(`niet aangenomen: ${status}`); }
-  get opnieuw(): boolean { return this.status >= 500 || this.status === 429; }
-}
-
-/**
- * Verstuurt één mail en geeft het bericht-id van de aanbieder. Een NietAangenomen-fout betekent: zeker niet verstuurd.
- * Elke andere fout (time-out, verbinding weg) is onzeker: de mail kan al verstuurd zijn. `sleutel` is de
- * idempotentiesleutel voor een aanbieder die dat ondersteunt (dezelfde sleutel = hoogstens één mail).
- */
-export async function verstuur(m: Mail, sleutel?: string): Promise<string | null> {
-  const adapter = instelling('MAIL_ADAPTER');
-  const afzender = Deno.env.get('MAIL_AFZENDER') ?? 'Thuisplanner <noreply@thuisplanner.test>';
-  const [, naam, email] = afzender.match(/^(.*?)\s*<(.+)>$/) ?? [null, 'Thuisplanner', afzender];
-  const ctl = new AbortController();
-  const klok = setTimeout(() => ctl.abort(), 2500);
-  try {
-    if (adapter === 'mailpit') {
-      const r = await fetch(`${instelling('MAILPIT_URL')}/api/v1/send`, {
-        method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' },
-        // Mailpit kent geen idempotentie; de sleutel gaat als kop mee, zodat de tests hem zien.
-        body: JSON.stringify({ From: { Email: email, Name: naam }, To: [{ Email: m.aan }], Subject: m.onderwerp, Text: m.tekst, HTML: m.html,
-          ...(sleutel ? { Headers: { 'X-Thuisplanner-Sleutel': sleutel } } : {}) }),
-      });
-      if (!r.ok) throw new NietAangenomen(r.status);
-      const b = await r.json().catch(() => ({}));
-      return typeof b.ID === 'string' ? b.ID : null;
-    }
-    // De echte aanbieder (na de vergelijking B6) komt hier als eigen adapter, met de idempotentiesleutel.
-    throw new Error(`onbekende mailaanbieder ${adapter}`);
-  } finally {
-    clearTimeout(klok);
-  }
-}
+// Versturen: zie aanbieder.ts (verwisselbare koppeling met de mailaanbieder).
 
 export function json(status: number, body: unknown, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...extra } });

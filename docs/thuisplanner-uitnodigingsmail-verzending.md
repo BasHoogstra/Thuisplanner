@@ -1,6 +1,6 @@
 # Thuisplanner D6: betrouwbare automatische verzending van uitnodigingsmails (voorstel)
 
-**Status:** 📝 voorstel ter beoordeling (17 oktober 2026). Niets gebouwd, niets online gewijzigd.
+**Status:** akkoord op 18 oktober 2026 (architectuur, limieten en wachttijden), en lokaal gebouwd en getest (§7 en het bouwverslag §8). Niets online gewijzigd.
 
 **Aanleiding:** in deel 2 verstuurt de app een wachtende mail pas als een beheerder het huishouden opent
 (`docs/thuisplanner-deel2-bouwverslag.md` §2, afwijking 3). Dat is geen definitieve oplossing: een mail die door een
@@ -139,3 +139,61 @@ Zonder idempotentie blijft "onzeker" een handmatige stap voor de uitnodiger, en 
    - `WACHTRIJ_GEHEIM` als functiegeheim;
    - de twee Vault-waarden via de SQL-editor (nooit in de repository of de chat);
    - daarna de nacontrole.
+
+## 6. Beschikbaarheid in de gehoste omgevingen: afhankelijkheden en kosten (nagegaan op 18 oktober 2026)
+
+Bronnen: de documentatie van Supabase over pg_net, Cron, Vault, het plannen van Edge Functions, de grenzen van Edge
+Functions, het pauzeren van gratis projecten en de facturering. De voorwaarden kunnen veranderen; controleer ze bij elke
+nieuwe omgeving opnieuw (H-test H19 in het bouwverslag).
+
+| Onderdeel | Beschikbaar | Wat het voor Thuisplanner betekent |
+| --- | --- | --- |
+| **pg_cron** (Supabase Cron) | Op het gehoste platform; dit is het patroon dat Supabase zelf aanraadt voor geplande Edge Functions. De documentatie noemt geen planbeperking | Hoogstens 8 taken tegelijk en elk hoogstens 10 minuten. Wij hebben vijf taken: één elke minuut (kort) en vier dagelijks |
+| **pg_net** | Op het gehoste platform, als extensie in te schakelen; Database Webhooks van Supabase leunen er ook op | De API heet bij Supabase nog **bèta** (handtekeningen kunnen veranderen). Verzoeken gaan pas na de commit weg, betrouwbaar tot ongeveer 200 per seconde. De wachtrij en de antwoorden staan in niet-gelogde tabellen: weg bij een crash. Ons ontwerp vangt dat op met het vangnet; getest met een herstart van de database |
+| **Vault** (supabase_vault) | Op het gehoste platform | Elk project heeft een eigen hoofdsleutel. Na een herstel met `pg_dump` in een **nieuw** project (zoals de H0-hersteltest) zijn de waarden niet meer te ontsleutelen. Zet de twee waarden dan opnieuw (aan het herstelprotocol toegevoegd) |
+| **Edge Functions** | Alle plannen | **Gratis:** 500.000 aanroepen per maand, en 150 s wandkloktijd per aanroep (betaald 400 s). Per verzoek 2 s CPU. **Uitgaande SMTP (poorten 25 en 587) is geblokkeerd**: een mailaanbieder moet een HTTP-API hebben (de adapter is daarop gebouwd). Wij verwerken hoogstens 20 s per aanroep, op de achtergrond (`EdgeRuntime.waitUntil`) |
+
+**Afhankelijkheden en risico's per omgeving**
+
+1. **Gratis projecten worden gepauzeerd** na een week met weinig activiteit (Supabase stuurt eerst een waarschuwing).
+   - Een gepauzeerd project verstuurt niets; ook de geplande taken staan dan stil.
+   - Volgens een niet-officiële bron draaien de taken na het hervatten niet vanzelf weer. Dat moet bij de eerste
+     hervatting gecontroleerd worden (H19); de nacontrole ziet een taak die niet actief is.
+   - Het vangnet zelf telt waarschijnlijk niet als "activiteit": dat zijn gebruikersverzoeken.
+   - **Staging** (intern): pauzeren is acceptabel.
+   - **Bèta**: met actieve testers waarschijnlijk geen probleem, maar het blijft een risico.
+   - **Productie**: een betaald abonnement is nodig; betaalde projecten worden niet gepauzeerd.
+2. **Hoogstens twee actieve gratis projecten** per organisatie (gepauzeerde tellen niet mee). Met staging en de bèta
+   is dat vol; **productie vraagt een betaald abonnement** (of het pauzeren van staging).
+3. **De mailaanbieder** moet een HTTP-API hebben (geen SMTP), en voor veilig opnieuw proberen na een verloren antwoord:
+   een **gedocumenteerde en bewezen** idempotentiesleutel. Voor "bezorgd" en "niet bezorgd" is een **ondertekende**
+   webhook nodig.
+4. **pg_net is bèta bij Supabase.** Bij een wijziging van de API faalt het seintje: de uitnodiging blijft geldig, de
+   mail blijft wachten en de nacontrole slaat alarm ("wachten langer dan 10 minuten"). Er gaat niets verloren en niets
+   dubbel, maar mails blijven liggen tot het hersteld is.
+
+**Kosten**
+
+| | Staging en bèta (gratis) | Productie (later) |
+| --- | --- | --- |
+| pg_cron, pg_net, Vault | Geen extra kosten | Geen extra kosten |
+| Edge Function-aanroepen | Het vangnet roept alleen aan als er werk ligt; ongeveer één aanroep per uitnodiging plus enkele herhalingen. Ruim binnen 500.000 per maand | Inbegrepen in het betaalde plan tot de daar geldende grens, daarna per miljoen |
+| Supabase-abonnement | Gratis (met pauzeren) | Een betaald abonnement (prijs op supabase.com/pricing, controleren bij het besluit) |
+| Mailaanbieder | Gratis instap (keuze B6) | Afhankelijk van de aanbieder en het volume |
+
+## 7. Gebouwd en lokaal bewezen (18 oktober 2026)
+
+Gebouwd volgens §3, met deze uitwerkingen:
+
+| # | Uitwerking | Waarom |
+| --- | --- | --- |
+| W1 | **Toestanden.** Wat eerst "verstuurd" heette, is nu **"aangenomen"**: de aanbieder nam de mail aan. Daarnaast **"bezorgd"** (met tijdstip) en **"niet bezorgd"**, alleen via een ondertekende melding van de aanbieder (`mail-bezorging`). Een latere bounce gaat voor; "bezorgd" maakt een bounce niet ongedaan. De uitnodiger ziet "Mail verstuurd om 14:02. Nog geen bevestiging dat hij is aangekomen.", "Mail bezorgd om 14:03." of "Mail niet bezorgd: controleer het adres." | Eis 3 van het akkoord |
+| W2 | **Pogingen:** de eerste, en daarna hoogstens 3 nieuwe na 1, 4 en 9 minuten (4 in totaal), daarna "mislukt". Bij 429 telt de wachttijd van de aanbieder als die langer is (hoogstens een uur). Een 4xx is meteen "mislukt" | De akkoorde limieten |
+| W3 | **Nooit dubbel zonder bewezen idempotentie.** In de database: een onzekere poging (verloren antwoord, of vastgelopen) gaat alleen terug naar "wacht" als de adapter zich als idempotent meldt. Mailpit en elke nieuwe aanbieder melden zich als **niet** idempotent, tot het bewezen is | Eis 4 |
+| W4 | **De koppeling is verwisselbaar.** `functions/_gedeeld/aanbieder.ts` heeft één interface (versturen, idempotent ja of nee, bezorgmelding lezen). Er zijn twee adapters: `mailpit` (lokaal) en `test` (alleen voor de lokale tests, in twee soorten). Een echte aanbieder wordt een derde adapter, zonder wijziging aan de wachtrij | Eis 2 |
+| W5 | **Geen gebruikersroute meer.** De app verstuurt niets meer; ze toont de stand en ververst elke 3 seconden zolang er een mail onderweg is (hoogstens 2 minuten). `uitnodigingsmail_verzoek` is weg. `stuur-uitnodiging` accepteert alleen het wachtrijgeheim uit Vault | Minder aanvalsoppervlak |
+| W6 | **De functie antwoordt meteen (202)** en werkt op de achtergrond. Ze werkt hoogstens 20 seconden per aanroep, in porties van 10 | Een time-out van pg_net breekt de verwerking niet af |
+| W7 | **Lokaal:** `k1-lokaal.mjs` maakt het wachtrijgeheim en `seed-lokaal.sql` (de twee Vault-waarden, gitignored). Binnen het Docker-netwerk is de functie bereikbaar via Kong. De testaanbieder draait op de API-poort + 7 en staat alleen aan met `private.instellingen.mail_testaanbieder`, en alleen met een lokale `TESTAANBIEDER_URL`. Online eist de nacontrole dat die instelling leeg is | Geen tijdelijke testroute online |
+| W8 | **Bewaking.** De nacontrole kent de vijfde geplande taak, pg_net, de twee namen in Vault (nooit de waarden) en de stand van de wachtrij (alleen aantallen). Ze slaat alarm bij mails die langer dan 10 minuten wachten of vastzitten | Eis 5 |
+
+De testresultaten staan in het bouwverslag, §8.

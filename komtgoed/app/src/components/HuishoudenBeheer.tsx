@@ -4,8 +4,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../lib/context';
 import { UitnodigingenVoorJou } from './Onboarding';
-import { magBeheerderUitnodigen, magBeheren, mailOpnieuw, mailStatussen, mailTekst, magOpnieuwMailen, nodigUit, openUitnodigingen, ROL_TEKST,
-  trekIn, verstuurMails, voegLidToe, type MailStatus, type NieuweUitnodiging, type OpenUitnodiging } from '../lib/lokaal/beheer';
+import { magBeheerderUitnodigen, magBeheren, mailBezig, mailOpnieuw, mailStatussen, mailTekst, magOpnieuwMailen, nodigUit, openUitnodigingen, ROL_TEKST,
+  trekIn, voegLidToe, type MailStatus, type NieuweUitnodiging, type OpenUitnodiging } from '../lib/lokaal/beheer';
 import type { Rol } from '../lib/lokaal/sessie';
 
 const datumTekst = (d: Date | string) => new Date(d).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' });
@@ -19,18 +19,22 @@ export function HuishoudenBeheer() {
   const [melding, zetMelding] = useState<string | null>(null);
   const [mails, zetMails] = useState<Map<string, MailStatus>>(new Map());
 
-  const ververs = useCallback(async (versturen = true) => {
+  const ververs = useCallback(async () => {
     if (!beheer || !beheren) return;
     const [r, m] = await Promise.all([openUitnodigingen(beheer.client, beheer.huishouden.id), mailStatussen(beheer.client, beheer.huishouden.id)]);
     if (r.ok) zetOpen(r.waarde);
     zetMails(m);
-    // Wacht er nog een mail (net gemaakt, of een eerdere poging lukte niet), dan nu versturen en opnieuw kijken.
-    if (versturen && [...m.values()].some(x => x.status === 'wacht')) {
-      await verstuurMails(beheer.client, beheer.huishouden.id);
-      zetMails(await mailStatussen(beheer.client, beheer.huishouden.id));
-    }
   }, [beheer, beheren]);
   useEffect(() => { void ververs(); }, [ververs]);
+  // De database verstuurt de mail zelf; zolang er nog een onderweg is, kijkt het scherm elke 3 seconden (hoogstens
+  // 2 minuten lang) of de stand al veranderd is.
+  const onderweg = [...mails.values()].some(mailBezig);
+  useEffect(() => {
+    if (!onderweg) return;
+    let n = 0;
+    const t = window.setInterval(() => { if (++n > 40) window.clearInterval(t); else void ververs(); }, 3000);
+    return () => window.clearInterval(t);
+  }, [onderweg, ververs]);
 
   if (!beheer) return null;
   const leden = beheer.leden.filter(l => l.status === 'active');
@@ -78,7 +82,7 @@ export function HuishoudenBeheer() {
               <h3 id="h-open" className="sectie-kop">Open uitnodigingen</h3>
               <ul className="lijst">
                 {open.map(u => <OpenRij key={u.id} u={u} naam={naamVan(u.lidId)} mail={mails.get(u.id)} opNieuw={() => void ververs()}
-                  opIngetrokken={() => { zetMelding('Uitnodiging ingetrokken.'); void ververs(false); }} />)}
+                  opIngetrokken={() => { zetMelding('Uitnodiging ingetrokken.'); void ververs(); }} />)}
               </ul>
             </div>
           )}
