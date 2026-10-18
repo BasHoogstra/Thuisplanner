@@ -19,8 +19,14 @@
 import { geheimGelijk, hmacHex, instelling, type Mail } from './k1.ts';
 
 export class NietAangenomen extends Error {
-  /** wachtS: de wachttijd die de aanbieder vraagt (Retry-After), in seconden. */
-  constructor(readonly status: number, readonly wachtS: number | null = null) { super(`niet aangenomen: ${status}`); }
+  readonly status: number;
+  /** De wachttijd die de aanbieder vraagt (Retry-After), in seconden. */
+  readonly wachtS: number | null;
+  constructor(status: number, wachtS: number | null = null) {
+    super(`niet aangenomen: ${status}`);
+    this.status = status;
+    this.wachtS = wachtS;
+  }
   get opnieuw(): boolean { return this.status >= 500 || this.status === 429; }
 }
 
@@ -30,7 +36,8 @@ export interface Aanbieder {
   naam: string;
   idempotent: boolean;
   verstuur(m: Mail, sleutel?: string): Promise<{ berichtId: string | null }>;
-  bezorging(req: Request, body: string): Promise<Bezorging | null>;
+  /** Een geldige melding over één bericht, 'negeren' (geldig maar niet over bezorging), of null (ongeldig). */
+  bezorging(req: Request, body: string): Promise<Bezorging | 'negeren' | null>;
 }
 
 const TIJDSLIMIET_MS = 2500;
@@ -99,11 +106,63 @@ function testaanbieder(idempotent: boolean): Aanbieder {
   };
 }
 
+/**
+ * Lettermint (Nederland, EU; keuze van 18 oktober 2026). Zie docs/thuisplanner-mailaanbieder-keuze.md.
+ * - Versturen: POST /v1/send, met x-lettermint-token, en altijd de rij-id als Idempotency-Key (24 uur geldig).
+ * - idempotent: ALLEEN als LETTERMINT_IDEMPOTENT_BEWEZEN=ja. Dat zet de beheerder pas nadat online is bewezen dat
+ *   dezelfde sleutel geen tweede mail geeft. Tot dan blijft een verloren antwoord "onzeker" (geen nieuwe poging).
+ * - 409 (sleutel al gebruikt, of het eerste verzoek loopt nog of had een onbekende uitkomst): ONZEKER, nooit opnieuw.
+ * - 429 en 5xx: niet aangenomen, later opnieuw (met dezelfde sleutel). Andere 4xx: definitief niet aangenomen.
+ * - Bezorging: X-Lettermint-Signature "t=<sec>,v1=<hmac-sha256-hex>" over "<t>.<body>", met het webhookgeheim
+ *   (whsec_…) letterlijk als sleutel; X-Lettermint-Delivery moet gelijk zijn aan t; hoogstens 5 minuten oud.
+ */
+const LETTERMINT_API = 'https://api.lettermint.co';
+const NIET_BEZORGD = new Set(['message.hard_bounced', 'message.failed', 'message.suppressed', 'message.policy_rejected']);
+
+export function lettermint(): Aanbieder {
+  const basis = Deno.env.get('LETTERMINT_API_URL') ?? LETTERMINT_API;
+  // Alleen de echte API, of (in de lokale tests) een nagebootste op deze computer.
+  if (basis !== LETTERMINT_API && !/^http:\/\/(host\.docker\.internal|localhost|127\.0\.0\.1):\d+$/.test(basis)) throw new Error('LETTERMINT_API_URL ongeldig');
+  return {
+    naam: 'lettermint',
+    idempotent: Deno.env.get('LETTERMINT_IDEMPOTENT_BEWEZEN') === 'ja',
+    async verstuur(m, sleutel) {
+      const { naam, email } = afzender();
+      const route = Deno.env.get('LETTERMINT_ROUTE');
+      const r = await post(`${basis}/v1/send`, { 'x-lettermint-token': instelling('LETTERMINT_TOKEN'), ...(sleutel ? { 'Idempotency-Key': sleutel } : {}) },
+        { from: `${naam} <${email}>`, to: [m.aan], subject: m.onderwerp, text: m.tekst, html: m.html, ...(route ? { route } : {}) });
+      if (r.status === 202 || r.status === 200) {
+        const b = await r.json().catch(() => ({}));
+        return { berichtId: typeof b.message_id === 'string' ? b.message_id : null };
+      }
+      // 409: de sleutel is al gebruikt (misschien is de mail al weg). Dat is geen weigering: onzeker.
+      if (r.status === 409) throw new Error('lettermint: 409, uitkomst onbekend');
+      throw new NietAangenomen(r.status, wachtTijd(r));
+    },
+    async bezorging(req, body) {
+      const kop = req.headers.get('x-lettermint-signature') ?? '';
+      const t = kop.match(/(?:^|,)\s*t=(\d+)/)?.[1];
+      const v1 = kop.match(/(?:^|,)\s*v1=([0-9a-f]{64})/)?.[1];
+      if (!t || !v1 || req.headers.get('x-lettermint-delivery') !== t) return null;
+      if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return null;
+      if (!geheimGelijk(v1, await hmacHex(instelling('LETTERMINT_WEBHOOK_GEHEIM'), `${t}.${body}`))) return null;
+      let b: { event?: string; data?: { message_id?: unknown } };
+      try { b = JSON.parse(body); } catch { return null; }
+      const id = b.data?.message_id;
+      if (b.event === 'message.delivered' && typeof id === 'string') return { berichtId: id, uitkomst: 'bezorgd' };
+      if (NIET_BEZORGD.has(b.event ?? '') && typeof id === 'string') return { berichtId: id, uitkomst: 'niet_bezorgd' };
+      // Geldig, maar niet over bezorging (bijvoorbeeld een tijdelijke bounce, een test of een spamklacht).
+      return 'negeren';
+    },
+  };
+}
+
 /** De aanbieder voor deze omgeving; `test` alleen als de database het vraagt én TESTAANBIEDER_URL lokaal is. */
 export function kiesAanbieder(testInstelling: string | null = null): Aanbieder {
   if (testInstelling === 'gewoon' || testInstelling === 'idempotent') return testaanbieder(testInstelling === 'idempotent');
   const naam = instelling('MAIL_ADAPTER');
   if (naam === 'mailpit') return mailpit();
+  if (naam === 'lettermint') return lettermint();
   throw new Error(`onbekende mailaanbieder ${naam}`);
 }
 

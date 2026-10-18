@@ -33,6 +33,12 @@ jobs:
           node-version: '22'
       - name: Statische controles
         run: node komtgoed/supabase/tests/statisch.js
+      - name: Website bouwen en testen (zonder afhankelijkheden)
+        run: |
+          node komtgoed/website/bouw.mjs
+          node --test komtgoed/website/tests/*.test.mjs
+      - name: Edge Function-adapters (Lettermint, zonder netwerk naar buiten)
+        run: node --experimental-strip-types --test komtgoed/supabase/tests/functies/*.test.mjs
       - name: PostgreSQL 16 (lokaal op de runner)
         run: |
           if [ ! -x /usr/lib/postgresql/16/bin/initdb ]; then
@@ -86,6 +92,7 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
           npm run e2e:lokaal
+          npm run e2e:website
         env:
           CI: '1'
       - name: LAN-proef (browsers op een aparte netwerkhost, zonder secure context)

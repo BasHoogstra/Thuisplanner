@@ -197,3 +197,33 @@ Gebouwd volgens §3, met deze uitwerkingen:
 | W8 | **Bewaking.** De nacontrole kent de vijfde geplande taak, pg_net, de twee namen in Vault (nooit de waarden) en de stand van de wachtrij (alleen aantallen). Ze slaat alarm bij mails die langer dan 10 minuten wachten of vastzitten | Eis 5 |
 
 De testresultaten staan in het bouwverslag, §8.
+
+## 8. De Lettermint-koppeling (lokaal gebouwd, 18 oktober 2026)
+
+Lettermint is de gekozen aanbieder (`docs/thuisplanner-mailaanbieder-keuze.md`). Het afzenderdomein
+`mail.mijnthuisplanner.nl` is bij Lettermint geverifieerd: de vier DNS-records staan, en ook in de Cloudflare-zone, die
+nog niet actief is. De koppeling is een adapter in `functions/_gedeeld/aanbieder.ts`, naast `mailpit` en `test`. Ze
+geldt voor de codes (K1) en de uitnodigingsmails.
+
+| Onderwerp | Hoe |
+| --- | --- |
+| Versturen | `POST https://api.lettermint.co/v1/send`, met `x-lettermint-token`. De body bevat `from`, `to[]`, `subject`, `text`, `html` en eventueel `route`. Antwoord `202 {message_id}`; dat `message_id` is het bericht-id voor de bezorgmeldingen |
+| Idempotentiesleutel | Altijd de rij-id als `Idempotency-Key`. Lettermint bewaart die 24 uur; ons schema met nieuwe pogingen duurt hoogstens een kwartier |
+| Idempotent? | **Nee, tot het bewezen is.** De adapter meldt zich pas als idempotent met `LETTERMINT_IDEMPOTENT_BEWEZEN=ja`. Tot dan blijft een verloren antwoord "onzeker" en volgt er geen nieuwe poging (W3) |
+| 409 | **Onzeker, nooit opnieuw.** Lettermint geeft 409 als dezelfde sleutel al gebruikt is, nog loopt, of een onbekende uitkomst had. Dat is geen weigering |
+| 429 en 5xx | Niet aangenomen, later opnieuw (met de wachttijd van Lettermint als die langer is) |
+| Andere 4xx | Definitief niet aangenomen (mislukt) |
+| Bezorgmeldingen | `POST …/functions/v1/mail-bezorging?aanbieder=lettermint`. De handtekening `X-Lettermint-Signature: t=…,v1=<hmac-sha256-hex>` gaat over `t.body`, met het webhookgeheim (`whsec_…`) letterlijk als sleutel. `X-Lettermint-Delivery` moet gelijk zijn aan `t`, en de melding mag hoogstens 5 minuten oud zijn. `message.delivered` geeft bezorgd. `message.hard_bounced`, `failed`, `suppressed` en `policy_rejected` geven niet bezorgd. Een tijdelijke bounce, een spamklacht, open- en klikmeldingen en testmeldingen worden bevestigd (200) maar veranderen niets |
+| Alleen de echte API | `LETTERMINT_API_URL` mag alleen `https://api.lettermint.co` zijn, of in de lokale tests een adres op deze computer |
+| Tests | `tests/functies/lettermint.test.mjs` (6 tests, tegen een nagebootste Lettermint op 127.0.0.1). Ze toetsen het verzoek, de fouten (409, 429, 5xx, 4xx, time-out), de regel "idempotent alleen na bewijs", en de handtekening (geldig, vervalst, ander geheim, te oud, afwijkende levertijd, ontbrekend). Een echte mail via Lettermint is **niet** verstuurd |
+
+**Wat jij later per omgeving zet** (als functiegeheim in Supabase; nooit in de repository of de chat):
+- `MAIL_ADAPTER=lettermint`;
+- `LETTERMINT_TOKEN` (het API-token van het Lettermint-project);
+- `LETTERMINT_WEBHOOK_GEHEIM` (het `whsec_…`-geheim van de webhook);
+- `MAIL_AFZENDER` (zie `komtgoed/omgevingen.json`);
+- eventueel `LETTERMINT_ROUTE`;
+- `LETTERMINT_IDEMPOTENT_BEWEZEN=ja` pas na de online proef (H-test: twee keer hetzelfde verzoek met dezelfde sleutel
+  geeft één mail en hetzelfde `message_id`).
+
+In Lettermint stel je de webhook in op het adres van `mail-bezorging`, met de gebeurtenissen voor bezorging en bounces.

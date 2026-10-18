@@ -2,9 +2,10 @@
 // Gebruikt door verbinding.ps1 (docs/thuisplanner-staging.md, stap 3). Schrijft nooit iets: elke vraag loopt in
 // een read-only transactie die wordt teruggedraaid.
 //
-// Verbinding: KG_STAGING_DB_URL (de session-pooler-URI ZONDER wachtwoord), het wachtwoord alleen in PGPASSWORD,
-// en KG_STAGING_REF (het verwachte projectkenmerk). Alles wat niet precies klopt, wordt geweigerd vóór er
-// verbinding is. Het wachtwoord wordt nooit getoond.
+// Verbinding: KG_OMGEVING (staging, beta of productie; zie komtgoed/omgevingen.json), KG_DB_URL (de
+// session-pooler-URI ZONDER wachtwoord), het wachtwoord alleen in PGPASSWORD, en KG_REF (het verwachte
+// projectkenmerk). Alles wat niet precies klopt, wordt geweigerd vóór er verbinding is: ook een kenmerk dat bij een
+// andere omgeving hoort, of een Huisplan-project. Het wachtwoord wordt nooit getoond.
 //   node verbinding-controle.mjs leeg <standbestand>        weigert als het project niet leeg is; bewaart de stand
 //   node verbinding-controle.mjs bijwerken <standbestand>   weigert tenzij de geschiedenis precies een begin van de
 //                                                           repository is en er nieuwe migraties klaarstaan; bewaart de stand
@@ -44,18 +45,36 @@ export function supabaseRoots(bestand = CA_BESTAND) {
   return pems;
 }
 
+const OMGEVINGEN_BESTAND = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../omgevingen.json');
+export const leesOmgevingen = (bestand = OMGEVINGEN_BESTAND) => JSON.parse(readFileSync(bestand, 'utf8'));
+
+/**
+ * Hoort dit projectkenmerk bij deze omgeving? Leeg = in orde. Een kenmerk dat bij een andere omgeving staat, wordt
+ * altijd geweigerd (staging en bèta nooit door elkaar). Staat er bij deze omgeving al een kenmerk, dan moet het dat zijn.
+ */
+export function omgevingFouten(naam, ref, omgevingen = leesOmgevingen()) {
+  const f = [];
+  const o = omgevingen[naam];
+  if (!['staging', 'beta', 'productie'].includes(naam) || !o) return [`KG_OMGEVING moet staging, beta of productie zijn (niet ${JSON.stringify(naam)}).`];
+  for (const [ander, a] of Object.entries(omgevingen)) {
+    if (ander !== naam && a && typeof a === 'object' && a.supabaseRef && a.supabaseRef === ref) f.push(`KG_REF hoort bij de omgeving ${ander}, niet bij ${naam}.`);
+  }
+  if (o.supabaseRef && o.supabaseRef !== ref) f.push(`KG_REF wijkt af van het kenmerk van ${naam} in omgevingen.json.`);
+  return f;
+}
+
 /** De verbinding zonder wachtwoord, gemaskeerd om te tonen. */
 export const gemaskeerd = u => u.replace(/:\/\/([^:@/]+)(:[^@]*)?@/, (_, gebruiker) => `://${gebruiker}:***@`);
 
 /** Fouten in de opgegeven verbinding (leeg = in orde). */
 export function verbindingFouten(url, ref, wachtwoord) {
   const f = [];
-  if (!/^[a-z]{20}$/.test(ref || '')) f.push('KG_STAGING_REF is geen projectkenmerk van 20 kleine letters.');
-  else if (isHuisplanRef(ref)) f.push('KG_STAGING_REF is een Huisplan-project.');
+  if (!/^[a-z]{20}$/.test(ref || '')) f.push('KG_REF is geen projectkenmerk van 20 kleine letters.');
+  else if (isHuisplanRef(ref)) f.push('KG_REF is een Huisplan-project.');
   let u;
-  try { u = new URL(url || ''); } catch { f.push('KG_STAGING_DB_URL is geen geldige verbinding.'); return f; }
+  try { u = new URL(url || ''); } catch { f.push('KG_DB_URL is geen geldige verbinding.'); return f; }
   if (u.protocol !== 'postgresql:' && u.protocol !== 'postgres:') f.push('De verbinding moet met postgresql:// beginnen.');
-  if (u.password) f.push('Er staat een wachtwoord in KG_STAGING_DB_URL; dat hoort alleen in PGPASSWORD.');
+  if (u.password) f.push('Er staat een wachtwoord in KG_DB_URL; dat hoort alleen in PGPASSWORD.');
   if (decodeURIComponent(u.username) !== `postgres.${ref}`) f.push(`De gebruiker moet precies postgres.${ref || '<kenmerk>'} zijn (session pooler).`);
   if (!/^aws-\d+-eu-central-1\.pooler\.supabase\.com$/.test(u.hostname)) f.push('De host moet de session pooler in eu-central-1 zijn (aws-…-eu-central-1.pooler.supabase.com).');
   if (u.port !== '5432') f.push('Poort 5432 (session pooler), niet 6543 (transaction pooler).');
@@ -275,8 +294,9 @@ export function repoVersies() {
 }
 
 async function verbind() {
-  const { KG_STAGING_DB_URL: url, KG_STAGING_REF: ref, PGPASSWORD: wachtwoord } = process.env;
-  const fouten = verbindingFouten(url, ref, wachtwoord);
+  const { KG_DB_URL: url, KG_REF: ref, PGPASSWORD: wachtwoord, KG_OMGEVING: omgeving = 'staging' } = process.env;
+  const fouten = [...omgevingFouten(omgeving, ref), ...verbindingFouten(url, ref, wachtwoord)];
+  console.log('omgeving: ' + omgeving);
   if (fouten.length) { console.log('GEWEIGERD vóór verbinden:\n- ' + fouten.join('\n- ')); process.exit(2); }
   console.log('verbinding: ' + gemaskeerd(url));
   const require = createRequire(path.join(path.dirname(fileURLToPath(import.meta.url)), '../tests/integratie/package.json'));
@@ -302,15 +322,15 @@ async function hoofd() {
     if (n.wachtrij) console.log(`uitnodigingsmails: ${Object.entries(n.wachtrij).map(([k, v]) => `${k} ${v}`).join(', ')}; Vault: ${(n.vaultNamen ?? []).join(', ') || 'leeg'}; pg_net ${n.pgNet ? 'aan' : 'uit'}`);
     if (n.instellingen) console.log(`schakelaars: ${Object.entries(n.instellingen).map(([k, v]) => `${k} ${v}`).join(', ')}`);
     const f = naFouten(n, repoVersies(), VERWACHT_SCHEMA);
-    // De Auth-instellingen (openbaar met de anon-sleutel; geen geheim). Zonder KG_STAGING_ANON_KEY: overgeslagen en gemeld.
-    const anon = process.env.KG_STAGING_ANON_KEY;
+    // De Auth-instellingen (openbaar met de anon-sleutel; geen geheim). Zonder KG_ANON_KEY: overgeslagen en gemeld.
+    const anon = process.env.KG_ANON_KEY;
     if (anon) {
-      const r = await fetch(`https://${process.env.KG_STAGING_REF}.supabase.co/auth/v1/settings`, { headers: { apikey: anon } });
+      const r = await fetch(`https://${process.env.KG_REF}.supabase.co/auth/v1/settings`, { headers: { apikey: anon } });
       if (!r.ok) f.push(`Auth-instellingen niet te lezen (${r.status})`);
       else f.push(...authFouten(await r.json()));
-      const s = await fetch(`https://${process.env.KG_STAGING_REF}.supabase.co/rest/v1/`, { headers: { apikey: anon, 'Accept-Profile': 'private' } });
+      const s = await fetch(`https://${process.env.KG_REF}.supabase.co/rest/v1/`, { headers: { apikey: anon, 'Accept-Profile': 'private' } });
       f.push(...schemaFouten(s.status, await s.json().catch(() => null)));
-    } else console.log('Auth-instellingen en blootgestelde schema\'s: OVERGESLAGEN (zet KG_STAGING_ANON_KEY om ze te controleren)');
+    } else console.log('Auth-instellingen en blootgestelde schema\'s: OVERGESLAGEN (zet KG_ANON_KEY om ze te controleren)');
     if (f.length) { console.log('AFWIJKING na de push (niets hersteld):\n- ' + f.join('\n- ')); process.exit(1); }
     console.log('IN ORDE: migratiegeschiedenis, RLS en policies, rechten, Realtime-policy, geplande taken, opruiming van e-mailadressen, schakelaars van de poort en opslag zoals bedoeld');
     return;

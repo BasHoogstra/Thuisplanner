@@ -18,6 +18,8 @@ Deno.serve(async req => {
     melding = await aanbieder.bezorging(req, body);
   } catch { return json(401, {}); }
   if (!melding) return json(401, {});
+  // Geldig ondertekend, maar niet over bezorging: bevestigen, zodat de aanbieder niet blijft herhalen.
+  if (melding === 'negeren') return json(200, {});
   try {
     const n = await rpc<number>('uitnodigingsmail_bezorging', { p_bericht: melding.berichtId, p_uitkomst: melding.uitkomst });
     log('mail-bezorging', { aanbieder: aanbieder.naam, uitkomst: melding.uitkomst, gevonden: n > 0 });

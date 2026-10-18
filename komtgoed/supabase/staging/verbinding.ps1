@@ -15,7 +15,7 @@
 # - Volgorde: verbinding controleren (vóór verbinden) -> alleen lezend: is dit het lege stagingproject? ->
 #   dry-run, of met -Push: repository-controle, bevestiging en db push -> alleen lezend: nacontrole.
 # - Bij een fout stopt het script meteen. Het voert nooit zelf een herstel of tweede poging uit.
-param([Parameter(Mandatory = $true)][string]$Ref, [switch]$Push, [switch]$Bijwerken)
+param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta', 'productie')][string]$Omgeving = 'staging', [switch]$Push, [switch]$Bijwerken)
 $ErrorActionPreference = 'Stop'
 # Het aantal migraties in de repository dat deze versie van het script verwacht (bij elke nieuwe migratie bijwerken).
 $VerwachtAantal = 16
@@ -50,10 +50,12 @@ try {
   $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($geheim)
   try { $env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
   finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
-  $env:KG_STAGING_DB_URL = $uri
-  $env:KG_STAGING_REF = $Ref
+  $env:KG_DB_URL = $uri
+  $env:KG_REF = $Ref
+  # Welke omgeving (komtgoed/omgevingen.json): een kenmerk van een andere omgeving wordt geweigerd.
+  $env:KG_OMGEVING = $Omgeving
   $root = (Join-Path $hier 'supabase-root-ca.crt') -replace '\\', '/'
-  $cliUrl = $env:KG_STAGING_DB_URL + '?sslmode=verify-full&sslrootcert=' + $root
+  $cliUrl = $env:KG_DB_URL + '?sslmode=verify-full&sslrootcert=' + $root
 
   if ($Bijwerken) {
     Write-Host "`n== 1. Alleen lezend: verbinding, bestaande Thuisplanner-database en welke migraties nieuw zijn" -ForegroundColor Cyan
@@ -76,16 +78,16 @@ try {
     return
   }
 
-  Write-Host "`n== 2. Echte push naar $Ref" -ForegroundColor Yellow
+  Write-Host "`n== 2. Echte push naar $Omgeving ($Ref)" -ForegroundColor Yellow
   if ($Bijwerken) {
     # Vlak voor de push nog eens: is er sinds stap 1 niets veranderd?
     node $controle vergelijk $stand
     if ($LASTEXITCODE -ne 0) { Stop-Hier 'de stand is veranderd sinds de controle vooraf. Er is niets uitgevoerd.' }
-    $ok = Read-Host "Typ precies 'push $Ref' om alleen de nieuwe migraties uit stap 1 uit te voeren (iets anders stopt)"
+    $ok = Read-Host "Typ precies 'push $Omgeving $Ref' om alleen de nieuwe migraties uit stap 1 uit te voeren (iets anders stopt)"
   } else {
-    $ok = Read-Host "Typ precies 'push $Ref' om de $VerwachtAantal migraties uit te voeren (iets anders stopt)"
+    $ok = Read-Host "Typ precies 'push $Omgeving $Ref' om de $VerwachtAantal migraties uit te voeren (iets anders stopt)"
   }
-  if ($ok -cne "push $Ref") { Stop-Hier 'geen bevestiging gegeven. Er is niets uitgevoerd.' }
+  if ($ok -cne "push $Omgeving $Ref") { Stop-Hier 'geen bevestiging gegeven. Er is niets uitgevoerd.' }
   Push-Location $komtgoed
   try { npx --yes supabase@2.117.0 db push --db-url $cliUrl; $pushCode = $LASTEXITCODE }
   finally { Pop-Location }
@@ -101,7 +103,7 @@ catch {
   if ("$_" -ne 'thuisplanner-gestopt') { Write-Host ('FOUT: ' + $_) -ForegroundColor Red; $script:uitkomst = 1 }
 }
 finally {
-  Remove-Item Env:PGPASSWORD, Env:KG_STAGING_DB_URL, Env:KG_STAGING_REF -ErrorAction SilentlyContinue
+  Remove-Item Env:PGPASSWORD, Env:KG_DB_URL, Env:KG_REF, Env:KG_OMGEVING -ErrorAction SilentlyContinue
   Remove-Item $stand -ErrorAction SilentlyContinue
   Remove-Variable geheim, bstr -ErrorAction SilentlyContinue
   Write-Host "`nWachtwoord en verbinding gewist uit dit proces." -ForegroundColor Green
