@@ -8,9 +8,9 @@ getest.
 
 **Gecontroleerd op:**
 - branch `thuisplanner-staging` (`da5ef52`);
-- de 11 migraties in `komtgoed/supabase/migrations`;
-- de app in `komtgoed/app/src`;
-- de sync-module `komtgoed/sync/thuisplanner-sync.js`;
+- de 11 migraties in `thuisplanner/supabase/migrations`;
+- de app in `thuisplanner/app/src`;
+- de sync-module `thuisplanner/sync/thuisplanner-sync.js`;
 - de tests (RLS-matrix 56, unittests 150, lokale e2e 18, staging-e2e 5);
 - eerdere rapporten (`docs/thuisplanner-architectuurcontrole.md`, `-k3-archiveren.md`, `-onboarding.md`).
 
@@ -82,7 +82,7 @@ veranderen. Daarvoor is een productbesluit nodig: hoe ver terug Agenda en Taken 
 
 ### F3. Offline is een open productbesluit dat de sync bepaalt
 
-**Bewijs:** "online eerst" (`docs/komtgoed-bouwplan.md`, risico's; `docs/thuisplanner-sync.md` §6). Zonder verbinding
+**Bewijs:** "online eerst" (`docs/thuisplanner-bouwplan.md`, risico's; `docs/thuisplanner-sync.md` §6). Zonder verbinding
 wordt er niets opgeslagen. Alleen onzekere toevoegingen worden bewaard.
 
 **Waarom fundamenteel:** moet de commerciële v1 offline kunnen werken (boodschappen afvinken in een supermarkt zonder

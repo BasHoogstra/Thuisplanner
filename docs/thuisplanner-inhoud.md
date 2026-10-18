@@ -2,11 +2,11 @@
 
 **Status:** gebouwd en lokaal getest op een eigen branch, als aparte PR boven op PR #19. Niet gemerged, niet gedeployd.
 
-De nieuwe app heet voortaan **Thuisplanner**. De technische map `komtgoed/` en de oude documentnamen blijven voorlopig staan.
+De nieuwe app heet voortaan **Thuisplanner**. De technische map `thuisplanner/` en de oude documentnamen blijven voorlopig staan.
 
 - **Wat het is:** afspraken, taken en boodschappen in de database, met de privacyregels van gate 9.
-- **Migraties:** `komtgoed/supabase/migrations/20261012120000_kg5c_inhoud.sql`, en `20261013120000_kg5c_herstel1.sql` (herstelronde 1, sectie 9) en `20261014120000_kg5c_herstel2.sql` (herstelronde 2, sectie 10).
-- **Plan:** `docs/komtgoed-bouwplan.md`, stap 2. Het fundament (stap 1) staat in `docs/komtgoed-fundament.md`.
+- **Migraties:** `thuisplanner/supabase/migrations/20261012120000_kg5c_inhoud.sql`, en `20261013120000_kg5c_herstel1.sql` (herstelronde 1, sectie 9) en `20261014120000_kg5c_herstel2.sql` (herstelronde 2, sectie 10).
+- **Plan:** `docs/thuisplanner-bouwplan.md`, stap 2. Het fundament (stap 1) staat in `docs/thuisplanner-fundament.md`.
 
 ## 1. Productkompas-toets
 

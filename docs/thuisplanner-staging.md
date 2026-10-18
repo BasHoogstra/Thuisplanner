@@ -23,14 +23,14 @@ Achtergrond, de vergelijking van hostingopties en de risico's staan in het eerde
 | Onderdeel | Hoe | Waar |
 | --- | --- | --- |
 | Omgevingen | `demo` (geen backend), `lokaal` (dit toestel of eigen netwerk) en `staging`. Staging alleen via `npm run build:staging`; een gewone build kan het niet worden | `src/lib/omgeving.ts`, `src/lib/lokaal/sessie.ts` (`appConfig`) |
-| Alleen het bedoelde project | De app en de build accepteren precies `https://<20 letters>.supabase.co`: geen http, geen poort, geen pad, geen andere schrijfwijze, en nooit een Huisplan-project (de build vergelijkt via SHA-256, zodat de kenmerken nergens in `komtgoed/` staan). Zonder de stagingmarkering blijft elke online URL geweigerd | `src/lib/omgeving.ts`, `scripts/staging-build.ts` |
+| Alleen het bedoelde project | De app en de build accepteren precies `https://<20 letters>.supabase.co`: geen http, geen poort, geen pad, geen andere schrijfwijze, en nooit een Huisplan-project (de build vergelijkt via SHA-256, zodat de kenmerken nergens in `thuisplanner/` staan). Zonder de stagingmarkering blijft elke online URL geweigerd | `src/lib/omgeving.ts`, `scripts/staging-build.ts` |
 | Geen geheimen | De stagingbuild faalt bij `VITE_DEMO_*`, bij elke `VITE_*SERVICE*`/`*SECRET*`-variabele, bij een service-rol-JWT of `sb_secret_`-sleutel, en achteraf als er in de gebouwde bestanden een geheime sleutel, een ander Supabase-project of een Huisplan-project staat | `scripts/staging-build.ts` |
 | Beveiligingsheaders | Elke build krijgt `_headers` voor Cloudflare Pages: een strenge CSP (`connect-src` alleen de eigen site plus precies het stagingproject, via https en wss), `noindex`, `no-referrer`, `nosniff`, `frame-ancestors 'none'`, `no-cache` voor `index.html` en `immutable` voor `assets/*` | `scripts/staging-build.ts` (`headersBestand`) |
 | Markering | Vast bovenaan "Testomgeving · Alleen om te testen · verzonnen gegevens", ook op het inlogscherm. Het tabblad heet "Thuisplanner (testomgeving)" | `src/components/Lokaal.tsx`, `scripts/staging-build.ts` |
 | Inloggen | E-mail en wachtwoord van een testaccount. Geen demo-accounts, geen vooraf ingevuld wachtwoord, en een nette foutmelding | `src/components/Lokaal.tsx` |
 | Sessie op de telefoon | Staging: in `localStorage`, dus na het sluiten van de app blijf je ingelogd; uitloggen wist de sessie. Lokaal: per tabblad, zoals voorheen. Nooit een sessie uit de URL overnemen (`detectSessionInUrl: false`) | `src/lib/lokaal/sessie.ts` (`authOpties`) |
-| Testers koppelen | Een SQL-script voor het dashboard dat de gewone functies gebruikt (`create_household`, `create_invite` als beheerder, `accept_invite`). Geen service-rolsleutel nodig | `komtgoed/supabase/staging/testers.sql` |
-| Verwijdering na 30 dagen controleren | Twee scripts voor het dashboard: verzonnen proefleden klaarzetten (31 en 29 dagen gearchiveerd), en na de nachtelijke run alleen-lezend controleren | `komtgoed/supabase/staging/archief-proef.sql`, `archief-controle.sql` |
+| Testers koppelen | Een SQL-script voor het dashboard dat de gewone functies gebruikt (`create_household`, `create_invite` als beheerder, `accept_invite`). Geen service-rolsleutel nodig | `thuisplanner/supabase/staging/testers.sql` |
+| Verwijdering na 30 dagen controleren | Twee scripts voor het dashboard: verzonnen proefleden klaarzetten (31 en 29 dagen gearchiveerd), en na de nachtelijke run alleen-lezend controleren | `thuisplanner/supabase/staging/archief-proef.sql`, `archief-controle.sql` |
 
 **Bewust niet veranderd:**
 - Onbevestigde wijzigingen blijven na het uitloggen op het toestel bewaard (besluit P2 staat nog open). Voor twee
@@ -50,7 +50,7 @@ Achtergrond, de vergelijking van hostingopties en de risico's staan in het eerde
 | `archief-proef.sql` en `archief-controle.sql` op de lokale stack, en `pg_cron` zelf (tijdelijke taak elke minuut) | `succeeded`; precies het 31-dagenlid opgeruimd; het 29-dagenlid, de gedeelde afspraken en de profielen blijven |
 | Regressie | Typecontrole, demo-e2e (138 geslaagd) en statische controles groen. De lokale e2e (lokale modus, echte stack) 15 van 15 in één keer |
 
-In CI komt de browsertest erbij als stap in `komtgoed-app.yml`. Die gebruikt dezelfde verzonnen projectnaam, dus
+In CI komt de browsertest erbij als stap in `thuisplanner-app.yml`. Die gebruikt dezelfde verzonnen projectnaam, dus
 er is geen online project nodig.
 
 ## 3. Wat er online nodig is, in volgorde
@@ -86,7 +86,7 @@ van dit ene project.
 Controle en dry-run, in een tab van het Terminal-paneel, vanuit de repository:
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File .\komtgoed\supabase\staging\verbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl
+powershell -NoProfile -ExecutionPolicy Bypass -File .\thuisplanner\supabase\staging\verbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl
 ```
 
 Het script vraagt twee dingen:
@@ -107,7 +107,7 @@ na een apart akkoord.
 **TLS:** de pooler gebruikt een eigen CA van Supabase ("Supabase Root 2021 CA"). Die staat niet in de standaardlijst van
 Node.js of Windows, dus gewone certificaatcontrole geeft `self-signed certificate in certificate chain`. Er wordt **niets**
 uitgeschakeld:
-- `komtgoed/supabase/staging/supabase-root-ca.crt` bevat de Supabase-roots uit de officiële Supabase CLI
+- `thuisplanner/supabase/staging/supabase-root-ca.crt` bevat de Supabase-roots uit de officiële Supabase CLI
   (`github.com/supabase/cli`, `prod-ca-2021.crt` en `prod-ca-2025.crt`);
 - hun SHA-256-vingerafdrukken staan vast in `verbinding-controle.mjs`; een ander of aangevuld bestand wordt geweigerd;
 - de controle (Node) en de dry-run (CLI, `sslmode=verify-full`) vertrouwen alleen die roots en controleren keten én
@@ -126,7 +126,7 @@ zichtbaar.
 ### Stap 4 — Twee testers (jij)
 1. Authentication → Users → **Add user → Create new user**, voor beide testers: e-mailadres, een sterk wachtwoord
    en **Auto Confirm User** aan. Dit werkt ook met registratie uit: alleen de beheerder kan dit.
-2. SQL Editor → de inhoud van `komtgoed/supabase/staging/testers.sql` plakken, de e-mailadressen en namen invullen,
+2. SQL Editor → de inhoud van `thuisplanner/supabase/staging/testers.sql` plakken, de e-mailadressen en namen invullen,
    en op Run klikken. Klaar als de laatste regel "testhuishouden klaar … (2 leden met account)" toont.
 3. De wachtwoorden geef je zelf door aan je vriendin. Wil ze er later uit, dan verwijder je haar account in
    Authentication → Users.
@@ -142,12 +142,12 @@ zichtbaar.
 | Projectnaam | `thuisplanner-staging` |
 | Productiebranch | `thuisplanner-staging` |
 | Framework preset | None |
-| Root directory | `komtgoed/app` |
+| Root directory | `thuisplanner/app` |
 | Build command | `npm ci && npm run build:staging` |
 | Build output directory | `dist` |
 | Omgevingsvariabelen (Production) | `NODE_VERSION` = `22`; `VITE_SUPABASE_URL` = de Project URL uit stap 1; `VITE_SUPABASE_ANON_KEY` = de anon/publishable key. Niets anders |
 | Settings → Builds → Branch control | Automatic deployments voor de productiebranch aan; **Preview branches: None** |
-| Build watch paths | Include `komtgoed/app/*` en `komtgoed/sync/*` |
+| Build watch paths | Include `thuisplanner/app/*` en `thuisplanner/sync/*` |
 
 De eerste build start pas als de branch op GitHub staat (stap 7). Een verkeerde of ontbrekende variabele laat de build
 falen met een duidelijke melding; er komt dan niets online.
@@ -178,11 +178,11 @@ browser "Zet op beginscherm" kiezen. Controleren:
 ### Stap 9 — De automatische verwijdering controleren (na jouw akkoord: online databasewijziging, alleen verzonnen gegevens)
 1. Authentication → Users → **Add user**: twee proefaccounts, bijvoorbeeld `proef31@example.com` en
    `proef29@example.com` (Auto Confirm User aan). Niemand hoeft ermee in te loggen.
-2. SQL Editor → `komtgoed/supabase/staging/archief-proef.sql` plakken, het e-mailadres van de eigenaar invullen, en op
+2. SQL Editor → `thuisplanner/supabase/staging/archief-proef.sql` plakken, het e-mailadres van de eigenaar invullen, en op
    Run klikken. Het script zet de twee proefleden klaar, met elk een privé- en een gedeelde afspraak, archiveert ze, en
    zet de archiefdatum op 31 en 29 dagen. Het laat zien: Proef 31 en Proef 29, elk met 1 privé-afspraak.
 3. De volgende dag, na 03:17 UTC (05:17 Nederlandse zomertijd, 04:17 wintertijd): SQL Editor →
-   `komtgoed/supabase/staging/archief-controle.sql`. Verwacht:
+   `thuisplanner/supabase/staging/archief-controle.sql`. Verwacht:
    - de taak `thuisplanner-archief-opruimen` staat erin, met een laatste run `succeeded`;
    - Proef 31 heeft 0 privé- en 1 gedeelde afspraak; Proef 29 heeft er nog 1 en 1.
 4. Het project moet in die tijd actief zijn. Een gratis project kan na zeven dagen met weinig activiteit worden

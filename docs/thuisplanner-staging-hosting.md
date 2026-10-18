@@ -5,11 +5,11 @@ Alleen onderzoek. Er is niets aangemaakt, gekoppeld,
 gedeployd of in een database gewijzigd. Elke stap die dat wel doet, staat hieronder gemarkeerd met
 **🔐 akkoord nodig**.
 
-- **Hoort bij:** bouwstap KG-5J (staging) uit `docs/komtgoed-bouwplan.md`, en de open besluiten
+- **Hoort bij:** bouwstap KG-5J (staging) uit `docs/thuisplanner-bouwplan.md`, en de open besluiten
   **B2** (omgevingen) en **B3** (techniek en adres) uit `docs/roadmap.md`.
 - **Gelezen:** `PRODUCT_PRINCIPLES.md`, `docs/productkompas-beslissingen.md`, `docs/roadmap.md`,
-  `docs/komtgoed-bouwplan.md`, `docs/thuisplanner-app.md`, `supabase/README.md`,
-  `.github/workflows/`, `komtgoed/app/` (Vite-configuratie en omgevingsbewaking).
+  `docs/thuisplanner-bouwplan.md`, `docs/thuisplanner-app.md`, `supabase/README.md`,
+  `.github/workflows/`, `thuisplanner/app/` (Vite-configuratie en omgevingsbewaking).
 
 ## 1. Advies in één zin
 
@@ -24,7 +24,7 @@ Thuisplanner-staging in Supabase**, niet met de bestaande Huisplan-projecten.
 
 - In `supabase/README.md` is "staging" het Huisplan-project `rfgmaqqsjvsuibfucdrp`, met het oude schema
   uit `supabase/`.
-- De roadmap zegt (sectie "Ontwikkelrichting KomtGoed"):
+- De roadmap zegt (sectie "Ontwikkelrichting Thuisplanner"):
   - "Het bestaande schema en de bestaande projecten worden niet gebruikt of gewijzigd";
   - en "Geen verbinding met of migraties naar bestaande Supabase-projecten, en geen deploy, zonder apart
     besluit (B2)".
@@ -56,15 +56,15 @@ B2 en moet het eerst genomen worden.
 
 | Onderdeel | Stand |
 | --- | --- |
-| Branch | Werk staat op `thuisplanner-toevoegen-rustiger`, gestapeld op `thuisplanner-lokaal-windows` en de open PR's. `komtgoed/` staat **niet** op `main`. |
+| Branch | Werk staat op `thuisplanner-toevoegen-rustiger`, gestapeld op `thuisplanner-lokaal-windows` en de open PR's. `thuisplanner/` staat **niet** op `main`. |
 | Huisplan | GitHub Pages publiceert de **root van `main`** met Jekyll (geen workflow, geen `CNAME`). |
-| Bescherming Huisplan-site | `_config.yml` sluit `komtgoed/` uit van de Huisplan-site. Gemerged via PR #24 (`607d427`, zie §10.1). |
-| Repository | Openbaar (`BasHoogstra/Thuisplanner`). `main` bevat alleen de Huisplan-bestanden (13 items in de root), geen `komtgoed/` en geen `_config.yml`. |
-| Thuisplanner-app | Vite 7 + React 19 + TypeScript in `komtgoed/app`. De build is statisch (`vite build` naar `dist/`), met relatieve paden (`base: './'`). Routing gaat via `#/…`, dus er is geen server-fallback nodig. Op 15 oktober lokaal gebouwd: 2,4 s, `dist/` 524 kB (één JS-bundel van 504 kB, 146 kB gzip). |
-| Afhankelijkheid buiten de app-map | Vite leest de sync-module uit `komtgoed/sync` (`fs.allow: ['..']`). |
+| Bescherming Huisplan-site | `_config.yml` sluit `thuisplanner/` uit van de Huisplan-site. Gemerged via PR #24 (`607d427`, zie §10.1). |
+| Repository | Openbaar (`BasHoogstra/Thuisplanner`). `main` bevat alleen de Huisplan-bestanden (13 items in de root), geen `thuisplanner/` en geen `_config.yml`. |
+| Thuisplanner-app | Vite 7 + React 19 + TypeScript in `thuisplanner/app`. De build is statisch (`vite build` naar `dist/`), met relatieve paden (`base: './'`). Routing gaat via `#/…`, dus er is geen server-fallback nodig. Op 15 oktober lokaal gebouwd: 2,4 s, `dist/` 524 kB (één JS-bundel van 504 kB, 146 kB gzip). |
+| Afhankelijkheid buiten de app-map | Vite leest de sync-module uit `thuisplanner/sync` (`fs.allow: ['..']`). |
 | Omgevingsbewaking | `src/lib/lokaal/sessie.ts` weigert elk Supabase-adres dat niet lokaal is. Voor staging is een eigen, strikte modus nodig (stap 3). |
 | Inloggen | Nu met een wachtwoord voor fictieve accounts. Het lokale wachtwoord kan via `VITE_DEMO_WACHTWOORD` in de bundel terechtkomen. Inloggen met een e-mailcode (KG-5H, besluit B4) is nog niet gebouwd. |
-| CI | `komtgoed-app.yml` en `komtgoed-db.yml` testen alles lokaal op de runner. Ze gebruiken geen secrets en deployen niets. |
+| CI | `thuisplanner-app.yml` en `thuisplanner-db.yml` testen alles lokaal op de runner. Ze gebruiken geen secrets en deployen niets. |
 
 ## 4. Hostingopties vergeleken
 
@@ -111,7 +111,7 @@ Elke stap is klein en terug te draaien. Er wordt niets aan `main` gewijzigd en e
 | 0 | **Besluiten:** B2 (optie A, B of C uit §2.2); B3 bevestigen (Vite + React, statisch, Cloudflare Pages); de branchnaam (voorstel `thuisplanner-staging`); Access ja of nee; de testers (alleen jijzelf en een paar bekenden, alleen fictieve gegevens). | jij | niets |
 | 1 | **Stagingmodus in de app (code, lokaal getest, geen deploy).** (a) Een Vite-modus `staging` die alleen precies het ene stagingadres accepteert (allowlist, geen `*.supabase.co`); bij een ander adres weigert de app op te starten, net als nu. (b) Een vaste, rustige markering "Testomgeving". (c) Een build die faalt als `VITE_DEMO_WACHTWOORD` of een service-role-sleutel in de omgeving staat. (d) Een `public/_headers` met CSP (`connect-src` alleen naar het stagingadres, `https` en `wss`), `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`, `frame-ancestors 'none'`, en `no-cache` voor `index.html`. (e) Tests: de weigering met tegenproef, en de headers. | Claude, op een eigen branch | alleen code op een branch |
 | 2 | **Supabase-project aanmaken** volgens optie A of B. Regio **eu-central-1 (Frankfurt)**, in een eigen organisatie "Thuisplanner". | jij, in het dashboard 🔐 | nieuw project |
-| 3 | **Schema naar staging:** `supabase link` vanuit `komtgoed/` en `supabase db push` met de migraties uit `komtgoed/supabase/migrations`. Daarna de RLS-matrix en de integratietests tegen staging, met alleen de databasegegevens die jij lokaal invult (nooit in de repo of in CI). | Claude, alleen na akkoord 🔐 | databasewijziging |
+| 3 | **Schema naar staging:** `supabase link` vanuit `thuisplanner/` en `supabase db push` met de migraties uit `thuisplanner/supabase/migrations`. Daarna de RLS-matrix en de integratietests tegen staging, met alleen de databasegegevens die jij lokaal invult (nooit in de repo of in CI). | Claude, alleen na akkoord 🔐 | databasewijziging |
 | 4 | **Auth-instellingen op staging:** nieuwe aanmeldingen **uit**; testaccounts alleen via een uitnodiging of de beheerder; Site URL en Redirect URL's op het Pages-adres; de rate limits laten zoals ze zijn. De ingebouwde e-mail van Supabase stuurt alleen naar teamleden, maximaal ongeveer 2 per uur. Dat is genoeg voor jezelf, niet voor andere testers. | jij 🔐 | projectinstellingen |
 | 5 | **Cloudflare:** een gratis account. Een Pages-project via "Connect to Git"; de Cloudflare-app op GitHub **alleen voor deze repository**. Instellingen in §6. | jij 🔐 | nieuw account, GitHub-koppeling |
 | 6 | **Cloudflare Access** op de productie- en preview-adressen van `*.pages.dev`. Een beleid "e-mail is een van …" met de testers; inloggen met een eenmalige code. De knop in de Pages-instellingen beschermt alleen de previews. Voor het productieadres: in de Access-applicatie die daarbij ontstaat het jokerteken uit de hostnaam halen en daarna de knop opnieuw aanzetten (Cloudflare "Known issues"). Controleer bij het aanmelden of Zero Trust om een betaalmethode vraagt. Is dat zo, dan eerst stoppen en overleggen. | jij 🔐 | Access-beleid |
@@ -128,10 +128,10 @@ Elke stap is klein en terug te draaien. Er wordt niets aan `main` gewijzigd en e
 | Projectnaam | bijvoorbeeld `thuisplanner-test` (wordt het openbare adres `thuisplanner-test.pages.dev`; vermijd de definitieve merknaam) |
 | Productiebranch | `thuisplanner-staging` |
 | Previewbranches | **None** (anders bouwt Cloudflare elke branch en elke PR, en die zijn standaard openbaar) |
-| Root directory | `komtgoed/app` |
+| Root directory | `thuisplanner/app` |
 | Build command | `npm run build:staging` (nieuw in stap 1) |
 | Build output | `dist` |
-| Build watch paths | include `komtgoed/app/*`, `komtgoed/sync/*` |
+| Build watch paths | include `thuisplanner/app/*`, `thuisplanner/sync/*` |
 | Omgevingsvariabelen | `NODE_VERSION=22`; `VITE_SUPABASE_URL` (staging-URL); `VITE_SUPABASE_ANON_KEY` (de publishable/anon key, die per ontwerp openbaar is). **Nooit** de service-role-sleutel, het databasewachtwoord of `VITE_DEMO_WACHTWOORD`. |
 | Access policy | aan voor productie én previews (zie stap 6) |
 
@@ -159,13 +159,13 @@ Elke stap is klein en terug te draaien. Er wordt niets aan `main` gewijzigd en e
 | Een previewdeploy van een andere branch komt openbaar online | middel | Ongeteste code bereikbaar | Previewbranches op **None**, plus Access op `*.pages.dev` |
 | De testapp praat per ongeluk met een ander Supabase-project | laag | Verkeerde of echte gegevens | Exacte allowlist in de app (stap 1a) en `connect-src` in de CSP |
 | Geheimen in de bundel | middel | Iedereen kan inloggen of beheren | De build faalt op `VITE_DEMO_WACHTWOORD` of service-sleutels (stap 1c); alleen de anon key in Cloudflare |
-| De Huisplan-site publiceert per ongeluk `komtgoed/` | laag nu, hoog bij een merge | Broncode en demo op de Huisplan-site | `komtgoed/` niet naar `main` zolang `_config.yml` (branch `claude/pages-komtgoed-uitsluiten`) niet op `main` staat. Dat is een eigen besluit. |
+| De Huisplan-site publiceert per ongeluk `thuisplanner/` | laag nu, hoog bij een merge | Broncode en demo op de Huisplan-site | `thuisplanner/` niet naar `main` zolang `_config.yml` (branch `claude/pages-thuisplanner-uitsluiten`) niet op `main` staat. Dat is een eigen besluit. |
 | Gate 9 nog niet gereviewd op een online project | middel | Privé-gegevens lekken | Alleen fictieve gegevens tot de review (stap 9); RLS-matrix ook tegen staging (stap 3) |
 | Gratis Supabase-limiet (twee projecten) | zeker | Geen nieuw project mogelijk | Besluit B2 (§2.2) |
 | Staging pauzeert na een week stilte | zeker | Testers zien een foutmelding | Herstarten in het dashboard; vóór een testronde controleren |
 | E-mail van Supabase alleen voor het team, ongeveer 2 per uur | zeker | Andere testers kunnen geen code ontvangen | Eerst alleen jijzelf; daarna een SMTP-dienst in de EU (B4) |
 | Zero Trust vraagt een betaalmethode | onbekend | Botst met "geen betaalde diensten" | Stoppen en overleggen; zonder Access blijft de app achter een inlog en RLS, maar is het app-skelet openbaar |
-| Cloudflare bouwt met `komtgoed/app` als root, maar de app leest ook `komtgoed/sync` | laag | Build faalt | De repository wordt volledig opgehaald; bij de eerste build controleren, en anders de sync-module in de build kopiëren |
+| Cloudflare bouwt met `thuisplanner/app` als root, maar de app leest ook `thuisplanner/sync` | laag | Build faalt | De repository wordt volledig opgehaald; bij de eerste build controleren, en anders de sync-module in de build kopiëren |
 | Cloudflare verschuift van Pages naar Workers | laag | Later migreren | Alleen de hostingconfiguratie; de app is statisch |
 | De tests draaien op een andere branch dan wat live staat | middel | Een fout komt online | Alleen naar `thuisplanner-staging` pushen vanaf een stand waarop de CI groen is |
 | De Cloudflare-app op GitHub ziet de hele (openbare) repository en zet statussen bij commits | zeker | Meer zichtbare ruis bij PR's; een extra partij met toegang | App alleen voor deze repository; previews op **None**; de koppeling is in GitHub met één klik in te trekken |
@@ -193,7 +193,7 @@ blijft ongewijzigd.
 | Branch | `thuisplanner-toevoegen-rustiger`, 83 commits boven op `main`, geen upstream. Er is niets gepusht of gemerged. |
 | `main` | Toen gecontroleerd tegen een verouderde lokale `main`; zie §10.1 voor de juiste stand. |
 | Pages-instellingen van Huisplan | Niet uitgelezen: de API vraagt een login en `gh` staat niet op deze computer. De bewering "root van `main`, Jekyll" komt uit de repository, niet uit de instellingen. Controleer dit zelf in GitHub → Settings → Pages vóór stap 7. |
-| Build | `npm run build` in `komtgoed/app` slaagt lokaal; de sync-module in `../sync` wordt meegenomen. `dist/` is genegeerd door Git. |
+| Build | `npm run build` in `thuisplanner/app` slaagt lokaal; de sync-module in `../sync` wordt meegenomen. `dist/` is genegeerd door Git. |
 | Omgevingsbewaking | `lokaleConfig()` in `src/lib/lokaal/sessie.ts` gooit een fout bij elk niet-lokaal adres. Een online build start dus nu niet; stap 1 is nodig. |
 | Supabase | Nog steeds twee gratis projecten per account, over alle organisaties; gepauzeerde tellen niet mee. Ingebouwde e-mail: alleen teamleden, 2 per uur. |
 | Cloudflare Pages | Gratis: 500 builds per maand, 1 tegelijk, 100 projecten, 20.000 bestanden. Productiebranch en "Preview branch control: None" zijn instelbaar. |
@@ -210,11 +210,11 @@ wijziging is lokaal: de lokale branch `main` is vooruitgezet naar `origin/main` 
 
 | Wat | Uitkomst |
 | --- | --- |
-| `origin/main` | `607d427` "Pages: map komtgoed/ niet publiceren op de Huisplan-site (#24)". `_config.yml` staat erop en sluit `komtgoed` uit. |
+| `origin/main` | `607d427` "Pages: map thuisplanner/ niet publiceren op de Huisplan-site (#24)". `_config.yml` staat erop en sluit `thuisplanner` uit. |
 | Waarom de lokale `main` achterliep | De lokale `main` stond op `a48e3b6` (2 oktober, laatste `git pull --ff-only`). Sindsdien is alles via PR's op GitHub gemerged. `main` staat in geen enkele worktree uitgecheckt (de hoofdmap staat op `fase-1`), dus niemand heeft hem bijgewerkt. Hij liep **55 commits achter en 0 vóór**: er stond lokaal niets op dat niet ook op GitHub stond. |
 | Bijgewerkt | `git fetch origin main:main`. Dat kan alleen vooruitspoelen en weigert als er iets verloren zou gaan. `main` = `607d427`. Andere branches, worktrees en ongecommitte bestanden zijn niet aangeraakt. |
-| Huisplan-site | Antwoordt met 200. `/komtgoed/README.md` geeft 404. |
-| Let op | De werkbranch `thuisplanner-toevoegen-rustiger` is gebaseerd op een oudere `main` en bevat `607d427` niet. Dat is voor de testapp niet erg (`_config.yml` werkt alleen op `main`). Bij een latere PR naar `main` moet hij wel worden bijgewerkt. Er staat ook nog een tijdelijke worktree van een andere sessie op `claude/pages-komtgoed-uitsluiten`; die branch is nu gemerged en kan later worden opgeruimd. |
+| Huisplan-site | Antwoordt met 200. `/thuisplanner/README.md` geeft 404. |
+| Let op | De werkbranch `thuisplanner-toevoegen-rustiger` is gebaseerd op een oudere `main` en bevat `607d427` niet. Dat is voor de testapp niet erg (`_config.yml` werkt alleen op `main`). Bij een latere PR naar `main` moet hij wel worden bijgewerkt. Er staat ook nog een tijdelijke worktree van een andere sessie op `claude/pages-thuisplanner-uitsluiten`; die branch is nu gemerged en kan later worden opgeruimd. |
 
 ### 10.2 De twee Supabase-projecten
 
@@ -261,7 +261,7 @@ controleren al dat de demo geen enkele externe aanvraag doet.
 | "Bezet" voor privé-afspraken (alleen in de interface; geen bewijs voor gate 9) | Realtime, meldingen, een echte e-mailcode |
 | Telefoonbreedtes 360 en 390 en de donkere modus | Installeren als app: er is geen `manifest`; "Zet op beginscherm" geeft alleen een snelkoppeling |
 
-**Nodig, maar geen tijdelijke code:** één klein, blijvend bestand `komtgoed/app/public/_headers` met
+**Nodig, maar geen tijdelijke code:** één klein, blijvend bestand `thuisplanner/app/public/_headers` met
 `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`, `frame-ancestors 'none'`, een CSP met
 `connect-src 'self'` (de demo praat met niemand) en `no-cache` voor `index.html`. Dat bestand is later
 ook voor staging nodig; dan komt alleen het stagingadres bij `connect-src`.

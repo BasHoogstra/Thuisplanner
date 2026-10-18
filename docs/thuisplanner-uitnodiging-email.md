@@ -238,7 +238,7 @@ bron, en `lib/foutcodes.ts` wordt uitgebreid naar alle domeinen.
 
 ## 12. Gebouwd (lokaal, 17 oktober 2026)
 
-**Database:** `komtgoed/supabase/migrations/20261020120000_uitnodigingen_op_email.sql`, zoals §3, met deze uitwerking:
+**Database:** `thuisplanner/supabase/migrations/20261020120000_uitnodigingen_op_email.sql`, zoals §3, met deze uitwerking:
 
 | Punt | Hoe gebouwd | Waarom |
 | --- | --- | --- |

@@ -27,7 +27,7 @@ Pages-project, geen domeinkoppeling, geen DNS-wijziging. De publicatiebouw weige
 ## 2. Structuur en scheiding
 
 ```
-komtgoed/
+thuisplanner/
   ontwerp/        de gedeelde ontwerpbasis: tokens.css (kleuren licht en donker, typografie, vormen), pictogram.svg, logo.svg
   website/        de publieke website: geen database, geen geheimen, geen afhankelijkheden
     src/          de pagina's (index, privacy, mails, bedrijfsgegevens, 404), delen/ (kop, voet), stijl.css

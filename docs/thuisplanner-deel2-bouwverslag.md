@@ -314,7 +314,7 @@ Elke stap heeft een eigen akkoord. De volgorde is een voorstel.
 
 | Bewaking | Wat | Waar en wanneer |
 | --- | --- | --- |
-| **KG-T71** (RLS-matrix) | Geen functie in `public` of `private` gebruikt `auth.uid()` of `auth.jwt()`, behalve de poort zelf (`uid`, `require_uid`, `toegang_status`). Geen policy (in welk schema ook) gebruikt `auth.uid()` of `auth.jwt()`. Instellingen en testerslijst niet via de API bereikbaar. Geen Storage-policies | `tests/rls_tests.sql`; in CI (`komtgoed-db.yml`) bij elke PR en push die `komtgoed/` raakt, op de nabootsing én op een echte lokale stack. Tegenproeven KG-T71 in `tegenproeven.txt` (een lekkende functie, een grant op de instellingen) |
+| **KG-T71** (RLS-matrix) | Geen functie in `public` of `private` gebruikt `auth.uid()` of `auth.jwt()`, behalve de poort zelf (`uid`, `require_uid`, `toegang_status`). Geen policy (in welk schema ook) gebruikt `auth.uid()` of `auth.jwt()`. Instellingen en testerslijst niet via de API bereikbaar. Geen Storage-policies | `tests/rls_tests.sql`; in CI (`thuisplanner-db.yml`) bij elke PR en push die `thuisplanner/` raakt, op de nabootsing én op een echte lokale stack. Tegenproeven KG-T71 in `tegenproeven.txt` (een lekkende functie, een grant op de instellingen) |
 | **KG-T46** | Elke functie in `public` is `security invoker` en geeft fouten door zonder DETAIL of HINT. Rechten lopen dus altijd via `private` | Idem |
 | **De integratietests** | Met echte tokens: de wachtwoordsessie krijgt via REST, RPC, Realtime en de Edge Function niets (`poort.test.mjs`, `uitnodigingsmail.test.mjs`) | Idem (de `supabase-lokaal`-job) |
 | **Statische controles** | RLS aan op elke tabel in `public`; `security definer` alleen in `private` | `statisch.js`, in CI |
@@ -383,7 +383,7 @@ Dit is een lokale testwijziging, zonder migratie en zonder online stap. Akkoord 
    - een extra Edge Function met de service-rol.
 
    Elk moet gevangen worden.
-8. **Proces.** Een korte regel in `komtgoed/supabase/README.md`: "Gebruik nooit `auth.uid()`; gebruik
+8. **Proces.** Een korte regel in `thuisplanner/supabase/README.md`: "Gebruik nooit `auth.uid()`; gebruik
    `private.require_uid()` of een van de poortfuncties." Daarnaast moet CI een verplichte controle zijn voor `main`.
    Dat laatste is een instelling in GitHub en vraagt jouw akkoord.
 
@@ -402,7 +402,7 @@ De versterking uit §7.3 is lokaal gebouwd. Omdat KG-T72 al bestond (K1), heten 
 | 4 | **KG-T75**, relaties | Elke view in een eigen schema is `security_invoker`. Geen materialized view, en geen tabel zonder RLS, die `authenticated` of `anon` kan lezen | Een view zonder `security_invoker`; een materialized view; een tabel zonder RLS in `private` met leesrecht |
 | 6 | **statisch.js**, Edge Functions | De service-rol (`SUPABASE_SERVICE_ROLE_KEY` of `rpc` uit `_gedeeld/k1.ts`) alleen in `stuur-code` (met de handtekening), `controleer-code` (met de grenzen) en `stuur-uitnodiging` (met de sessiecontrole via de database). Elk met het bewijs in de broncode (`SERVICE_ROL_TOEGESTAAN`) | Zes, ingebouwd in de controle zelf: een nieuwe functie met `rpc`, een nieuwe functie met de sleutel, elk van de drie zonder zijn bewijs, en gedeelde code met de sleutel |
 | 5 | **De nacontrole** (`schemaFouten`) | Een verzoek met `Accept-Profile: private` geeft PGRST106, en de blootgestelde schema's zijn precies `public` en `graphql_public`. Draait mee met `KG_STAGING_ANON_KEY` | Lokaal nagespeeld: `private` bereikbaar (200) en een extra schema `api`; beide gevonden |
-| 8 | **README** | De regels staan in `komtgoed/README.md`, onder "Regels voor nieuwe databasecode en Edge Functions" | – |
+| 8 | **README** | De regels staan in `thuisplanner/README.md`, onder "Regels voor nieuwe databasecode en Edge Functions" | – |
 
 **Uitkomsten (lokale stack, na een reset):**
 - RLS-matrix 75 van 75;
@@ -416,7 +416,7 @@ De versterking uit §7.3 is lokaal gebouwd. Omdat KG-T72 al bestond (K1), heten 
 - **De matrix op de nabootsing** (een lege PostgreSQL met `supabase_stub.sql`, de eerste CI-job) kon ik hier niet
   draaien: er is geen PostgreSQL 16 op deze computer. De nabootsing maakt alleen objecten in `auth`, `storage`,
   `realtime` en `extensions`, en die vallen buiten de eigen schema's. CI draait die job na een push.
-- **De Huisplan-testrunner** (`tests/komtgoed.test.js`) vraagt een globale Playwright. Het Thuisplanner-deel daarvan
+- **De Huisplan-testrunner** (`tests/thuisplanner.test.js`) vraagt een globale Playwright. Het Thuisplanner-deel daarvan
   (statisch en matrix) is hierboven rechtstreeks gedraaid.
 - **Nog niet gebouwd** (punt 8, tweede helft): CI als verplichte controle voor `main`. Dat is een instelling in GitHub en
   vraagt je akkoord.

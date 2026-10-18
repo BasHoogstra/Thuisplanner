@@ -3,15 +3,15 @@
 **Status:** 📝 rapport ter beoordeling (15 oktober 2026). Er is alleen gelezen. Er is niets gewijzigd,
 gecommit, gepusht, gedeployd of in een database aangeraakt.
 
-- **Branch:** `thuisplanner-toevoegen-rustiger` (`f57ba51`), met `komtgoed/` (app, sync, supabase) en de
+- **Branch:** `thuisplanner-toevoegen-rustiger` (`f57ba51`), met `thuisplanner/` (app, sync, supabase) en de
   bijbehorende documentatie.
 - **Gelezen:** `PRODUCT_PRINCIPLES.md`, `docs/productkompas-beslissingen.md`, `docs/roadmap.md`,
-  `docs/komtgoed-bouwplan.md`, `docs/komtgoed-fundament.md`, `docs/thuisplanner-inhoud.md`,
+  `docs/thuisplanner-bouwplan.md`, `docs/thuisplanner-fundament.md`, `docs/thuisplanner-inhoud.md`,
   `docs/thuisplanner-sync.md`, `docs/thuisplanner-app.md`, `docs/thuisplanner-staging-hosting.md`.
 - **Gecontroleerd:**
-  - de negen migraties in `komtgoed/supabase/migrations`, de RLS-tests en `config.toml`;
-  - `komtgoed/sync/thuisplanner-sync.js`;
-  - `komtgoed/app/src`;
+  - de negen migraties in `thuisplanner/supabase/migrations`, de RLS-tests en `config.toml`;
+  - `thuisplanner/sync/thuisplanner-sync.js`;
+  - `thuisplanner/app/src`;
   - de twee CI-workflows en de `.gitignore`-bestanden;
   - de bundel in `dist/`;
   - de Huisplan-site.
@@ -44,10 +44,10 @@ gecommit, gepusht, gedeployd of in een database aangeraakt.
 | --- | --- | --- | --- | --- | --- |
 | B1 | Er is nog geen online modus. De app weigert alles behalve een lokaal adres, en de modus wordt afgeleid uit de URL. | BEWEZEN ✔ en TOEKOMSTIG | `app/src/lib/lokaal/sessie.ts` (`isLokaalAdres`, `lokaleConfig`) | Staging kan niet starten. Wie de bewaking alleen versoepelt, brengt het demowachtwoord en de lijst met fictieve accounts naar staging. | Een expliciete `VITE_OMGEVING` (demo, lokaal, staging, productie), een allowlist met het exacte adres per omgeving, en een build die faalt bij `VITE_DEMO_*` buiten de lokale modus. |
 | B2 | Na het uitloggen blijven onbevestigde wijzigingen van het vorige account in `localStorage` staan: namen van boodschappen, taaktitels, gedeelde afspraken. | BEWEZEN; besluit P2 staat nog open | `sync/thuisplanner-sync.js:201-245`, `sessie.ts` (uitloggen) | Op een gedeeld toestel kan de volgende gebruiker die gegevens lezen. Privé-inhoud wordt al correct weggelaten. | Besluit P2. Advies: wissen bij expliciet uitloggen, na een waarschuwing ("N wijzigingen niet bevestigd"). |
-| B3 | Zelf je account verwijderen en een AVG-export bestaan nog niet. Alleen het databasedeel is klaar. | TOEKOMSTIG | `docs/komtgoed-bouwplan.md` ("Nu nodig versus later") | Een verzoek om inzage of verwijdering kan niet worden uitgevoerd. | Een Edge Function die na opnieuw inloggen het account verwijdert, en een RPC `export_my_data()`. |
+| B3 | Zelf je account verwijderen en een AVG-export bestaan nog niet. Alleen het databasedeel is klaar. | TOEKOMSTIG | `docs/thuisplanner-bouwplan.md` ("Nu nodig versus later") | Een verzoek om inzage of verwijdering kan niet worden uitgevoerd. | Een Edge Function die na opnieuw inloggen het account verwijdert, en een RPC `export_my_data()`. |
 | B4 | Er zijn geen back-ups en er is geen hersteloefening. Een gratis project heeft geen PITR. | TOEKOMSTIG en AANNAME | — | Gezinsagenda's kunnen onherstelbaar verloren gaan. | Een nachtelijke `pg_dump` naar opslag in de EU met een hersteloefening, of later een betaald plan. Dat laatste is een eigen besluit. |
-| B5 | De veiligheid hangt mede af van instellingen van het gehoste project die niet in de repository staan. | AANNAME; lokaal BEWEZEN ✔ | `komtgoed/supabase/config.toml:10` (`graphql_public` blootgesteld), `:52` (`enable_signup = true`) | Eén verkeerde dashboardinstelling stelt functies in `private` bloot, of laat iedereen een account maken. | Een checklist voor staging en een smoketest, bijvoorbeeld dat `rpc/lock_household` 404 geeft. Aanmelden uit, GraphQL uit, Realtime alleen op privékanalen. |
-| B6 | De gate 9-review op een online project is nog niet gedaan. | TOEKOMSTIG | `docs/komtgoed-bouwplan.md`, stap 9 | Privé-gegevens zouden kunnen lekken. | De review vóór echte persoonsgegevens; tot dan alleen fictieve gegevens. |
+| B5 | De veiligheid hangt mede af van instellingen van het gehoste project die niet in de repository staan. | AANNAME; lokaal BEWEZEN ✔ | `thuisplanner/supabase/config.toml:10` (`graphql_public` blootgesteld), `:52` (`enable_signup = true`) | Eén verkeerde dashboardinstelling stelt functies in `private` bloot, of laat iedereen een account maken. | Een checklist voor staging en een smoketest, bijvoorbeeld dat `rpc/lock_household` 404 geeft. Aanmelden uit, GraphQL uit, Realtime alleen op privékanalen. |
+| B6 | De gate 9-review op een online project is nog niet gedaan. | TOEKOMSTIG | `docs/thuisplanner-bouwplan.md`, stap 9 | Privé-gegevens zouden kunnen lekken. | De review vóór echte persoonsgegevens; tot dan alleen fictieve gegevens. |
 
 ## 2. BELANGRIJK
 
@@ -77,7 +77,7 @@ gecommit, gepusht, gedeployd of in een database aangeraakt.
 | K10 | Er is geen auditlog voor lidmaatschap, rollen, eigendom en uitnodigingen. | BEWEZEN (ontbreekt) | — | Bij support of een geschil ("wie heeft mij verwijderd?") is niets na te gaan. | Een append-only log in `private`, zonder inhoud, met een bewaartermijn. |
 | K11 | De enige eigenaar kan zijn account niet verwijderen zolang er andere accounts in het huishouden zijn. | BEWEZEN | `kg5c_inhoud.sql:656-668` | Een AVG-verwijderverzoek kan vastlopen. | Automatisch overdragen aan een andere volwassene, of een vaste supportprocedure. |
 | K12 | Geen router, geen manifest of service worker, geen ErrorBoundary. | BEWEZEN ✔ (ErrorBoundary: niet gevonden) | `App.tsx` | Een renderfout geeft een wit scherm. De app is niet als app te installeren. Uitnodigingslinks en routes per huishouden worden lastig. | Bij KG-5E en KG-5H. Een ErrorBoundary kan los en is klein. |
-| K13 | De repository is openbaar en heeft geen `LICENSE`. De map `docs/` van `main` staat al op de Huisplan-site (`/docs/roadmap.html` geeft 200). Bij een merge komen de Thuisplanner-documenten en screenshots daar ook te staan, want `_config.yml` sluit alleen `komtgoed/` uit. | BEWEZEN ✔ | `_config.yml` op `main` | De merkscheiding verdwijnt, en concurrenten kunnen de roadmap en de broncode lezen. Er lekt niets geheims. | Vóór een merge: de Thuisplanner-documenten uitsluiten of naar `komtgoed/docs/` verplaatsen. Vóór betalende klanten: een eigen, privé repository, of in ieder geval een licentie. Dat is een eigen besluit. |
+| K13 | De repository is openbaar en heeft geen `LICENSE`. De map `docs/` van `main` staat al op de Huisplan-site (`/docs/roadmap.html` geeft 200). Bij een merge komen de Thuisplanner-documenten en screenshots daar ook te staan, want `_config.yml` sluit alleen `thuisplanner/` uit. | BEWEZEN ✔ | `_config.yml` op `main` | De merkscheiding verdwijnt, en concurrenten kunnen de roadmap en de broncode lezen. Er lekt niets geheims. | Vóór een merge: de Thuisplanner-documenten uitsluiten of naar `thuisplanner/docs/` verplaatsen. Vóór betalende klanten: een eigen, privé repository, of in ieder geval een licentie. Dat is een eigen besluit. |
 | K14 | De geplande CSP is onvolledig. `img-src 'self' data:` ontbreekt, en zonder die regel wordt de favicon geblokkeerd. Ook `default-src`, `object-src 'none'`, `base-uri 'none'`, `X-Content-Type-Options` en `immutable` voor `assets/*` ontbreken. | BEWEZEN (`index.html`: favicon als `data:`-URI) | `docs/thuisplanner-staging-hosting.md` §10.3 | Een te strenge CSP geeft een kapotte demo, een te losse beschermt te weinig. | De volledige set in §5 hieronder. |
 
 ## 3. Veilig uit te stellen

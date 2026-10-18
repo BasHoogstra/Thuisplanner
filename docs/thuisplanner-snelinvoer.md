@@ -4,10 +4,10 @@
 akkoord met de adviezen bij V1 t/m V6 (§5). Deel A wordt als eerste gebouwd; deel B volgt in eigen,
 kleine stappen (§8).
 
-- **Hoort bij:** KomtGoed-fase F7 ("Centrale invoer (tekst)") in `docs/roadmap.md`, sectie
-  "Ontwikkelrichting KomtGoed". Het rustiger venster (deel A) staat los van F7 en kan eerder.
+- **Hoort bij:** Thuisplanner-fase F7 ("Centrale invoer (tekst)") in `docs/roadmap.md`, sectie
+  "Ontwikkelrichting Thuisplanner". Het rustiger venster (deel A) staat los van F7 en kan eerder.
 - **Gelezen vóór dit voorstel:** `PRODUCT_PRINCIPLES.md`, `docs/productkompas-beslissingen.md`,
-  `docs/roadmap.md`, `docs/identiteit-en-items.md` (4.4, 4.5 en 5.3), `komtgoed/app/ONTWERP.md`,
+  `docs/roadmap.md`, `docs/identiteit-en-items.md` (4.4, 4.5 en 5.3), `thuisplanner/app/ONTWERP.md`,
   `docs/thuisplanner-app.md`, `docs/thuisplanner-inhoud.md`, en de bestaande snelinvoer van Huisplan
   (`parseQuickAdd()` in `index.html`).
 
@@ -101,7 +101,7 @@ Regels:
   gebruikt (principe 4), maar dat is een aparte stap.
 - **Velden die het venster niet toont blijven bewaard,** zoals nu met `notities` en `eindDatum`.
 
-**Gebouwd (14 oktober 2026)** in `komtgoed/app/src/components/ItemVenster.tsx`, met de tests in
+**Gebouwd (14 oktober 2026)** in `thuisplanner/app/src/components/ItemVenster.tsx`, met de tests in
 `tests/toevoegen-rustig.test.tsx`. Kleine uitwerking: "Voor wie" staat nu direct onder "Hoe laat", en de
 knop Meer opties noemt wat erachter zit ("Waar · Herhalen · Privé"; alleen wat voor deze afspraak kan).
 Bij één voorkomen van een reeks blijft Meer opties dicht: de herhaling staat al in de reekskop.

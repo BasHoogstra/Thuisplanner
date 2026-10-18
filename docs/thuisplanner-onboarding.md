@@ -2,7 +2,7 @@
 
 **Status:** besloten op 16 oktober 2026 (de vier besluiten volgens het advies, plus twee voorwaarden, zie §9) en **lokaal
 gebouwd** op branch `thuisplanner-staging` (niet gepusht). Hoort bij bouwstap KG-5H uit
-`docs/komtgoed-bouwplan.md` ("de eerste nieuwe pagina's: pas na jouw akkoord").
+`docs/thuisplanner-bouwplan.md` ("de eerste nieuwe pagina's: pas na jouw akkoord").
 
 **Aanleiding:** wie op staging inlogt zonder huishouden, ziet nu alleen "Dit account hoort nog bij geen huishouden". De
 database kan een huishouden al veilig aanmaken en mensen koppelen; alleen de schermen ontbreken.
@@ -149,7 +149,7 @@ verandert de database niet; het is alleen een testaccount op de lokale stack.
 
 ## 8. Omvang en wat er niet verandert
 
-- Ongeveer 5 bestanden in `komtgoed/app`, plus tests. Geen migratie, geen nieuwe bibliotheek, geen wijziging aan de
+- Ongeveer 5 bestanden in `thuisplanner/app`, plus tests. Geen migratie, geen nieuwe bibliotheek, geen wijziging aan de
   sync-module.
 - Huisplan, `main`, GitHub Pages en de Huisplan-projecten blijven ongemoeid.
 - Online gebeurt niets tot een apart akkoord voor pushen. Een push naar `thuisplanner-staging` is meteen een nieuwe
@@ -169,7 +169,7 @@ verandert de database niet; het is alleen een testaccount op de lokale stack.
 
 | Onderdeel | Bestand |
 | --- | --- |
-| Uitnodigingstoken: uit de adresbalk, bewaren, link maken, plakken | `komtgoed/app/src/lib/uitnodiging.ts`, aangeroepen in `src/main.tsx` vóór de app laadt |
+| Uitnodigingstoken: uit de adresbalk, bewaren, link maken, plakken | `thuisplanner/app/src/lib/uitnodiging.ts`, aangeroepen in `src/main.tsx` vóór de app laadt |
 | Sessie: `maakHuishouden`, `accepteerUitnodiging`, `kiesHuishouden`, `verlaatHuishouden`; huishoudens met rol in de momentopname; laatste keuze per account | `src/lib/lokaal/sessie.ts` |
 | Beheer: lid toevoegen, uitnodigen (7 dagen), open uitnodigingen, intrekken | `src/lib/lokaal/beheer.ts` |
 | S1 Welkom, S2 Uitnodiging (met "Toch niet: verlaten") | `src/components/Onboarding.tsx` |

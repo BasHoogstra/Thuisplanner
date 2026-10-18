@@ -75,7 +75,7 @@ blijft hetzelfde.
 | --- | --- | --- |
 | Inlogmethode | Alleen een e-mailcode (OTP), geen wachtwoord, geen inloglink | Een inloglink opent vaak in een andere browser dan de app op het beginscherm of de browser van WhatsApp, en dan kom je niet in dezelfde sessie. Een code werkt overal waar je kunt typen |
 | Aanmelden en inloggen | Eén scherm; `signInWithOtp({ email, options: { shouldCreateUser: true, captchaToken } })`, dan `verifyOtp({ email, token, type: 'email' })` | Geen verschil zichtbaar tussen een nieuw en een bestaand adres, zodat niemand kan nagaan wie gebruiker is |
-| Mailteksten | Eigen Nederlandse sjablonen in de repository (`komtgoed/supabase/templates/`): "Confirm signup" en "Magic link" bevatten allebei **alleen de code** (`{{ .Token }}`), plus "Change email" en "Reauthentication" | Voor een nieuw account stuurt Supabase het aanmeldsjabloon, voor een bestaand het "Magic link"-sjabloon. **Lokaal te verifiëren** met Mailpit |
+| Mailteksten | Eigen Nederlandse sjablonen in de repository (`thuisplanner/supabase/templates/`): "Confirm signup" en "Magic link" bevatten allebei **alleen de code** (`{{ .Token }}`), plus "Change email" en "Reauthentication" | Voor een nieuw account stuurt Supabase het aanmeldsjabloon, voor een bestaand het "Magic link"-sjabloon. **Lokaal te verifiëren** met Mailpit |
 | Code | 6 cijfers, 10 minuten geldig, een nieuwe code na 60 seconden | Besluit D4. Supabase: standaard 1 uur; korter is veiliger en past bij de 2-minutenervaring |
 | Sessie | `localStorage`, `persistSession`, `autoRefreshToken`; nooit een sessie uit de URL (`detectSessionInUrl: false`, staat al) | De standaard van Supabase: geen einddatum. Begrenzen (time-box, inactiviteit) kan alleen op Pro en is niet nodig |
 | Uitloggen | "Uitloggen" (dit toestel) en "Uitloggen op alle toestellen" (`signOut({ scope: 'global' })`) | Bij een verloren telefoon |
@@ -231,7 +231,7 @@ beginscherm". Op Android en in Chrome speelt dit niet. **Op een echte iPhone te 
 
 | # | Vraag | Advies |
 | --- | --- | --- |
-| D1 | Een eigen domein voor de mail (en later de app)? Welke naam? | **Ja**, nodig voor betrouwbare bezorging. De naam is jouw keuze (de werknamen zijn Thuisplanner en KomtGoed) |
+| D1 | Een eigen domein voor de mail (en later de app)? Welke naam? | **Ja**, nodig voor betrouwbare bezorging. De naam is jouw keuze (de werknamen zijn Thuisplanner en Thuisplanner) |
 | D2 | Welke SMTP-aanbieder? | **Een EU-aanbieder met een gratis instap**, bijvoorbeeld Scaleway Transactional Email of Brevo. Ik vergelijk de actuele voorwaarden zodra je kiest |
 | D3 | Toegang zonder Access: welke poort? | **G1**: poort bij "huishouden aanmaken", met een testerslijst en een schakelaar voor later |
 | D4 | De code | **6 cijfers, 10 minuten geldig**, een nieuwe na 60 seconden |

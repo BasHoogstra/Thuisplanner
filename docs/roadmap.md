@@ -31,8 +31,8 @@ afwijking dan eerst.
   De status van 1.4.1 is bijgewerkt naar live. Daarna aangevuld met besluit 8 (herbruikbaar
   verhuisslot; 1.5 en 1.12 blijven afzonderlijke migraties) bij 1.4.2, 1.5 en 1.12, en met besluit 9
   (na de review van het 1.4.2-plan) bij 1.4.2. Stap 1.14 is gemarkeerd als follow-up.
-- **Bijgewerkt op 9 oktober 2026:** de voorlopige ontwikkelrichting KomtGoed (zie de sectie
-  "Ontwikkelrichting KomtGoed" hieronder en besluit 11). Waar die sectie afwijkt van fase 1, gaat
+- **Bijgewerkt op 9 oktober 2026:** de voorlopige ontwikkelrichting Thuisplanner (zie de sectie
+  "Ontwikkelrichting Thuisplanner" hieronder en besluit 11). Waar die sectie afwijkt van fase 1, gaat
   die sectie voor; de overige tekst van fase 1 is bewust niet herschreven.
 - **Status:** volgens `CHANGELOG.md`.
 
@@ -52,17 +52,17 @@ afwijking dan eerst.
 | ✏️ **Aangepast** | Gewijzigd door een expliciete beslissing over het Productkompas. |
 | 📝 **Voorstel** | Nog niet besloten; geldt pas na een besluit van de producteigenaar. |
 
-## Ontwikkelrichting KomtGoed (voorlopig, besluit van 9 oktober 2026)
+## Ontwikkelrichting Thuisplanner (voorlopig, besluit van 9 oktober 2026)
 
 De producteigenaar heeft op 9 oktober 2026 voorlopig gekozen voor een nieuwe ontwikkelrichting
-(besluit B1, optie b uit het KomtGoed MVP-bouwplan). De werknaam is **KomtGoed**; de definitieve
-merknaam is nog niet gekozen. Het besluit staat ook als addendum in
+(besluit B1, optie b uit het Thuisplanner MVP-bouwplan). De productnaam is **Thuisplanner** (definitief sinds
+18 oktober 2026). Het besluit staat ook als addendum in
 `docs/productkompas-beslissingen.md` (besluit 11). Het Productkompas zelf verandert niet.
 
 **De richting:**
 - De nieuwe gezinsapp wordt **technisch gescheiden** van de bestaande Huisplan-app gebouwd, met
   **Supabase** als backend.
-- Dezelfde GitHub-repository, maar een **eigen map `komtgoed/`** met een eigen Supabase-configuratie,
+- Dezelfde GitHub-repository, maar een **eigen map `thuisplanner/`** met een eigen Supabase-configuratie,
   eigen migraties en eigen tests.
 - De bestaande Huisplan-app (`index.html`, `test/index.html`), de map `supabase/`, de bestaande
   Supabase-projecten, Firebase en alle gebruikersgegevens blijven **ongewijzigd**.
@@ -73,16 +73,16 @@ merknaam is nog niet gekozen. Het besluit staat ook als addendum in
 | Stap(pen) | Was | Wordt |
 | --- | --- | --- |
 | 1.4.2, 1.5, 1.6 | Firebase-spoor: voorbereiding, persoonsmigratie en ledenbeheer in de huidige data | **Gepauzeerd**, niet geschrapt. Er wordt niet aan verder gebouwd tot een nieuw besluit. PR #16 (1.4.2/E3), #17 en #18 blijven open. Of 1.5 vóór de import nog nodig is, of dat de import zelf namen naar leden vertaalt, is een open besluit (zie hieronder). |
-| 1.7–1.11 | Inloggen, huishouden, uitnodigen, synchronisatie en foto's op het bestaande schema in `supabase/` | **Vervangen** door de KomtGoed-fasen F1–F10 in `komtgoed/`, met een eigen schema. Het bestaande schema en de bestaande projecten worden niet gebruikt of gewijzigd. |
-| 1.12–1.15 | Import, overstap-wizard, bevriezen, uitrol | **Blijven het doel** voor bestaande planners, maar dan naar KomtGoed. Pas na een apart besluit en met alle gates hieronder. |
+| 1.7–1.11 | Inloggen, huishouden, uitnodigen, synchronisatie en foto's op het bestaande schema in `supabase/` | **Vervangen** door de Thuisplanner-fasen F1–F10 in `thuisplanner/`, met een eigen schema. Het bestaande schema en de bestaande projecten worden niet gebruikt of gewijzigd. |
+| 1.12–1.15 | Import, overstap-wizard, bevriezen, uitrol | **Blijven het doel** voor bestaande planners, maar dan naar Thuisplanner. Pas na een apart besluit en met alle gates hieronder. |
 | 1.1–1.4.1 | Afgerond of live | Ongewijzigd. Bewezen patronen uit `supabase/migrations` worden hergebruikt (gekopieerd, niet gewijzigd). |
 
-**KomtGoed-fasen** (uit het MVP-bouwplan; elke fase een eigen, kleine PR):
+**Thuisplanner-fasen** (uit het MVP-bouwplan; elke fase een eigen, kleine PR):
 
 | Fase | Inhoud | Status |
 | --- | --- | --- |
 | F0 | Besluiten en ontwerp (alleen documenten) | Deels: B1 voorlopig genomen (dit besluit); B2–B4 open |
-| F1 = **KG-1** | Fundament: accounts/profielen, huishoudens, leden, uitnodigingen, rollen en toegangsrechten; RLS met testmatrix; alleen lokaal | **Open PR**, verstevigd in KG-5B (`docs/komtgoed-fundament.md`) |
+| F1 = **KG-1** | Fundament: accounts/profielen, huishoudens, leden, uitnodigingen, rollen en toegangsrechten; RLS met testmatrix; alleen lokaal | **Open PR**, verstevigd in KG-5B (`docs/thuisplanner-fundament.md`) |
 | F2 | App-skelet en onboarding (op staging) | Gepland; wacht op B2, B3 en B4 |
 | F3 | Boodschappen | Gepland ⛔ (gate 9) |
 | F4 | Taken | Gepland ⛔ (gate 9) |
@@ -93,7 +93,7 @@ merknaam is nog niet gekozen. Het besluit staat ook als addendum in
 | F9 | Slimme aandachtspunten | Gepland |
 | F10 | Abonnement-voorbereiding en AVG-basis | Gepland |
 
-**Technisch bouwplan KG-5A (10 oktober 2026):** `docs/komtgoed-bouwplan.md` werkt de techniek voor
+**Technisch bouwplan KG-5A (10 oktober 2026):** `docs/thuisplanner-bouwplan.md` werkt de techniek voor
 deze fasen uit in negen kleine bouwstappen (KG-5B t/m KG-5J): eerst het fundament verstevigen en op een
 echte lokale Supabase testen, dan de inhoudstabellen (privé-afspraken als aparte detailtabel, gate 9),
 realtime op de server, en pas daarna de koppeling van de app. Productbeslissingen van 10 oktober 2026:
@@ -112,21 +112,21 @@ verschijnen alleen als "Bezet"; taken en boodschappen zijn voorlopig alleen gede
 | KG-5H deel 1: onboarding | Eerste huishouden aanmaken, uitnodigen (link, 7 dagen, partner als beheerder), accepteren (ook na inloggen), wisselen; alleen bestaande functies en RLS (`docs/thuisplanner-onboarding.md`). Deel 2 (e-mailcode, zelf een account) na B4 | Besloten op 16 oktober 2026; deel 1 lokaal **gebouwd**, nog niet op staging |
 | KG-5H deel 1b: uitnodigingen op e-mailadres | Uitnodigen op een bevestigd e-mailadres; de genodigde ziet de uitnodiging na het inloggen zonder link; weigeren; stabiele foutcodes TPU01–TPU10; adres weg bij sluiten en na verlopen (`docs/thuisplanner-uitnodiging-email.md`) | Besloten op 17 oktober 2026; lokaal **gebouwd**, nog niet op staging |
 | KG-5H deel 2: registratie en inloggen met e-mailcode | Zelf aanmelden en inloggen met een eenmalige code (K1, eigen codelaag), toegangspoort op de manier van inloggen (geen wachtwoordsessies), besloten test (G1), account en adres wijzigen, uitnodigingsmail (D6). Prioriteit vóór externe testers | Bouwscope goedgekeurd op 17 oktober 2026; lokaal **gebouwd** (`docs/thuisplanner-deel2-bouwverslag.md`); nog niet gepusht en niet op staging. Vóór testers (bouwverslag §6): versterkte poortbewaking (lokaal gebouwd), automatische verzending van uitnodigingsmails (lokaal gebouwd, bouwverslag §8; keuze mailaanbieder en Supabase-abonnement voor productie open), domein en mailaanbieder, staging intern bijwerken en de gehoste tests H1–H18, en daarna een **aparte bèta** (eigen Supabase- en Cloudflare Pages-project; staging blijft intern achter Cloudflare Access) met dezelfde tests, S1/S2 en een proef op echte telefoons |
-| Publieke website en gedeelde ontwerpbasis | De website op mijnthuisplanner.nl (uitleg, voordelen, hoe het werkt, privacy, veelgestelde vragen, "Meedoen met de bèta"), zonder JavaScript of tracking; één ontwerpbasis (`komtgoed/ontwerp`) voor app en website; Lettermint als mailaanbieder; de omgevingen in `komtgoed/omgevingen.json` | Akkoord op 18 oktober 2026; lokaal **gebouwd** (`docs/thuisplanner-website.md`). Nog niet gepubliceerd: bedrijfsgegevens, de DNS-overstap, het Pages-project en het koppelen van het domein, elk met een eigen akkoord |
+| Publieke website en gedeelde ontwerpbasis | De website op mijnthuisplanner.nl (uitleg, voordelen, hoe het werkt, privacy, veelgestelde vragen, "Meedoen met de bèta"), zonder JavaScript of tracking; één ontwerpbasis (`thuisplanner/ontwerp`) voor app en website; Lettermint als mailaanbieder; de omgevingen in `thuisplanner/omgevingen.json` | Akkoord op 18 oktober 2026; lokaal **gebouwd** (`docs/thuisplanner-website.md`). Nog niet gepubliceerd: bedrijfsgegevens, de DNS-overstap, het Pages-project en het koppelen van het domein, elk met een eigen akkoord |
 | KG-5E t/m KG-5J (stap 4–9) | Frontend herindelen, lezen, schrijven, inloggen, realtime in de app, staging | Lezen, schrijven en realtime lokaal gebouwd (zie hierboven); nog open: herindeling (stap 4), echte inlogpagina's met e-mailcode, huishouden en uitnodigen (stap 7, na akkoord), staging (stap 9, na B2) |
 
 **Wat er verandert aan de gates, en wat niet:**
 
 | Gate (beslissing of architectuurbesluit) | Gevolg van de nieuwe richting |
 | --- | --- |
-| **Beslissing 9 (privacy):** RLS moet gedeelde en afgeschermde huishouddata veilig onderscheiden | **Blijft volledig.** Het moment verschuift: van "vóór 1.10 (`SupabaseStore`)" naar **"vóór de eerste KomtGoed-inhoudstabel met huishouddata"** (F3, en voor ieder volgend domein opnieuw voor de gegevens van dat domein). Privacy wordt nooit alleen door de UI afgedwongen. KG-1 legt het primitief (`private.can_read`) en bewijst het met tests; dat is nog geen ontwerp voor "bezet zonder details" (F5). |
-| **Architectuurbesluit 4 (classificatie van de data)** | **Blijft**, en geldt nu ook vóór de import van bestaande planners naar KomtGoed. |
+| **Beslissing 9 (privacy):** RLS moet gedeelde en afgeschermde huishouddata veilig onderscheiden | **Blijft volledig.** Het moment verschuift: van "vóór 1.10 (`SupabaseStore`)" naar **"vóór de eerste Thuisplanner-inhoudstabel met huishouddata"** (F3, en voor ieder volgend domein opnieuw voor de gegevens van dat domein). Privacy wordt nooit alleen door de UI afgedwongen. KG-1 legt het primitief (`private.can_read`) en bewijst het met tests; dat is nog geen ontwerp voor "bezet zonder details" (F5). |
+| **Architectuurbesluit 4 (classificatie van de data)** | **Blijft**, en geldt nu ook vóór de import van bestaande planners naar Thuisplanner. |
 | **Architectuurbesluit 5 (1.4.2 afgerond vóór 1.5)** | Geldt ongewijzigd zolang 1.5 bestaat. Voor de import geldt minimaal: een herstelkopie buiten het toestel met hersteloefening, het beslislogboek waar nodig, en het bewezen mechanisme om oude schrijvers uit te sluiten. Welke onderdelen van E1–E6 precies vóór de import af moeten, wordt besloten bij het importbesluit. |
-| **Beslissing 6 (activiteit maakt niemand lid)** | **Blijft** voor de import: de import maakt alleen leden van echte huishoudleden uit het gecontroleerde register. In KomtGoed is lidmaatschap altijd een expliciete handeling (aanmaken of uitnodiging accepteren); KG-1 dwingt dat af. |
+| **Beslissing 6 (activiteit maakt niemand lid)** | **Blijft** voor de import: de import maakt alleen leden van echte huishoudleden uit het gecontroleerde register. In Thuisplanner is lidmaatschap altijd een expliciete handeling (aanmaken of uitnodiging accepteren); KG-1 dwingt dat af. |
 | **Architectuurbesluit 7 (oude Firebase-schrijvers aantoonbaar uitgesloten; Firebase-configuratie alleen na apart akkoord)** | **Blijft volledig** vóór de migratie-schrijfactie van de import, inclusief het herbruikbare verhuisslot (besluit 8 uit `docs/identiteit-en-items.md`). |
 | **Beslissing 8 (ledenregister op de echte planner gecontroleerd)** | **Blijft** vóór de import. |
-| **Beslissing 2 (navigatie getoetst aan werkelijk gebruik)** | **Blijft**, nu vóór de keuze voor de definitieve navigatie van KomtGoed (uiterlijk vóór F6). |
-| "Nog uit te werken: Supabase-schema aangepast aan het contract" | Geldt nu voor het **KomtGoed-schema**. KG-1 volgt `docs/identiteit-en-items.md` 5.2 waar het van toepassing is. Het bestaande schema in `supabase/` krijgt geen nieuwe migratie. |
+| **Beslissing 2 (navigatie getoetst aan werkelijk gebruik)** | **Blijft**, nu vóór de keuze voor de definitieve navigatie van Thuisplanner (uiterlijk vóór F6). |
+| "Nog uit te werken: Supabase-schema aangepast aan het contract" | Geldt nu voor het **Thuisplanner-schema**. KG-1 volgt `docs/identiteit-en-items.md` 5.2 waar het van toepassing is. Het bestaande schema in `supabase/` krijgt geen nieuwe migratie. |
 
 **Wat blijft gelden, zonder uitzondering:**
 - Bestaande data gaat nooit verloren; elke import is versie-gebonden, met back-up, terug te draaien
@@ -136,15 +136,15 @@ verschijnen alleen als "Bezet"; taken en boodschappen zijn voorlopig alleen gede
   besluit (B2).
 - Geen secrets in de repository.
 
-**Open besluiten voor KomtGoed** (blokkeren de genoemde fase, niet KG-1):
+**Open besluiten voor Thuisplanner** (blokkeren de genoemde fase, niet KG-1):
 
 | Besluit | Keuze | Nodig voor |
 | --- | --- | --- |
-| B2 | Omgevingen: nieuwe Supabase-projecten voor KomtGoed, of de bestaande (lege) projecten opnieuw inrichten. Advies: nieuwe projecten; de bestaande niet stil hergebruiken. | F2 (eerste deploy) |
+| B2 | Omgevingen: nieuwe Supabase-projecten voor Thuisplanner, of de bestaande (lege) projecten opnieuw inrichten. Advies: nieuwe projecten; de bestaande niet stil hergebruiken. | F2 (eerste deploy) |
 | B3 | Techniek van de app (build, framework, adres). | F2 |
 | B4 | Inlogmethode. Advies: e-mailcode; Apple/Google later. | F2 |
-| Import | Of Huisplan nog stap 1.5 doet, of de import naar KomtGoed namen zelf naar leden vertaalt; welke delen van 1.4.2 dan vóór de import af moeten; wat er met PR #16–#18 gebeurt. | Import (1.12–1.15) |
-| Merknaam | De definitieve naam; "komtgoed" is een werknaam en mag overal worden vervangen. | Vóór de eerste publieke release |
+| Import | Of Huisplan nog stap 1.5 doet, of de import naar Thuisplanner namen zelf naar leden vertaalt; welke delen van 1.4.2 dan vóór de import af moeten; wat er met PR #16–#18 gebeurt. | Import (1.12–1.15) |
+| Merknaam | Besloten op 18 oktober 2026: **Thuisplanner** is de enige productnaam; de oude werknaam is uit het project gehaald (behalve in de al uitgevoerde migraties 1–11 en de git-geschiedenis). | Afgerond |
 
 ## Productkompas-toets (werkwijze vanaf nu)
 
@@ -182,8 +182,8 @@ De toets hoeft niet met terugwerkende kracht te worden ingevuld voor bestaande o
   - groene tests en een regel in de changelog;
   - eerst in de testversie (`test/index.html`).
 - **Supabase is de nieuwe backend.** ✏️ Sinds 9 oktober 2026 (voorlopig) bouwt de nieuwe app
-  KomtGoed op een eigen schema in `komtgoed/supabase/`. Het bestaande schema in `supabase/` blijft
-  ongewijzigd (zie "Ontwikkelrichting KomtGoed").
+  Thuisplanner op een eigen schema in `thuisplanner/supabase/`. Het bestaande schema in `supabase/` blijft
+  ongewijzigd (zie "Ontwikkelrichting Thuisplanner").
 - **Eerst leden, dan backend.** De lastigste datawijziging (van 'ik' en 'partner' naar member-ID's)
   gebeurt in de huidige data, los van de wissel naar Supabase. Zo veranderen er nooit twee dingen
   tegelijk.
@@ -267,8 +267,8 @@ De volgorde is bewust:
 Tot en met 1.15 blijft de Firebase-versie werken.
 
 ✏️ **Sinds 9 oktober 2026 (voorlopig):** 1.4.2–1.6 zijn gepauzeerd en 1.7–1.11 zijn vervangen door
-de KomtGoed-fasen. Zie "Ontwikkelrichting KomtGoed". De statussen in de tabel hieronder zijn daarom
-niet bijgewerkt; de sectie "Ontwikkelrichting KomtGoed" is leidend.
+de Thuisplanner-fasen. Zie "Ontwikkelrichting Thuisplanner". De statussen in de tabel hieronder zijn daarom
+niet bijgewerkt; de sectie "Ontwikkelrichting Thuisplanner" is leidend.
 
 | Stap | Titel | Doel | Afhankelijk van | Migratie | Status |
 | --- | --- | --- | --- | --- | --- |

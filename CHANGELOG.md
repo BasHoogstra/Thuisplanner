@@ -476,19 +476,19 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   B probeert over te nemen; A hervat) en "nooit overnemen zonder Web Locks" (open, gesloten,
   gecrasht). `tests/journaal3.test.js`: 28.
 
-## KomtGoed KG-1 — databasefundament (alleen lokaal, geen app-wijziging)
-- Voorlopige ontwikkelrichting KomtGoed vastgelegd in `docs/roadmap.md` (sectie "Ontwikkelrichting
-  KomtGoed") en als besluit 11 in `docs/productkompas-beslissingen.md`.
-- Nieuwe, gescheiden map `komtgoed/supabase/` met een eigen configuratie (niet gekoppeld) en
+## Thuisplanner KG-1 — databasefundament (alleen lokaal, geen app-wijziging)
+- Voorlopige ontwikkelrichting Thuisplanner vastgelegd in `docs/roadmap.md` (sectie "Ontwikkelrichting
+  Thuisplanner") en als besluit 11 in `docs/productkompas-beslissingen.md`.
+- Nieuwe, gescheiden map `thuisplanner/supabase/` met een eigen configuratie (niet gekoppeld) en
   migratie `20261009120000_kg1_fundament.sql`: profielen, huishoudens, leden (ook kinderen zonder
   account), uitnodigingen (token alleen als hash), rollen owner/admin/member, RLS en
   rechtenfuncties. Eén account kan lid zijn van meerdere huishoudens.
-- Tests: RLS-matrix KG-T01 t/m KG-T22 (`komtgoed/supabase/tests/rls_tests.sql`), 14 tegenproeven,
-  statische controles en `tests/komtgoed.test.js`. CI: `.github/workflows/komtgoed-db.yml`.
+- Tests: RLS-matrix KG-T01 t/m KG-T22 (`thuisplanner/supabase/tests/rls_tests.sql`), 14 tegenproeven,
+  statische controles en `tests/thuisplanner.test.js`. CI: `.github/workflows/thuisplanner-db.yml`.
 - `index.html`, `test/index.html`, `supabase/` en Firebase zijn niet gewijzigd.
 
-## KomtGoed KG-5B — fundament verstevigd (bouwplan stap 1; alleen lokaal, geen app-wijziging)
-- Technisch bouwplan KG-5A vastgelegd in `docs/komtgoed-bouwplan.md`, met de productbeslissingen van
+## Thuisplanner KG-5B — fundament verstevigd (bouwplan stap 1; alleen lokaal, geen app-wijziging)
+- Technisch bouwplan KG-5A vastgelegd in `docs/thuisplanner-bouwplan.md`, met de productbeslissingen van
   10 oktober 2026 (gedeelde items door ieder lid te wijzigen; privé van anderen alleen als "Bezet";
   taken en boodschappen voorlopig alleen gedeeld).
 - Migratie `20261010120000_kg5b_verstevigen.sql`: account verwijderen werkt (trigger op `auth.users`;
@@ -498,7 +498,7 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: matrix KG-T01 t/m KG-T27, 22 tegenproeven, nu ook op een echte lokale Supabase
   (`run.sh --db`); integratietest met supabase-js (API, Auth, Realtime). CI-job `supabase-lokaal`.
 
-## KomtGoed KG-5B herstelronde 1 — vijf reviewbevindingen opgelost (alleen lokaal)
+## Thuisplanner KG-5B herstelronde 1 — vijf reviewbevindingen opgelost (alleen lokaal)
 - Migratie `20261011120000_kg5b_herstel1.sql`: één vergrendelingsprotocol (eerst het huishouden, dan de
   rechtencontrole, dan rijen, dan het account) in alle muterende functies, `ensure_owner` en de
   API-triggers; uitnodigingen alleen geldig zolang de maker ze nog mag geven; `households.created_by`
@@ -507,7 +507,7 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   tegenproef; reproduceren alle vijf problemen op `6da0f47`), strengere realtime-tests.
 
 ## Thuisplanner KG-5C — inhoudsschema (bouwplan stap 2; alleen lokaal, geen app-wijziging)
-- De nieuwe app heet voortaan Thuisplanner (technische map `komtgoed/` blijft).
+- De nieuwe app heet voortaan Thuisplanner (technische map `thuisplanner/` blijft).
 - Migratie `20261012120000_kg5c_inhoud.sql`: `events`, `event_details` (strengere RLS: privé van een
   ander = "Bezet"), `event_participants`, `event_exceptions`, `tasks`, `shopping_items`,
   `households.timezone` en de view `event_overview` (security_invoker). Afspraken via functies
@@ -534,10 +534,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Migratie `20261015120000_kg5d_realtime.sql`: seintjes `{t, id, v, op}` op het private kanaal
   `household:<id>` na elke wijziging (zonder inhoud); RLS op `realtime.messages`: alleen actieve leden
   luisteren, niemand zendt via de client, geen presence.
-- `komtgoed/sync/thuisplanner-sync.js`: synchronisatielaag (opnieuw ophalen op seintje, herverbinden met
+- `thuisplanner/sync/thuisplanner-sync.js`: synchronisatielaag (opnieuw ophalen op seintje, herverbinden met
   backoff, vangnet, versiecontrole en conflictmelding, UUID's van de client, alles wissen bij verlies van
   toegang). Geen nieuwe app-bibliotheken; het prototype van PR #20 is niet aangeraakt.
-- `komtgoed/dev/`: lokale ontwikkelpagina met twee demo-accounts (alleen 127.0.0.1, alleen de anon-sleutel).
+- `thuisplanner/dev/`: lokale ontwikkelpagina met twee demo-accounts (alleen 127.0.0.1, alleen de anon-sleutel).
 - Tests: KG-T47 en KG-T48, 50 tegenproeven, sync-tests met aparte sessies, e2e met twee browsersessies.
 
 ## Thuisplanner KG-5D herstelronde 1 — vier reviewbevindingen (review van 3f3b7da)
@@ -807,16 +807,27 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Beschikbaarheid online, afhankelijkheden en kosten: `docs/thuisplanner-uitnodigingsmail-verzending.md` §6. Niets online.
 
 ## Thuisplanner: publieke website, gedeelde ontwerpbasis en Lettermint (18 oktober 2026, lokaal)
-- Website voor mijnthuisplanner.nl (`komtgoed/website`):
+- Website voor mijnthuisplanner.nl (`thuisplanner/website`):
   - een hoofdpagina, privacy, "Welke mails sturen wij?", bedrijfsgegevens en 404;
   - zonder JavaScript, cookies of bronnen van buiten (CSP), en geen afhankelijkheden;
   - de knop "Meedoen met de bèta", die later met één instelling naar de app gaat;
   - de publicatiebouw weigert lege bedrijfsgegevens.
-- Gedeelde ontwerpbasis (`komtgoed/ontwerp`): kleuren (licht en donker), typografie, en een voorstel voor pictogram en logo. De app gebruikt ze zonder zichtbare wijziging; het tabbladpictogram komt uit dezelfde bron.
+- Gedeelde ontwerpbasis (`thuisplanner/ontwerp`): kleuren (licht en donker), typografie, en een voorstel voor pictogram en logo. De app gebruikt ze zonder zichtbare wijziging; het tabbladpictogram komt uit dezelfde bron.
 - Lettermint-koppeling voor codes en uitnodigingen:
   - de idempotentiesleutel gaat altijd mee, maar telt pas als bewezen na een online proef;
   - een 409 is onzeker;
   - ondertekende bezorgmeldingen.
-- De omgevingen staan in `komtgoed/omgevingen.json`. Het pushscript kent `-Omgeving staging|beta|productie` en weigert een projectkenmerk van een andere omgeving.
+- De omgevingen staan in `thuisplanner/omgevingen.json`. Het pushscript kent `-Omgeving staging|beta|productie` en weigert een projectkenmerk van een andere omgeving.
 - Tests: website-bouw, website-e2e (390 en 1280 px), ontwerpbasis, Lettermint-adapter, omgevingen; de volledige bestaande sets opnieuw (zie `docs/thuisplanner-website.md`).
 - Niets online: geen Pages-project, geen DNS, geen push.
+
+## Thuisplanner: de enige productnaam (18 oktober 2026, lokaal)
+- De oude werknaam is uit het project gehaald:
+  - de map heet `thuisplanner/` (app, supabase, website, ontwerp, sync, dev);
+  - de workflows heten `thuisplanner-app.yml` en `thuisplanner-db.yml`;
+  - verder bijgewerkt: `tests/thuisplanner.test.js`, de pakketnamen, de lokale `project_id`, de zichtbare titels in de app, en de documentatie (besluit 11: alleen de naam in de tekst).
+- Bewust ongewijzigd:
+  - de migraties 1–11 (al online uitgevoerd), met twee technische namen in de database: de trigger `komtgoed_before_account_delete` en de slotsleutel `komtgoed:eigenaar:`. Een migratie die die namen wijzigt, is een voorstel en nog niet beoordeeld (niet in de repository);
+  - de git-geschiedenis;
+  - de neutrale codes `KG-…` en de variabelen `KG_…`.
+- Huisplan ongewijzigd; alle testsets opnieuw gedraaid. Niets online.

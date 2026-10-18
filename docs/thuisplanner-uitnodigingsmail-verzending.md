@@ -221,7 +221,7 @@ geldt voor de codes (K1) en de uitnodigingsmails.
 - `MAIL_ADAPTER=lettermint`;
 - `LETTERMINT_TOKEN` (het API-token van het Lettermint-project);
 - `LETTERMINT_WEBHOOK_GEHEIM` (het `whsec_…`-geheim van de webhook);
-- `MAIL_AFZENDER` (zie `komtgoed/omgevingen.json`);
+- `MAIL_AFZENDER` (zie `thuisplanner/omgevingen.json`);
 - eventueel `LETTERMINT_ROUTE`;
 - `LETTERMINT_IDEMPOTENT_BEWEZEN=ja` pas na de online proef (H-test: twee keer hetzelfde verzoek met dezelfde sleutel
   geeft één mail en hetzelfde `message_id`).

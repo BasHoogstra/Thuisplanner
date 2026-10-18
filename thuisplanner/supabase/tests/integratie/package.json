@@ -1,0 +1,13 @@
+{
+  "name": "thuisplanner-integratie",
+  "private": true,
+  "description": "Thuisplanner KG-5B: integratietest tegen een lokale Supabase-stack (supabase start). Nooit tegen een online project.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit integratie.test.mjs gelijktijdig.test.mjs sync.test.mjs herstel.test.mjs herstel2.test.mjs herstel3.test.mjs react.test.mjs uitnodiging.test.mjs poort.test.mjs k1.test.mjs uitnodigingsmail.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.2",
+    "pg": "8.23.0"
+  }
+}

@@ -8,9 +8,9 @@ voor de echte back-up.
 
 | Onderdeel | Waarde |
 | --- | --- |
-| Bron | De lokale stack `komtgoed_k12` (PostgreSQL 17.11, de 12 migraties) |
+| Bron | De lokale stack `thuisplanner_k12` (PostgreSQL 17.11, de 12 migraties) |
 | Gegevens | Het fictieve gezin De Boer (`scripts/lokaal.mjs seed`), aangevuld via de gewone functies met: een uitnodiging op adres (deel 1b), een gearchiveerd lid en een privé-afspraak. Daarnaast de fictieve accounts van eerdere metingen (`@test.invalid`) |
-| Herstelplek | Een **tweede**, lege lokale stack `komtgoed_herstel` (eigen poorten 54430–54434), opgebouwd met de 12 migraties uit de repository |
+| Herstelplek | Een **tweede**, lege lokale stack `thuisplanner_herstel` (eigen poorten 54430–54434), opgebouwd met de 12 migraties uit de repository |
 | Export | `pg_dump` 17.11 in de databasecontainer, alleen gegevens. Twee delen: `public` en `private`, en `auth.users` met `auth.identities`. Sessies en refresh-tokens bewust niet: na een herstel logt iedereen opnieuw in |
 | Versleuteling | OpenSSL CMS, AES-256-GCM, met de sleutel verpakt via RSA-4096. Versleuteld met alleen het publieke certificaat; de privésleutel stond apart ("offline") |
 | Integriteit | SHA-256 van de export, gecontroleerd na het ontsleutelen |
