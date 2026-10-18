@@ -156,3 +156,25 @@ kost bij TransIP normaal niets (⚠️ even nakijken in je pakket).
   projecten of Access-instellingen.
 - **De Supabase-projecten van Thuisplanner:** geen koppeling met dit domein.
 - **Lettermint:** de vier records blijven bestaan, eerst bij TransIP en daarna identiek bij Cloudflare.
+
+## 7. Vergelijking van de Cloudflare-zone (18 oktober 2026, alleen lezen)
+
+De zone is bij de toegewezen nameservers `seth.ns.cloudflare.com` en `wanda.ns.cloudflare.com` rechtstreeks
+bevraagd. Elke naam is ook opgevraagd bij `ns0.transip.net` en per type vergeleken.
+
+| Record | Uitkomst |
+| --- | --- |
+| L1 tot en met L4 (Lettermint) | **Gelijk** bij beide nameservers; de CNAME's komen terug als CNAME, dus **DNS only** |
+| T1 tot en met T3 (DKIM van TransIP) | **Gelijk** (de CNAME's); DNS only |
+| R2 SPF, R3 DMARC | **Gelijk** |
+| R4 en R5 (`@` A en AAAA) | **Gelijk** (het oorspronkelijke adres, geen Cloudflare-adres), dus **DNS only** |
+| R6 (`www` CNAME) | **Gelijk**; DNS only |
+| R1 (`@` MX) | **In vorm anders, in werking gelijk.** Cloudflare geeft `10 _dc-mx.5191348ca677.mijnthuisplanner.nl`, een hulpnaam die Cloudflare zelf beheert en die naar **hetzelfde** adres wijst (`37.97.254.27` en `2a01:7c8:3:1337::27`). Mail gaat dus naar dezelfde server |
+| TXT op `transip-a._domainkey` | Geen echte afwijking: TransIP volgt de CNAME zelf, Cloudflare geeft (terecht) alleen de CNAME. Een openbare resolver krijgt langs beide wegen dezelfde DKIM-sleutel |
+
+**Niet van buitenaf te controleren:**
+- of de Cloudflare-zone records bevat die niet in de inventaris staan. Een zone laat zich niet volledig opvragen;
+  controleer in het dashboard dat er precies 13 records staan;
+- de proxy-instelling als dashboardwaarde. Wel bewezen: geen enkel gevonden record geeft een Cloudflare-adres terug.
+
+**De stand bij TransIP** (openbaar) is ongewijzigd: de nameservers van TransIP, en DNSSEC aan (DS 30555, TTL 3600).
