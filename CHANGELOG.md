@@ -831,3 +831,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   - de git-geschiedenis;
   - de neutrale codes `KG-…` en de variabelen `KG_…`.
 - Huisplan ongewijzigd; alle testsets opnieuw gedraaid. Niets online.
+
+## Thuisplanner: twee testreparaties na de eerste CI-run van deel 2 (19 oktober 2026)
+- De unit-tests draaien altijd in Nederlandse tijd (`TZ` in `vite.config.ts`); de CI-runner draait in UTC, waardoor één tekst met een kloktijd verschoof. De app zelf is ongewijzigd.
+- `gelijktijdig.test.mjs` zet de testpoort (`huishouden_open`) zelf open en daarna terug, zodat de test ook op een kale PostgreSQL slaagt (daar draait `seed.sql` niet).
+- Lokaal: unit 191/191 (ook met `TZ=UTC`); RLS 75/75 en tegenproeven 111/111; gelijktijdigheid 12/12 met de poort dicht. Tegenproef: de oude testversies falen precies zoals in CI.

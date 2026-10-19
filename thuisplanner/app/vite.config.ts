@@ -31,6 +31,9 @@ export default defineConfig(({ mode }) => {
       // Schermtests met userEvent in jsdom duren onder volle parallelle belasting (plus de lokale Docker-stack) soms
       // langer dan de standaard 5 s; afzonderlijk zijn ze ruim binnen 1 s. Een ruimere grens, geen overgeslagen test.
       testTimeout: 20_000,
+      // De app toont tijden in de tijdzone van het toestel. De tests rekenen met Nederlandse tijd, dus overal dezelfde
+      // zone (de CI-runner draait anders in UTC).
+      env: { TZ: 'Europe/Amsterdam' },
     },
   };
 });

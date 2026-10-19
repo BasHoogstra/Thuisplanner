@@ -27,6 +27,7 @@ let db;                       // derde verbinding: opzet en controle, als postgr
 const accounts = [];
 const huishoudens = [];
 const bewaard = {};           // tegenproef: originele functiedefinities
+let vorigHuishoudenOpen;      // de testpoort vóór deze test
 
 // Binnen een transactie optreden als een ingelogde gebruiker (zoals PostgREST dat doet), na inloggen met een code: de
 // toegangspoort (KG-5H deel 2) eist amr 'otp' en een bestaande sessie (session_id = het account-id, zie account()).
@@ -129,6 +130,10 @@ const zonderTegenproef = { skip: TEGENPROEF ? 'beschermd door rijslot/unieke sle
 before(async () => {
   db = verbinding('kg-controle');
   await db.connect();
+  // De testpoort (G1, deel 2) laat buiten de seed niemand een huishouden maken; deze test zet hem tijdelijk open en
+  // daarna terug (op een kale PostgreSQL draait seed.sql niet).
+  vorigHuishoudenOpen = (await db.query('select huishouden_open from private.instellingen')).rows[0].huishouden_open;
+  await db.query('update private.instellingen set huishouden_open = true');
   if (TEGENPROEF) {
     for (const f of ['lock_household', 'lock_owner_count', 'lock_household_shared']) {
       bewaard[f] = (await db.query(`select pg_get_functiondef(p.oid) as d from pg_proc p
@@ -152,6 +157,7 @@ after(async () => {
   if (TEGENPROEF) await db.query('alter table public.household_members enable trigger household_members_rotate_channel');
   if (huishoudens.length) await db.query('delete from public.households where id = any($1::uuid[])', [huishoudens]);
   if (accounts.length) await db.query('delete from auth.users where id = any($1::uuid[])', [accounts]);
+  if (vorigHuishoudenOpen !== undefined) await db.query('update private.instellingen set huishouden_open = $1', [vorigHuishoudenOpen]);
   await db.end();
 });
 
