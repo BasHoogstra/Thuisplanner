@@ -76,6 +76,14 @@ async function uitnodigen(c, h, email, rol = 'member') {
 }
 const rijen = invite => db.query('select * from private.uitnodigingsmails where invite_id = $1 order by nummer', [invite]).then(r => r.rows);
 const standen = async invite => (await rijen(invite)).map(r => r.status);
+// Wacht tot de mail weer in de wachtrij staat na n pogingen, en geeft die rij terug. Stand, pogingen en "volgende" komen
+// uit één en dezelfde lezing: met losse lezingen kan de functie de mail er tussendoor oppakken (stand nog "wacht" van de
+// vorige poging, pogingen al opgehoogd, "volgende" nog de oude), en meet de test een tijd die nooit zo gepland is.
+async function gepland(invite, n, wat) {
+  let rij;
+  await tot(async () => { [rij] = await rijen(invite); return rij?.status === 'wacht' && rij.pogingen === n; }, 20000, wat);
+  return rij;
+}
 const klaarMet = (invite, ms) => tot(async () => (await rijen(invite)).every(r => !['wacht', 'bezig'].includes(r.status)), ms, 'mail verwerkt');
 // De tijd vooruit zetten (de wachttijd is voorbij) en een ronde draaien, zoals het vangnet elke minuut doet.
 const vooruit = invite => db.query(`update private.uitnodigingsmails set volgende = now() - interval '1 second' where invite_id = $1 and status = 'wacht'`, [invite]);
@@ -224,33 +232,37 @@ test('opnieuw proberen: een storing na 1, 4 en 9 minuten, daarna mislukt; 429 vo
   const { c } = await codeSessie(adres('storing'));
   const h = await huishouden(c);
   const gast = adres('storing-gast');
-  aanbieder.zet('503', '503', '503', '503');
-  const inv = await uitnodigen(c, h, gast);
-  for (const minuten of [1, 4, 9]) {
-    await tot(async () => (await standen(inv))[0] === 'wacht' && (await rijen(inv))[0].pogingen === [1, 4, 9].indexOf(minuten) + 1, 20000, 'nieuwe poging gepland');
-    const s = (new Date((await rijen(inv))[0].volgende) - Date.now()) / 1000;
-    assert.ok(s > minuten * 60 - 20 && s <= minuten * 60 + 1, `na ${minuten} min: ${s} s`);
-    await vooruit(inv);
-    await ronde();
-  }
-  await klaarMet(inv, 20000);
-  assert.deepEqual(await standen(inv), ['mislukt']);
-  assert.equal((await rijen(inv))[0].pogingen, 4);
-  assert.equal(aanbieder.voor(gast).length, 0);
-  // 429 met Retry-After van 10 minuten: de wachttijd van de aanbieder gaat voor (langer dan 1 minuut).
-  const gast2 = adres('storing-429');
-  aanbieder.zet('429:600');
-  const inv2 = await uitnodigen(c, h, gast2);
-  await tot(async () => (await standen(inv2))[0] === 'wacht' && (await rijen(inv2))[0].pogingen === 1, 20000, '429 gepland');
-  const s2 = (new Date((await rijen(inv2))[0].volgende) - Date.now()) / 1000;
-  assert.ok(s2 > 560 && s2 <= 601, `429: ${s2} s`);
-  // 400: meteen mislukt, geen nieuwe poging.
-  const gast3 = adres('storing-400');
-  aanbieder.zet('400');
-  const inv3 = await uitnodigen(c, h, gast3);
-  await klaarMet(inv3, 20000);
-  assert.deepEqual(await standen(inv3), ['mislukt']);
-  assert.equal((await c.rpc('uitnodigingsmails', { p_household: h })).data.find(x => x.invite_id === inv3).status, 'mislukt');
+  // De klaargezette antwoorden gelden voor de eerstvolgende verzoeken bij de aanbieder, van wie ook. Faalt deze test
+  // halverwege, dan mogen ze niet blijven staan voor de mail van een volgende test.
+  try {
+    aanbieder.zet('503', '503', '503', '503');
+    const inv = await uitnodigen(c, h, gast);
+    for (const minuten of [1, 4, 9]) {
+      const rij = await gepland(inv, [1, 4, 9].indexOf(minuten) + 1, 'nieuwe poging gepland');
+      const s = (new Date(rij.volgende) - Date.now()) / 1000;
+      assert.ok(s > minuten * 60 - 20 && s <= minuten * 60 + 1, `na ${minuten} min: ${s} s`);
+      await vooruit(inv);
+      await ronde();
+    }
+    await klaarMet(inv, 20000);
+    assert.deepEqual(await standen(inv), ['mislukt']);
+    assert.equal((await rijen(inv))[0].pogingen, 4);
+    assert.equal(aanbieder.voor(gast).length, 0);
+    // 429 met Retry-After van 10 minuten: de wachttijd van de aanbieder gaat voor (langer dan 1 minuut).
+    const gast2 = adres('storing-429');
+    aanbieder.zet('429:600');
+    const inv2 = await uitnodigen(c, h, gast2);
+    const rij2 = await gepland(inv2, 1, '429 gepland');
+    const s2 = (new Date(rij2.volgende) - Date.now()) / 1000;
+    assert.ok(s2 > 560 && s2 <= 601, `429: ${s2} s`);
+    // 400: meteen mislukt, geen nieuwe poging.
+    const gast3 = adres('storing-400');
+    aanbieder.zet('400');
+    const inv3 = await uitnodigen(c, h, gast3);
+    await klaarMet(inv3, 20000);
+    assert.deepEqual(await standen(inv3), ['mislukt']);
+    assert.equal((await c.rpc('uitnodigingsmails', { p_household: h })).data.find(x => x.invite_id === inv3).status, 'mislukt');
+  } finally { aanbieder.gedrag.length = 0; }
 });
 
 test('T17: "nog eens sturen" vier keer: hoogstens 3 mails, één per 10 minuten, afgedwongen in de database', { timeout: 90000 }, async () => {

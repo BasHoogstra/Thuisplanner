@@ -850,3 +850,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - De test maakte Vault leeg terwijl er nog een aanroep met het geheim onderweg kon zijn (het vangnet van pg_cron, of de lus van de functie). Die pakte de nieuwe mail terecht op, waardoor de test soms "aangenomen" zag in plaats van "wacht" (CI op PR #27).
 - Nu wacht de test eerst tot pg_net niets meer onderweg heeft, plus een korte marge (`rust()`).
 - Tegenproef met een opzettelijk uitgelokt verzoek: de oude test 2 van 3 keer rood, de nieuwe 3 van 3 groen; daarna 8 van 8 en het hele bestand 2 keer 14 van 14.
+
+## Thuisplanner: leesrace in de D6-test "opnieuw proberen" (20 oktober 2026, alleen testcode)
+- De test las stand, pogingen en "volgende" in drie losse query's. Pakte de functie de mail er tussendoor op, dan zag de test "wacht" van de vorige poging en al het nieuwe aantal pogingen, en mat hij een tijd die nooit zo gepland was (CI: "na 4 min: -1.757 s"). Nu komen ze uit één lezing (`gepland()`); de bewerings en grenzen zijn ongewijzigd.
+- De klaargezette antwoorden van de nagebootste aanbieder worden na die test altijd opgeruimd, ook bij een fout. Anders kreeg de mail van de volgende test (T17) een overgebleven "503".
+- Tegenproef met een verbreed gat tussen de lezingen: de oude test 4 van 4 keer rood met hetzelfde patroon; de nieuwe stabiel (8 van 8, ook 3 van 3 met trage weigeringen) en het hele bestand 3 keer 14 van 14.
