@@ -845,3 +845,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Geen databasemigratie: de server herkent een herhaalde UUID al.
 - Tests: `p1p2.test.mjs` (integratie, 5) en `app/tests/p1p2.test.tsx` (6), twee nieuwe e2e-scenario's, drie nieuwe sync-tegenproeven (25 van 25). B3d en H3b toetsen nu expliciet de ontwikkelmodus.
 - Huisplan ongewijzigd; niets online.
+
+## Thuisplanner: race in de D6-test "herstel" (20 oktober 2026, alleen testcode)
+- De test maakte Vault leeg terwijl er nog een aanroep met het geheim onderweg kon zijn (het vangnet van pg_cron, of de lus van de functie). Die pakte de nieuwe mail terecht op, waardoor de test soms "aangenomen" zag in plaats van "wacht" (CI op PR #27).
+- Nu wacht de test eerst tot pg_net niets meer onderweg heeft, plus een korte marge (`rust()`).
+- Tegenproef met een opzettelijk uitgelokt verzoek: de oude test 2 van 3 keer rood, de nieuwe 3 van 3 groen; daarna 8 van 8 en het hele bestand 2 keer 14 van 14.

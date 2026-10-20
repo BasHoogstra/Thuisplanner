@@ -83,6 +83,13 @@ const ronde = () => db.query('select private.uitnodigingsmail_ronde()');
 // Een Vault-waarde even onvindbaar maken (en terug), via de functie van Vault zelf (de tabel is niet direct te wijzigen).
 const hernoem = (oud, nieuw) => db.query('select vault.update_secret(id, decrypted_secret, $2) from vault.decrypted_secrets where name = $1', [oud, nieuw]);
 const terug = (invite, minuten) => db.query(`update private.uitnodigingsmails set gevraagd = gevraagd - make_interval(mins => $2) where invite_id = $1`, [invite, minuten]);
+// Rust in de verzending: pg_net heeft geen verzoek meer in de wachtrij, en elke aanroep die al liep, heeft daarna tijd
+// om zijn (lege) volgende ronde te doen en te stoppen. De functie antwoordt meteen (202) en werkt daarna verder; met niets
+// meer te doen, stopt hij na één lege ronde.
+async function rust() {
+  await tot(async () => Number((await db.query('select count(*) from net.http_request_queue')).rows[0].count) === 0, 30000, 'pg_net leeg');
+  await wacht(3000);
+}
 const wachtrij = (kop = {}) => fetch(`${FUNCTIES}/stuur-uitnodiging`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...kop }, body: '{}' }).then(r => r.status);
 async function mailpit(email) {
   const r = await (await fetch(`${MAIL}/api/v1/search?query=${encodeURIComponent('to:' + email)}&limit=50`)).json();
@@ -405,6 +412,10 @@ test('herstel: de functie is weg (container gestopt) of Vault is leeg: de mail w
   await klaarMet(inv, 30000);
   assert.deepEqual(await standen(inv), ['aangenomen']);
   assert.equal(aanbieder.voor(gast).length, 1);
+  // Eerst rust: verzoeken die al met het geheim onderweg waren (deze ronde, of het vangnet dat elke minuut vuurde terwijl
+  // de functie weg was) en aanroepen die nog in hun lus zitten, zouden de volgende mail terecht oppakken. Dat is geen
+  // seintje zonder Vault en hoort dus niet bij wat hier wordt bewezen.
+  await rust();
   // Vault zonder geheim: het seintje verstuurt niets (geen fout bij de uitnodiging); terug: het vangnet verstuurt hem.
   const gast2 = adres('herstel-vault');
   await hernoem('thuisplanner_wachtrij_geheim', 'thuisplanner_wachtrij_geheim_weg');
