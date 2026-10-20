@@ -8,7 +8,7 @@ de besluiten in §5.
 - `docs/identiteit-en-items.md`, besluiten 11 tot en met 16 (één item in meerdere weergaven, gekoppelde handelingen,
   geen universele entiteit);
 - `docs/thuisplanner-snelinvoer.md` (toevoegen in één zin, V1 tot en met V6, akkoord);
-- `docs/thuisplanner-sync.md` §7 tot en met §9 (P1 tot en met P5, nog open).
+- `docs/thuisplanner-sync.md` §7 tot en met §9 (P1 tot en met P5; P1, P2 en P4 besloten en lokaal gebouwd op 19 oktober 2026, P5 open).
 
 ## 1. Doel
 
@@ -75,7 +75,7 @@ Er wordt niets herbouwd: de tabellen, de sync en de schermen blijven bestaan.
 ## 6. Technische voorwaarden (vóór F1.1)
 
 - **De hernoeming afgerond en gecommit** (een lokale commit op 18 oktober 2026; de technische namen in de database blijven tot een beoordeelde migratie).
-- **P1 tot en met P5 besloten** (F-E).
+- **P1 tot en met P5 besloten** (F-E): P1, P2 en P4 besloten en lokaal gebouwd op 19 oktober 2026 (`thuisplanner-sync.md` §10); P5 nog open.
 - **Liefst eerst push en de eerste CI-run** (met akkoord). Zo bouwt fase 1 op een groene, gecontroleerde basis en niet
   op een stapel ongeteste lokale commits.
 - **Staging bijwerken** (met akkoord), zodat je fase 1 zelf op je telefoon kunt proberen.

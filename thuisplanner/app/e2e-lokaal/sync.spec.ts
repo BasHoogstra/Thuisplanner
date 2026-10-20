@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { nav, SYNC, telefoon, toevoegen, venster } from './hulp';
+import { alsEva, nav, SYNC, telefoon, toevoegen, venster } from './hulp';
 
 // Twee telefoons, één gezin: Eva en Thomas (fictief) in twee aparte browsercontexten, tegen de lokale
 // Supabase-stack. Wat de een toevoegt, wijzigt of afvinkt, verschijnt bij de ander via de sync-module.
@@ -147,24 +147,61 @@ test('onbevestigd: niet aangekomen → "niet bevestigd" op de rij, herstelkeuze 
   await expect(thomas.getByRole('checkbox', { name: 'Regenjassen opruimen' })).toHaveCount(1, SYNC);
 });
 
-test('onbevestigd + herladen: de opdracht blijft op het toestel bewaard (unmount wist niets) en is daarna te herstellen', async () => {
+test('onbevestigd + herladen (P1): alleen de identiteit op het toestel; daarna opnieuw invoeren onder dezelfde ID, één taak', async () => {
   await verbindingWeg(eva, { bereikt: false });
   await toevoegen(eva, 'Taak', 'Fietsverlichting kopen');
   await expect(eva.locator('.sync-waarschuwing')).toContainText('nog niet bevestigd', SYNC);
-  const bewaard = () => eva.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('thuisplanner-opdracht:')).length);
+  const opslag = () => eva.evaluate(() => Object.entries(localStorage).filter(([k]) => k.startsWith('thuisplanner-opdracht:')));
+  const bewaard = async () => (await opslag()).length;
   expect(await bewaard()).toBe(1);
+  // P1: de titel staat niet op het toestel, alleen de opdracht-ID.
+  const [[sleutel, waarde]] = await opslag();
+  expect(waarde).not.toContain('Fietsverlichting');
+  const id = sleutel.split(':').pop()!;
 
   // Herladen: alle onderdelen unmounten en de pagina start opnieuw (zelfde tabblad, zelfde inlogsessie).
   await eva.unroute(TAKEN);
   await eva.reload();
   await expect(eva.locator('.sync-status')).toHaveText('Verbonden', SYNC);
   expect(await bewaard()).toBe(1);
-  await expect(eva.getByRole('checkbox', { name: 'Fietsverlichting kopen' })).toBeDisabled();
+  // Eerst serverbevestiging: de server heeft hem niet, dus "inhoud niet op dit toestel", zonder titel en niet af te vinken.
+  await expect(eva.locator('body')).not.toContainText('Fietsverlichting');
   await nav(eva, 'Meer');
-  await eva.getByRole('button', { name: 'Opnieuw proberen' }).click();
+  const rij = eva.getByRole('region', { name: 'Niet bevestigd' });
+  await expect(rij).toContainText('Taak (inhoud niet op dit toestel)', SYNC);
+  await rij.getByRole('button', { name: 'Opnieuw invoeren' }).click();
+  await expect(venster(eva).getByRole('heading', { name: 'Taak opnieuw invoeren' })).toBeVisible();
+  await venster(eva).locator('#item-titel').fill('Fietsverlichting kopen');
+  await venster(eva).getByRole('button', { name: 'Opslaan' }).click();
   await expect(eva.getByText('Alles is door de server bevestigd.')).toBeVisible(SYNC);
   await expect.poll(bewaard, SYNC).toBe(0);
   await expect(thomas.getByRole('checkbox', { name: 'Fietsverlichting kopen' })).toHaveCount(1, SYNC);
+  // Dezelfde opdracht-ID als vóór het herladen: nooit een tweede taak.
+  const { data, error } = await (await alsEva()).from('tasks').select('id').eq('title', 'Fietsverlichting kopen');
+  expect(error).toBeNull();
+  expect(data!.map(r => r.id)).toEqual([id]);
+});
+
+test('uitloggen met onbevestigde opdrachten (P2): eerst een keuze; nakijken laat je ingelogd, wissen haalt ze van het toestel', async () => {
+  await verbindingWeg(eva, { bereikt: false, pad: BOODSCHAPPEN });
+  await toevoegen(eva, 'Boodschap', 'Batterijen');
+  await expect(eva.locator('.sync-waarschuwing')).toContainText('nog niet bevestigd', SYNC);
+  const bewaard = () => eva.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('thuisplanner-opdracht:')).length);
+  await nav(eva, 'Meer');
+  await eva.getByRole('button', { name: 'Uitloggen', exact: true }).click();
+  await expect(venster(eva)).toContainText('Eén toevoeging is op dit toestel nog niet door de server bevestigd');
+  // Eerst laten nakijken: je blijft ingelogd, er is niets gewist.
+  await venster(eva).getByRole('button', { name: 'Eerst laten nakijken' }).click();
+  await expect(eva.getByRole('heading', { name: 'Meer' })).toBeVisible();
+  expect(await bewaard()).toBe(1);
+  // Wissen en uitloggen: het toestel is leeg; wat de server niet had, komt er ook niet meer.
+  await eva.getByRole('button', { name: 'Uitloggen', exact: true }).click();
+  await venster(eva).getByRole('button', { name: 'Van dit toestel wissen en uitloggen' }).click();
+  await expect(eva.getByRole('heading', { name: 'Inloggen' })).toBeVisible();
+  expect(await bewaard()).toBe(0);
+  await eva.unroute(BOODSCHAPPEN);
+  await nav(thomas, 'Boodschappen');
+  await expect(thomas.getByText('Batterijen')).toHaveCount(0);
 });
 
 test('onbevestigd: "Vergeten op dit toestel" haalt hem alleen hier weg', async () => {
@@ -237,7 +274,10 @@ test('screenshots @screenshot', async () => {
   await eva.screenshot({ path: pad('08-eva-meer-herstelkeuzes'), fullPage: true });
   await eva.unroute(TAKEN);
 
+  // Er staat nog een onbevestigde taak op het toestel: uitloggen vraagt eerst een keuze (P2).
   await eva.getByRole('button', { name: 'Uitloggen', exact: true }).click();
+  await eva.screenshot({ path: pad('10-uitloggen-keuze'), fullPage: true });
+  await venster(eva).getByRole('button', { name: 'Van dit toestel wissen en uitloggen' }).click();
   await expect(eva.getByRole('heading', { name: 'Inloggen' })).toBeVisible();
   await eva.screenshot({ path: pad('09-inloggen-fictieve-accounts'), fullPage: true });
 });

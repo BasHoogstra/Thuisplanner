@@ -4,7 +4,7 @@ import type { LidRij, Melding as SyncMelding, SyncStatus } from '../../../sync/t
 import type { Lidmaatschap, UitnodigingVoorMij, Uitkomst } from './lokaal/sessie';
 import type { DemoActies, Staat } from './store';
 import type { GezinsFilter } from './filter';
-import type { Afspraak, Datum, Huishouden, Lid, LidId, Tijd } from './types';
+import type { Datum, Huishouden, Item, Lid, LidId, Tijd } from './types';
 
 export type AgendaWeergave = 'dag' | 'week' | 'maand';
 
@@ -60,7 +60,8 @@ export interface LokaalContext {
   account: string;
   /** Account in Meer (KG-5H deel 2): overal uitloggen en het adres wijzigen. */
   accountBeheer: {
-    uitloggenOveral: () => Promise<void>;
+    /** wissen: na de waarschuwing gekozen om onbevestigde opdrachten van dit toestel te wissen (P2). */
+    uitloggenOveral: (opties?: { wissen?: boolean }) => Promise<void>;
     wijzigAdres: (nieuw: string) => Promise<Uitkomst>;
     bevestigAdres: (email: string, code: string) => Promise<Uitkomst<'gewijzigd' | 'nog-een'>>;
     wijziging: { nieuw: string } | null;
@@ -72,12 +73,16 @@ export interface LokaalContext {
   syncMelding: SyncMelding | null;
   syncMeldingWeg: () => void;
   /** Opdrachten die nog niet door de server zijn bevestigd (op dit toestel). */
-  openstaand: { soort: string; id: string; staat: string; bewaard: boolean }[];
+  openstaand: { soort: string; id: string; staat: string; bewaard: boolean; zonderInhoud: boolean }[];
   opnieuwProberen: (id: string) => void;
   vergeten: (id: string) => void;
-  /** Een privé-afspraak zonder bewaarde inhoud opnieuw invoeren, met dezelfde opdracht-ID. */
-  herinvoeren: (id: string, afspraak: Afspraak, melding?: string) => void;
-  uitloggen: () => void;
+  /** Een opdracht zonder bewaarde inhoud (P1) opnieuw invoeren, met dezelfde opdracht-ID. */
+  herinvoeren: (id: string, item: Item, melding?: string) => void;
+  /** Onbevestigde opdrachten van dit account op dit toestel (alle huishoudens), voor de waarschuwing bij uitloggen (P2). */
+  onbevestigdOpToestel: () => number;
+  /** Eerst laten nakijken: opnieuw ophalen, zodat wat de server al heeft, bevestigd wordt. */
+  nakijken: () => void;
+  uitloggen: (opties?: { wissen?: boolean }) => void;
 }
 
 export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer';

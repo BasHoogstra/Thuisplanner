@@ -22,6 +22,11 @@
 //    het geheugen van de pagina (overleeft stop/start en een unmount) en, waar de browser dat toestaat,
 //    duurzaam per opdracht in de opslag (overleeft herladen, sluiten en een nieuwe sessie). Er is geen
 //    wachtrij voor offline wijzigingen (bouwplan): niets wordt automatisch later verstuurd.
+//  - Privacy op het toestel (besluit P1): duurzaam staat standaard alleen de identiteit van een opdracht
+//    (soort, UUID, staat, account, huishouden), nooit de inhoud. Na een herstart bevestigt de eerste ophaalronde
+//    wat de server al heeft; wat dan nog openstaat, voert de gebruiker opnieuw in onder dezelfde UUID
+//    (opnieuwInvoeren), zodat er nooit een tweede ontstaat. Alleen de ontwikkelmodus met fictieve gegevens
+//    (besluit P3) bewaart de inhoud ook, met bewaarInhoud: true. Niets wordt ooit stil gewist (P4).
 //  - Geen inhoud in logboeken of meldingen: meldingen zijn vaste Nederlandse teksten per foutcode.
 
 const VELDEN_BOODSCHAP = 'id,household_id,name,checked_at,version,created_at,updated_at';
@@ -45,6 +50,7 @@ const MELDINGEN = {
   sessieBewaard: 'Je sessie is verlopen. Log opnieuw in; je invoer blijft bewaard en wordt dan nagekeken.',
   mogelijkDubbel: 'Dit staat al klaar maar is nog niet bevestigd. Kies: opnieuw proberen, of bewust als nieuwe toevoegen.',
   priveNietBewaard: 'De inhoud van deze privé-afspraak is om privacyredenen niet op dit toestel bewaard. Voer hem opnieuw in om hem af te maken.',
+  inhoudNietBewaard: 'De inhoud hiervan is om privacyredenen niet op dit toestel bewaard. Voer het opnieuw in om het af te maken; er komt geen tweede bij.',
   toegang: 'Je hebt geen toegang (meer) tot dit huishouden.',
   dubbel: 'Dat staat er al.',
   ongeldig: 'Dat kan niet: controleer wat je hebt ingevuld.',
@@ -130,6 +136,46 @@ const SORTEER = {
 // van de pagina na te bootsen.)
 const PAGINAGEHEUGEN = new Map();
 const VOORVOEGSEL = 'thuisplanner-opdracht:';
+
+// Alle onbevestigde opdrachten van één account op dit toestel (alle huishoudens): in het paginageheugen en in de
+// opslag. Voor de waarschuwing bij uitloggen (besluit P2). Alleen identiteiten, nooit inhoud.
+function opdrachtenVanAccount({ opslag = null, geheugen = PAGINAGEHEUGEN, gebruiker }) {
+  const ids = new Set();
+  const sleutels = [];
+  if (!gebruiker) return { ids, sleutels };
+  for (const [k, m] of geheugen) if (k.startsWith(`${gebruiker}:`)) for (const id of m.keys()) ids.add(id);
+  if (opslag) {
+    try {
+      const p = `${VOORVOEGSEL}${gebruiker}:`;
+      for (let i = 0; i < opslag.length; i++) {
+        const k = opslag.key(i);
+        if (!k || !k.startsWith(p)) continue;
+        sleutels.push(k);
+        ids.add(k.slice(k.lastIndexOf(':') + 1));
+      }
+    } catch { /* opslag niet leesbaar */ }
+  }
+  return { ids, sleutels };
+}
+
+/** Hoeveel opdrachten van dit account op dit toestel nog niet door de server zijn bevestigd (alle huishoudens). */
+export function onbevestigdOpToestel(o) {
+  return opdrachtenVanAccount(o).ids.size;
+}
+
+/**
+ * Alle onbevestigde opdrachten van dit account van dit toestel wissen (geheugen en opslag, alle huishoudens). Alleen
+ * na een uitdrukkelijke keuze van de gebruiker bij uitloggen (besluit P2); nooit automatisch (P4). Wat de server al
+ * heeft, blijft daar. Geeft het aantal gewiste opdrachten.
+ */
+export function wisOnbevestigdOpToestel({ opslag = null, geheugen = PAGINAGEHEUGEN, gebruiker }) {
+  const { ids, sleutels } = opdrachtenVanAccount({ opslag, geheugen, gebruiker });
+  if (!gebruiker) return 0;
+  // In het geheugen leegmaken in plaats van vervangen: een sync die nog loopt, houdt dezelfde Map vast.
+  for (const [k, m] of geheugen) if (k.startsWith(`${gebruiker}:`)) m.clear();
+  for (const k of sleutels) { try { opslag.removeItem(k); } catch { /* niets */ } }
+  return ids.size;
+}
 const zonderLeeg = obj => Object.keys(obj || {}).filter(k => obj[k] != null && k !== 'id').sort().map(k => [k, obj[k]]);
 // Inhoud van een opdracht, om een mogelijk dubbele nieuwe toevoeging te herkennen (nooit om te hergebruiken).
 const inhoudSleutel = o => JSON.stringify(o.soort === 'boodschap' ? [o.soort, tekstSleutel(o.naam)]
@@ -154,11 +200,13 @@ const OPDRACHTEN = {
  * @param {Storage} [o.opslag]  duurzame opslag (in de browser localStorage): onbevestigde toevoegingen
  *   overleven herladen, sluiten en opnieuw inloggen, met dezelfde UUID. Eén sleutel per opdracht, met
  *   account en huishouden. Weigert de browser opslag, dan meldt toestand.opslagDuurzaam = false.
+ * @param {boolean} [o.bewaarInhoud]  ook de inhoud duurzaam bewaren (standaard niet, besluit P1). Alleen voor de
+ *   ontwikkelmodus met fictieve gegevens (P3). Privé-afspraken nooit, ook dan niet.
  * @param {Map} [o.geheugen]  geheugen van de pagina (standaard gedeeld binnen de pagina)
  * @param {(soort: string, status: string) => void} [o.spoor]  optioneel: kanaalstatus volgen (geen inhoud)
  */
 export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangnetMs = 30000, debounceMs = 150,
-  paginaGrootte = 1000, opslag = null, geheugen = PAGINAGEHEUGEN, spoor = () => {} }) {
+  paginaGrootte = 1000, opslag = null, bewaarInhoud = false, geheugen = PAGINAGEHEUGEN, spoor = () => {} }) {
   let toestand = { status: STATUS.LADEN, melding: null, laatstOpgehaald: null, opslagDuurzaam: null, ...leeg() };
   let generatie = 0;         // elke start() en elke beëindiging begint een nieuwe generatie
   let levend = false;        // tussen start() en stop()/verlies van toegang
@@ -193,7 +241,8 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   //              dat niet;
   //   geweigerd  de eerste poging is zeker niet uitgevoerd (verlopen sessie): bewaard, met dezelfde UUID.
   // Opgeruimd wordt alleen na bevestiging, na een zekere weigering van een eerste poging (ongeldig, geen
-  // lid) of via vergeten. Inhoud van privé-afspraken gaat nooit naar de opslag, alleen de identiteit.
+  // lid) of via vergeten. Naar de opslag gaat alleen de identiteit (P1); de inhoud blijft in het paginageheugen.
+  // Alleen met bewaarInhoud (ontwikkelmodus) ook de inhoud, behalve van privé-afspraken.
   const prefix = () => `${VOORVOEGSEL}${gebruiker}:${huishoudenId}:`;
   function opslagProef() {
     if (!opslag || !gebruiker) return false;
@@ -207,7 +256,9 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   }
   function bewaar(o) {
     if (!duurzaam) return false;
-    const inhoud = prive(o) ? { inhoudNietBewaard: true, afspraak: { visibility: 'private' } }
+    // Zonder inhoud: van een afspraak alleen of hij privé is (dat bepaalt hoe hij opnieuw wordt ingevoerd).
+    const inhoud = prive(o) || !bewaarInhoud || o.inhoudNietBewaard
+      ? { inhoudNietBewaard: true, ...(o.soort === 'afspraak' ? { afspraak: { visibility: prive(o) ? 'private' : 'household' } } : {}) }
       : { naam: o.naam, titel: o.titel, velden: o.velden, afspraak: o.afspraak };
     try {
       opslag.setItem(prefix() + o.id, JSON.stringify({ v: 1, soort: o.soort, id: o.id, gebruiker, huishouden: huishoudenId,
@@ -254,10 +305,13 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   // Een nog niet bevestigde toevoeging zoals ze in de lijst staat.
   function voorlopig(o) {
     const basis = { id: o.id, version: 0, wachtend: o.staat === 'verzenden', onzeker: o.staat === 'onzeker', geweigerd: o.staat === 'geweigerd' };
+    // Inhoud niet op dit toestel (na een herstart, P1): alleen de identiteit, zonder titel of naam.
+    if (o.inhoudNietBewaard && o.soort === 'boodschap') return { ...basis, inhoudNietBewaard: true, name: null, checked_at: null };
+    if (o.inhoudNietBewaard && o.soort === 'taak') return { ...basis, inhoudNietBewaard: true, title: null, due_date: null, done_on: null };
     if (o.soort === 'boodschap') return { ...basis, name: String(o.naam).trim(), checked_at: null };
     if (o.soort === 'taak') return { ...basis, title: o.titel, done_on: null, ...o.velden };
     const a = o.afspraak || {};
-    if (o.inhoudNietBewaard) return { ...basis, inhoudNietBewaard: true, visibility: 'private', start_date: null, title: null, is_busy: false, participant_ids: [] };
+    if (o.inhoudNietBewaard) return { ...basis, inhoudNietBewaard: true, visibility: a.visibility === 'household' ? 'household' : 'private', start_date: null, title: null, is_busy: false, participant_ids: [] };
     return { ...basis, start_date: a.start_date, start_time: a.start_time ?? null, end_date: a.end_date ?? null,
       end_time: a.end_time ?? null, visibility: a.visibility || 'household', title: a.title, location: a.location ?? null,
       notes: a.notes ?? null, preparation: a.preparation ?? null, participant_ids: a.participant_ids ?? [], is_busy: false };
@@ -590,7 +644,8 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
       return nieuw ? { ok: false, melding } : { ok: false, onzeker: o.staat === 'onzeker', geweigerd: o.staat === 'geweigerd', id: o.id, melding };
     }
     if (o.inhoudNietBewaard) {
-      const melding = { soort: 'prive', tekst: MELDINGEN.priveNietBewaard };
+      // Zonder inhoud valt er niets te versturen: eerst opnieuw invoeren (opnieuwInvoeren, dezelfde UUID).
+      const melding = prive(o) ? { soort: 'prive', tekst: MELDINGEN.priveNietBewaard } : { soort: 'inhoud', tekst: MELDINGEN.inhoudNietBewaard };
       zet({ melding });
       return { ok: false, inhoudOntbreekt: true, id: o.id, melding };
     }
@@ -667,6 +722,28 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
       }
     }
     return voegToe({ ...o, staat: 'nieuw', ooitOnzeker: false });
+  }
+
+  // Opnieuw invoeren onder dezelfde UUID: de inhoud komt (weer) op de bestaande opdracht en die wordt verstuurd.
+  // Bestaat de opdracht hier niet meer (intussen bevestigd of vergeten), dan toch met deze UUID: staat hij al op de
+  // server, dan herkent die hem (taak en afspraak: het id bestaat al; boodschap: het opdrachtregister) en komt er
+  // geen tweede. Inhoud wordt nooit op een andere UUID gezet.
+  function opnieuwInvoeren(id, inhoud) {
+    const bestaand = openstaand.get(id);
+    if (bestaand && bestaand.soort !== inhoud.soort) return Promise.resolve({ ok: false, melding: { soort: 'ongeldig', tekst: MELDINGEN.ongeldig } });
+    if (bestaand) {
+      if (bestaand.inhoudNietBewaard) {
+        if (inhoud.soort === 'boodschap') bestaand.naam = inhoud.naam;
+        else if (inhoud.soort === 'taak') { bestaand.titel = inhoud.titel; bestaand.velden = { ...inhoud.velden }; }
+        else bestaand.afspraak = { ...inhoud.afspraak };
+        delete bestaand.inhoudNietBewaard;
+      }
+      return voegToe(bestaand);
+    }
+    const nieuw = inhoud.soort === 'boodschap' ? { soort: 'boodschap', id, naam: inhoud.naam }
+      : inhoud.soort === 'taak' ? { soort: 'taak', id, titel: inhoud.titel, velden: { ...inhoud.velden } }
+        : { soort: 'afspraak', id, afspraak: { ...inhoud.afspraak } };
+    return voegToe({ ...nieuw, staat: 'nieuw', ooitOnzeker: false });
   }
 
   // Uitdrukkelijk vergeten (alleen op dit toestel). Mag ook na stop() of zonder toegang.
@@ -750,12 +827,8 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     // een privé-afspraak opnieuw in te voeren die niet op het toestel bewaard is).
     afspraakBewaren(a, opties) {
       if (a.version == null) {
-        const bestaand = a.id ? openstaand.get(a.id) : null;
-        if (bestaand) {
-          if (bestaand.inhoudNietBewaard) { bestaand.afspraak = { ...a }; delete bestaand.inhoudNietBewaard; }
-          return voegToe(bestaand);
-        }
-        return nieuweToevoeging({ soort: 'afspraak', id: a.id || nieuweId(), afspraak: { ...a } }, a.id ? { bewustNieuw: true } : opties);
+        if (a.id) return opnieuwInvoeren(a.id, { soort: 'afspraak', afspraak: { ...a } });
+        return nieuweToevoeging({ soort: 'afspraak', id: nieuweId(), afspraak: { ...a } }, opties);
       }
       return schrijf(() => supabase.rpc('save_event', {
         p_household: huishoudenId, p_id: a.id, p_version: a.version, p_start_date: a.start_date,
@@ -782,6 +855,9 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     afspraakVoorkomenVerwijderen(reeksId, datum) {
       return schrijf(() => supabase.rpc('delete_occurrence', { p_series: reeksId, p_date: datum }));
     },
+    // Een niet-bevestigde toevoeging waarvan de inhoud niet op dit toestel staat (P1), opnieuw invoeren onder
+    // dezelfde UUID. inhoud: { soort: 'boodschap', naam } | { soort: 'taak', titel, velden } | { soort: 'afspraak', afspraak }.
+    opnieuwInvoeren(id, inhoud) { return opnieuwInvoeren(id, inhoud); },
     // Een niet-bevestigde toevoeging opnieuw versturen: dezelfde opdracht, dezelfde UUID.
     opnieuwProberen(id) {
       const o = openstaand.get(id);
@@ -799,7 +875,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     verwerkSeintje: opSeintje,   // voor tests: een seintje aanbieden zoals het kanaal dat doet
     get toestand() { return toestand; },
     get statistiek() { return { ...verwerkt }; },
-    get openstaand() { return [...openstaand.values()].map(o => ({ soort: o.soort, id: o.id, staat: o.staat, bewaard: !!o.bewaard })); },
+    get openstaand() { return [...openstaand.values()].map(o => ({ soort: o.soort, id: o.id, staat: o.staat, bewaard: !!o.bewaard, zonderInhoud: !!o.inhoudNietBewaard })); },
     vergeten: vergeetOpdracht,   // ook na stop() of zonder toegang
     get kanaalNaam() { return kanaalNaam; },
   };

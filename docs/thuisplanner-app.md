@@ -116,7 +116,7 @@ gebruikt het alleen in Node om de fictieve accounts te maken; de browser krijgt 
 | **Onbevestigde privé-afspraak na herladen** | **Echt**: de inhoud is bewust niet op het toestel bewaard (blijft zo). Onder Meer: "Opnieuw invoeren" opent het venster ("Privé-afspraak opnieuw invoeren", privé vast). Opslaan gebruikt dezelfde opdracht-ID, dus nooit een tweede afspraak; bevestigt de server hem intussen toch, dan wisselt het venster naar de bewaarde afspraak |
 | **Afspraakvelden die het venster niet toont** (notities, einddatum van een meerdaagse afspraak) | **Echt behouden** bij aanpassen, ook bij één voorkomen of de hele reeks; de duur schuift mee met de begindatum |
 | Verbindingsstatus | **Echt**: bovenin (Verbonden, Bijwerken, Geen verbinding, Geen toegang) |
-| Uitloggen | **Echt**: stopt de synchronisatie; onbevestigde opdrachten blijven bewaard (zie §6, P2) |
+| Uitloggen | **Echt**: stopt de synchronisatie. Met onbevestigde opdrachten eerst een keuze: laten nakijken of van dit toestel wissen (§6, P2) |
 | Ongedaan maken | **Niet** in de lokale modus (alleen demo) |
 | Meedenk-signaal wegklikken | Alleen voor dit tabblad (niet opgeslagen) |
 | Demo-scenario's (rustige dag) | Alleen demo |
@@ -193,20 +193,26 @@ oude fouten: `afspraakbehoud` 4/4 rood, `sessie` 8/14 rood (de races; de overige
 
 Screenshots: `thuisplanner/app/screenshots/lokaal/` (`npm run screenshots:lokaal`).
 
-## 6. Privacybeslissingen P1–P5: niet ingevoerd
+## 6. Privacybeslissingen P1, P2 en P4: ingevoerd (19 oktober 2026, lokaal)
 
-De lokale modus gebruikt de sync-module zoals die nu is: situatie 1 uit `docs/thuisplanner-sync.md` §9
-(veilige ontwikkelmodus, fictieve gegevens, alleen lokaal). Onbevestigde opdrachten van taken en
-boodschappen staan met inhoud in `localStorage`; privé-afspraken zonder inhoud. Geen van P1–P5 is
-stilzwijgend ingevoerd. Wat er per beslissing nodig is vóór echte gegevens:
+Besluit van de producteigenaar op 19 oktober 2026: akkoord met P1, P2 en P4 uit `docs/thuisplanner-sync.md` §9 (uitvoering
+in §10). P5 (bewaartermijn van het serverregister) staat nog open.
 
-| Beslissing | Huidige stand in de app | Nodig zodra besloten |
-| --- | --- | --- |
-| **P1** alleen identiteit duurzaam | inhoud bewaard (ontwikkelmodus) | sync-module: inhoud alleen in het paginageheugen; app toont "inhoud niet bewaard, voer opnieuw in" (bestaat al voor privé-afspraken: `OnbevestigdVenster`, staat `zonder-inhoud`); API-uitbreiding om een bestaande identiteit opnieuw in te voeren bij taken en boodschappen |
-| **P2** uitloggen wist na waarschuwing | uitloggen wist niets; Meer zegt dat het een open besluit is | `Sessie.uitloggen()` is het enige punt: daar een waarschuwing met het aantal onbevestigde opdrachten, keuze "eerst laten nakijken" of "wissen", en daarna `vergeten` voor alle opdrachten van dat account |
-| **P3** demo blijft | demo-modus ongewijzigd en gemarkeerd; lokale modus gemarkeerd "Lokaal" | niets |
-| **P4** geen automatisch wissen | er wordt niets automatisch gewist; Meer toont ook oudere opdrachten op dit toestel | als het voorstel wordt aangenomen: zo laten |
-| **P5** bewaartermijn serverregister | geen opruiming | een onderhoudstaak op de server (geen app-wijziging) |
+| Beslissing | In de app |
+| --- | --- |
+| **P1** alleen de identiteit duurzaam | Op het toestel staan van onbevestigde afspraken, taken en boodschappen alleen soort, UUID, staat, account en huishouden. Binnen hetzelfde tabblad blijft de inhoud in het geheugen (opnieuw proberen werkt gewoon). Na herladen of sluiten bevestigt de eerste ophaalronde wat de server al heeft; de rest staat als "inhoud niet op dit toestel" in de lijst en onder Meer → Niet bevestigd. Tikken opent "Taak opnieuw invoeren" (of boodschap, afspraak, privé-afspraak), onder dezelfde opdracht-ID: nooit een tweede |
+| **P2** uitloggen wist na een waarschuwing | Staan er op dit toestel onbevestigde opdrachten van dit account (in elk huishouden), dan vraagt uitloggen eerst: "Eerst laten nakijken" (je blijft ingelogd; de app haalt opnieuw op) of "Van dit toestel wissen en uitloggen". Geldt voor Uitloggen, Uitloggen op alle toestellen en de uitlogknoppen in de onboarding. Een ander account op hetzelfde toestel blijft ongemoeid |
+| **P3** demo en ontwikkelmodus | Ongewijzigd: de demo bewaart niets; de ontwikkelpagina `thuisplanner/dev/demo` bewaart met `bewaarInhoud: true` ook de inhoud (fictieve gegevens), behalve van privé-afspraken |
+| **P4** geen automatisch wissen | Een verlopen sessie, een herstart, stoppen of opnieuw ophalen wist niets. Alleen bevestiging door de server, "Vergeten op dit toestel" of de keuze bij uitloggen |
+| **P5** bewaartermijn serverregister | Open; geen opruiming (een onderhoudstaak op de server, geen app-wijziging) |
+
+**Geen databasemigratie.** De server herkent een herhaalde UUID al (zie `docs/thuisplanner-sync.md` §10).
+
+**Tests (19 oktober 2026):** `app/tests/p1p2.test.tsx` (rij zonder inhoud, opnieuw invoeren van taak en boodschap met
+dezelfde ID, de uitlogkeuze) en `supabase/tests/integratie/p1p2.test.mjs` (de opslag bevat geen inhoud; herstart met eerst
+serverbevestiging; opnieuw invoeren nooit dubbel, ook als de server hem al heeft; tellen en wissen per account over alle
+huishoudens; P3 en P4). Tegenproeven: de integratietest tegen de module van vóór P1 en de app-test tegen het oude venster
+falen.
 
 ## 7. Productkompas-toets
 
@@ -218,7 +224,7 @@ stilzwijgend ingevoerd. Wat er per beslissing nodig is vóór echte gegevens:
 4. **Eenvoudiger:** geen extra bibliotheken behalve de Supabase-client; geen nieuwe schermen behalve een
    testinlogpagina; de schermen uit PR #20 zijn hergebruikt.
 5. **Aandacht, controle, privacy:** waarschuwingen alleen bij conflict of onzekerheid; herstel is een
-   keuze van de gebruiker; P1–P5 bewust open.
+   keuze van de gebruiker; P1, P2 en P4 ingevoerd (19 oktober 2026), P5 open.
 6. **Bewijs:** nog hypothese; alleen fictieve gegevens. Het echte bewijs volgt pas met echt gebruik.
 7. **Ultieme toets:** ja; het gezin hoeft elkaar niet meer bij te praten over wat er is ingevoerd.
 

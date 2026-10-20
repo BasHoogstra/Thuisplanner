@@ -1,6 +1,6 @@
 // Thuisplanner KG-5D herstelronde 1: tegenproeven voor de synchronisatiemodule. Elke regel zet één
 // herstelde eigenschap terug (in een kopie van de module) en controleert dat de bijbehorende
-// regressietest in herstel.test.mjs, herstel2.test.mjs of herstel3.test.mjs dan FAALT. Zo is aangetoond dat de tests de oude fout vangen.
+// regressietest in herstel.test.mjs, herstel2.test.mjs, herstel3.test.mjs of p1p2.test.mjs dan FAALT. Zo is aangetoond dat de tests de oude fout vangen.
 //   (door run.sh aangeroepen; vraagt dezelfde omgevingsvariabelen als herstel.test.mjs)
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -34,7 +34,7 @@ const PROEVEN = [
   ['3', '^B3c', 'onbekende uitkomst behandeld als mislukt', [
     ['function onbekend(fout) {\n  if (!fout) return false;', 'function onbekend(fout) {\n  return false;']]],
   ['3', '^B3d', 'opdracht niet bewaard voor een herstart', [
-    ['    if (!duurzaam) return false;\n    const inhoud', '    return false;\n    const inhoud']]],
+    ['    if (!duurzaam) return false;\n    // Zonder inhoud', '    return false;\n    // Zonder inhoud']]],
   ['4', '^B4a', 'één pagina (grens van de server)', [
     ['      if (!r.data.length) return rijen;\n      rijen.push(...r.data);', '      return r.data;']]],
   ['4', '^B4c', 'pagineren met offset in plaats van op id', [
@@ -62,7 +62,14 @@ const PROEVEN = [
   ['R2-3', '^H3e', 'opdracht van een ander account overgenomen', [
     [' && o.gebruiker === gebruiker && o.huishouden === huishoudenId)', ' && o.huishouden === huishoudenId)']]],
   ['R2-3', '^H3f', 'inhoud van een privé-afspraak in de opslag', [
-    ['    const inhoud = prive(o) ? { inhoudNietBewaard: true, afspraak: { visibility: \'private\' } }\n      : { naam:', '    const inhoud = false ? {}\n      : { naam:']]],
+    ['    const inhoud = prive(o) || !bewaarInhoud || o.inhoudNietBewaard\n', '    const inhoud = false\n']]],
+  // P1 en P2 (p1p2.test.mjs, besluiten van 19 oktober 2026)
+  ['P1', '^P1 de opslag', 'inhoud toch duurzaam op het toestel', [
+    ['    const inhoud = prive(o) || !bewaarInhoud || o.inhoudNietBewaard\n', '    const inhoud = prive(o) || o.inhoudNietBewaard\n']]],
+  ['P1', '^P1 (herstart|opnieuw invoeren)', 'opnieuw invoeren onder een nieuwe UUID', [
+    ['  function opnieuwInvoeren(id, inhoud) {\n', '  function opnieuwInvoeren(id, inhoud) {\n    id = nieuweId();\n']]],
+  ['P2', '^P2', 'tellen en wissen ook voor een ander account', [
+    ['      const p = `${VOORVOEGSEL}${gebruiker}:`;\n      for (let i', '      const p = VOORVOEGSEL;\n      for (let i']]],
   // Herstelronde 3 (herstel3.test.mjs)
   ['R3-1', '^R1a', 'geweigerde herhaling ruimt op terwijl een andere poging nog loopt', [
     ['    } else if (o.ooitOnzeker || andereLopen) {', '    } else if (o.ooitOnzeker) {']]],
@@ -81,7 +88,7 @@ try {
     const bestand = path.join(map, `proef-${i + 1}.js`);
     writeFileSync(bestand, code);
     const r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-timeout=600000', '--test-force-exit', '--test-reporter=tap',
-      `--test-name-pattern=${patroon}`, { H: 'herstel2.test.mjs', R: 'herstel3.test.mjs' }[patroon[1]] || 'herstel.test.mjs'], { cwd: HIER, env: { ...process.env, KG_SYNC_MODULE: bestand }, encoding: 'utf8' });
+      `--test-name-pattern=${patroon}`, { H: 'herstel2.test.mjs', R: 'herstel3.test.mjs', P: 'p1p2.test.mjs' }[patroon[1]] || 'herstel.test.mjs'], { cwd: HIER, env: { ...process.env, KG_SYNC_MODULE: bestand }, encoding: 'utf8' });
     const geslaagd = /^# pass [1-9]/m.test(r.stdout) && /^# fail 0/m.test(r.stdout);
     const gefaald = /^# fail [1-9]/m.test(r.stdout);
     if (gefaald && !geslaagd) console.log(`sync-tegenproef ${i + 1} (bevinding ${bevinding}: ${wat}) gevangen door ${patroon.replace('^', '').trim()}`);

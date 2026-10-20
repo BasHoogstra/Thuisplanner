@@ -37,11 +37,12 @@ export function ItemVenster({ opdracht, sluit }: { opdracht: VensterOpdracht; sl
   const item = staat.items.find(i => i.id === opdracht.id && i.soort !== 'afspraak') ?? vindAfspraak(staat.items, opdracht.id);
   if (!item) return null;
   // Lokale modus: wat de server nog niet heeft bevestigd, kun je niet aanpassen; wel opnieuw proberen of vergeten.
-  // Een privé-afspraak waarvan de inhoud bewust niet op dit toestel bewaard is (zie de sync-module): opnieuw
+  // Een opdracht waarvan de inhoud bewust niet op dit toestel bewaard is (P1, zie de sync-module): opnieuw
   // invoeren, met dezelfde opdracht-ID. Bevestigt de server hem intussen toch, dan wisselt dit venster vanzelf
-  // naar de bewaarde afspraak (andere key, dus een vers formulier).
-  if (item.soort === 'afspraak' && item.sync === 'zonder-inhoud') {
-    return <Formulier key="herinvoer" herinvoerId={item.id} soortBegin="afspraak" sluit={sluit} />;
+  // naar het bewaarde item (andere key, dus een vers formulier).
+  if (item.sync === 'zonder-inhoud') {
+    const prive = item.soort === 'afspraak' && item.zichtbaarheid === 'prive';
+    return <Formulier key="herinvoer" herinvoerId={item.id} herinvoerPrive={prive} soortBegin={item.soort} sluit={sluit} />;
   }
   if (item.sync) {
     const naam = item.soort === 'boodschap' ? item.naam : item.titel ?? '';
@@ -67,10 +68,12 @@ function BezetVenster({ a, sluit }: { a: Afspraak; sluit: () => void }) {
   );
 }
 
-function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
+function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPrive = false, sluit }: {
   bestaand?: Item; soortBegin?: Soort; datumBegin?: Datum;
-  /** Opnieuw invoeren van een privé-afspraak zonder bewaarde inhoud, met deze opdracht-ID. */
+  /** Opnieuw invoeren van een opdracht zonder bewaarde inhoud (P1), met deze opdracht-ID. */
   herinvoerId?: string;
+  /** Bij opnieuw invoeren: de afspraak was privé (dat blijft zo). */
+  herinvoerPrive?: boolean;
   sluit: () => void;
 }) {
   const app = useApp();
@@ -87,7 +90,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
   const [plek, zetPlek] = useState(bestaand?.soort === 'afspraak' ? bestaand.plek ?? '' : '');
   const [wie, zetWie] = useState<LidId[]>(
     bestaand?.soort === 'afspraak' ? bestaand.wie : bestaand?.soort === 'taak' && bestaand.voor ? [bestaand.voor] : []);
-  const [prive, zetPrive] = useState(!!herinvoerId || (bestaand?.soort === 'afspraak' && bestaand.zichtbaarheid === 'prive'));
+  const [prive, zetPrive] = useState(herinvoerPrive || (bestaand?.soort === 'afspraak' && bestaand.zichtbaarheid === 'prive'));
   // Herhaling. Bij een voorkomen van een reeks kies je eerst: alleen deze afspraak, of de hele reeks.
   const voorkomen = bestaand?.soort === 'afspraak' ? bestaand : undefined;
   const reeks = voorkomen?.voorkomenVan
@@ -186,8 +189,8 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
       };
       const wanneer = `${dagLabel(datum, vandaag).toLowerCase()}${a.start ? ' ' + a.start : ''}`;
       if (herinvoerId && app.lokaal) {
-        // Zelfde opdracht, nu met inhoud; privé blijft privé (zo is hij oorspronkelijk aangemaakt).
-        app.lokaal.herinvoeren(herinvoerId, { ...a, zichtbaarheid: 'prive' }, `${t} staat in de agenda (${wanneer})`);
+        // Zelfde opdracht, nu met inhoud; privé blijft privé en gedeeld blijft gedeeld (zo is hij aangemaakt).
+        app.lokaal.herinvoeren(herinvoerId, { ...a, zichtbaarheid: herinvoerPrive ? 'prive' : 'huishouden' }, `${t} staat in de agenda (${wanneer})`);
       } else if (reeks && vorig && bereik === 'deze') {
         app.wijzigVoorkomen(reeks.id, vorig.datum, { ...a, id: nieuwId('a') }, `${t} aangepast (${wanneer})`);
       } else if (reeks && bereik === 'reeks') {
@@ -204,8 +207,13 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
         id: vorig?.id ?? nieuwId('t'), soort: 'taak' as const, titel: t, datum: dag === 'ooit' ? null : dag,
         voor: wie[0] ?? null, klaar: vorig?.klaar ?? false, klaarOp: vorig?.klaarOp ?? null, versie: beginVersie,
       };
-      if (vorig) app.bijwerken(taak, `${t} aangepast`);
+      if (herinvoerId && app.lokaal) app.lokaal.herinvoeren(herinvoerId, { ...taak, id: herinvoerId }, `${t} staat op de takenlijst`);
+      else if (vorig) app.bijwerken(taak, `${t} aangepast`);
       else app.toevoegen([taak], dag === 'ooit' ? `${t} staat op de lijst voor later` : `${t} staat op de takenlijst`);
+    } else if (herinvoerId && app.lokaal) {
+      // Eén boodschap: dezelfde opdracht, dus niet splitsen in meerdere.
+      const naam = t.charAt(0).toUpperCase() + t.slice(1);
+      app.lokaal.herinvoeren(herinvoerId, { id: herinvoerId, soort: 'boodschap', naam, afgevinkt: false }, `${naam} staat op de lijst`);
     } else if (bestaand?.soort === 'boodschap') {
       app.bijwerken({ ...bestaand, naam: t.charAt(0).toUpperCase() + t.slice(1), versie: beginVersie }, `${t} aangepast`);
     } else {
@@ -282,11 +290,12 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
   );
 
   return (
-    <Venster titel={herinvoerId ? 'Privé-afspraak opnieuw invoeren' : bestaand ? NAAM[soort] : 'Toevoegen'} sluit={sluit}>
+    <Venster titel={herinvoerId ? (herinvoerPrive ? 'Privé-afspraak opnieuw invoeren' : `${NAAM[soort]} opnieuw invoeren`) : bestaand ? NAAM[soort] : 'Toevoegen'} sluit={sluit}>
       {herinvoerId && (
         <p className="stil-tekst herinvoer-uitleg">
-          Deze privé-afspraak is nog niet door de server bevestigd. De inhoud is om privacyredenen niet op dit toestel
-          bewaard. Vul hem opnieuw in: het blijft dezelfde afspraak, dus er komt geen tweede bij.
+          {herinvoerPrive ? 'Deze privé-afspraak' : soort === 'afspraak' ? 'Deze afspraak' : soort === 'taak' ? 'Deze taak' : 'Deze boodschap'} is
+          nog niet door de server bevestigd. De inhoud is om privacyredenen niet op dit toestel bewaard. Vul het opnieuw in:
+          het blijft dezelfde opdracht, dus er komt geen tweede bij.
         </p>
       )}
       {!bestaand && !herinvoerId && (
@@ -317,7 +326,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, sluit }: {
         )}
         {losgemaakt && <p className="reeks-regel stil-tekst"><IcHerhaal /> Losgemaakt uit een herhalende afspraak</p>}
         <label className="veld">
-          <span className="veld-label">{soort === 'boodschap' ? (bestaand ? 'Naam' : 'Wat is er nodig?') : 'Wat?'}</span>
+          <span className="veld-label">{soort === 'boodschap' ? (bestaand || herinvoerId ? 'Naam' : 'Wat is er nodig?') : 'Wat?'}</span>
           <input ref={veld} id="item-titel" value={titel} onChange={e => { zetTitel(e.target.value); setFoutWeg(); }}
             placeholder={PLACEHOLDER[soort]} autoComplete="off" maxLength={soort === 'boodschap' && !bestaand ? 200 : 80}
             aria-invalid={fout?.veld === 'titel'} aria-describedby={fout?.veld === 'titel' ? 'item-fout' : undefined} />

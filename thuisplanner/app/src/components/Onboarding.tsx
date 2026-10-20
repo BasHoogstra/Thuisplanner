@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import type { Momentopname, Sessie, UitnodigingVoorMij } from '../lib/lokaal/sessie';
 import { bewaarUitnodiging, tokenUit, vergeetUitnodiging } from '../lib/uitnodiging';
-import { OmgevingsBalk } from './Lokaal';
+import { OmgevingsBalk, UitlogKnop } from './Lokaal';
 
 const geldigeNaam = (s: string) => s.trim().length >= 1 && s.trim().length <= 80;
 const datumTekst = (d: string) => new Date(d).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' });
@@ -134,7 +134,8 @@ export function Welkom({ sessie, snap, opUitnodiging, opBekijk }: {
         <button type="submit" className="knop breed stil">Verder</button>
       </form>
 
-      <button type="button" className="knop stil" onClick={() => void sessie.uitloggen()}>Uitloggen en ander adres gebruiken</button>
+      <UitlogKnop label="Uitloggen en ander adres gebruiken" className="knop stil" aantal={() => sessie.onbevestigdAantal()}
+        uitloggen={wissen => void sessie.uitloggen({ wissen })} />
     </Pagina>
   );
 }
@@ -238,7 +239,8 @@ export function UitnodigingAccepteren({ sessie, snap, bron, sluit }: { sessie: S
         )}
         {fout && <p className="veld-fout" role="alert">{fout.tekst}</p>}
         {fout?.code === 'TPU06' && (
-          <button type="button" className="knop breed stil" onClick={() => { void sessie.uitloggen(); }}>Uitloggen en met een ander adres inloggen</button>
+          <UitlogKnop label="Uitloggen en met een ander adres inloggen" className="knop breed stil" aantal={() => sessie.onbevestigdAantal()}
+            uitloggen={wissen => void sessie.uitloggen({ wissen })} />
         )}
         <button type="submit" className="knop breed" disabled={bezig}>{bezig ? 'Even geduld…' : 'Accepteren'}</button>
         {u ? (
@@ -259,7 +261,8 @@ export function UitnodigingAccepteren({ sessie, snap, bron, sluit }: { sessie: S
         )}
       </form>
       {bron.soort === 'link' && (
-        <p className="stil-tekst">Niet jouw account? <button type="button" className="knop stil klein" onClick={() => { void sessie.uitloggen(); }}>Uitloggen</button>; de uitnodiging blijft in dit tabblad bewaard.</p>
+        <p className="stil-tekst">Niet jouw account? <UitlogKnop label="Uitloggen" className="knop stil klein" aantal={() => sessie.onbevestigdAantal()}
+          uitloggen={wissen => void sessie.uitloggen({ wissen })} />; de uitnodiging blijft in dit tabblad bewaard.</p>
       )}
     </Pagina>
   );

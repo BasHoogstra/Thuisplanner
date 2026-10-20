@@ -137,10 +137,18 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
       meldingWeg: (id: number) => zetMelding(m => (m?.id === id ? null : m)),
       kiesScenario: () => {},
       opnieuwProberen: (id: string) => { void na(a()?.opnieuwProberen(id), 'Opnieuw verstuurd'); },
-      // Zelfde opdracht-ID als de oorspronkelijke toevoeging: de sync-module zet de inhoud op die opdracht en
-      // verstuurt hem opnieuw. Staat hij intussen al op de server, dan blijft het bij die ene afspraak.
-      herinvoeren: (id: string, afspraak: Afspraak, melding?: string) => {
-        void na(a()?.afspraakBewaren({ ...naarNieuweAfspraak(afspraak, null), id }), melding);
+      // Zelfde opdracht-ID als de oorspronkelijke toevoeging (P1: de inhoud stond niet op dit toestel): de sync-module
+      // zet de inhoud op die opdracht en verstuurt hem opnieuw. Staat hij intussen al op de server, dan blijft het bij
+      // die ene afspraak, taak of boodschap.
+      herinvoeren: (id: string, item: Item, melding?: string) => {
+        if (item.soort === 'afspraak') {
+          void na(a()?.opnieuwInvoeren(id, { soort: 'afspraak', afspraak: { ...naarNieuweAfspraak(item, null), id } }), melding);
+        } else if (item.soort === 'taak') {
+          const v = naarTaakVelden(item);
+          void na(a()?.opnieuwInvoeren(id, { soort: 'taak', titel: v.title, velden: { due_date: v.due_date, assignee_member_id: v.assignee_member_id } }), melding);
+        } else {
+          void na(a()?.opnieuwInvoeren(id, { soort: 'boodschap', naam: item.naam }), melding);
+        }
       },
       vergeten: (id: string) => { if (sessie.syncObject?.vergeten(id)) meld('Van dit toestel gehaald'); },
       syncMeldingWeg: () => a()?.meldingWeg(),

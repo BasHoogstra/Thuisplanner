@@ -131,7 +131,7 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
     uitnodigingen,
     account: snap.account?.email ?? '',
     accountBeheer: {
-      uitloggenOveral: () => sessie.uitloggenOveral(),
+      uitloggenOveral: (o?: { wissen?: boolean }) => sessie.uitloggenOveral(o),
       wijzigAdres: (n: string) => sessie.wijzigAdres(n),
       bevestigAdres: (e: string, c: string) => sessie.bevestigAdres(e, c),
       wijziging: snap.adreswijziging,
@@ -144,7 +144,9 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
     opnieuwProberen,
     vergeten,
     herinvoeren,
-    uitloggen: () => { void sessie.uitloggen(); },
+    onbevestigdOpToestel: () => sessie.onbevestigdAantal(),
+    nakijken: () => sessie.nakijken(),
+    uitloggen: (o?: { wissen?: boolean }) => { void sessie.uitloggen(o); },
   };
   return (
     <Schil klok={klok} data={data} huishouden={hh} lokaal={lokaal} balk={<LokaleBalk />} titelSoort={sessie.config.omgeving === 'staging' ? 'testomgeving' : 'lokaal'}>

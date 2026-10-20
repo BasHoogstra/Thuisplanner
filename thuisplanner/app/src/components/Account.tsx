@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { useApp } from '../lib/context';
 import { geldigAdres, geldigeCode } from '../lib/lokaal/code';
+import { UitlogKnop } from './Lokaal';
 
 export function Account() {
   const { lokaal } = useApp();
@@ -17,14 +18,16 @@ export function Account() {
       <h2 id="h-account" className="sectie-kop">Account</h2>
       <p>Ingelogd als <strong>{lokaal.account}</strong>.</p>
       <div className="keuzes">
-        <button type="button" className="knop stil" onClick={lokaal.uitloggen}>Uitloggen</button>
+        <UitlogKnop label="Uitloggen" className="knop stil" aantal={lokaal.onbevestigdOpToestel} nakijken={lokaal.nakijken}
+          uitloggen={wissen => lokaal.uitloggen({ wissen })} />
         {!overal
           ? <button type="button" className="knop stil" onClick={() => zetOveral(true)}>Uitloggen op alle toestellen</button>
-          : <button type="button" className="knop gevaar" onClick={() => void a.uitloggenOveral()}>Ja, overal uitloggen</button>}
+          : <UitlogKnop label="Ja, overal uitloggen" className="knop gevaar" overal aantal={lokaal.onbevestigdOpToestel} nakijken={lokaal.nakijken}
+            uitloggen={wissen => void a.uitloggenOveral({ wissen })} />}
       </div>
       <p className="stil-tekst">
         Uitloggen op alle toestellen werkt direct, ook op een telefoon die je kwijt bent. Je logt daarna overal opnieuw in met een code.
-        Wat op dit toestel nog niet is bevestigd, blijft hier bewaard.
+        Staat er op dit toestel nog iets dat de server niet heeft bevestigd, dan vraagt uitloggen eerst wat je ermee wilt.
       </p>
       {a.wijziging ? <AdresBevestigen /> : !wijzigen
         ? <button type="button" className="knop stil" onClick={() => zetWijzigen(true)}>E-mailadres wijzigen</button>

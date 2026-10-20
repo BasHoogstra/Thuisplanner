@@ -63,15 +63,18 @@ export function naarAfspraak(r: AfspraakRij, uitzonderingen: Map<string, string[
   return a;
 }
 
+// Zonder bewaarde inhoud (P1, na een herstart): een vaste naam; het label "inhoud niet op dit toestel" zegt waarom.
+export const ZONDER_INHOUD = { taak: 'Taak', boodschap: 'Boodschap' } as const;
+
 export function naarTaak(r: TaakRij): Taak {
   return {
-    id: r.id, soort: 'taak', titel: r.title, datum: r.due_date ?? null, voor: r.assignee_member_id ?? null,
+    id: r.id, soort: 'taak', titel: r.title ?? ZONDER_INHOUD.taak, datum: r.due_date ?? null, voor: r.assignee_member_id ?? null,
     klaar: !!r.done_on, klaarOp: r.done_on ?? null, versie: r.version, sync: syncStaat(r),
   };
 }
 
 export function naarBoodschap(r: BoodschapRij): Boodschap {
-  return { id: r.id, soort: 'boodschap', naam: r.name, afgevinkt: !!r.checked_at, versie: r.version, sync: syncStaat(r) };
+  return { id: r.id, soort: 'boodschap', naam: r.name ?? ZONDER_INHOUD.boodschap, afgevinkt: !!r.checked_at, versie: r.version, sync: syncStaat(r) };
 }
 
 export function uitzonderingenPerReeks(rijen: Uitzondering[]): Map<string, string[]> {

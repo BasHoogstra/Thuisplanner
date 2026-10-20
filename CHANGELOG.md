@@ -836,3 +836,12 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - De unit-tests draaien altijd in Nederlandse tijd (`TZ` in `vite.config.ts`); de CI-runner draait in UTC, waardoor één tekst met een kloktijd verschoof. De app zelf is ongewijzigd.
 - `gelijktijdig.test.mjs` zet de testpoort (`huishouden_open`) zelf open en daarna terug, zodat de test ook op een kale PostgreSQL slaagt (daar draait `seed.sql` niet).
 - Lokaal: unit 191/191 (ook met `TZ=UTC`); RLS 75/75 en tegenproeven 111/111; gelijktijdigheid 12/12 met de poort dicht. Tegenproef: de oude testversies falen precies zoals in CI.
+
+## Thuisplanner P1 en P2: wat het toestel bewaart (19 oktober 2026, lokaal)
+- Besluit: akkoord met P1, P2 en P4 uit `docs/thuisplanner-sync.md` §9. P5 blijft open.
+- P1: op het toestel staat van een onbevestigde afspraak, taak of boodschap alleen de identiteit, nooit de inhoud. Na herladen bevestigt de eerste ophaalronde wat de server al heeft; de rest staat als "inhoud niet op dit toestel" en wordt opnieuw ingevoerd onder dezelfde opdracht-ID (`acties.opnieuwInvoeren`), dus nooit dubbel.
+- P2: uitloggen (ook overal, en in de onboarding) met onbevestigde opdrachten vraagt eerst: "Eerst laten nakijken" of "Van dit toestel wissen en uitloggen". Wissen geldt voor alle huishoudens van dat account, niet voor een ander account.
+- P3/P4: de ontwikkeldemo bewaart met `bewaarInhoud: true` ook de inhoud (fictief; privé nooit). Niets wordt stil gewist.
+- Geen databasemigratie: de server herkent een herhaalde UUID al.
+- Tests: `p1p2.test.mjs` (integratie, 5) en `app/tests/p1p2.test.tsx` (6), twee nieuwe e2e-scenario's, drie nieuwe sync-tegenproeven (25 van 25). B3d en H3b toetsen nu expliciet de ontwikkelmodus.
+- Huisplan ongewijzigd; niets online.

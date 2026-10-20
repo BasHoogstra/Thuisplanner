@@ -440,3 +440,33 @@ Twee idempotentiefouten en een onderzoek naar de privacy van de lokale opslag. D
 - **P5 — Bewaartermijn van het serverregister** `private.shopping_commands`. Na het opruimen van een registerregel kan een héél late herhaling weer een bijwerking hebben. Voorstel: 90 dagen bewaren; daarna opruimen in de periodieke onderhoudstaak (nog te bouwen).
 
 Tot er een besluit is, slaat deze ronde geen nieuwe gegevens op het toestel op. Het nieuwe serverregister bevat geen namen.
+
+## 10. Besluit en uitvoering P1, P2 en P4 (19 oktober 2026, lokaal gebouwd)
+
+**Besluit van de producteigenaar (19 oktober 2026):** akkoord met de voorstellen P1, P2 en P4 hierboven. P3 is geen
+apart besluit, maar wel een voorwaarde van de opdracht: de demo en de veilige ontwikkelmodus blijven werken. P5 staat nog
+open.
+
+**Wat de sync-module nu doet** (`thuisplanner/sync/thuisplanner-sync.js`):
+
+| Onderdeel | Gedrag |
+| --- | --- |
+| Duurzame opslag (P1) | Standaard alleen de identiteit: soort, UUID, staat, account en huishouden (van een afspraak ook of hij privé is). Nooit titel, naam, datum, plek of notities. De inhoud blijft in het paginageheugen, dus binnen hetzelfde tabblad werkt opnieuw proberen gewoon |
+| Ontwikkelmodus | Met `bewaarInhoud: true` ook de inhoud (alleen `thuisplanner/dev/demo`, fictieve gegevens). Een privé-afspraak ook dan niet |
+| Na een herstart | De eerste ophaalronde bevestigt wat de server al heeft en haalt het van het toestel. Wat dan nog openstaat, verschijnt als "inhoud niet op dit toestel" (zonder titel of naam). Er wordt niets vanzelf verstuurd |
+| Opnieuw invoeren | `acties.opnieuwInvoeren(id, inhoud)`: de inhoud komt op dezelfde UUID. Staat hij al op de server, dan herkent die hem (taak en afspraak: het id bestaat al; boodschap: het opdrachtregister) en komt er geen tweede. Opnieuw proberen zonder inhoud verstuurt niets en geeft een uitleg |
+| Uitloggen (P2) | `onbevestigdOpToestel({ opslag, gebruiker })` telt de opdrachten van dat account op dit toestel (alle huishoudens). `wisOnbevestigdOpToestel(...)` wist ze uit geheugen en opslag, alleen na de keuze van de gebruiker. Een ander account op hetzelfde toestel blijft ongemoeid |
+| Geen stil wissen (P4) | Stoppen, een verlopen sessie, een herstart of opnieuw ophalen wist nooit een onbevestigde identiteit. Alleen bevestiging, "vergeten" of de keuze bij uitloggen |
+
+**Geen databasemigratie nodig.** Opnieuw invoeren onder dezelfde UUID gebruikt de bestaande server: een taak wordt met
+het id van de app ingevoegd (een tweede keer geeft "bestaat al", en de module controleert dan dat de rij er is), een
+afspraak via `save_event` met het id, en een boodschap via `add_shopping_items` met het opdrachtregister. Het voorstel
+in §9 noemde nog een API-uitbreiding; die bleek niet nodig.
+
+**Bekende grens.** Na een herstart kan de module een nieuwe toevoeging met dezelfde tekst niet meer herkennen als
+"mogelijk dubbel": de tekst staat niet op het toestel. Komt de oude opdracht pas ná de eerste ophaalronde alsnog op de
+server aan (een verzoek dat nog onderweg was), dan kunnen er twee staan. Opnieuw invoeren via het item zelf heeft die grens
+niet: dat gebruikt dezelfde UUID.
+
+**Tests:** `tests/integratie/p1p2.test.mjs` (lokale stack) en `app/tests/p1p2.test.tsx`, met tegenproeven tegen de
+versie van vóór P1 (zie het verslag in `docs/thuisplanner-app.md` §6).

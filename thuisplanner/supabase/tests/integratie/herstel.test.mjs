@@ -207,7 +207,8 @@ test('B3d herstart na verloren antwoord: dezelfde UUID overleeft de herstart; be
   // (1) De server heeft hem opgeslagen; de app sluit voordat het antwoord er is.
   const s1 = await sessie('bram');
   const opslag1 = nieuweOpslag();
-  const b1 = maak(s1, h, { opslag: opslag1, geheugen: new Map() });
+  // Ontwikkelmodus (P3): ook de inhoud op het toestel. De echte app bewaart alleen de identiteit (P1, p1p2.test.mjs).
+  const b1 = maak(s1, h, { opslag: opslag1, geheugen: new Map(), bewaarInhoud: true });
   await b1.start();
   await totdat(() => b1.toestand.lid, 15000, 'B geladen');
   const p1 = s1.poort(isRest('tasks', 'POST'), { eerstUitvoeren: true });
@@ -221,7 +222,7 @@ test('B3d herstart na verloren antwoord: dezelfde UUID overleeft de herstart; be
   // Herstart: nieuwe sessie, nieuwe module-instantie, dezelfde opslag.
   const s2 = await sessie('bram');
   const opslag2 = nieuweOpslag(bewaard);
-  const b2 = maak(s2, h, { opslag: opslag2, geheugen: new Map() });   // nieuwe pagina: leeg geheugen
+  const b2 = maak(s2, h, { opslag: opslag2, geheugen: new Map(), bewaarInhoud: true });   // nieuwe pagina: leeg geheugen
   await b2.start();
   await totdat(() => b2.toestand.taken.some(x => x.title === 'B3d-opgeslagen' && !x.onzeker), 15000, 'opgeslagen taak bevestigd');
   const onbevestigd = b2.toestand.taken.find(x => x.title === 'B3d-nooit-aangekomen');

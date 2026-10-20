@@ -216,7 +216,7 @@ describe('beheer: de juiste functies met de juiste gegevens', () => {
 
 // Schermen met een nep-sessie.
 function nepSessie(extra: Partial<Record<string, unknown>> = {}) {
-  return { config: CONFIG, uitloggen: vi.fn(async () => {}), momentopname: () => ({ huishouden: { id: 'h-b', naam: 'Familie B' } }), ...extra } as unknown as Sessie;
+  return { config: CONFIG, uitloggen: vi.fn(async () => {}), onbevestigdAantal: () => 0, momentopname: () => ({ huishouden: { id: 'h-b', naam: 'Familie B' } }), ...extra } as unknown as Sessie;
 }
 const SNAP = { fase: 'geen-huishouden', fout: null, account: { id: 'u1', email: 'tester@example.com' }, huishouden: null, huishoudens: [], uitnodigingen: [], magHuishouden: true, adreswijziging: null, toestand: null } as Momentopname;
 const U: UitnodigingVoorMij = { id: 'i1', huishouden: 'Familie Test', doorWie: 'Sanne', profiel: null, rol: 'admin', geldigTot: '2026-10-24T10:00:00Z' };

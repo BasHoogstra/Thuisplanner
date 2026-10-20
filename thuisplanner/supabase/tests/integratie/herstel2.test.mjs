@@ -211,13 +211,14 @@ test('H3b herladen en sluiten/heropenen (nieuwe pagina, nieuwe sessie): opdracht
   const h = await huishouden('H3b', ['bram']);
   const opslag = nieuweOpslag();   // localStorage van deze browser
   const s1 = await sessie('bram');
-  const b1 = await geladen(s1, h, { opslag, geheugen: new Map() });
+  // Ontwikkelmodus (P3): ook de inhoud op het toestel. De echte app bewaart alleen de identiteit (P1, p1p2.test.mjs).
+  const b1 = await geladen(s1, h, { opslag, geheugen: new Map(), bewaarInhoud: true });
   const opgeslagen = await antwoordWeg(s1, b1, 'H3b-opgeslagen');
   const nietAangekomen = await nooitAangekomen(s1, b1, 'H3b-nooit-aangekomen');
   await b1.stop();                 // het tabblad sluit (unmount)
   // Heropenen: nieuwe pagina (leeg geheugen), opnieuw ingelogd, dezelfde opslag.
   const s2 = await sessie('bram');
-  const b2 = await geladen(s2, h, { opslag, geheugen: new Map() });
+  const b2 = await geladen(s2, h, { opslag, geheugen: new Map(), bewaarInhoud: true });
   await totdat(() => !heeft(b2, opgeslagen.id) && b2.toestand.taken.some(x => x.id === opgeslagen.id && !x.onzeker), 15000, 'opgeslagen taak bevestigd');
   await totdat(() => b2.toestand.taken.some(x => x.id === nietAangekomen.id && x.onzeker), 15000, 'onbevestigde taak terug');
   assert.ok((await b2.acties.opnieuwProberen(nietAangekomen.id)).ok);

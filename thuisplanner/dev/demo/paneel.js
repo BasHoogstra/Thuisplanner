@@ -45,7 +45,9 @@ let keuze = null;     // { id, naam }: mogelijk dubbel; de gebruiker kiest opnie
 // dezelfde UUID. Weigert de browser opslag, dan toont het paneel een waarschuwing (toestand.opslagDuurzaam).
 let opslag = null;
 try { opslag = window.localStorage; } catch { /* geen opslag: alleen in het geheugen, met waarschuwing */ }
-const sync = maakSync({ supabase, huishoudenId, opWijziging: teken, opslag });
+// Ontwikkelmodus met fictieve gegevens (besluit P3): hier ook de inhoud bewaren, om herstel te laten zien. De echte
+// app bewaart alleen de identiteit (P1).
+const sync = maakSync({ supabase, huishoudenId, opWijziging: teken, opslag, bewaarInhoud: true });
 window.__thuisplannerDemo = { get toestand() { return sync.toestand; } };   // voor de e2e-test
 
 function zetStatus(status, tekst) {

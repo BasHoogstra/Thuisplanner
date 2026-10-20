@@ -17,11 +17,13 @@ export interface VoorlopigeVelden {
 }
 
 export interface BoodschapRij extends VoorlopigeVelden {
-  id: string; household_id?: string; name: string; checked_at: string | null; version: number;
+  /** null: inhoud niet op dit toestel (P1, inhoudNietBewaard). */
+  id: string; household_id?: string; name: string | null; checked_at: string | null; version: number;
   created_at?: string; updated_at?: string;
 }
 export interface TaakRij extends VoorlopigeVelden {
-  id: string; household_id?: string; title: string; due_date: string | null; assignee_member_id: string | null;
+  /** title null: inhoud niet op dit toestel (P1, inhoudNietBewaard). */
+  id: string; household_id?: string; title: string | null; due_date: string | null; assignee_member_id: string | null;
   done_on: string | null; done_by_member_id?: string | null; version: number; created_at?: string; updated_at?: string;
 }
 export interface AfspraakRij extends VoorlopigeVelden {
@@ -73,6 +75,13 @@ export interface NieuweAfspraak {
   recurrence_freq?: string | null; recurrence_until?: string | null;
 }
 
+export type Inhoud =
+  | { soort: 'boodschap'; naam: string }
+  | { soort: 'taak'; titel: string; velden?: Record<string, unknown> }
+  | { soort: 'afspraak'; afspraak: NieuweAfspraak };
+
+export interface Openstaand { soort: string; id: string; staat: string; bewaard: boolean; zonderInhoud: boolean }
+
 export interface Acties {
   boodschapToevoegen(naam: string, opties?: { bewustNieuw?: boolean }): Promise<Resultaat>;
   boodschapAfvinken(item: BoodschapRij): Promise<Resultaat>;
@@ -87,6 +96,8 @@ export interface Acties {
   afspraakVerwijderen(a: { id: string; version: number }): Promise<Resultaat>;
   afspraakVoorkomenWijzigen(reeksId: string, datum: string, a: NieuweAfspraak): Promise<Resultaat>;
   afspraakVoorkomenVerwijderen(reeksId: string, datum: string): Promise<Resultaat>;
+  /** Een opdracht zonder inhoud op dit toestel (P1) opnieuw invoeren, onder dezelfde UUID. */
+  opnieuwInvoeren(id: string, inhoud: Inhoud): Promise<Resultaat>;
   opnieuwProberen(id: string): Promise<Resultaat>;
   vergeten(id: string): boolean;
   meldingWeg(): void;
@@ -100,7 +111,7 @@ export interface Sync {
   verwerkSeintje(bericht: unknown): void;
   readonly toestand: Toestand;
   readonly statistiek: { seintjes: number; genegeerd: number; rondes: number };
-  readonly openstaand: { soort: string; id: string; staat: string; bewaard: boolean }[];
+  readonly openstaand: Openstaand[];
   readonly kanaalNaam: string | null;
   vergeten(id: string): boolean;
 }
@@ -113,6 +124,8 @@ export declare function maakSync(o: {
   debounceMs?: number;
   paginaGrootte?: number;
   opslag?: Storage | null;
+  /** Ook de inhoud duurzaam bewaren: alleen de ontwikkelmodus met fictieve gegevens (P3). Standaard niet (P1). */
+  bewaarInhoud?: boolean;
   geheugen?: Map<string, unknown>;
   spoor?: (soort: string, status: string) => void;
 }): Sync;
@@ -123,3 +136,8 @@ export declare function lokaleDatum(d?: Date): string;
 export declare function uuidV4(c?: Pick<Crypto, 'getRandomValues'> & { randomUUID?: () => string }): string;
 
 export declare function meldingVoor(fout: unknown): Melding | null;
+
+/** Onbevestigde opdrachten van dit account op dit toestel (alle huishoudens; P2). */
+export declare function onbevestigdOpToestel(o: { opslag?: Storage | null; geheugen?: Map<string, unknown>; gebruiker: string | null }): number;
+/** Ze allemaal van dit toestel wissen, alleen na een keuze van de gebruiker bij uitloggen (P2). Geeft het aantal. */
+export declare function wisOnbevestigdOpToestel(o: { opslag?: Storage | null; geheugen?: Map<string, unknown>; gebruiker: string | null }): number;

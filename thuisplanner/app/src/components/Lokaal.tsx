@@ -1,6 +1,7 @@
 // Onderdelen die alleen in de lokale Supabase-modus verschijnen: inloggen, de statusbalk (verbinding,
 // opslag, meldingen van de sync-module), de keuze bij een mogelijk dubbele toevoeging en het label op een
 // rij die de server nog niet heeft bevestigd.
+import { useState } from 'react';
 import { useApp } from '../lib/context';
 import type { Keuze } from '../lib/lokaal/staat';
 import type { Momentopname, Sessie } from '../lib/lokaal/sessie';
@@ -115,6 +116,48 @@ export function LokaleBalk() {
           <span>{syncMelding.tekst}</span>
           <button type="button" className="melding-knop" onClick={lokaal.syncMeldingWeg}>Sluiten</button>
         </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * Uitloggen met de waarschuwing van besluit P2. Staan er op dit toestel nog opdrachten die de server niet heeft
+ * bevestigd (van dit account, in elk huishouden), dan eerst een keuze: laten nakijken (je blijft ingelogd), of van dit
+ * toestel wissen en uitloggen. Wat de server al heeft, blijft daar. Zonder onbevestigde opdrachten: meteen uitloggen.
+ * Nooit stil wissen (P4).
+ */
+export function UitlogKnop({ label, className, aantal, uitloggen, nakijken, overal = false }: {
+  label: string;
+  className: string;
+  aantal: () => number;
+  uitloggen: (wissen: boolean) => void;
+  /** Ontbreekt als er niets na te kijken valt (geen huishouden open): dan heet de knop "Niet uitloggen". */
+  nakijken?: () => void;
+  overal?: boolean;
+}) {
+  const [open, zetOpen] = useState<number | null>(null);
+  const klik = () => {
+    const n = aantal();
+    if (n > 0) zetOpen(n); else uitloggen(false);
+  };
+  return (
+    <>
+      <button type="button" className={className} onClick={klik}>{label}</button>
+      {open !== null && (
+        <Venster titel="Nog niet alles is bevestigd" sluit={() => zetOpen(null)}>
+          <p>{open === 1 ? 'Eén toevoeging is' : `${open} toevoegingen zijn`} op dit toestel nog niet door de server bevestigd.</p>
+          <p className="stil-tekst">
+            Laat ze eerst nakijken als je verbinding hebt: wat de server al heeft, wordt dan bevestigd, en de rest kun je opnieuw
+            invoeren. Of wis ze van dit toestel; wat de server al heeft, blijft daar gewoon bewaard.
+          </p>
+          <button type="button" className="knop breed" onClick={() => { zetOpen(null); nakijken?.(); }}>
+            {nakijken ? 'Eerst laten nakijken' : 'Niet uitloggen'}
+          </button>
+          <button type="button" className="knop breed gevaar" onClick={() => { zetOpen(null); uitloggen(true); }}>
+            {overal ? 'Van dit toestel wissen en overal uitloggen' : 'Van dit toestel wissen en uitloggen'}
+          </button>
+        </Venster>
       )}
     </>
   );

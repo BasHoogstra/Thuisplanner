@@ -5,8 +5,10 @@ import { HerstelKnoppen } from '../components/Lokaal';
 import { Account } from '../components/Account';
 import type { Item, SyncVelden } from '../lib/types';
 
-const naamVan = (i: Item) => (i.soort === 'boodschap' ? i.naam
-  : i.sync === 'zonder-inhoud' ? 'Privé-afspraak (inhoud niet op dit toestel)' : i.titel ?? 'Afspraak (privé)');
+const ZONDER_INHOUD_NAAM = { afspraak: 'Afspraak', taak: 'Taak', boodschap: 'Boodschap' } as const;
+const naamVan = (i: Item) => (i.sync === 'zonder-inhoud'
+  ? `${i.soort === 'afspraak' && i.zichtbaarheid === 'prive' ? 'Privé-afspraak' : ZONDER_INHOUD_NAAM[i.soort]} (inhoud niet op dit toestel)`
+  : i.soort === 'boodschap' ? i.naam : i.titel ?? 'Afspraak (privé)');
 
 export function Meer() {
   const { huishouden, staat, kiesScenario, gaNaar, lokaal } = useApp();
@@ -102,8 +104,8 @@ function MeerLokaal() {
             {los.map(o => (
               <li key={o.id} className="rij herstel-rij">
                 <span className="rij-inhoud">
-                  <span className="rij-titel">Een {o.soort} van eerder op dit toestel</span>
-                  <HerstelKnoppen id={o.id} sync="onzeker" />
+                  <span className="rij-titel">Een {o.soort} van eerder op dit toestel{o.zonderInhoud && ' (inhoud niet op dit toestel)'}</span>
+                  <HerstelKnoppen id={o.id} sync={o.zonderInhoud ? 'zonder-inhoud' : 'onzeker'} />
                 </span>
               </li>
             ))}

@@ -3,11 +3,12 @@
 // Waarom buiten React: de sync-module houdt een kanaal, timers en onbevestigde opdrachten bij. Een
 // onderdeel dat unmount (een ander scherm, React StrictMode die twee keer mount, een venster dat sluit)
 // mag die niet stoppen of wissen. Daarom bestaat er per pagina precies één Sessie; React leest mee via
-// useSyncExternalStore (zie useSessie). Alleen uitloggen of een ander account stopt de synchronisatie,
-// en ook dan blijven onbevestigde opdrachten bewaard (zie docs/thuisplanner-app.md, P2).
+// useSyncExternalStore (zie useSessie). Alleen uitloggen of een ander account stopt de synchronisatie.
+// Onbevestigde opdrachten blijven daarbij bewaard, tenzij de gebruiker bij uitloggen kiest om ze van dit toestel te
+// wissen (besluit P2; zie docs/thuisplanner-app.md §6). Een verlopen sessie of een herstart wist nooit iets (P4).
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { useSyncExternalStore } from 'react';
-import { maakSync, type Sync, type Toestand } from '../../../../sync/thuisplanner-sync.js';
+import { maakSync, onbevestigdOpToestel, wisOnbevestigdOpToestel, type Sync, type Toestand } from '../../../../sync/thuisplanner-sync.js';
 import { foutTekst, TOEGANG_TEKSTEN } from '../foutcodes';
 import { bewaarAanvraag, bewaarToestel, controleerBijServer, leesToestel, vergeetAanvraag, vergeetToestellen } from './code';
 import { stagingFouten } from '../omgeving';
@@ -217,6 +218,21 @@ export class Sessie {
   momentopname = () => this.snap;
   /** De acties van de sync-module (alleen als er een actieve sessie is). */
   get acties() { return this.sync?.acties ?? null; }
+
+  /** Hoeveel opdrachten van dit account op dit toestel nog niet door de server zijn bevestigd (alle huishoudens; P2). */
+  onbevestigdAantal(): number {
+    return onbevestigdOpToestel({ opslag: veiligeOpslag(), gebruiker: this.snap.account?.id ?? null });
+  }
+
+  /** Eerst laten nakijken (P2): opnieuw ophalen, zodat wat de server al heeft, bevestigd wordt. */
+  nakijken(): void {
+    void this.sync?.vernieuw();
+  }
+
+  /** Alleen na de keuze "wissen" bij uitloggen (P2): alle onbevestigde opdrachten van dit account van dit toestel. */
+  private wisOnbevestigd(): void {
+    wisOnbevestigdOpToestel({ opslag: veiligeOpslag(), gebruiker: this.snap.account?.id ?? null });
+  }
   get syncObject() { return this.sync; }
 
   private zet(delta: Partial<Momentopname>) {
@@ -448,7 +464,8 @@ export class Sessie {
   }
 
   /** Uitloggen op alle toestellen: alle sessies (direct, ook nog geldige toegangstokens) en alle bekende toestellen uit. */
-  async uitloggenOveral(): Promise<void> {
+  async uitloggenOveral({ wissen = false }: { wissen?: boolean } = {}): Promise<void> {
+    if (wissen) this.wisOnbevestigd();
     await this.client.rpc('mijn_toestellen_intrekken');
     vergeetToestellen();
     const g = ++this.generatie;
@@ -535,9 +552,11 @@ export class Sessie {
   /**
    * Uitloggen: synchronisatie stoppen (kanaal dicht, cache leeg) en de inlogsessie beëindigen. Het scherm
    * toont meteen "uitgelogd"; lopende inlog- of herstelacties tellen vanaf nu niet meer mee.
-   * Onbevestigde opdrachten blijven bewaard; wissen bij uitloggen (P2) vraagt eerst een productbesluit.
+   * Onbevestigde opdrachten blijven bewaard, behalve met { wissen: true }: de keuze van de gebruiker na de waarschuwing
+   * (P2). Het wissen gebeurt vóór het stoppen, zolang het account nog bekend is.
    */
-  async uitloggen(): Promise<void> {
+  async uitloggen({ wissen = false }: { wissen?: boolean } = {}): Promise<void> {
+    if (wissen) this.wisOnbevestigd();
     const g = ++this.generatie;
     this.zet({ ...LEEG, fase: 'uitgelogd' });
     // Het afmelden direct in de auth-rij zetten, vóór het (mogelijk trage) stoppen van de sync. Anders kan een
