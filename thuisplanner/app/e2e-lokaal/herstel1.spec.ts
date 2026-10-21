@@ -41,7 +41,8 @@ test('bevinding 1: alleen de titel van een meerdaagse afspraak met notities aanp
   expect(voor.end_date).not.toBe(voor.start_date);
 
   await openInAgenda(eva, /^Kamp Daan, 18:00/);
-  await venster(eva).locator('#item-titel').fill('Kamp Daan (welpen)');
+  // W1: via het detailvenster (de titel is direct te wijzigen); de server moet alle andere velden behouden.
+  await venster(eva).getByLabel('Wat?').fill('Kamp Daan (welpen)');
   await venster(eva).getByRole('button', { name: 'Opslaan' }).click();
   await expect(venster(eva)).toHaveCount(0);
 
@@ -53,7 +54,8 @@ test('bevinding 1: alleen de titel van een meerdaagse afspraak met notities aanp
 
 test('bevinding 1: één voorkomen van een reeks met notities aanpassen: het losse voorkomen houdt de notities', async () => {
   await eva.getByRole('button', { name: /^Zwemles, 09:15/ }).first().click();
-  await venster(eva).locator('#item-titel').fill('Zwemles (diploma A)');
+  // W1: in het detailvenster; pas bij opslaan de vraag alleen deze of de hele reeks.
+  await venster(eva).getByLabel('Wat?').fill('Zwemles (diploma A)');
   await venster(eva).getByRole('button', { name: 'Alleen deze opslaan' }).click();
   await expect.poll(async () => (await afspraak('Zwemles (diploma A)')).length, SYNC).toBe(1);
   const [los] = await afspraak('Zwemles (diploma A)');
@@ -74,6 +76,7 @@ async function priveToevoegenZonderAntwoord(p: Page, titel: string, { bereikt }:
     await route.abort('connectionreset');
   });
   await p.getByRole('button', { name: 'Toevoegen' }).first().click();
+  await venster(p).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit gebruikt het formulier
   await venster(p).getByRole('tab', { name: 'Afspraak' }).click();
   await venster(p).locator('#item-titel').fill(titel);
   await venster(p).getByRole('button', { name: /^Meer opties/ }).click();
@@ -149,9 +152,12 @@ test('bevinding 4: herinvoer-venster open terwijl de late bevestiging binnenkomt
 
   // Het venster toont nu de bevestigde afspraak; opslaan wijzigt die ene afspraak, er komt er geen bij.
   await expect(venster(eva).getByRole('heading', { name: 'Afspraak', exact: true })).toBeVisible(SYNC);
-  await expect(venster(eva).locator('#item-titel')).toHaveValue('Pedicure Eva');
+  // W1: dat is het detailvenster van de bewaarde afspraak; Opslaan verschijnt pas na een wijziging.
+  await expect(venster(eva).getByLabel('Wat?')).toHaveValue('Pedicure Eva');
+  await venster(eva).getByLabel('Wat?').fill('Pedicure Eva (voeten)');
   await venster(eva).getByRole('button', { name: 'Opslaan' }).click();
-  await expect.poll(async () => (await afspraak('Pedicure Eva')).map(x => x.id), SYNC).toEqual([id]);
+  await expect.poll(async () => (await afspraak('Pedicure Eva (voeten)')).map(x => x.id), SYNC).toEqual([id]);
+  expect(await afspraak('Pedicure Eva')).toEqual([]);
 });
 
 test('screenshots herstelronde 1 @screenshot', async () => {

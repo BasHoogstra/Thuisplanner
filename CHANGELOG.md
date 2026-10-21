@@ -855,3 +855,37 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - De test las stand, pogingen en "volgende" in drie losse query's. Pakte de functie de mail er tussendoor op, dan zag de test "wacht" van de vorige poging en al het nieuwe aantal pogingen, en mat hij een tijd die nooit zo gepland was (CI: "na 4 min: -1.757 s"). Nu komen ze uit één lezing (`gepland()`); de bewerings en grenzen zijn ongewijzigd.
 - De klaargezette antwoorden van de nagebootste aanbieder worden na die test altijd opgeruimd, ook bij een fout. Anders kreeg de mail van de volgende test (T17) een overgebleven "503".
 - Tegenproef met een verbreed gat tussen de lezingen: de oude test 4 van 4 keer rood met hetzelfde patroon; de nieuwe stabiel (8 van 8, ook 3 van 3 met trage weigeringen) en het hele bestand 3 keer 14 van 14.
+
+## Thuisplanner: de centrale + als één zin, en boodschappen per categorie (20 oktober 2026, lokaal)
+- B1: `begrijp()` herkent soort, dag, tijd, personen, plek, herhaling en privé uit één zin; zonder AI of netwerk. Twijfel wordt een zichtbare melding ("om 4" is 16:00, een bijna-naam als voorstel, een dag bij een boodschap kan nog niet), nooit een stille aanname.
+- B2: de + opent alleen het zinveld; daaronder de herkende onderdelen als knoppen, met één tik te corrigeren of terug in de titel te zetten. "Alles invullen" opent het bestaande formulier. De + in de navigatie en de + per dag kiezen geen soort meer vooraf.
+- C1: boodschappen komen vanzelf in een van 16 categorieën (alleen hele woorden; Overig als het niet herkend wordt) en staan op Boodschappen per categorie. De volgorde komt uit één functie, voor later een looproute per winkel.
+- Toegankelijkheid: na de wissel van de zin naar het formulier gaat de focus bij sluiten terug naar de +.
+- Tests: `zin.test.ts` (69), `categorie.test.ts` (167), `snelinvoer.test.tsx` (12), tegenproeven invoer (23), een nieuwe demo-e2e op 360/390/desktop en een lokaal e2e-scenario met twee accounts; de bestaande formuliertests lopen via "Alles invullen".
+- Geen migratie, geen wijziging aan de sync-module; Huisplan ongewijzigd.
+
+## Thuisplanner W1: een rustig detailvenster voor afspraken en taken (21 oktober 2026, lokaal)
+- Een bestaande afspraak of taak opent eerst een overzicht: de titel (direct te wijzigen), dag, tijd, wie, en als ingevuld waar, herhaling en privé; bij een taak de status met "Afgerond / Weer openzetten". Een tik op een regel opent alleen dat onderdeel, met dezelfde kleine keuzes als de centrale + (gedeeld in `Keuzepanelen.tsx`).
+- "Opslaan" verschijnt pas na een wijziging, met "Wijzigingen weggooien". Bij een reeks pas dan de vraag: alleen deze of de hele reeks (D3).
+- Verwijderen en "Alles bewerken" (het volledige formulier) staan onder "Meer…"; verwijderen vraagt een bevestiging (ook alleen deze of de hele reeks).
+- Gegevensbehoud: opslaan bouwt de afspraak zoals het formulier (notities, voorbereiding, de duur van een meerdaagse afspraak, herhaling, reeksgegevens) met de versie van het openen. Een andere begintijd neemt de duur mee.
+- Ongewijzigd: het venster "Bezet" voor andermans privé-afspraak, onbevestigde items, de boodschappen, privé alleen door de eigenaar, de synchronisatie.
+- Tests: `detail.test.tsx` (13), demo-e2e `detail.spec.ts` op 360/390/desktop, gegevensbehoud via het detail in `afspraakbehoud.test.tsx` en in de lokale e2e met de echte database; de bestaande formuliertests lopen via "Meer… → Alles bewerken".
+- Geen migratie, geen wijziging aan de sync-module; Huisplan ongewijzigd.
+
+## Thuisplanner W2: een rustigere weekweergave (21 oktober 2026, lokaal)
+- Mobiel (D5): de week is één doorlopende lijst. Elke dag heeft een lichte kop in plaats van een kaart; twee of meer lege dagen achter elkaar staan samen op één regel ("Ma 5 + Di 6 + … niets gepland"), elk nog met een eigen dagoverzicht-knop en een eigen +.
+- Desktop (D6): de zeven kolommen blijven; de rijen zijn compacter, zonder kaart en zonder kleurstreep.
+- Elke rij toont alleen de begintijd (of "Hele dag"), de titel (hoogstens twee regels, afgekapt met "…", zonder afbreekstreepjes) en één persoonsmarkering (één naam, of de eerste met "+n"; niets als het voor iedereen is). Privé, "Bezet" en "niet bevestigd" blijven zichtbaar. Plek, eindtijd, herhaling en de volledige lijst personen staan in het detailvenster (W1).
+- De + per dag is stiller (geen rand, gedempte kleur) maar overal beschikbaar.
+- Ongewijzigd: dagkeuze, toevoegen, bewerken, herhaling, privé, synchronisatie, de namen voor schermlezers, de kleuren en de huisstijl, de centrale + en het detailvenster.
+- Tests: demo-e2e `week.spec.ts` op 360/390/desktop (hoogstens twee regels, geen afbreekstreepjes, geen horizontale scroll, de samengevoegde lege dagen, de + van een lege dag, afvinken); tegenproef: met afbreekstreepjes of een clamp van 5 regels faalt de test.
+- Geen migratie, geen wijziging aan de sync-module; Huisplan ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 0: omgeving vastgezet (21 oktober 2026, lokaal)
+- `thuisplanner/omgevingen.json`: het stagingproject (`mcyjpnnjqxlqfwqhkqrl`, organisatie Thuisplanner) is vastgelegd; bèta en productie blijven `null`.
+- De verbindingscontrole (`staging/verbinding-controle.mjs`) weigert nu ook een omgeving zonder vastgelegd kenmerk; eerder werd dan niets gecontroleerd. Bèta en productie zijn daardoor geblokkeerd tot hun project bestaat.
+- `npm run build:staging` (ook in Cloudflare Pages) bouwt alleen tegen het vastgelegde stagingproject (`scripts/staging-kenmerk.mjs`); de offline staging-e2e bouwt bewust met een verzonnen project.
+- `staging/testers.sql` vervangen: het zet alleen het adres van de eigenaar op de testerslijst (testpoort G1). Het weigert zonder toegangspoort, met het voorbeeldadres of met wachtwoordsessies aan, en kan veilig opnieuw draaien. Het oude script werkte niet meer met de toegangspoort.
+- Documentatie bijgewerkt: `docs/thuisplanner-staging.md` (stand, aanmelden moet aan, blootgestelde schema's, testers), het bouwverslag (`KG_ANON_KEY`), de README van de app en de uitnodigingsdocumentatie. Nieuw: het uitvoeringsplan `docs/thuisplanner-staging-overstap.md`, met export en herstelprocedure vóór de migraties 12–16.
+- Tests: `omgevingen.test.mjs` (3) en `staging-kenmerk.test.ts` (3), met tegenproeven. Niets online gewijzigd; Huisplan ongewijzigd.

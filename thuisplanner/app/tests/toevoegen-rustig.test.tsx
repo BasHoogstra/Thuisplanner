@@ -1,6 +1,6 @@
 // Rustiger Toevoegen-venster (docs/thuisplanner-snelinvoer.md, deel A): snelle tijden, de eindtijd en de
 // klokkiezer pas op verzoek, en waar/herhalen/privé achter "Meer opties", behalve als er al iets is ingevuld.
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ItemVenster, type VensterOpdracht } from '../src/components/ItemVenster';
 import { Ctx, type AppContext } from '../src/lib/context';
@@ -25,6 +25,13 @@ function opzet(opdracht: VensterOpdracht, items: Item[] = []) {
     toevoegen, bijwerken, meld: vi.fn(),
   } as unknown as AppContext;
   render(<Ctx.Provider value={ctx}><ItemVenster opdracht={opdracht} sluit={() => {}} /></Ctx.Provider>);
+  // Een nieuw item opent eerst de zin (B2); dit bestand toetst het formulier daarachter (Alles invullen).
+  if (opdracht.type === 'nieuw') fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Alles invullen' }));
+  // Een bestaand item opent eerst het overzicht (W1); dit bestand toetst het formulier daarachter (Meer… → Alles bewerken).
+  else if (screen.queryByRole('button', { name: 'Meer…' })) {
+    fireEvent.click(screen.getByRole('button', { name: 'Meer…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Alles bewerken' }));
+  }
   return { toevoegen, bijwerken, v: within(screen.getByRole('dialog')), user: userEvent.setup() };
 }
 const nieuw: VensterOpdracht = { type: 'nieuw', soort: 'afspraak' };

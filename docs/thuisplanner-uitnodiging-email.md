@@ -304,6 +304,8 @@ bron, en `lib/foutcodes.ts` wordt uitgebreid naar alle domeinen.
   PostgreSQL 16; CI draait die pas bij een push. De nabootsing (`supabase_stub.sql`) kreeg `email_confirmed_at`.
 
 **Bekende beperkingen:**
-- Er gaat nog geen e-mail uit (B4).
+- Er gaat nog geen e-mail uit (B4). (Achterhaald: de uitnodigingsmail is in deel 2 gebouwd; zie
+  `docs/thuisplanner-uitnodigingsmail-verzending.md`.)
 - Google en Apple zijn niet getest (§11, punt 2).
-- Het staginginloggen gebruikt nog een wachtwoord en Cloudflare Access. Dat lost deel 2 op.
+- Het staginginloggen gebruikt nog een wachtwoord en Cloudflare Access. Dat lost deel 2 op (de overstap:
+  `docs/thuisplanner-staging-overstap.md`).

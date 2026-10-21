@@ -2,7 +2,7 @@
 // (staging/verbinding-controle.mjs): staging, bèta en productie nooit door elkaar. Zonder netwerk.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { leesOmgevingen, omgevingFouten } from '../../staging/verbinding-controle.mjs';
+import { leesOmgevingen, omgevingFouten, verbindingFouten } from '../../staging/verbinding-controle.mjs';
 
 const O = leesOmgevingen();
 const REF_A = 'aaaaaaaaaaaaaaaaaaaa', REF_B = 'bbbbbbbbbbbbbbbbbbbb';
@@ -28,12 +28,25 @@ test('omgevingen.json: drie app-omgevingen en de website, elk met een eigen doel
   assert.equal(new Set(refs).size, refs.length);
 });
 
+test('het vastgelegde stagingproject: precies één kenmerk, geen Huisplan-project, alleen bij staging', () => {
+  assert.match(O.staging.supabaseRef, /^[a-z]{20}$/);
+  assert.equal(O.beta.supabaseRef, null);
+  assert.equal(O.productie.supabaseRef, null);
+  assert.deepEqual(omgevingFouten('staging', O.staging.supabaseRef), []);
+  assert.match(omgevingFouten('beta', O.staging.supabaseRef).join(), /hoort bij de omgeving staging/);
+  assert.match(omgevingFouten('productie', O.staging.supabaseRef).join(), /hoort bij de omgeving staging/);
+  assert.match(omgevingFouten('staging', REF_A).join(), /wijkt af/);
+  assert.equal(verbindingFouten('postgresql://postgres.' + O.staging.supabaseRef + '@aws-1-eu-central-1.pooler.supabase.com:5432/postgres', O.staging.supabaseRef, 'x').filter(f => /Huisplan/.test(f)).length, 0);
+});
+
 test('verbindingscontrole: alleen een bekende omgeving; een kenmerk van een andere omgeving wordt geweigerd', () => {
   const metRefs = { ...O, staging: { ...O.staging, supabaseRef: REF_A }, beta: { ...O.beta, supabaseRef: null } };
   assert.deepEqual(omgevingFouten('staging', REF_A, metRefs), []);
   assert.match(omgevingFouten('beta', REF_A, metRefs).join(), /hoort bij de omgeving staging/);
   assert.match(omgevingFouten('staging', REF_B, metRefs).join(), /wijkt af van het kenmerk van staging/);
-  assert.deepEqual(omgevingFouten('beta', REF_B, metRefs), []);
+  // Een omgeving zonder vastgelegd kenmerk: nooit verbinden, met welk kenmerk dan ook.
+  assert.match(omgevingFouten('beta', REF_B, metRefs).join(), /nog geen projectkenmerk/);
+  assert.deepEqual(omgevingFouten('beta', REF_B, { ...metRefs, beta: { ...O.beta, supabaseRef: REF_B } }), []);
   assert.match(omgevingFouten('website', REF_B, metRefs).join(), /staging, beta of productie/);
   assert.match(omgevingFouten('test', REF_B, metRefs).join(), /staging, beta of productie/);
   assert.match(omgevingFouten(undefined, REF_B, metRefs).join(), /staging, beta of productie/);

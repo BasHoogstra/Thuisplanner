@@ -7,7 +7,7 @@ import { dagInhoud, maandBegin, maandRaster, plusMaanden } from '../lib/kalender
 import { titelVoor } from '../lib/rechten';
 import { isVoorbij, takenZonderDatum } from '../lib/vandaag';
 import type { Datum } from '../lib/types';
-import { AfspraakRij, TaakRij } from '../components/Rijen';
+import { AfspraakRij, TaakRij, WeekAfspraakRij, WeekTaakRij } from '../components/Rijen';
 import { IcLinks, IcPijl, IcPlus } from '../components/Iconen';
 
 const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september',
@@ -131,14 +131,39 @@ function WeekWeergave() {
   const { agenda, zetAgenda, staat, vandaag, nu, openToevoegen } = useApp();
   const maandag = maandagVan(agenda.datum);
   const dagen = Array.from({ length: 7 }, (_, n) => plusDagen(maandag, n));
+  const inhoud = dagen.map(datum => ({ datum, ...dagInhoud(staat.items, datum, agenda.filter) }));
+  const isLeeg = (i: number) => !inhoud[i].afspraken.length && !inhoud[i].taken.length;
+  // Opeenvolgende lege dagen staan op mobiel samen op één regel (D5); op desktop blijft elke dag een eigen kolom (D6).
+  const groepVan = (i: number) => {
+    if (!isLeeg(i)) return null;
+    let a = i; while (a > 0 && isLeeg(a - 1)) a--;
+    let b = i; while (b < 6 && isLeeg(b + 1)) b++;
+    return b > a ? { a, b } : null;
+  };
   return (
     <div className="week">
-      {dagen.map(datum => {
-        const { afspraken, taken } = dagInhoud(staat.items, datum, agenda.filter);
-        const leeg = !afspraken.length && !taken.length;
+      {inhoud.map(({ datum, afspraken, taken }, i) => {
+        const leeg = isLeeg(i);
         const isVandaag = datum === vandaag;
-        return (
-          <section key={datum} className={'week-dag' + (isVandaag ? ' vandaag' : '') + (datum < vandaag ? ' verleden' : '') + (leeg ? ' leeg' : '')}
+        const groep = groepVan(i);
+        const groepKop = groep && groep.a === i && (
+          <div key={'groep-' + datum} className="week-leeg-groep" aria-label={`${langeDatum(dagen[groep.a])} tot en met ${langeDatum(dagen[groep.b])}: niets gepland`} role="group">
+            {dagen.slice(groep.a, groep.b + 1).map(d => (
+              <span key={d} className={'leeg-dag' + (d < vandaag ? ' verleden' : '')}>
+                <button type="button" className="dag-knop" onClick={() => zetAgenda({ weergave: 'dag', datum: d })} aria-label={`Dagoverzicht ${langeDatum(d)}`}>
+                  <span className="week-dag-naam">{weekdagKort(d)}</span> <span className="week-dag-nr">{vanDatum(d).getDate()}</span>
+                  {d === vandaag && <span className="week-dag-vandaag">vandaag</span>}
+                </button>
+                <button type="button" className="icoonknop klein stil-plus" onClick={() => openToevoegen(undefined, d)} aria-label={`Toevoegen op ${langeDatum(d)}`}>
+                  <IcPlus width={14} height={14} />
+                </button>
+              </span>
+            ))}
+            <span className="week-leeg">niets gepland</span>
+          </div>
+        );
+        return [groepKop, (
+          <section key={datum} className={'week-dag' + (isVandaag ? ' vandaag' : '') + (datum < vandaag ? ' verleden' : '') + (leeg ? ' leeg' : '') + (groep ? ' in-groep' : '')}
             aria-label={langeDatum(datum) + (isVandaag ? ', vandaag' : '')}>
             <div className="week-dag-kop">
               <h2>
@@ -150,19 +175,19 @@ function WeekWeergave() {
                 </button>
               </h2>
               {leeg && <span className="week-leeg">Niets gepland</span>}
-              <button type="button" className="icoonknop klein" onClick={() => openToevoegen('afspraak', datum)}
+              <button type="button" className="icoonknop klein stil-plus" onClick={() => openToevoegen(undefined, datum)}
                 aria-label={`Toevoegen op ${langeDatum(datum)}`}>
                 <IcPlus width={16} height={16} />
               </button>
             </div>
             {!leeg && (
               <ul className="lijst week-lijst">
-                {afspraken.map(a => <AfspraakRij key={a.id} a={a} compact voorbij={datum < vandaag || (isVandaag && isVoorbij(a, nu))} />)}
-                {taken.map(t => <TaakRij key={t.id} t={t} />)}
+                {afspraken.map(a => <WeekAfspraakRij key={a.id} a={a} voorbij={datum < vandaag || (isVandaag && isVoorbij(a, nu))} />)}
+                {taken.map(t => <WeekTaakRij key={t.id} t={t} />)}
               </ul>
             )}
           </section>
-        );
+        )];
       })}
     </div>
   );

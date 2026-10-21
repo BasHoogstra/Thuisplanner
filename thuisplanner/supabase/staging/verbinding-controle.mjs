@@ -50,7 +50,8 @@ export const leesOmgevingen = (bestand = OMGEVINGEN_BESTAND) => JSON.parse(readF
 
 /**
  * Hoort dit projectkenmerk bij deze omgeving? Leeg = in orde. Een kenmerk dat bij een andere omgeving staat, wordt
- * altijd geweigerd (staging en bèta nooit door elkaar). Staat er bij deze omgeving al een kenmerk, dan moet het dat zijn.
+ * altijd geweigerd (staging en bèta nooit door elkaar). Het kenmerk moet precies het vastgelegde kenmerk van deze
+ * omgeving zijn; een omgeving zonder vastgelegd kenmerk wordt geweigerd.
  */
 export function omgevingFouten(naam, ref, omgevingen = leesOmgevingen()) {
   const f = [];
@@ -59,7 +60,9 @@ export function omgevingFouten(naam, ref, omgevingen = leesOmgevingen()) {
   for (const [ander, a] of Object.entries(omgevingen)) {
     if (ander !== naam && a && typeof a === 'object' && a.supabaseRef && a.supabaseRef === ref) f.push(`KG_REF hoort bij de omgeving ${ander}, niet bij ${naam}.`);
   }
-  if (o.supabaseRef && o.supabaseRef !== ref) f.push(`KG_REF wijkt af van het kenmerk van ${naam} in omgevingen.json.`);
+  // Zonder vastgelegd kenmerk is niet ondubbelzinnig welk project bij deze omgeving hoort: dan nooit verbinden.
+  if (!o.supabaseRef) f.push(`Voor ${naam} staat nog geen projectkenmerk in omgevingen.json: leg het eerst vast (na controle in het dashboard).`);
+  else if (o.supabaseRef !== ref) f.push(`KG_REF wijkt af van het kenmerk van ${naam} in omgevingen.json.`);
   return f;
 }
 

@@ -30,6 +30,7 @@ export async function telefoon(browser: Browser, naam: 'Eva' | 'Thomas', { basis
 
 export async function toevoegen(p: Page, soort: 'Afspraak' | 'Taak' | 'Boodschap', titel: string) {
   await p.getByRole('button', { name: 'Toevoegen' }).first().click();
+  await venster(p).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit gebruikt het formulier
   await venster(p).getByRole('tab', { name: soort }).click();
   await venster(p).locator('#item-titel').fill(titel);
   await venster(p).getByRole('button', { name: 'Toevoegen', exact: true }).click();

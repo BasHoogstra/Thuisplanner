@@ -3,6 +3,7 @@ import { useApp } from '../lib/context';
 import { splitsBoodschappen } from '../lib/boodschappen';
 import { isBoodschap } from '../lib/vandaag';
 import { BoodschapRij } from '../components/Rijen';
+import { perCategorie } from '../lib/categorie';
 
 export function Boodschappen() {
   const { staat, voegBoodschappenToe, verwijder, lokaal } = useApp();
@@ -38,7 +39,13 @@ export function Boodschappen() {
       <section aria-labelledby="h-nodig">
         <h2 id="h-nodig" className="sectie-kop">Nog nodig <span className="teller">{open.length}</span></h2>
         {open.length > 0
-          ? <ul className="lijst">{open.map(b => <BoodschapRij key={b.id} b={b} />)}</ul>
+          // Per categorie, vanzelf ingedeeld (C1); de volgorde komt uit categorieVolgorde(), later eventueel per winkel.
+          ? perCategorie(open).map(({ categorie, items }) => (
+            <section key={categorie.sleutel} className="categorie" aria-label={categorie.naam}>
+              <h3 className="categorie-kop">{categorie.naam} <span className="teller">{items.length}</span></h3>
+              <ul className="lijst">{items.map(b => <BoodschapRij key={b.id} b={b} />)}</ul>
+            </section>
+          ))
           : <p className="stil-tekst">Niets meer nodig.</p>}
       </section>
 
@@ -54,8 +61,8 @@ export function Boodschappen() {
         </section>
       )}
       <p className="demo-noot">Tik op het rondje om af te vinken, op de naam om aan te passen of te verwijderen.
-        {' '}{lokaal ? 'Wijzigingen verschijnen ook op de andere telefoons. Winkelvolgorde komt in een latere fase.'
-          : 'Demo: synchroniseren tussen telefoons en winkelvolgorde komen in een latere fase.'}</p>
+        {' '}{lokaal ? 'Wijzigingen verschijnen ook op de andere telefoons. Ze staan vanzelf per categorie; een eigen winkelvolgorde komt later.'
+          : 'Ze staan vanzelf per categorie. Demo: synchroniseren tussen telefoons en een eigen winkelvolgorde komen later.'}</p>
     </div>
   );
 }

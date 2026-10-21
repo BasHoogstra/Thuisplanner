@@ -1,8 +1,8 @@
 {
-  "_uitleg": "De online omgevingen van Thuisplanner (geen geheimen; die staan alleen in Supabase, Cloudflare en Lettermint). supabaseRef: het projectkenmerk zodra het project bestaat; de scripts weigeren een kenmerk dat bij een andere omgeving hoort. Het besluit of de bèta een eigen project krijgt of meteen de toekomstige productieomgeving gebruikt (bouwverslag §6, keuze a of b) valt vóór stap 7; tot dan staan beide hier, zonder project.",
+  "_uitleg": "De online omgevingen van Thuisplanner (geen geheimen; die staan alleen in Supabase, Cloudflare en Lettermint). supabaseRef: het projectkenmerk van het Thuisplanner-project van die omgeving (organisatie Thuisplanner, nooit Huisplan). De scripts en de stagingbuild weigeren een kenmerk dat hier niet precies bij de omgeving staat, en een omgeving zonder vastgelegd kenmerk. De bèta krijgt een eigen, nieuw project (bouwverslag §6, vaste keuze van 17 oktober 2026); tot dat project bestaat, staat het kenmerk op null en is de bèta dus geblokkeerd.",
   "staging": {
-    "doel": "intern testen (alleen de eigenaar)",
-    "supabaseRef": null,
+    "doel": "intern testen (de eigenaar en zijn partner, achter Cloudflare Access)",
+    "supabaseRef": "mcyjpnnjqxlqfwqhkqrl",
     "pagesProject": "thuisplanner-staging",
     "appUrl": "https://thuisplanner-staging.pages.dev/",
     "toegang": "cloudflare-access",

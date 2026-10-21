@@ -27,13 +27,13 @@ export function tijdTekst(a: Afspraak): string {
 }
 
 /** Een afspraak als rij. De hele rij opent de afspraak; een privé-afspraak van een ander toont alleen "Bezet". */
-export function AfspraakRij({ a, voorbij, compact }: { a: Afspraak; voorbij?: boolean; compact?: boolean }) {
+export function AfspraakRij({ a, voorbij }: { a: Afspraak; voorbij?: boolean }) {
   const { lid, huishouden, openItem } = useApp();
   const bezet = isBezetVanAnder(a, huishouden.ik);
   const kleur = a.wie.length === 1 ? lid(a.wie[0])?.kleur : undefined;
   const naam = (bezet ? `Bezet, ${tijdTekst(a)}` : `${a.titel ?? 'Afspraak'}, ${tijdTekst(a)}`) + (a.herhaling ? ', herhaalt' : '');
   return (
-    <li className={'rij afspraak' + (voorbij ? ' voorbij' : '') + (compact ? ' compact' : '')}>
+    <li className={'rij afspraak' + (voorbij ? ' voorbij' : '')}>
       <button type="button" className="rij-knop" onClick={() => openItem(a.id)} aria-label={`${naam}. Openen`}>
         <span className="rij-tijd">
           {a.start ?? 'Hele dag'}
@@ -48,7 +48,7 @@ export function AfspraakRij({ a, voorbij, compact }: { a: Afspraak; voorbij?: bo
           )}
           <span className="rij-sub">
             <Wie ids={a.wie} klein />
-            {a.plek && !bezet && !compact && <span className="plek">{a.plek}</span>}
+            {a.plek && !bezet && <span className="plek">{a.plek}</span>}
             {bezet && <span className="plek">privé-afspraak</span>}
             {!bezet && a.zichtbaarheid === 'prive' && <span className="plek prive"><IcSlot /> alleen voor jou</span>}
             {a.herhaling && <span className="plek herhaalt" title="Herhalende afspraak"><IcHerhaal /></span>}
@@ -62,6 +62,65 @@ export function AfspraakRij({ a, voorbij, compact }: { a: Afspraak; voorbij?: bo
 
 export function Vinkje({ aan }: { aan: boolean }) {
   return <span className={'vinkje' + (aan ? ' aan' : '')} aria-hidden="true">{aan && <IcVink />}</span>;
+}
+
+/**
+ * Eén compacte persoonsmarkering voor de week (W2, D5/D6): één lid met naam, of het eerste lid met "+n". Geen markering
+ * als het voor het hele huishouden is; de volledige lijst staat in het detailvenster.
+ */
+function WeekWie({ ids }: { ids: LidId[] }) {
+  const { lid } = useApp();
+  const eerste = ids.length ? lid(ids[0]) : undefined;
+  if (!eerste) return null;
+  return (
+    <span className="week-wie">
+      <span className="stip" style={{ background: eerste.kleur }} aria-hidden="true" />
+      {eerste.naam}{ids.length > 1 && ` +${ids.length - 1}`}
+    </span>
+  );
+}
+
+/**
+ * Een afspraak in de week (W2): alleen de begintijd, de titel (hoogstens twee regels) en één persoonsmarkering. Plek,
+ * eindtijd en herhaling staan in het detailvenster; "Bezet", privé en "niet bevestigd" blijven zichtbaar. De naam voor
+ * schermlezers is dezelfde als in AfspraakRij.
+ */
+export function WeekAfspraakRij({ a, voorbij }: { a: Afspraak; voorbij?: boolean }) {
+  const { huishouden, openItem } = useApp();
+  const bezet = isBezetVanAnder(a, huishouden.ik);
+  const naam = (bezet ? `Bezet, ${tijdTekst(a)}` : `${a.titel ?? 'Afspraak'}, ${tijdTekst(a)}`) + (a.herhaling ? ', herhaalt' : '');
+  return (
+    <li className={'week-rij' + (voorbij ? ' voorbij' : '')}>
+      <button type="button" className="week-rij-knop" onClick={() => openItem(a.id)} aria-label={`${naam}. Openen`}>
+        <span className="week-tijd">{a.start ?? 'Hele dag'}</span>
+        <span className="week-inhoud">
+          <span className={'week-rij-titel' + (bezet ? ' bezet' : '')}>
+            {(bezet || a.zichtbaarheid === 'prive') && <IcSlot />}{bezet ? 'Bezet' : a.titel}
+          </span>
+          {(a.wie.length > 0 || a.sync) && <span className="week-sub"><WeekWie ids={a.wie} /><SyncLabel sync={a.sync} /></span>}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/** Een taak in de week (W2): afvinken, de titel (hoogstens twee regels) en één persoonsmarkering. */
+export function WeekTaakRij({ t }: { t: Taak }) {
+  const { wissel, openItem } = useApp();
+  return (
+    <li className={'week-rij taak' + (t.klaar ? ' klaar' : '')}>
+      <button type="button" className="vink-knop" role="checkbox" aria-checked={t.klaar} disabled={!!t.sync}
+        aria-label={t.titel} onClick={() => wissel(t.id, t.klaar ? `${t.titel} weer open` : `${t.titel} afgerond`)}>
+        <Vinkje aan={t.klaar} />
+      </button>
+      <button type="button" className="week-rij-knop" onClick={() => openItem(t.id)} aria-label={`${t.titel} openen`}>
+        <span className="week-inhoud">
+          <span className="week-rij-titel">{t.titel}</span>
+          {(t.voor || t.sync) && <span className="week-sub">{t.voor && <WeekWie ids={[t.voor]} />}<SyncLabel sync={t.sync} /></span>}
+        </span>
+      </button>
+    </li>
+  );
 }
 
 /** Afvinken en openen zijn twee aparte knoppen, zodat je niet per ongeluk afvinkt als je wilt aanpassen. */

@@ -1,8 +1,14 @@
 # Thuisplanner-staging: inrichting en handelingen
 
-**Status:** de lokale voorbereiding is gebouwd (16 oktober 2026, branch `thuisplanner-staging`, niet gepusht). Er bestaan
-nog geen Supabase-organisatie, geen Supabase-project en geen Cloudflare-project. Huisplan, de Huisplan-database en GitHub
-Pages zijn niet geraakt.
+**Status (21 oktober 2026):** staging bestaat sinds 16 oktober 2026: het Supabase-project `mcyjpnnjqxlqfwqhkqrl` in de
+organisatie Thuisplanner (vastgelegd in `thuisplanner/omgevingen.json`), met de migraties 1–11, en het Pages-project
+`thuisplanner-staging` achter Cloudflare Access, met de build van de branch `thuisplanner-staging` (inloggen met een
+wachtwoord). Huisplan, de Huisplan-database en GitHub Pages zijn niet geraakt.
+
+**Overstap naar de huidige versie** (e-mailcode, migraties 12–16, de Edge Functions, twee echte accounts): zie
+[`docs/thuisplanner-staging-overstap.md`](thuisplanner-staging-overstap.md). Dat plan gaat vóór dit document waar ze
+verschillen. Verouderd sinds deel 2: inloggen met een wachtwoord (de toegangspoort weigert wachtwoordsessies), aanmelden
+uit in Auth (moet aan staan, anders krijgt een genodigde geen code) en het oude `testers.sql` (vervangen; stap 4).
 
 **Besluiten van de producteigenaar (16 oktober 2026):**
 
@@ -27,9 +33,9 @@ Achtergrond, de vergelijking van hostingopties en de risico's staan in het eerde
 | Geen geheimen | De stagingbuild faalt bij `VITE_DEMO_*`, bij elke `VITE_*SERVICE*`/`*SECRET*`-variabele, bij een service-rol-JWT of `sb_secret_`-sleutel, en achteraf als er in de gebouwde bestanden een geheime sleutel, een ander Supabase-project of een Huisplan-project staat | `scripts/staging-build.ts` |
 | Beveiligingsheaders | Elke build krijgt `_headers` voor Cloudflare Pages: een strenge CSP (`connect-src` alleen de eigen site plus precies het stagingproject, via https en wss), `noindex`, `no-referrer`, `nosniff`, `frame-ancestors 'none'`, `no-cache` voor `index.html` en `immutable` voor `assets/*` | `scripts/staging-build.ts` (`headersBestand`) |
 | Markering | Vast bovenaan "Testomgeving · Alleen om te testen · verzonnen gegevens", ook op het inlogscherm. Het tabblad heet "Thuisplanner (testomgeving)" | `src/components/Lokaal.tsx`, `scripts/staging-build.ts` |
-| Inloggen | E-mail en wachtwoord van een testaccount. Geen demo-accounts, geen vooraf ingevuld wachtwoord, en een nette foutmelding | `src/components/Lokaal.tsx` |
+| Inloggen | Tot de overstap: e-mail en wachtwoord van een testaccount. Sinds deel 2: alleen met een e-mailcode (`CodeInloggen`); wachtwoordsessies krijgen van de database geen toegang | `src/components/Lokaal.tsx`, `src/components/CodeInloggen.tsx` |
 | Sessie op de telefoon | Staging: in `localStorage`, dus na het sluiten van de app blijf je ingelogd; uitloggen wist de sessie. Lokaal: per tabblad, zoals voorheen. Nooit een sessie uit de URL overnemen (`detectSessionInUrl: false`) | `src/lib/lokaal/sessie.ts` (`authOpties`) |
-| Testers koppelen | Een SQL-script voor het dashboard dat de gewone functies gebruikt (`create_household`, `create_invite` als beheerder, `accept_invite`). Geen service-rolsleutel nodig | `thuisplanner/supabase/staging/testers.sql` |
+| Testers koppelen | Sinds deel 2: alleen het adres van de eigenaar op de testerslijst (testpoort G1); huishouden aanmaken, uitnodigen en accepteren gebeuren in de app. Geen service-rolsleutel nodig | `thuisplanner/supabase/staging/testers.sql` |
 | Verwijdering na 30 dagen controleren | Twee scripts voor het dashboard: verzonnen proefleden klaarzetten (31 en 29 dagen gearchiveerd), en na de nachtelijke run alleen-lezend controleren | `thuisplanner/supabase/staging/archief-proef.sql`, `archief-controle.sql` |
 
 **Bewust niet veranderd:**
@@ -72,9 +78,9 @@ je later één Huisplan-project terug, dan zijn het er twee; meer gaat niet grat
 
 | Waar | Instelling |
 | --- | --- |
-| Authentication → Sign In / Providers → Email | **Allow new users to sign up: uit**. E-mail en wachtwoord blijven aan. "Confirm email" mag aan blijven: de beheerder bevestigt bij het aanmaken |
+| Authentication → Sign In / Providers → Email | Tot de overstap: **Allow new users to sign up: uit**. **Sinds deel 2: aan** (de nacontrole eist dat; de besloten test zit in de database, testpoort G1, en in Cloudflare Access). "Confirm email" aan |
 | Authentication → URL Configuration | Site URL: `https://thuisplanner-staging.pages.dev`. Geen extra Redirect URL's |
-| Project Settings → Data API | Exposed schemas: alleen `public` (dus **niet** `private`, en `graphql_public` mag weg) |
+| Project Settings → Data API | Exposed schemas: `public` en `graphql_public` (dus **niet** `private`; de nacontrole eist precies deze twee) |
 | Database → Extensions | `pg_graphql` uit (niet gebruikt). `pg_cron` zet de migratie zelf aan; controleer dat in stap 3 |
 | Realtime → Settings | "Allow public access" **uit** (alleen privékanalen) |
 
@@ -124,10 +130,13 @@ eerst `pg_cron` aanzetten in Database → Extensions en de push herhalen. Dit is
 zichtbaar.
 
 ### Stap 4 — Twee testers (jij)
+**Verouderd sinds deel 2:** zie `docs/thuisplanner-staging-overstap.md`, stap 7. Hieronder de oorspronkelijke stap.
+
 1. Authentication → Users → **Add user → Create new user**, voor beide testers: e-mailadres, een sterk wachtwoord
    en **Auto Confirm User** aan. Dit werkt ook met registratie uit: alleen de beheerder kan dit.
 2. SQL Editor → de inhoud van `thuisplanner/supabase/staging/testers.sql` plakken, de e-mailadressen en namen invullen,
-   en op Run klikken. Klaar als de laatste regel "testhuishouden klaar … (2 leden met account)" toont.
+   en op Run klikken. Klaar als de laatste regel "testhuishouden klaar … (2 leden met account)" toont. (Het huidige
+   `testers.sql` doet dit niet meer: het zet alleen een adres op de testerslijst.)
 3. De wachtwoorden geef je zelf door aan je vriendin. Wil ze er later uit, dan verwijder je haar account in
    Authentication → Users.
 
@@ -159,7 +168,7 @@ falen met een duidelijke melding; er komt dan niets online.
 3. Zero Trust → Access → Applications → die applicatie → Edit → bij de hostnames het jokerteken weghalen, zodat
    **`thuisplanner-staging.pages.dev`** zelf beschermd is. Opslaan, en dan in de Pages-instellingen de access policy
    opnieuw aanzetten, zodat ook de previews een eigen beleid houden (Cloudflare "Known issues").
-4. Beleid: **Allow**, Include → **Emails**: jouw adres en dat van je vriendin. Login method: **One-time PIN**.
+4. Beleid: **Allow**, Include → **Emails**: jouw adres en dat van je partner (Sanne). Login method: **One-time PIN**.
    Session duration: bijvoorbeeld 1 maand, zodat de telefoon niet elke dag om een code vraagt.
 5. Controle: het adres openen in een privévenster laat het Access-scherm zien, en een ander e-mailadres krijgt geen code.
 

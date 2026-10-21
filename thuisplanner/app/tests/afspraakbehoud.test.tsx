@@ -77,12 +77,27 @@ it('één voorkomen van een meerdaagse reeks met notities aanpassen: notities en
   });
 });
 
-it('de hele reeks aanpassen vanaf een later voorkomen: de einddatum blijft die van de eerste keer', async () => {
+it('detailvenster: de hele reeks aanpassen vanaf een later voorkomen; de einddatum blijft die van de eerste keer', async () => {
   const reeks = rij({ id: 'r-weekend', title: 'Weekend opa', start_date: '2026-10-02', end_date: '2026-10-04', recurrence_freq: 'weekly', notes: 'Medicijnen' });
   const items = naarItems({ afspraken: [reeks], taken: [], boodschappen: [], uitzonderingen: [] });
   const { ctx, bijwerken } = opzet(items);
   const user = userEvent.setup();
   render(<Ctx.Provider value={ctx}><ItemVenster opdracht={{ type: 'bewerk', id: voorkomenId('r-weekend', '2026-10-16') }} sluit={() => {}} /></Ctx.Provider>);
+  // Pas bij opslaan de vraag: alleen deze of de hele reeks (D3).
+  await user.type(screen.getByLabelText('Wat?'), ' en oma');
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Hele reeks opslaan' }));
+  const a = bijwerken.mock.calls[0][0] as Afspraak;
+  expect(opslag(a, a.versie ?? null)).toMatchObject({ id: 'r-weekend', version: 4, title: 'Weekend opa en oma', start_date: '2026-10-02', end_date: '2026-10-04', notes: 'Medicijnen', recurrence_freq: 'weekly' });
+});
+
+it('formulier (Alles bewerken): de hele reeks aanpassen vanaf een later voorkomen; de einddatum blijft die van de eerste keer', async () => {
+  const reeks = rij({ id: 'r-weekend', title: 'Weekend opa', start_date: '2026-10-02', end_date: '2026-10-04', recurrence_freq: 'weekly', notes: 'Medicijnen' });
+  const items = naarItems({ afspraken: [reeks], taken: [], boodschappen: [], uitzonderingen: [] });
+  const { ctx, bijwerken } = opzet(items);
+  const user = userEvent.setup();
+  render(<Ctx.Provider value={ctx}><ItemVenster opdracht={{ type: 'bewerk', id: voorkomenId('r-weekend', '2026-10-16') }} sluit={() => {}} /></Ctx.Provider>);
+  await user.click(screen.getByRole('button', { name: 'Meer…' }));
+  await user.click(screen.getByRole('button', { name: 'Alles bewerken' }));
   await user.click(screen.getByRole('radio', { name: 'Hele reeks' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Hele reeks opslaan' }));
   const a = bijwerken.mock.calls[0][0] as Afspraak;

@@ -5,10 +5,14 @@ import { IcSluit } from './Iconen';
  * Een rustig venster: onderaan op mobiel, in het midden op desktop. Escape en de sluitknop sluiten;
  * de focus blijft binnen het venster en gaat bij sluiten terug naar wat het opende.
  */
-export function Venster({ titel, sluit, children }: { titel: string; sluit: () => void; children: ReactNode }) {
+export function Venster({ titel, sluit, children, terugNaar }: {
+  titel: string; sluit: () => void; children: ReactNode;
+  /** Waar de focus na het sluiten heen gaat, als dat niet het element is dat nu de focus heeft (bijv. na een wissel van venster). */
+  terugNaar?: HTMLElement | null;
+}) {
   const kopId = useId();
   const venster = useRef<HTMLDivElement>(null);
-  const terug = useRef(document.activeElement as HTMLElement | null);
+  const terug = useRef(terugNaar ?? (document.activeElement as HTMLElement | null));
   const sluitRef = useRef(sluit);
   sluitRef.current = sluit;
 

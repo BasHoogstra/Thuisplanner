@@ -37,12 +37,15 @@ test('afspraak: toevoegen, aanpassen en één keer van een reeks verwijderen ver
   await expect(thomas.getByText('Kapper Lotte')).toBeVisible(SYNC);
 
   await thomas.getByRole('button', { name: /^Kapper Lotte/ }).click();
-  await venster(thomas).locator('#item-titel').fill('Kapper Lotte en Daan');
+  // W1: het detailvenster; de titel is direct te wijzigen, Opslaan verschijnt na de wijziging.
+  await venster(thomas).getByLabel('Wat?').fill('Kapper Lotte en Daan');
   await venster(thomas).getByRole('button', { name: 'Opslaan' }).click();
   await expect(eva.getByText('Kapper Lotte en Daan')).toBeVisible(SYNC);
 
   // Herhalende afspraak: alleen het voorkomen van vandaag verwijderen.
   await eva.getByRole('button', { name: /^Zwemles, 09:15/ }).first().click();
+  await venster(eva).getByRole('button', { name: 'Meer…' }).click();
+  await venster(eva).getByRole('button', { name: 'Verwijderen' }).click();
   await venster(eva).getByRole('button', { name: 'Alleen deze verwijderen' }).click();
   await expect(thomas.getByRole('button', { name: /^Zwemles, 09:15/ })).toHaveCount(0, SYNC);
   // De reeks zelf bestaat nog (volgende week).
@@ -60,6 +63,19 @@ test('taak: toevoegen bij Eva, afvinken bij Thomas, afgevinkt bij Eva', async ()
   await expect(eva.getByRole('checkbox', { name: 'Fietspomp terugbrengen', checked: false })).toHaveCount(0, SYNC);
   await eva.getByRole('button', { name: /afgerond vandaag/ }).click();
   await expect(eva.getByRole('checkbox', { name: 'Fietspomp terugbrengen', checked: true })).toBeVisible();
+});
+
+test('de centrale + in één zin (B2) en boodschappen per categorie (C1): Eva typt, Thomas ziet het', async () => {
+  await eva.locator('.nav-plus').click();
+  await venster(eva).getByLabel('Wat wil je regelen?').fill('vandaag om 19:00 met Lotte naar de bieb');
+  await venster(eva).getByRole('button', { name: 'Toevoegen' }).click();
+  await expect(thomas.getByText('Naar de bieb').first()).toBeVisible(SYNC);
+  await eva.locator('.nav-plus').click();
+  await venster(eva).getByLabel('Wat wil je regelen?').fill('melk, bananen en luiers');
+  await venster(eva).getByRole('button', { name: 'Toevoegen' }).click();
+  await nav(thomas, 'Boodschappen');
+  await expect(thomas.getByRole('region', { name: 'Baby & kind' }).getByRole('checkbox', { name: 'Luiers' })).toBeVisible(SYNC);
+  await expect(thomas.getByRole('region', { name: 'Groente & fruit' }).getByRole('checkbox', { name: 'Bananen' })).toBeVisible(SYNC);
 });
 
 test('boodschappen: toevoegen bij Thomas, afvinken bij Eva, in het mandje bij Thomas', async () => {
@@ -132,6 +148,7 @@ test('onbevestigd: niet aangekomen → "niet bevestigd" op de rij, herstelkeuze 
 
   // Nog een keer hetzelfde toevoegen: niet stil dubbel, maar een keuze.
   await eva.getByRole('button', { name: 'Toevoegen' }).first().click();
+  await venster(eva).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit gebruikt het formulier
   await venster(eva).getByRole('tab', { name: 'Taak' }).click();
   await venster(eva).locator('#item-titel').fill('Regenjassen opruimen');
   await venster(eva).getByRole('button', { name: 'Toevoegen', exact: true }).click();

@@ -10,6 +10,8 @@ import { tijdTekst, Wie } from './Rijen';
 import { IcHerhaal, IcSlot } from './Iconen';
 import { Venster } from './Venster';
 import { OnbevestigdVenster } from './Lokaal';
+import { SnelInvoer, type Voorinvulling } from './SnelInvoer';
+import { DetailVenster } from './DetailVenster';
 
 const SOORTEN: { id: Soort; label: string }[] = [
   { id: 'afspraak', label: 'Afspraak' },
@@ -26,13 +28,22 @@ const NAAM: Record<Soort, string> = { afspraak: 'Afspraak', taak: 'Taak', boodsc
 export const SNELLE_TIJDEN = ['09:00', '12:00', '15:30', '18:00'];
 
 export type VensterOpdracht =
-  | { type: 'nieuw'; soort: Soort; datum?: Datum }
+  | { type: 'nieuw'; soort?: Soort; datum?: Datum }
   | { type: 'bewerk'; id: string };
 
 /** Kiest het juiste venster: nieuw, bewerken, of alleen-lezen voor een privé-afspraak van een ander. */
 export function ItemVenster({ opdracht, sluit }: { opdracht: VensterOpdracht; sluit: () => void }) {
   const { staat, huishouden } = useApp();
-  if (opdracht.type === 'nieuw') return <Formulier soortBegin={opdracht.soort} datumBegin={opdracht.datum} sluit={sluit} />;
+  // Nieuw: eerst de zin (B2, besluit V4/K1); "Alles invullen" opent het formulier met wat er al herkend is.
+  const [vul, zetVul] = useState<Voorinvulling | null>(null);
+  // Bestaand: eerst het rustige overzicht (W1); "Alles bewerken" opent het volledige formulier.
+  const [alles, zetAlles] = useState(false);
+  // Wie het venster opende (de +): daar gaat de focus na sluiten heen, ook na de wissel van de zin naar het formulier.
+  const opener = useRef(document.activeElement as HTMLElement | null);
+  if (opdracht.type === 'nieuw') {
+    if (!vul) return <SnelInvoer standaard={{ soort: opdracht.soort, datum: opdracht.datum }} sluit={sluit} allesInvullen={zetVul} terugNaar={opener.current} />;
+    return <Formulier soortBegin={vul.soort} datumBegin={vul.datum ?? opdracht.datum} voorinvulling={vul} sluit={sluit} terugNaar={opener.current} />;
+  }
   // Een voorkomen van een herhalende afspraak heeft een berekend id ("reeks@datum").
   const item = staat.items.find(i => i.id === opdracht.id && i.soort !== 'afspraak') ?? vindAfspraak(staat.items, opdracht.id);
   if (!item) return null;
@@ -49,7 +60,12 @@ export function ItemVenster({ opdracht, sluit }: { opdracht: VensterOpdracht; sl
     return <OnbevestigdVenster id={item.soort === 'afspraak' ? item.voorkomenVan ?? item.id : item.id} naam={naam} sync={item.sync} sluit={sluit} />;
   }
   if (item.soort === 'afspraak' && isBezetVanAnder(item, huishouden.ik)) return <BezetVenster a={item} sluit={sluit} />;
-  return <Formulier key="bewerk" bestaand={item} sluit={sluit} />;
+  if (item.soort !== 'boodschap' && !alles) {
+    const reeks = item.soort === 'afspraak' && item.voorkomenVan
+      ? staat.items.find((i): i is Afspraak => i.id === item.voorkomenVan && i.soort === 'afspraak') : undefined;
+    return <DetailVenster key={item.id} item={item} reeks={reeks} sluit={sluit} allesBewerken={() => zetAlles(true)} terugNaar={opener.current} />;
+  }
+  return <Formulier key="bewerk" bestaand={item} sluit={sluit} terugNaar={opener.current} />;
 }
 
 function BezetVenster({ a, sluit }: { a: Afspraak; sluit: () => void }) {
@@ -68,8 +84,11 @@ function BezetVenster({ a, sluit }: { a: Afspraak; sluit: () => void }) {
   );
 }
 
-function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPrive = false, sluit }: {
+function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPrive = false, voorinvulling: vi, sluit, terugNaar }: {
   bestaand?: Item; soortBegin?: Soort; datumBegin?: Datum;
+  /** Uit de zin (Alles invullen): wat er al herkend is. */
+  voorinvulling?: Voorinvulling;
+  terugNaar?: HTMLElement | null;
   /** Opnieuw invoeren van een opdracht zonder bewaarde inhoud (P1), met deze opdracht-ID. */
   herinvoerId?: string;
   /** Bij opnieuw invoeren: de afspraak was privé (dat blijft zo). */
@@ -79,18 +98,19 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
   const app = useApp();
   const { vandaag, huishouden, staat } = app;
   const [soort, zetSoort] = useState<Soort>(bestaand?.soort ?? soortBegin ?? 'afspraak');
-  const [titel, zetTitel] = useState(bestaand ? (bestaand.soort === 'boodschap' ? bestaand.naam : bestaand.titel ?? '') : '');
+  const [titel, zetTitel] = useState(bestaand ? (bestaand.soort === 'boodschap' ? bestaand.naam : bestaand.titel ?? '') : vi?.titel ?? '');
   const [dag, zetDag] = useState<Datum | 'ooit'>(() => {
     if (bestaand?.soort === 'afspraak') return bestaand.datum;
     if (bestaand?.soort === 'taak') return bestaand.datum ?? 'ooit';
+    if (vi) return vi.datum ?? (vi.soort === 'taak' ? 'ooit' : vandaag);
     return datumBegin ?? vandaag;
   });
-  const [start, zetStart] = useState(bestaand?.soort === 'afspraak' ? bestaand.start ?? '' : '');
-  const [eind, zetEind] = useState(bestaand?.soort === 'afspraak' ? bestaand.eind ?? '' : '');
-  const [plek, zetPlek] = useState(bestaand?.soort === 'afspraak' ? bestaand.plek ?? '' : '');
+  const [start, zetStart] = useState(bestaand?.soort === 'afspraak' ? bestaand.start ?? '' : vi?.start ?? '');
+  const [eind, zetEind] = useState(bestaand?.soort === 'afspraak' ? bestaand.eind ?? '' : vi?.eind ?? '');
+  const [plek, zetPlek] = useState(bestaand?.soort === 'afspraak' ? bestaand.plek ?? '' : vi?.plek ?? '');
   const [wie, zetWie] = useState<LidId[]>(
-    bestaand?.soort === 'afspraak' ? bestaand.wie : bestaand?.soort === 'taak' && bestaand.voor ? [bestaand.voor] : []);
-  const [prive, zetPrive] = useState(herinvoerPrive || (bestaand?.soort === 'afspraak' && bestaand.zichtbaarheid === 'prive'));
+    bestaand?.soort === 'afspraak' ? bestaand.wie : bestaand?.soort === 'taak' && bestaand.voor ? [bestaand.voor] : vi?.wie ?? []);
+  const [prive, zetPrive] = useState(herinvoerPrive || (bestaand?.soort === 'afspraak' && bestaand.zichtbaarheid === 'prive') || !!vi?.prive);
   // Herhaling. Bij een voorkomen van een reeks kies je eerst: alleen deze afspraak, of de hele reeks.
   const voorkomen = bestaand?.soort === 'afspraak' ? bestaand : undefined;
   const reeks = voorkomen?.voorkomenVan
@@ -101,8 +121,8 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
   // (versieconflict) in plaats van diens wijziging stil te overschrijven. In de demo-modus ongebruikt.
   const [beginVersie] = useState(() => bestaand?.versie);
   const [reeksVersie] = useState(() => reeks?.versie);
-  const [freq, zetFreq] = useState<Frequentie | 'geen'>(voorkomen?.herhaling?.freq ?? 'geen');
-  const [herhaalTot, zetHerhaalTot] = useState(voorkomen?.herhaling?.tot ?? '');
+  const [freq, zetFreq] = useState<Frequentie | 'geen'>(voorkomen?.herhaling?.freq ?? vi?.herhaling?.freq ?? 'geen');
+  const [herhaalTot, zetHerhaalTot] = useState(voorkomen?.herhaling?.tot ?? vi?.herhaling?.tot ?? '');
   const [fout, zetFout] = useState<{ veld: 'titel' | 'tijd' | 'dag' | 'herhaling'; tekst: string } | null>(null);
   // Rustiger venster: een snelle tijd is één tik; de klokkiezer en de eindtijd verschijnen pas als je ze vraagt.
   // Waar, herhalen en privé staan achter "Meer opties", behalve als er al iets is ingevuld: een ingevulde
@@ -290,7 +310,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
   );
 
   return (
-    <Venster titel={herinvoerId ? (herinvoerPrive ? 'Privé-afspraak opnieuw invoeren' : `${NAAM[soort]} opnieuw invoeren`) : bestaand ? NAAM[soort] : 'Toevoegen'} sluit={sluit}>
+    <Venster terugNaar={terugNaar} titel={herinvoerId ? (herinvoerPrive ? 'Privé-afspraak opnieuw invoeren' : `${NAAM[soort]} opnieuw invoeren`) : bestaand ? NAAM[soort] : 'Toevoegen'} sluit={sluit}>
       {herinvoerId && (
         <p className="stil-tekst herinvoer-uitleg">
           {herinvoerPrive ? 'Deze privé-afspraak' : soort === 'afspraak' ? 'Deze afspraak' : soort === 'taak' ? 'Deze taak' : 'Deze boodschap'} is

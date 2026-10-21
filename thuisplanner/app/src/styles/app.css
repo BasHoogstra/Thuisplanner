@@ -206,6 +206,43 @@ a { color: var(--accent); }
 .schakel input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--accent); }
 .schakel small { display: block; font-weight: 400; color: var(--inkt-3); font-size: 13px; }
 /* Rustiger venster (docs/thuisplanner-snelinvoer.md, deel A): eindtijd en meer opties pas op verzoek. */
+/* De centrale + (B2): één veld; daaronder rustig wat herkend is. Alleen bestaande tokens. */
+.snelinvoer { display: flex; flex-direction: column; gap: 14px; }
+.snelinvoer .veld { margin: 0; }
+.voorstel { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--radius-klein); background: var(--vlak-2); }
+.voorstel-titel { margin: 0; font-size: 17px; font-weight: 650; color: var(--inkt); overflow-wrap: anywhere; }
+.voorstel-boodschappen { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 15px; }
+.voorstel-boodschappen li { display: flex; justify-content: space-between; gap: 10px; }
+.chips { gap: 6px; }
+.keuze.chip { min-height: 36px; padding: 0 12px; font-size: 14px; }
+.keuze.chip.aanname { border-style: dashed; }
+.keuze.chip.leeg { color: var(--inkt-3); }
+.paneel { display: flex; flex-direction: column; gap: 8px; padding-top: 2px; }
+.voorstel-melding { margin: 0; font-size: 14px; color: var(--inkt-2); }
+.alles-invullen { align-self: center; }
+
+/* Het detailvenster (W1): eerst overzicht, per onderdeel wijzigen. */
+.detail { display: flex; flex-direction: column; gap: 14px; }
+.detail-titel { width: 100%; border: 0; border-bottom: 1.5px solid transparent; border-radius: 0; background: none; padding: 4px 0;
+  font-size: 21px; font-weight: 650; color: var(--inkt); }
+.detail-titel:focus { outline: none; border-bottom-color: var(--accent); }
+.detail-rijen { display: flex; flex-direction: column; border-radius: var(--radius-klein); background: var(--vlak-2); overflow: hidden; }
+.detail-rijen > .paneel { padding: 4px 14px 14px; }
+.detail-rij { display: flex; align-items: baseline; gap: 12px; width: 100%; min-height: 48px; padding: 12px 14px; border: 0;
+  background: none; text-align: left; color: var(--inkt); font-size: 16px; }
+.detail-rij + .detail-rij, .paneel + .detail-rij { border-top: 1px solid var(--lijn); }
+.detail-rij[aria-expanded="true"] { background: var(--accent-zacht); }
+.detail-rij.statisch { cursor: default; }
+.detail-label { flex: 0 0 7.5em; color: var(--inkt-2); font-size: 15px; }
+.detail-waarde { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+.detail-noot { margin: 0; padding: 10px 14px; border-top: 1px solid var(--lijn); color: var(--inkt-2); font-size: 15px; display: flex; gap: 6px; }
+.detail-acties { display: flex; flex-direction: column; gap: 10px; }
+.detail-meer { align-self: center; color: var(--inkt-2); }
+.detail-meer-keuzes { justify-content: center; }
+.keuze.gevaar-stil { color: var(--fout); }
+.detail-bevestig { display: flex; flex-direction: column; gap: 10px; }
+.detail-bevestig p { margin: 0; font-weight: 600; }
+.knop.stil-gevaar { background: var(--vlak); color: var(--fout); border-color: var(--fout); }
 .tekstknop { align-self: flex-start; min-height: 36px; padding: 0 2px; border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 15px; }
 .meer-knop {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; margin-top: 18px;
@@ -239,6 +276,9 @@ a { color: var(--accent); }
 .tijd-label { font-size: 13px; color: var(--inkt-3); }
 .veld-sub { display: block; margin-top: 4px; }
 .veld-sub input { max-width: 220px; }
+.categorie + .categorie { margin-top: 14px; }
+.categorie-kop { margin: 12px 4px 6px; font-size: 14px; font-weight: 650; color: var(--inkt); }
+.categorie:first-of-type .categorie-kop { margin-top: 2px; }
 .teller { margin-left: 6px; color: var(--inkt-3); font-weight: 600; letter-spacing: 0; }
 .afgerond { margin-top: 10px; }
 .afgerond .lijst { margin-top: 8px; }
@@ -253,18 +293,47 @@ a { color: var(--accent); }
 .week-titel { margin: 0 4px; display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 .week-titel span { font-weight: 650; }
 .week-titel small { color: var(--inkt-2); font-size: 14px; }
-.week { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.week-dag { padding: 6px 0; }
-.week-dag-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px 6px; }
-.week-dag-kop h2 { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 15px; }
+/* W2 (D5): de week als één rustige lijst. Een dag krijgt een lichte kop, geen kaart; opeenvolgende lege dagen staan op
+   mobiel samen op één regel. Een rij toont alleen tijd, titel (hoogstens twee regels) en één persoonsmarkering. */
+.week { display: flex; flex-direction: column; margin-top: 10px; }
+.week-dag { padding: 10px 0 4px; border-top: 1px solid var(--lijn); }
+.week-dag:first-child, .week-leeg-groep:first-child { border-top: 0; }
+.week-dag-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; min-height: 36px; }
+.week-dag-kop h2 { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 14px; }
 .week-dag-naam { text-transform: capitalize; color: var(--inkt-2); font-weight: 600; width: 1.6em; }
 .week-dag-nr { font-weight: 700; font-variant-numeric: tabular-nums; }
 .week-dag-vandaag { font-size: 12px; font-weight: 700; color: var(--accent-inkt); background: var(--accent); border-radius: 99px; padding: 1px 8px; }
 .week-dag.verleden .week-dag-kop { opacity: .6; }
-.week-dag.leeg { padding: 0; }
-.week-dag.leeg .week-dag-kop { padding-bottom: 0; }
+.week-dag.leeg { padding: 4px 0; }
 .week-leeg { flex: 1 1 auto; min-width: 0; color: var(--inkt-3); font-size: 14px; }
-.rij.compact .rij-tijd { width: 3.2em; }
+.week-dag.in-groep { display: none; }
+.week-leeg-groep { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; padding: 6px 2px; border-top: 1px solid var(--lijn); }
+.week-leeg-groep .leeg-dag { display: inline-flex; align-items: center; gap: 0; }
+.week-leeg-groep .dag-knop { margin: 0; padding: 4px 4px; gap: 4px; font-size: 14px; }
+.week-leeg-groep .week-dag-naam { width: auto; }
+.week-leeg-groep .week-leeg { flex: 0 0 auto; }
+.week-leeg-groep .leeg-dag.verleden { opacity: .6; }
+.icoonknop.stil-plus { border-color: transparent; background: none; color: var(--inkt-3); }
+@media (hover: hover) { .icoonknop.stil-plus:hover { color: var(--accent); background: var(--vlak-2); } }
+.week-lijst { background: none; border: 0; border-radius: 0; overflow: visible; }
+.week-rij { display: flex; align-items: stretch; min-height: 44px; }
+.week-rij-knop { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 10px; padding: 8px 2px; background: none; border: 0; border-radius: 10px; text-align: left; color: inherit; font: inherit; }
+.week-rij.taak .vink-knop { padding: 9px 4px 8px 2px; }
+@media (hover: hover) { .week-rij-knop:hover { background: color-mix(in srgb, var(--vlak-2) 55%, transparent); } }
+.week-tijd { flex: 0 0 auto; width: 48px; color: var(--inkt-2); font-size: 14px; padding-top: 1px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* De taak heeft geen tijd; het vinkje staat in de tijdkolom, zodat titels onder elkaar beginnen. */
+.week-rij.taak .vink-knop { width: 58px; justify-content: flex-start; }
+.week-inhoud { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+.week-rij-titel {
+  font-weight: 550; overflow-wrap: anywhere; hyphens: none;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+.week-rij-titel svg { display: inline-block; vertical-align: -2px; margin-right: 5px; color: var(--inkt-2); }
+.week-rij-titel.bezet { color: var(--inkt-2); font-weight: 500; }
+.week-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; color: var(--inkt-2); font-size: 13px; }
+.week-wie { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.week-rij.voorbij { opacity: .5; }
+.week-rij.klaar .week-rij-titel { text-decoration: line-through; color: var(--inkt-3); }
 
 /* ---------- KG-4: dag, maand, filter, herhaling ---------- */
 .agenda-kop h1 { margin-bottom: 12px; }
@@ -373,24 +442,20 @@ a { color: var(--accent); }
   .maand-titels span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .maand-dag.buiten .maand-titels { opacity: .6; }
   .maand-legenda > span:first-child { display: none; }
+  /* W2 (D6): zeven kolommen; compacte rijen, titels hoogstens twee regels, zonder afbreekstreepjes. */
   .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; align-items: start; }
-  .week-dag, .week-dag.leeg { padding: 0; }
-  .week-dag-kop { padding: 0 2px 8px; border-bottom: 2px solid var(--lijn); margin-bottom: 8px; }
+  .week-dag, .week-dag.leeg, .week-dag.in-groep { display: block; padding: 0; border-top: 0; }
+  .week-leeg-groep { display: none; }
+  .week-dag-kop { padding: 0 2px 6px; border-bottom: 2px solid var(--lijn); margin-bottom: 6px; flex-wrap: wrap; }
   .week-dag.vandaag .week-dag-kop { border-bottom-color: var(--accent); }
-  .week-dag-kop { flex-wrap: wrap; }
-  .week-leeg { order: 3; flex-basis: 100%; font-size: 13px; padding-top: 4px; }
+  .week-leeg { order: 3; flex-basis: 100%; font-size: 13px; padding-top: 2px; }
   .week-dag-vandaag { display: none; }
-  .week-lijst .rij-knop { flex-direction: column; gap: 2px; padding: 10px 10px; }
-  .week-lijst .rij-streep { display: none; }
-  .week-lijst .rij-tijd { width: auto; flex-direction: row; gap: 4px; font-size: 13px; }
-  .week-lijst .rij-tijd small { font-size: 13px; }
-  .week-lijst .rij-tijd small::before { content: "– "; }
-  .week-lijst .rij-titel { font-size: 14px; overflow-wrap: break-word; hyphens: auto; }
-  .week-lijst .rij-tijd { white-space: nowrap; }
-  .week-lijst .rij-sub { font-size: 13px; }
-  .week-lijst .vink-knop { padding: 11px 2px 10px 10px; }
-  .week-lijst .rij-open { padding: 10px 8px 10px 6px; }
-  .week-lijst .rij-pijl { display: none; }
+  .week-rij { min-height: 0; }
+  .week-rij-knop { flex-direction: column; gap: 1px; padding: 6px 6px; }
+  .week-tijd { width: auto; font-size: 13px; padding-top: 0; }
+  .week-rij.taak .vink-knop { width: auto; padding: 7px 2px 6px 6px; }
+  .week-rij-titel { font-size: 14px; line-height: 1.3; }
+  .week-sub { font-size: 12px; }
 }
 
 /* ---------- Lokale modus (alleen met een lokale Supabase) ---------- */

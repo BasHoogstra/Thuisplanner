@@ -199,7 +199,8 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
     nu: naarTijd(klok),
     uur: klok.getHours(),
     lid: id => hh.leden.find(l => l.id === id),
-    openToevoegen: (soort, datum) => zetVenster({ type: 'nieuw', soort: soort ?? 'afspraak', datum }),
+    // Zonder soort: de zin bepaalt het (K1). De knoppen Afspraak en Taak in het dagoverzicht geven er wel een mee.
+    openToevoegen: (soort, datum) => zetVenster({ type: 'nieuw', soort, datum }),
     openItem: id => zetVenster({ type: 'bewerk', id }),
     gaNaar,
     agenda,

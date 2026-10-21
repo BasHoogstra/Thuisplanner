@@ -3,8 +3,10 @@
 Het klikbare prototype van de nieuwe gezinsapp. KG-2 bouwde het Vandaag-scherm; KG-3 maakte de
 agenda, taken en boodschappen echt bruikbaar (openen, aanpassen, verwijderen, weekweergave). KG-4 maakte
 er een volwaardige agenda van: dag-, week- en maandweergave, herhalende afspraken en een gezinsfilter. Alles draait in de
-browser, met een **verzonnen gezin** (Familie De Boer: Eva, Thomas, Lotte en Daan). Er is geen
-backend, geen account, geen Supabase en geen verbinding met de Huisplan-app of haar gegevens.
+browser, met een **verzonnen gezin** (Familie De Boer: Eva, Thomas, Lotte en Daan). De demo heeft geen
+backend, geen account, geen Supabase en geen verbinding met de Huisplan-app of haar gegevens. Daarnaast zijn er een
+lokale modus en een stagingmodus met echte accounts, inloggen met een e-mailcode, huishoudens, uitnodigingen en
+synchronisatie via Supabase (`docs/thuisplanner-app.md`, `docs/thuisplanner-staging-overstap.md`).
 
 De ontwerpkeuzes en de toets aan het Productkompas staan in [`ONTWERP.md`](ONTWERP.md).
 
@@ -70,7 +72,8 @@ De tabel hieronder beschrijft de **demo-modus**.
 | **Privé:** een privé-afspraak van een ander staat er als "Bezet" (ook elk voorkomen van een privé-reeks); openen toont alleen tijd en persoon, zonder iets te kunnen wijzigen. Alleen de eigenaar kan iets privé of gedeeld maken | Werkt. Bij het laden haalt de demo titel, plek en voorbereiding van andermans privé-afspraken weg (zoals de server later moet doen), en elk scherm toont daarnaast alleen "Bezet". **Demo:** de echte afdwinging hoort server-side (gate 9) |
 | Rustige dag | **Demo-schakelaar** onder Meer |
 | Meer | Leden (ook kinderen zonder account), demo-uitleg, scenario wisselen |
-| Inloggen, huishoudens, uitnodigen, synchroniseren, opslaan, meldingen, herhaling, maandweergave | **Niet gebouwd** |
+| Inloggen, huishoudens, uitnodigen, synchroniseren, opslaan | **Niet in de demo**; wel in de lokale en de stagingmodus (zie boven) |
+| Meldingen | **Niet gebouwd** |
 
 Alles staat in het geheugen van het tabblad. Herladen zet de demo terug. Er gaat niets naar een server.
 De browsertests controleren dat er geen enkele externe aanvraag wordt gedaan.
@@ -119,7 +122,8 @@ runtime-afhankelijkheden (React en React DOM). Alle versies staan vast in `packa
 - In de smalle weekkolommen op desktop worden lange samengestelde woorden afgebroken. Safari (Mac en
   iOS) zet daar een afbreekstreepje; Chromium op Linux breekt zonder streepje.
 - De tijdvelden volgen de browser; in een Engelstalige browser kan "AM/PM" verschijnen.
-- De invoer is een formulier. Vrije tekst zoals "morgen 16:00 kapper" volgt pas in fase F7.
+- De + is één zin ("morgen 16:00 kapper"); zie `docs/thuisplanner-snelinvoer.md`. Een boodschap met een dag en het
+  corrigeren van een categorie komen later (B4, C2).
 - De lettertypen zijn systeemlettertypen, zodat de demo geen externe bronnen laadt. Daardoor oogt de
   demo per apparaat iets anders.
 - Getest in Chromium (Playwright), ook met een breed systeemlettertype (zoals op de CI-runner).

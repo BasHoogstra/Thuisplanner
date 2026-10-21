@@ -191,7 +191,7 @@ eigen akkoord nodig, want ze maken accounts en mails aan in een online project.
 | # | Test | Geslaagd als |
 | --- | --- | --- |
 | H6 | De Send Email-hook in het gehoste project, met de geheimen | Een code komt aan; ongeldige handtekening → 401; de interne code van 10 cijfers wordt nooit gemaild |
-| H7 | De Auth-instellingen: OTP van 10 cijfers, 600 s geldig, 60 s tussen aanvragen, bevestigen verplicht, dubbel bevestigen, alleen e-mail | De nacontrole met `KG_STAGING_ANON_KEY` geeft geen afwijking |
+| H7 | De Auth-instellingen: OTP van 10 cijfers, 600 s geldig, 60 s tussen aanvragen, bevestigen verplicht, dubbel bevestigen, alleen e-mail | De nacontrole met `KG_ANON_KEY` (de publieke anon-sleutel, als omgevingsvariabele vóór het script) geeft geen afwijking |
 | H8 | **S1:** de aankomsttijd van codes bij de echte aanbieder, naar Gmail, Outlook en iCloud | Ruim binnen het acceptatiecriterium van deel 2 (het hele pad binnen ongeveer 2 minuten); niet in de spam; geen code in het onderwerp |
 | H9 | **S2:** de limieten van Supabase zelf (mails per uur, aanvragen per IP), samen met K1 | De meldingen van K1 komen eerder dan die van Supabase, en een gebruiker ziet nooit een Engelse melding |
 | H10 | De pogingentellers onder echte gelijktijdigheid via de gehoste gateway (de proef uit `k1.test.mjs`, met eigen testadressen) | Hoogstens 5 pogingen per code; de harde grens houdt; geen 5xx |
@@ -276,7 +276,7 @@ Elke stap heeft een eigen akkoord. De volgorde is een voorstel.
 
 6. **Staging bijwerken:**
    - `verbinding.ps1 -Bijwerken` voor de nieuwe migraties;
-   - de nacontrole met `KG_STAGING_ANON_KEY`.
+   - de nacontrole met `KG_ANON_KEY` (zie `docs/thuisplanner-staging-overstap.md`).
 7. **Edge Functions en Auth op staging:**
    - deployen;
    - de geheimen zetten (door jou, nooit in de repository of de chat);
@@ -401,7 +401,7 @@ De versterking uit §7.3 is lokaal gebouwd. Omdat KG-T72 al bestond (K1), heten 
 | 2 | **KG-T74**, functies | Elke functie die `authenticated` of `anon` mag uitvoeren, in elk eigen schema, gaat via de poort. Er zijn vijf uitzonderingen, elk met een reden in `kg_zonder_poort`: `toegang_status`, `mijn_toegang`, `clean_name`, `lock_household` en `lock_household_shared`. Een uitzondering die niet meer bestaat, laat de test ook falen | Een `security definer`-functie die een `p_user` vertrouwt; een functie in een nieuw schema die alle huishoudens geeft |
 | 4 | **KG-T75**, relaties | Elke view in een eigen schema is `security_invoker`. Geen materialized view, en geen tabel zonder RLS, die `authenticated` of `anon` kan lezen | Een view zonder `security_invoker`; een materialized view; een tabel zonder RLS in `private` met leesrecht |
 | 6 | **statisch.js**, Edge Functions | De service-rol (`SUPABASE_SERVICE_ROLE_KEY` of `rpc` uit `_gedeeld/k1.ts`) alleen in `stuur-code` (met de handtekening), `controleer-code` (met de grenzen) en `stuur-uitnodiging` (met de sessiecontrole via de database). Elk met het bewijs in de broncode (`SERVICE_ROL_TOEGESTAAN`) | Zes, ingebouwd in de controle zelf: een nieuwe functie met `rpc`, een nieuwe functie met de sleutel, elk van de drie zonder zijn bewijs, en gedeelde code met de sleutel |
-| 5 | **De nacontrole** (`schemaFouten`) | Een verzoek met `Accept-Profile: private` geeft PGRST106, en de blootgestelde schema's zijn precies `public` en `graphql_public`. Draait mee met `KG_STAGING_ANON_KEY` | Lokaal nagespeeld: `private` bereikbaar (200) en een extra schema `api`; beide gevonden |
+| 5 | **De nacontrole** (`schemaFouten`) | Een verzoek met `Accept-Profile: private` geeft PGRST106, en de blootgestelde schema's zijn precies `public` en `graphql_public`. Draait mee met `KG_ANON_KEY` | Lokaal nagespeeld: `private` bereikbaar (200) en een extra schema `api`; beide gevonden |
 | 8 | **README** | De regels staan in `thuisplanner/README.md`, onder "Regels voor nieuwe databasecode en Edge Functions" | – |
 
 **Uitkomsten (lokale stack, na een reset):**

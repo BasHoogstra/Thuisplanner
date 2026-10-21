@@ -5,6 +5,12 @@ import { expect, test, type Page } from '@playwright/test';
 const START = './?nu=2026-10-10T11:20';
 
 const venster = (p: Page) => p.getByRole('dialog');
+// W1: een bestaand item opent eerst het rustige overzicht. Deze specs toetsen het formulier daarachter.
+async function naarFormulier(p: Page) {
+  await expect(venster(p)).toBeVisible();
+  const meer = venster(p).getByRole('button', { name: 'Meer…' });
+  if (await meer.count()) { await meer.click(); await venster(p).getByRole('button', { name: 'Alles bewerken' }).click(); }
+}
 const nav = (p: Page, naam: string) => p.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: naam }).click();
 const weergave = (p: Page, naam: 'Dag' | 'Week' | 'Maand') => p.getByRole('tab', { name: naam, exact: true }).click();
 const filter = (p: Page, naam: string) => p.getByRole('group', { name: 'Wiens agenda' }).getByRole('button', { name: naam }).click();
@@ -79,12 +85,14 @@ test.describe('Dagoverzicht', () => {
     await weergave(page, 'Maand');
     await maandDag(page, 'donderdag 22 oktober').click();
     await page.getByRole('button', { name: 'Afspraak toevoegen op donderdag 22 oktober' }).click();
+    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Kinderfeestje');
     await venster(page).getByRole('button', { name: 'Andere tijd' }).click();
     await venster(page).getByLabel('Van', { exact: true }).fill('14:00');
     await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
     await expect(dagLijst(page)).toContainText('Kinderfeestje');
     await page.getByRole('button', { name: 'Taak toevoegen op donderdag 22 oktober' }).click();
+    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Cadeau inpakken');
     await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
     await expect(dagLijst(page).getByRole('checkbox', { name: 'Cadeau inpakken' })).toBeVisible();
@@ -100,6 +108,7 @@ test.describe('Dagoverzicht', () => {
 test.describe('Herhalende afspraken', () => {
   test('nieuwe wekelijkse afspraak met einddatum staat op elke juiste dag, en niet daarna', async ({ page }) => {
     await page.locator('.nav-plus').click();
+    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Pianoles');
     await venster(page).getByRole('button', { name: 'Andere dag' }).click();
     await venster(page).getByLabel('Datum').fill('2026-10-14');
@@ -121,6 +130,7 @@ test.describe('Herhalende afspraken', () => {
 
   test('een einddatum vóór de eerste keer wordt geweigerd', async ({ page }) => {
     await page.locator('.nav-plus').click();
+    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Fout');
     await venster(page).getByRole('button', { name: /^Meer opties/ }).click();
     await venster(page).getByRole('button', { name: 'Elke dag' }).click();
@@ -133,6 +143,7 @@ test.describe('Herhalende afspraken', () => {
     await page.getByRole('button', { name: 'Volgende week' }).click();
     const zaterdag = weekDag(page, /^zaterdag 17 oktober$/);
     await zaterdag.getByRole('button', { name: /^Zwemles, 09:15/ }).click();
+    await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Meer… → Alles bewerken)
     await expect(venster(page)).toContainText('Elke week op zaterdag');
     await expect(venster(page).getByRole('radio', { name: 'Alleen deze' })).toHaveAttribute('aria-checked', 'true');
     await venster(page).getByLabel('Van', { exact: true }).fill('10:30');
@@ -149,6 +160,7 @@ test.describe('Herhalende afspraken', () => {
   test('alleen deze verplaatsen naar een dag waarop de reeks al staat wordt geweigerd (geen dubbele afspraak)', async ({ page }) => {
     await page.getByRole('button', { name: 'Volgende week' }).click();
     await weekDag(page, /^zaterdag 17 oktober$/).getByRole('button', { name: /^Zwemles/ }).click();
+    await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Meer… → Alles bewerken)
     await venster(page).getByLabel('Datum').fill('2026-10-24');
     await venster(page).getByRole('button', { name: 'Alleen deze opslaan' }).click();
     await expect(venster(page)).toContainText('Op die dag staat deze herhalende afspraak al.');
@@ -164,6 +176,7 @@ test.describe('Herhalende afspraken', () => {
 
   test('maandelijks op de 31e: de tekst zegt dat korte maanden worden overgeslagen, en november blijft leeg', async ({ page }) => {
     await page.locator('.nav-plus').click();
+    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Huur overmaken');
     await venster(page).getByRole('button', { name: 'Andere dag' }).click();
     await venster(page).getByLabel('Datum').fill('2026-10-31');
@@ -180,6 +193,7 @@ test.describe('Herhalende afspraken', () => {
 
   test('hele reeks wijzigen past elke week aan', async ({ page }) => {
     await page.getByRole('button', { name: /^Zwemles, 09:15/ }).click();
+    await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Meer… → Alles bewerken)
     await venster(page).getByRole('radio', { name: 'Hele reeks' }).click();
     await expect(venster(page).getByText('Eerste keer')).toBeVisible();
     await venster(page).getByLabel('Wat?').fill('Zwemles diploma B');
@@ -195,6 +209,7 @@ test.describe('Herhalende afspraken', () => {
   test('alleen deze verwijderen, ongedaan maken, en de hele reeks verwijderen', async ({ page }) => {
     await page.getByRole('button', { name: 'Volgende week' }).click();
     await weekDag(page, /^zaterdag 17 oktober$/).getByRole('button', { name: /^Zwemles/ }).click();
+    await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Meer… → Alles bewerken)
     await venster(page).getByRole('button', { name: 'Alleen deze verwijderen' }).click();
     await expect(page.getByRole('status')).toContainText('Zwemles op zaterdag 17 oktober verwijderd');
     await expect(weekDag(page, /^zaterdag 17 oktober$/)).not.toContainText('Zwemles');
@@ -202,6 +217,7 @@ test.describe('Herhalende afspraken', () => {
     await expect(weekDag(page, /^zaterdag 17 oktober$/)).toContainText('Zwemles');
 
     await weekDag(page, /^zaterdag 17 oktober$/).getByRole('button', { name: /^Zwemles/ }).click();
+    await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Meer… → Alles bewerken)
     await venster(page).getByRole('radio', { name: 'Hele reeks' }).click();
     await venster(page).getByRole('button', { name: 'Hele reeks verwijderen' }).click();
     await expect(page.getByRole('status')).toContainText('Hele reeks Zwemles verwijderd');

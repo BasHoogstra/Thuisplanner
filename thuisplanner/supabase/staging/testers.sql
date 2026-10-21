@@ -1,54 +1,42 @@
--- Thuisplanner-staging: twee testers in één testhuishouden zetten (docs/thuisplanner-staging.md, stap 6).
+-- Thuisplanner-staging: één adres op de testerslijst zetten (testpoort G1), zodat dat account een eigen huishouden mag
+-- aanmaken. Zie docs/thuisplanner-staging-overstap.md, stap 7.
 --
--- Waarom zo: op staging staat publieke registratie uit en de app heeft nog geen schermen om een huishouden aan te
--- maken of iemand uit te nodigen (KG-5H). Dit script gebruikt daarom dezelfde functies als de app later zal doen
--- (create_household, create_invite, accept_invite), mét alle regels en controles; er wordt niets direct in de
--- tabellen gezet en er is geen service-rolsleutel nodig.
+-- Waarom zo: sinds de toegangspoort (migratie 20261021120000) loggen accounts alleen in met een e-mailcode, en mag een
+-- eigen huishouden alleen wie op de testerslijst staat (zolang huishouden_open uit staat). Huishouden aanmaken,
+-- uitnodigen en accepteren gebeuren daarna gewoon in de app, met alle regels en controles. Dit script maakt dus geen
+-- accounts, huishoudens of uitnodigingen aan en zet niets in de inhoudstabellen.
+-- Alleen de eigenaar van het huishouden hoeft op de lijst; wie een uitnodiging accepteert (Sanne), niet.
 --
--- Gebruik (één keer, in het Supabase-dashboard van het STAGINGproject):
---   1. Authentication → Users → Add user → Create new user, voor beide testers: e-mailadres, een sterk
---      wachtwoord en "Auto Confirm User" aan. (Registratie via de app staat uit; dit kan alleen de beheerder.)
---   2. SQL Editor → dit script plakken → de vier waarden hieronder invullen → Run.
---   3. Klaar als de laatste regel "testhuishouden klaar" toont. Draai het niet nog een keer: dan komt er een
---      tweede huishouden bij.
--- Nooit op een ander project dan Thuisplanner-staging draaien. Gebruik alleen verzonnen namen in de app.
+-- Gebruik (in het Supabase-dashboard van het STAGINGproject, SQL Editor; nooit op een ander project):
+--   1. Controleer bovenin het dashboard dat je in de organisatie Thuisplanner zit, project thuisplanner-staging.
+--   2. Plak dit script, vul hieronder het adres in (alleen in het dashboard; niet in de repository of de chat), Run.
+--   3. Klaar als de laatste regel "testerslijst: … adres(sen)" toont. Nog eens draaien kan geen kwaad.
+-- Weghalen: delete from private.testers where email = lower(btrim('<adres>'));
 
 begin;
 
 -- ▼▼ invullen ▼▼
-select set_config('tp.email_1', 'tester1@example.com', true);   -- wordt eigenaar
-select set_config('tp.email_2', 'tester2@example.com', true);   -- wordt beheerder
-select set_config('tp.naam_1', 'Tester 1', true);               -- weergavenaam in de app
-select set_config('tp.naam_2', 'Tester 2', true);
-select set_config('tp.huishouden', 'Testgezin', true);
+select set_config('tp.email', 'jouw-adres@example.com', true);
 -- ▲▲ invullen ▲▲
 
 do $$
 declare
-  a uuid := (select id from auth.users where lower(email) = lower(current_setting('tp.email_1')));
-  b uuid := (select id from auth.users where lower(email) = lower(current_setting('tp.email_2')));
+  adres text := lower(btrim(current_setting('tp.email')));
 begin
-  if a is null or b is null then
-    raise exception 'Maak eerst beide testers aan (Authentication → Users → Add user); niet gevonden: %',
-      concat_ws(', ', case when a is null then current_setting('tp.email_1') end, case when b is null then current_setting('tp.email_2') end);
+  if to_regclass('private.testers') is null or to_regclass('private.instellingen') is null then
+    raise exception 'De toegangspoort (migratie 20261021120000) staat nog niet op dit project: eerst de migraties bijwerken.';
   end if;
-  if a = b then raise exception 'Twee verschillende testers nodig'; end if;
-  perform set_config('tp.a', a::text, true);
-  perform set_config('tp.b', b::text, true);
+  if adres like '%@example.com' then
+    raise exception 'Vul eerst het echte adres in (tp.email).';
+  end if;
+  if (select wachtwoordsessies_toegestaan from private.instellingen where id = 1) then
+    raise exception 'Wachtwoordsessies staan aan: dat hoort nooit online. Er is niets gewijzigd.';
+  end if;
+  insert into private.testers (email) values (adres) on conflict (email) do nothing;
 end $$;
 
-set local role authenticated;
--- Tester 1 maakt het huishouden en een uitnodiging voor een beheerder.
-select set_config('request.jwt.claims', json_build_object('sub', current_setting('tp.a'), 'role', 'authenticated')::text, true);
-select set_config('tp.h', public.create_household(current_setting('tp.huishouden'), current_setting('tp.naam_1'))::text, true);
-select set_config('tp.tok', public.create_invite(current_setting('tp.h')::uuid, null, 'admin', 1), true);
--- Tester 2 accepteert die uitnodiging.
-select set_config('request.jwt.claims', json_build_object('sub', current_setting('tp.b'), 'role', 'authenticated')::text, true);
-select public.accept_invite(current_setting('tp.tok'), current_setting('tp.naam_2'));
-reset role;
-
-select 'testhuishouden klaar: ' || h.name || ' (' || count(m.*) || ' leden met account)'
-  from public.households h join public.household_members m on m.household_id = h.id and m.user_id is not null
-  where h.id = current_setting('tp.h')::uuid group by h.name;
+select 'testerslijst: ' || count(*) || ' adres(sen); huishouden_open '
+       || (select huishouden_open::text from private.instellingen where id = 1)
+  from private.testers;
 
 commit;
