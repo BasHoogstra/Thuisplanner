@@ -575,3 +575,140 @@ Ter vergelijking; Huisplan blijft ongewijzigd. Regels in `index.html`; `test/ind
 **Import (later, eigen gates):** vakantie → `trips` (vertrekdatum, geen einddatum); `paklijst[label]` → pakitems bij
 het lid als het label een bevestigd lid is, anders in Gezamenlijk met het label vóór de tekst (beslissing 6: label ≠
 lid); `todos` → taken met `trip_id`; `notes` → `notes`; `_tab` en `_osmCache` niet; budget volgens het importbesluit.
+
+## 14. V1.2 — synchronisatie (akkoord 21 oktober 2026; lokaal gebouwd, zie §14.9)
+
+**Status:** akkoord op 21 oktober 2026 met de vier adviezen uit §14.8; lokaal gebouwd en getest in de worktree
+`Thuisplanner-vakanties` (branch `thuisplanner-vakanties`), niet gecommit. Geen databasemigratie: V1.2 gebruikt alleen wat
+V1.1 al heeft (tabellen, indexen, functies en seintjes).
+
+### 14.1 Doel
+De sync-module (`thuisplanner/sync/thuisplanner-sync.js`) kent vakanties, pakitems en koppelingen, met dezelfde
+garanties als nu voor taken en boodschappen: online eerst, seintjes zonder inhoud, ophalen via RLS, schrijven met
+UUID's van de client en versiecontrole, nooit stil dubbel, nooit stil iets weg (P4), en alleen identiteiten op het
+toestel (P1). De React-app verandert in V1.2 niet; die gebruikt de nieuwe toestand pas in V1.3.
+
+### 14.2 Productkompas-toets V1.2
+1. Principes: 3 (één item, overal hetzelfde), 6 (geen extra meldingen), "fouten goedkoop" (ongedaan maken veilig bij
+   gelijktijdig werken), "privacy volgt de situatie" (P1 ongewijzigd).
+2. Werk weg: indirect; zonder dit kan V1.3 niet samen op twee telefoons inpakken.
+3. Ja: uitvoeren van het huishouden (samen inpakken, samen regelen).
+4. Eenvoudiger: geen nieuwe mechanismen; alleen de bestaande patronen (opdracht, `schrijf`, `bijwerkenMetVersie`,
+   seintjes) uitgebreid.
+5. Aandacht en privacy: geen inhoud in seintjes, logboeken of duurzame opslag; geen nieuwe meldingen behalve waar
+   nodig.
+6. Bewijs: technische voorwaarde; de waarde wordt in V1.3 met de testers getoetst.
+7. Ja.
+- Gate 9: geen nieuwe tabel of RLS; het bewijs van V1.1 (KG-T76–T83) geldt. De sync leest alleen via RLS.
+
+### 14.3 Toestand en ophalen
+- Nieuw in de toestand: `vakanties` (trips), `pakitems` (trip_packing_items), `vakantieKoppelingen`
+  (trip_shopping_links). Taken krijgen `trip_id` (in `VELDEN_TAAK`).
+- `haalOp` haalt in dezelfde ronde, per pagina en alleen niet-verwijderde rijen:
+  - **alle vakanties** van het huishouden (weinig rijen);
+  - **pakitems en koppelingen alleen van vakanties die niet voorbij zijn** (§6.5: laatste dag ≥ vandaag, of zonder
+    datum), zodat de ophaalronde niet meegroeit met jaren aan oude paklijsten (D6);
+  - van een **afgelopen vakantie** pas als de app die opent: actie `vakantieOpenen(id)`; zolang hij open is, haalt elke
+    ronde hem mee; `vakantieSluiten(id)` stopt dat.
+- "Vandaag" komt van de app (optie `vandaag`, standaard `lokaleDatum()`), zodat de grens gelijk is aan wat de app toont.
+- Seintjes: `opSeintje` slaat ook voor `trips`, `trip_packing_items` en `trip_shopping_links` een al bekende versie over;
+  verder ongewijzigd (één samengevoegde ophaalronde).
+
+### 14.4 Acties
+| Actie | Hoe | Bijzonderheden |
+| --- | --- | --- |
+| `vakantieToevoegen({name, start_date?, end_date?, destination?})` | opdracht (vaste UUID), insert `trips` | Zoals `taakToevoegen`: onzeker → "niet bevestigd", opnieuw proberen maakt nooit dubbel |
+| `vakantieBijwerken(v, velden, versie)` | `bijwerkenMetVersie('trips')` | Ook voor notities; gelijktijdig wijzigen → de bestaande conflictmelding |
+| `vakantieVerwijderen(v)` / `vakantieHerstellen(v)` | `deleted_at` zetten of wissen, met versie | Taken en boodschappen blijven; herstellen = ongedaan maken |
+| `pakitemToevoegen(vakantie, lid of null, naam)` | opdracht (vaste UUID), insert | Al aanwezig (23505, ander id) → melding `dubbel`; de app maakt er "Staat al op de lijst van Loïs" van |
+| `pakitemAfvinken(item)` | `bijwerkenMetVersie`, `packed_by` = eigen lid | Optimistisch; terugdraaien op de huidige stand |
+| `pakitemBijwerken(item, {name?, member_id?}, versie)` | idem | Hernoemen of verplaatsen naar een bestaand item → `dubbel` (U1); niets verandert |
+| `pakitemVerwijderen(item)` / `pakitemHerstellen(item)` | `deleted_at` | Herstellen naast een nieuw gelijk item → `dubbel` (U1) |
+| `paklijstOvernemen({van, naar, lid?, gezamenlijk?, opdracht?})` | RPC `copy_packing_items` | Geeft `{items, opdracht}`. Onzeker → dezelfde `opdracht` opnieuw geeft dezelfde items (U2). Niet duurzaam bewaard: overnemen is op inhoud al nooit dubbel |
+| `overnemenOngedaanMaken(ids)` | één update `deleted_at` met `in(ids)` en `version = 1` | Meldt hoeveel items bleven staan omdat ze intussen zijn aangepast |
+| `vinkjesOpnieuw(vakantie, lid of 'iedereen')` | RPC `set_packed` met de huidige versies | Geeft ook terug wat nodig is om exact terug te zetten |
+| `vinkjesTerugzetten(vakantie, terug)` | RPC `set_packed` met moment en persoon | Overgeslagen (intussen aangepaste) items worden gemeld |
+| `boodschapToevoegen(naam, {vakantie?})` | RPC `add_shopping_items` met `p_trip` | De bestaande aanroep zonder vakantie blijft gelijk |
+| `boodschapOntkoppelen(koppeling)` / `boodschapKoppelingHerstellen(koppeling)` | `deleted_at` met versie | Herstellen naast een nieuwe koppeling (23505) telt als geslaagd |
+| `taakToevoegen(titel, {trip_id})`, `taakBijwerken(taak, {trip_id})` | bestaand | Alleen `trip_id` in de velden |
+
+### 14.5 Opdrachten en privacy op het toestel (P1, P2, P4)
+- Nieuwe opdrachtsoorten `vakantie` en `pakitem` (in `OPDRACHTEN`, `voorlopig`, `samenvoegen`, `leesOpslag` en
+  `opnieuwInvoeren`). Duurzaam alleen de identiteit (soort, UUID, staat, account, huishouden), zoals nu. Naam, datums,
+  bestemming, persoon, vakantie-ID en tekst van een pakitem gelden als inhoud: alleen in het paginageheugen, of duurzaam
+  met `bewaarInhoud` in de ontwikkelmodus.
+- Na een herstart staat een onbevestigd pakitem of een onbevestigde vakantie zonder inhoud in het bestaande blok "Niet
+  bevestigd" (Meer). Opnieuw invoeren gebeurt onder dezelfde UUID. Bij een boodschap met vakantie gaat de vakantie mee
+  in de opnieuw ingevoerde inhoud.
+- Uitloggen met onbevestigde opdrachten (P2) en "nooit stil wissen" (P4) gelden ongewijzigd, ook voor de nieuwe soorten.
+
+### 14.6 Tests
+- Nieuw `integratie/vakanties-sync.test.mjs` (twee accounts, twee sync-instanties, de echte lokale stack; zonder `psql`,
+  controle via de service-rol zoals `vakanties.test.mjs`):
+  1. een vakantie, pakitem en koppeling van A verschijnen via een seintje bij B; een bekende versie wordt overgeslagen;
+  2. samen inpakken: afvinken, en terugdraaien bij een conflict op de huidige stand;
+  3. `dubbel` bij toevoegen, hernoemen, verplaatsen en herstellen (U1);
+  4. overnemen, herhaling met dezelfde opdracht (U2), en ongedaan maken dat aangepaste items laat staan;
+  5. vinkjes opnieuw en exact terugzetten; overgeslagen items gemeld;
+  6. boodschap met vakantie: de koppeling staat in de toestand; hergebruik sluit de oude koppeling af (geen label meer);
+  7. pakitems van een afgelopen vakantie worden niet opgehaald tot `vakantieOpenen`;
+  8. onzekere toevoeging van een vakantie of pakitem: opnieuw proberen geeft er één; P1: de opslag bevat geen namen,
+     datums of teksten;
+  9. verlies van toegang wist ook vakanties, pakitems en koppelingen uit de cache.
+- Tegenproeven in een nieuw `vakanties-sync-tegenproeven.mjs` (zelfde werkwijze als `sync-tegenproeven.mjs`): oude
+  pakitems toch ophalen, inhoud wel duurzaam bewaren, een bekende versie niet overslaan, ongedaan maken zonder
+  `version = 1`, overnemen met een nieuwe opdracht bij opnieuw proberen. Elke sabotage moet zijn test laten falen.
+- De bestaande suites (`sync.test.mjs`, `herstel*.test.mjs`, `p1p2.test.mjs`, `react.test.mjs`) moeten ongewijzigd groen
+  blijven. Die vragen `psql` op de host (§12.5).
+
+### 14.7 Bestanden
+`thuisplanner/sync/thuisplanner-sync.js`, `thuisplanner/sync/thuisplanner-sync.d.ts`, de twee nieuwe testbestanden,
+`integratie/run.sh`, `docs/thuisplanner-sync.md` (nieuwe paragraaf), deze paragraaf en `CHANGELOG.md`. Geen migratie,
+geen app-code, geen staging.
+
+### 14.8 Te besluiten
+1. Pakitems en vakanties als **opdracht** met vaste UUID (zoals taken: nooit dubbel bij een verloren antwoord). Advies: ja.
+2. **P1 ongewijzigd:** vakantie-ID, persoon en tekst gelden als inhoud en blijven niet duurzaam op het toestel. Gevolg:
+   na een herstart staat een onbevestigd pakitem zonder vakantie in "Niet bevestigd". Advies: ja (privacy boven gemak;
+   het komt zelden voor).
+3. Paklijsten van **afgelopen vakanties pas ophalen bij openen**. Advies: ja.
+4. **Overnemen niet duurzaam** als opdracht bewaren (op inhoud is het al nooit dubbel). Advies: ja.
+5. **Testen van de suites met `psql`:** een PostgreSQL-client op deze machine installeren (een download, met jouw
+   akkoord), of die suites pas in CI laten draaien bij een PR (een push, met jouw akkoord).
+
+### 14.9 Uitvoering en resultaten (21 oktober 2026, lokaal)
+
+Gebouwd in `thuisplanner/sync/thuisplanner-sync.js` en `thuisplanner-sync.d.ts` volgens §14.3–§14.5 (zie ook
+`docs/thuisplanner-sync.md` §11). Twee aanvullingen die tijdens het bouwen nodig bleken:
+- **`meldingVoor`:** PostgREST geeft een unieke-sleutelfout (23505) als HTTP 409. De module meldde dat als
+  "versieconflict"; nu eerst de databasecode, dus "Dat staat er al." (ook voor bestaande schermen nauwkeuriger).
+- **Zekere weigering van een pakitem:** na een onzekere eerste poging die de server niet bereikte, en intussen
+  dezelfde tekst door iemand anders: opnieuw proberen geeft nu "Dat staat er al." en ruimt de opdracht op, in plaats
+  van eeuwig "niet bevestigd".
+- Twee bestaande sync-tegenproeven (H1a, R1a) zoeken nu de aangepaste regel; de sabotage is inhoudelijk gelijk.
+
+**Testomgeving:** op deze Windows-machine staat geen `psql`. Zonder iets te installeren of te downloaden draaien de
+suites in een tijdelijke container van het al aanwezige image `postgres-meta` (node), in het netwerk van de lokale stack,
+met de `psql` uit de databasecontainer en een klein doorgeefluik naar `127.0.0.1`. De hulpscripts staan buiten de
+repository (scratchpad van deze sessie).
+
+| Controle | Resultaat |
+| --- | --- |
+| `vakanties-sync.test.mjs` (V1–V9, nieuw) | 9 van 9 |
+| `vakanties-sync-tegenproeven.mjs` (nieuw) | 9 van 9 gevangen |
+| `sync.test.mjs`, `herstel.test.mjs`, `herstel2.test.mjs`, `herstel3.test.mjs`, `p1p2.test.mjs`, `react.test.mjs` | 8, 12, 12, 3, 5 en 5: alles groen |
+| `integratie.test.mjs`, `gelijktijdig.test.mjs`, `vakanties.test.mjs`, `poort.test.mjs`, `uitnodiging.test.mjs` | 10, 16, 2, 4 en 2: alles groen |
+| Tegenproeven: `sync-tegenproeven.mjs`, `k1-tegenproeven.mjs`, gelijktijdigheid en herstel/herstel3 met `KG_TEGENPROEF` | 25 van 25, 26 van 26, en de tegenproefscenario's alle geslaagd (fout aangetoond) |
+| RLS-matrix | 83 van 83 |
+| App: `tsc --noEmit` en `vitest run` | schoon; 462 van 462 |
+| Statische controles | geslaagd, Huisplan ongewijzigd |
+
+**Niet geslaagd in deze opzet, en waarom (niet gerelateerd aan Vakanties of de sync):**
+- `k1.test.mjs`, scenario AC-11/AC-12 (12 van 13 geslaagd): leest de logboeken van de containers met `docker logs`; in de
+  testcontainer is geen `docker`.
+- `uitnodigingsmail.test.mjs`: vraagt de genegeerde lokale geheimen (`supabase/functions/.env`), die alleen in de
+  oorspronkelijke werkmap staan, en een nagebootste mailaanbieder die vanuit de Edge Runtime bereikbaar is.
+Beide draaien in de workflow `thuisplanner-db.yml` op een PR.
+
+**Niet gedaan:** de syncdemo-e2e (`thuisplanner/dev`) en de app-e2e tegen de lokale stack (Playwright-browsers); die raken
+de vakantielaag nog niet (er is nog geen scherm).

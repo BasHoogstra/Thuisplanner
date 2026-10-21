@@ -43,7 +43,7 @@ const PROEVEN = [
     ['if (wasVerbonden) verbind();', '']]],
   // Herstelronde 2 (herstel2.test.mjs)
   ['R2-1', '^H1a', 'mislukte herhaalpoging verwijdert de opdracht', [
-    ['    } else if (o.ooitOnzeker || andereLopen) {', '    } else if (andereLopen) {']]],
+    ['    } else if ((o.ooitOnzeker && !u.zeker) || andereLopen) {', '    } else if (andereLopen) {']]],
   ['R2-1', '^H1c', 'verlopen sessie bij de eerste poging verwijdert de invoer', [
     ['    } else if (sessieFout(u.fout)) {\n      // Eerste poging', '    } else if (false) {\n      // Eerste poging']]],
   ['R2-2', '^H2a', 'opdracht herkennen en hergebruiken op titel (zoals in 79a5852)', [
@@ -72,7 +72,7 @@ const PROEVEN = [
     ['      const p = `${VOORVOEGSEL}${gebruiker}:`;\n      for (let i', '      const p = VOORVOEGSEL;\n      for (let i']]],
   // Herstelronde 3 (herstel3.test.mjs)
   ['R3-1', '^R1a', 'geweigerde herhaling ruimt op terwijl een andere poging nog loopt', [
-    ['    } else if (o.ooitOnzeker || andereLopen) {', '    } else if (o.ooitOnzeker) {']]],
+    ['    } else if ((o.ooitOnzeker && !u.zeker) || andereLopen) {', '    } else if (o.ooitOnzeker && !u.zeker) {']]],
 ];
 
 const map = mkdtempSync(path.join(tmpdir(), 'kg-sync-tegenproef-'));

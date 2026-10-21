@@ -896,3 +896,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Functies: `add_shopping_items` met optionele vakantie (bestaande aanroepen ongewijzigd), `copy_packing_items` (aanvullend overnemen; herhaling geeft dezelfde items, U2) en `set_packed` (vinkjes in één keer, met versiecontrole en exact ongedaan maken).
 - Tests: RLS-matrix KG-T76 t/m KG-T83 (83 van 83), 14 nieuwe tegenproeven (alle 125 gevangen, één bestaande aangepast aan de nieuwe signatuur), 4 nieuwe gelijktijdigheidsscenario's en `integratie/vakanties.test.mjs` (API en Realtime).
 - Alleen lokaal toegepast en getest; niet gecommit, niet op staging. Geen wijziging aan de sync-module of de app. Huisplan ongewijzigd.
+
+## Thuisplanner F8 Vakanties, V1.2: synchronisatie (21 oktober 2026, lokaal)
+- Sync-module: vakanties, pakitems en koppelingen in de toestand; taken met `trip_id`. Paklijsten alleen van vakanties die niet voorbij zijn, plus geopende afgelopen vakanties (`vakantieOpenen`/`vakantieSluiten`); "vandaag" komt van de app.
+- Acties voor vakanties, pakitems (opdrachten met vaste UUID), overnemen (`paklijstOvernemen`, idempotent met dezelfde opdracht; `overnemenOngedaanMaken` alleen voor onaangepaste items), vinkjes opnieuw en exact terugzetten, boodschappen met vakantie en ontkoppelen/herstellen.
+- P1 ongewijzigd: geen vakantie- of paklijstinhoud duurzaam op het toestel. Nieuwe meldingen: overnemen onzeker, "deels" (iets bleef staan).
+- `meldingVoor`: een unieke-sleutelfout (23505, door PostgREST als HTTP 409 gegeven) heet nu "Dat staat er al." in plaats van een versieconflict.
+- Tests: `vakanties-sync.test.mjs` (9 van 9) en `vakanties-sync-tegenproeven.mjs` (9 van 9 gevangen); alle bestaande sync- en herstelsuites groen; twee bestaande tegenproeven aangepast aan de nieuwe regel. Geen migratie; de app ongewijzigd (typecheck en 462 unittests groen). Huisplan ongewijzigd.

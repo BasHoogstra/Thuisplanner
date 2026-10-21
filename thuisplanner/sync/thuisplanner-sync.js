@@ -30,7 +30,13 @@
 //  - Geen inhoud in logboeken of meldingen: meldingen zijn vaste Nederlandse teksten per foutcode.
 
 const VELDEN_BOODSCHAP = 'id,household_id,name,checked_at,version,created_at,updated_at';
-const VELDEN_TAAK = 'id,household_id,title,due_date,assignee_member_id,done_on,done_by_member_id,version,created_at,updated_at';
+const VELDEN_TAAK = 'id,household_id,title,due_date,assignee_member_id,done_on,done_by_member_id,trip_id,version,created_at,updated_at';
+// F8 Vakanties (V1.2): vakanties, pakitems en koppelingen vakantie–boodschap (docs/thuisplanner-vakanties.md §14).
+const VELDEN_VAKANTIE = 'id,household_id,name,start_date,end_date,destination,notes,version,created_at,updated_at';
+const VELDEN_PAKITEM = 'id,household_id,trip_id,member_id,name,packed_at,packed_by_member_id,version,created_at,updated_at';
+const VELDEN_KOPPELING = 'id,household_id,trip_id,shopping_item_id,settled_at,version,created_at,updated_at';
+// Tabellen waarvan een seintje met een al bekende versie niets hoeft te doen.
+const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events', 'trips', 'trip_packing_items', 'trip_shopping_links']);
 const VELDEN_LID = 'id,household_id,display_name,kind,role,status,color,has_account,sort,created_at';
 const VELDEN_AFSPRAAK = 'id,household_id,owner_member_id,visibility,start_date,start_time,end_date,end_time,recurrence_freq,' +
   'recurrence_until,series_id,original_date,version,is_busy,title,location,notes,preparation,participant_ids';
@@ -51,6 +57,7 @@ const MELDINGEN = {
   mogelijkDubbel: 'Dit staat al klaar maar is nog niet bevestigd. Kies: opnieuw proberen, of bewust als nieuwe toevoegen.',
   priveNietBewaard: 'De inhoud van deze privé-afspraak is om privacyredenen niet op dit toestel bewaard. Voer hem opnieuw in om hem af te maken.',
   inhoudNietBewaard: 'De inhoud hiervan is om privacyredenen niet op dit toestel bewaard. Voer het opnieuw in om het af te maken; er komt geen tweede bij.',
+  overnemenOnzeker: 'De verbinding viel weg tijdens het overnemen. Het is niet zeker of de paklijst is overgenomen. Opnieuw proberen maakt niets dubbel.',
   toegang: 'Je hebt geen toegang (meer) tot dit huishouden.',
   dubbel: 'Dat staat er al.',
   ongeldig: 'Dat kan niet: controleer wat je hebt ingevuld.',
@@ -77,17 +84,42 @@ function sessieFout(fout) {
 export function meldingVoor(fout) {
   if (!fout) return null;
   const code = fout.code || '';
+  // Eerst de databasecode: PostgREST geeft een unieke-sleutelfout (23505) ook als HTTP 409, maar dat is "staat er al",
+  // geen versieconflict.
+  if (code === '23505') return { soort: 'dubbel', tekst: MELDINGEN.dubbel };
   if (code === 'PT409' || fout.status === 409) return { soort: 'conflict', tekst: MELDINGEN.conflict };
   if (sessieFout(fout)) return { soort: 'sessie', tekst: MELDINGEN.sessie };
   if (code === 'P0002' || code === '42501' || fout.status === 403) return { soort: 'toegang', tekst: MELDINGEN.toegang };
-  if (code === '23505') return { soort: 'dubbel', tekst: MELDINGEN.dubbel };
   if (code === '23514' || code === '22023' || code === '22P02') return { soort: 'ongeldig', tekst: MELDINGEN.ongeldig };
   if (onbekend(fout)) return { soort: 'onzeker', tekst: MELDINGEN.onzeker };
   return { soort: 'fout', tekst: MELDINGEN.fout };
 }
 
 const foutVan = r => (r?.error ? { ...r.error, status: r.status } : null);
-const leeg = () => ({ lid: null, leden: [], boodschappen: [], taken: [], afspraken: [], uitzonderingen: [] });
+const leeg = () => ({ lid: null, leden: [], boodschappen: [], taken: [], afspraken: [], uitzonderingen: [],
+  vakanties: [], pakitems: [], vakantieKoppelingen: [] });
+// Lijsten met toevoegingen als opdracht (zie OPDRACHTEN).
+const OPDRACHT_LIJSTEN = ['boodschappen', 'taken', 'afspraken', 'vakanties', 'pakitems'];
+
+// Een kalenderdag (jjjj-mm-dd) plus n dagen, zonder tijdzone-effecten.
+function plusDagen(dag, n) {
+  const d = new Date(`${dag}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+/**
+ * De laatste dag van een vakantie (docs/thuisplanner-vakanties.md §6.5): de einddatum; zonder einddatum geldt een
+ * vakantie als hoogstens 14 dagen (vertrek + 13); zonder datum: null (nooit voorbij).
+ */
+export function laatsteDag(v) {
+  if (!v?.start_date) return null;
+  return v.end_date || plusDagen(v.start_date, 13);
+}
+/** Is de vakantie voorbij op deze dag (jjjj-mm-dd)? Een vakantie zonder datum is nooit voorbij. */
+export function vakantieVoorbij(v, vandaag) {
+  const l = laatsteDag(v);
+  return l !== null && l < vandaag;
+}
 // UUID versie 4 uit de cryptografische toevalsgenerator van het platform. crypto.randomUUID() bestaat
 // alleen in een "secure context" (HTTPS of localhost); op een telefoon via http://<lan-ip> ontbreekt hij.
 // crypto.getRandomValues() is daar wel beschikbaar (Web Crypto, ook zonder secure context) en is even sterk.
@@ -129,6 +161,9 @@ const SORTEER = {
   taken: volgorde('created_at', 'id'),
   afspraken: volgorde('start_date', 'start_time', 'id'),
   leden: volgorde('sort', 'created_at', 'id'),
+  vakanties: volgorde('start_date', 'created_at', 'id'),   // zonder datum achteraan
+  pakitems: volgorde('created_at', 'id'),
+  vakantieKoppelingen: volgorde('created_at', 'id'),
 };
 
 // Opdrachten per account en huishouden in het geheugen van de pagina: ze overleven stop()/start() en een
@@ -180,7 +215,9 @@ const zonderLeeg = obj => Object.keys(obj || {}).filter(k => obj[k] != null && k
 // Inhoud van een opdracht, om een mogelijk dubbele nieuwe toevoeging te herkennen (nooit om te hergebruiken).
 const inhoudSleutel = o => JSON.stringify(o.soort === 'boodschap' ? [o.soort, tekstSleutel(o.naam)]
   : o.soort === 'taak' ? [o.soort, tekstSleutel(o.titel), zonderLeeg(o.velden)]
-    : [o.soort, zonderLeeg(o.afspraak)]);
+    : o.soort === 'vakantie' ? [o.soort, tekstSleutel(o.vakantie?.name), o.vakantie?.start_date ?? null, o.vakantie?.end_date ?? null]
+      : o.soort === 'pakitem' ? [o.soort, o.pakitem?.trip_id, o.pakitem?.member_id ?? null, tekstSleutel(o.pakitem?.name)]
+        : [o.soort, zonderLeeg(o.afspraak)]);
 const prive = o => o.soort === 'afspraak' && o.afspraak?.visibility === 'private';
 
 // Toevoegingen als opdracht: soort -> lijst in de toestand, tabel voor de controle "bestaat dit id al".
@@ -188,6 +225,8 @@ const OPDRACHTEN = {
   boodschap: { lijst: 'boodschappen', tabel: 'shopping_items' },
   taak: { lijst: 'taken', tabel: 'tasks' },
   afspraak: { lijst: 'afspraken', tabel: 'events' },
+  vakantie: { lijst: 'vakanties', tabel: 'trips' },
+  pakitem: { lijst: 'pakitems', tabel: 'trip_packing_items' },
 };
 
 /**
@@ -206,7 +245,8 @@ const OPDRACHTEN = {
  * @param {(soort: string, status: string) => void} [o.spoor]  optioneel: kanaalstatus volgen (geen inhoud)
  */
 export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangnetMs = 30000, debounceMs = 150,
-  paginaGrootte = 1000, opslag = null, bewaarInhoud = false, geheugen = PAGINAGEHEUGEN, spoor = () => {} }) {
+  paginaGrootte = 1000, opslag = null, bewaarInhoud = false, geheugen = PAGINAGEHEUGEN, spoor = () => {},
+  vandaag = () => lokaleDatum() }) {
   let toestand = { status: STATUS.LADEN, melding: null, laatstOpgehaald: null, opslagDuurzaam: null, ...leeg() };
   let generatie = 0;         // elke start() en elke beëindiging begint een nieuwe generatie
   let levend = false;        // tussen start() en stop()/verlies van toegang
@@ -222,6 +262,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   let duurzaam = false;      // werkt de opslag?
   const bekend = new Map();  // `${t}:${id}` -> versie die we al hebben (dubbele seintjes negeren)
   let openstaand = new Map();     // id -> opdracht die (nog) niet bevestigd is (gedeeld via het paginageheugen)
+  const geopend = new Set();      // afgelopen vakanties die de app nu toont: hun paklijst gaat mee in elke ronde
   const verwerkt = { seintjes: 0, genegeerd: 0, rondes: 0 };
 
   // Hoort een antwoord nog bij de huidige generatie? Zo niet, dan negeren: niets in de cache, niets melden.
@@ -259,7 +300,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     // Zonder inhoud: van een afspraak alleen of hij privé is (dat bepaalt hoe hij opnieuw wordt ingevoerd).
     const inhoud = prive(o) || !bewaarInhoud || o.inhoudNietBewaard
       ? { inhoudNietBewaard: true, ...(o.soort === 'afspraak' ? { afspraak: { visibility: prive(o) ? 'private' : 'household' } } : {}) }
-      : { naam: o.naam, titel: o.titel, velden: o.velden, afspraak: o.afspraak };
+      : { naam: o.naam, titel: o.titel, velden: o.velden, afspraak: o.afspraak, tripId: o.tripId, vakantie: o.vakantie, pakitem: o.pakitem };
     try {
       opslag.setItem(prefix() + o.id, JSON.stringify({ v: 1, soort: o.soort, id: o.id, gebruiker, huishouden: huishoudenId,
         staat: o.staat, ooitOnzeker: !!o.ooitOnzeker, ...inhoud }));
@@ -308,8 +349,18 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     // Inhoud niet op dit toestel (na een herstart, P1): alleen de identiteit, zonder titel of naam.
     if (o.inhoudNietBewaard && o.soort === 'boodschap') return { ...basis, inhoudNietBewaard: true, name: null, checked_at: null };
     if (o.inhoudNietBewaard && o.soort === 'taak') return { ...basis, inhoudNietBewaard: true, title: null, due_date: null, done_on: null };
+    if (o.inhoudNietBewaard && o.soort === 'vakantie') return { ...basis, inhoudNietBewaard: true, name: null, start_date: null, end_date: null, destination: null, notes: null };
+    if (o.inhoudNietBewaard && o.soort === 'pakitem') return { ...basis, inhoudNietBewaard: true, trip_id: null, member_id: null, name: null, packed_at: null };
     if (o.soort === 'boodschap') return { ...basis, name: String(o.naam).trim(), checked_at: null };
     if (o.soort === 'taak') return { ...basis, title: o.titel, done_on: null, ...o.velden };
+    if (o.soort === 'vakantie') {
+      const v = o.vakantie || {};
+      return { ...basis, name: v.name, start_date: v.start_date ?? null, end_date: v.end_date ?? null, destination: v.destination ?? null, notes: v.notes ?? null };
+    }
+    if (o.soort === 'pakitem') {
+      const p = o.pakitem || {};
+      return { ...basis, trip_id: p.trip_id, member_id: p.member_id ?? null, name: p.name, packed_at: null, packed_by_member_id: null };
+    }
     const a = o.afspraak || {};
     if (o.inhoudNietBewaard) return { ...basis, inhoudNietBewaard: true, visibility: a.visibility === 'household' ? 'household' : 'private', start_date: null, title: null, is_busy: false, participant_ids: [] };
     return { ...basis, start_date: a.start_date, start_time: a.start_time ?? null, end_date: a.end_date ?? null,
@@ -318,17 +369,19 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   }
   // Serverrijen plus de toevoegingen die de server (nog) niet teruggaf. Zit een id er wel bij, dan is die
   // toevoeging aantoonbaar bevestigd.
-  function samenvoegen(lijsten) {
+  // bevestigd: id's die de server aantoonbaar heeft maar die niet in de lijsten staan (een pakitem van een vakantie
+  // waarvan de paklijst niet wordt opgehaald, of een intussen verwijderd item).
+  function samenvoegen(lijsten, bevestigd = new Set()) {
     metOpslag();
     for (const [id, o] of openstaand) {
-      if (lijsten[OPDRACHTEN[o.soort].lijst].some(x => x.id === id)) vergeet(id);
+      if (bevestigd.has(id) || lijsten[OPDRACHTEN[o.soort].lijst].some(x => x.id === id)) vergeet(id);
     }
     const uit = { ...lijsten };
     for (const o of openstaand.values()) {
       const l = OPDRACHTEN[o.soort].lijst;
       uit[l] = [...uit[l].filter(x => x.id !== o.id), voorlopig(o)];
     }
-    for (const l of ['boodschappen', 'taken', 'afspraken']) uit[l] = [...uit[l]].sort(SORTEER[l]);
+    for (const l of OPDRACHT_LIJSTEN) uit[l] = [...uit[l]].sort(SORTEER[l]);
     return uit;
   }
   const zonderVoorlopig = (lijst, id) => lijst.filter(x => !(x.id === id && (x.wachtend || x.onzeker || x.geweigerd || x.inhoudNietBewaard)));
@@ -378,20 +431,36 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     if (!mijn) return { geenToegang: true };
     // 2. Kanaalnaam en inhoud, alleen dit huishouden, alleen expliciete kolommen, alleen wat RLS
     //    teruggeeft. Pas als alles binnen is, gaat het naar de cache (geen halve vervanging).
-    const [kn, b, t, a, l, u] = await Promise.all([
+    const [kn, b, t, a, l, u, v] = await Promise.all([
       supabase.rpc('household_channel', { p_household: huishoudenId }),
       allePaginas(() => supabase.from('shopping_items').select(VELDEN_BOODSCHAP).eq('household_id', huishoudenId).is('deleted_at', null), g),
       allePaginas(() => supabase.from('tasks').select(VELDEN_TAAK).eq('household_id', huishoudenId).is('deleted_at', null), g),
       allePaginas(() => supabase.from('event_overview').select(VELDEN_AFSPRAAK).eq('household_id', huishoudenId).is('deleted_at', null), g),
       allePaginas(() => supabase.from('household_members').select(VELDEN_LID).eq('household_id', huishoudenId), g),
       alleUitzonderingen(g),
+      allePaginas(() => supabase.from('trips').select(VELDEN_VAKANTIE).eq('household_id', huishoudenId).is('deleted_at', null), g),
     ]);
     if (kn.error) {
       if (kn.error.code === '42501') return { geenToegang: true };
       throw foutVan(kn);
     }
     if (!geldig(g)) throw VERVALLEN;
-    return { lid: mijn, kanaalNaam: kn.data, boodschappen: b, taken: t, afspraken: a, leden: l.sort(SORTEER.leden), uitzonderingen: u };
+    // 3. Paklijsten en koppelingen alleen van vakanties die niet voorbij zijn, plus de afgelopen vakanties die de app
+    //    nu toont (vakantieOpenen). Zo groeit een ophaalronde niet mee met jaren aan oude paklijsten.
+    const dag = vandaag();
+    const actief = v.filter(x => geopend.has(x.id) || !vakantieVoorbij(x, dag)).map(x => x.id);
+    // Onbevestigde vakanties en pakitems: bestaan ze al op de server (ook verwijderd, of bij een vakantie waarvan de
+    // paklijst niet wordt opgehaald)? Dan zijn ze bevestigd.
+    const teControleren = soort => [...openstaand.values()].filter(o => o.soort === soort).map(o => o.id);
+    const [p, k, cv, cp] = await Promise.all([
+      actief.length ? allePaginas(() => supabase.from('trip_packing_items').select(VELDEN_PAKITEM).eq('household_id', huishoudenId).in('trip_id', actief).is('deleted_at', null), g) : [],
+      actief.length ? allePaginas(() => supabase.from('trip_shopping_links').select(VELDEN_KOPPELING).eq('household_id', huishoudenId).in('trip_id', actief).is('deleted_at', null), g) : [],
+      teControleren('vakantie').length ? allePaginas(() => supabase.from('trips').select('id').eq('household_id', huishoudenId).in('id', teControleren('vakantie')), g) : [],
+      teControleren('pakitem').length ? allePaginas(() => supabase.from('trip_packing_items').select('id').eq('household_id', huishoudenId).in('id', teControleren('pakitem')), g) : [],
+    ]);
+    if (!geldig(g)) throw VERVALLEN;
+    return { lid: mijn, kanaalNaam: kn.data, boodschappen: b, taken: t, afspraken: a, leden: l.sort(SORTEER.leden), uitzonderingen: u,
+      vakanties: v, pakitems: p, vakantieKoppelingen: k.sort(SORTEER.vakantieKoppelingen), bevestigd: new Set([...cv, ...cp].map(x => x.id)) };
   }
 
   // Eén ophaalronde tegelijk; seintjes tijdens een ronde leiden tot precies één extra ronde.
@@ -419,10 +488,14 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
         for (const x of r.boodschappen) bekend.set(`shopping_items:${x.id}`, x.version);
         for (const x of r.taken) bekend.set(`tasks:${x.id}`, x.version);
         for (const x of r.afspraken) bekend.set(`events:${x.id}`, x.version);
-        const lijsten = samenvoegen({ boodschappen: r.boodschappen, taken: r.taken, afspraken: r.afspraken });
+        for (const x of r.vakanties) bekend.set(`trips:${x.id}`, x.version);
+        for (const x of r.pakitems) bekend.set(`trip_packing_items:${x.id}`, x.version);
+        for (const x of r.vakantieKoppelingen) bekend.set(`trip_shopping_links:${x.id}`, x.version);
+        const lijsten = samenvoegen({ boodschappen: r.boodschappen, taken: r.taken, afspraken: r.afspraken,
+          vakanties: r.vakanties, pakitems: r.pakitems }, r.bevestigd);
         // Verbonden = gegevens actueel én het kanaal luistert. Kanaal nog niet open: bij de eerste ronde
         // nog "laden", daarna "offline" (er komen dan geen seintjes binnen).
-        zet({ lid: r.lid, leden: r.leden, uitzonderingen: r.uitzonderingen, ...lijsten,
+        zet({ lid: r.lid, leden: r.leden, uitzonderingen: r.uitzonderingen, vakantieKoppelingen: r.vakantieKoppelingen, ...lijsten,
               status: kanaalOpen() ? STATUS.VERBONDEN : (kanaal ? STATUS.OFFLINE : STATUS.LADEN),
               laatstOpgehaald: new Date().toISOString() });
         // Andere kanaalnaam (iemand verloor toegang): overstappen. Het oude kanaal krijgt niets meer.
@@ -443,7 +516,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     if (!levend) return;
     const p = bericht?.payload || {};
     verwerkt.seintjes++;
-    if (p.v != null && (p.t === 'shopping_items' || p.t === 'tasks' || p.t === 'events')) {
+    if (p.v != null && MET_VERSIE.has(p.t)) {
       const al = bekend.get(`${p.t}:${p.id}`);
       if (al != null && al >= p.v) { verwerkt.genegeerd++; return; }
     }
@@ -529,6 +602,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     globalThis.removeEventListener?.('offline', opOffline);
     bezig = null; nogmaals = false; kanaalNaam = null;
     bekend.clear();
+    geopend.clear();
     metOpslag();
     toestand = { status, melding, laatstOpgehaald: null, opslagDuurzaam: toestand.opslagDuurzaam, bewaardOpToestel: openstaand.size, ...leeg() };
     opWijziging(toestand);
@@ -599,10 +673,17 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   // Een toevoeging versturen (eerste keer of opnieuw, altijd met dezelfde UUID).
   function verzend(o) {
     if (o.soort === 'boodschap') {
-      return supabase.rpc('add_shopping_items', { p_household: huishoudenId, p_ids: [o.id], p_names: [o.naam] });
+      // Met een vakantie: de koppeling ontstaat in dezelfde transactie (zonder vakantie: precies de oude aanroep).
+      return supabase.rpc('add_shopping_items', { p_household: huishoudenId, p_ids: [o.id], p_names: [o.naam], ...(o.tripId ? { p_trip: o.tripId } : {}) });
     }
     if (o.soort === 'taak') {
       return supabase.from('tasks').insert({ id: o.id, household_id: huishoudenId, title: o.titel, ...o.velden }).select('id');
+    }
+    if (o.soort === 'vakantie') {
+      return supabase.from('trips').insert({ id: o.id, household_id: huishoudenId, ...o.vakantie }).select('id');
+    }
+    if (o.soort === 'pakitem') {
+      return supabase.from('trip_packing_items').insert({ id: o.id, household_id: huishoudenId, ...o.pakitem }).select('id');
     }
     const a = o.afspraak;
     return supabase.rpc('save_event', {
@@ -629,6 +710,9 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
       catch { return { uitkomst: 'onzeker' }; }
       if (c.error) return onbekend(foutVan(c)) ? { uitkomst: 'onzeker' } : { uitkomst: 'mislukt', fout: foutVan(c) };
       if (c.data.length === 1) return { uitkomst: 'opgeslagen' };
+      // Een pakitem met dit id bestaat niet, maar dezelfde tekst staat al bij die persoon: deze opdracht is zeker niet
+      // opgeslagen (had een eerdere poging hem opgeslagen, dan bestond dit id, ook na verwijderen).
+      if (o.soort === 'pakitem') return { uitkomst: 'mislukt', fout, zeker: true };
     }
     return { uitkomst: 'mislukt', fout };
   }
@@ -683,7 +767,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     } else if (u.uitkomst === 'onzeker') {
       houd('onzeker');
       r = { ok: false, onzeker: true, id: o.id, melding: { soort: 'onzeker', tekst: MELDINGEN.onbevestigd } };
-    } else if (o.ooitOnzeker || andereLopen) {
+    } else if ((o.ooitOnzeker && !u.zeker) || andereLopen) {
       // Een mislukte poging bewijst niet dat een eerdere of nog lopende poging niet is opgeslagen: blijft onzeker.
       houd('onzeker');
       r = { ok: false, onzeker: true, id: o.id, melding: sessieFout(u.fout) ? { soort: 'sessie', tekst: MELDINGEN.sessieBewaard } : { soort: 'onzeker', tekst: MELDINGEN.nogOnbevestigd } };
@@ -733,16 +817,20 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     if (bestaand && bestaand.soort !== inhoud.soort) return Promise.resolve({ ok: false, melding: { soort: 'ongeldig', tekst: MELDINGEN.ongeldig } });
     if (bestaand) {
       if (bestaand.inhoudNietBewaard) {
-        if (inhoud.soort === 'boodschap') bestaand.naam = inhoud.naam;
+        if (inhoud.soort === 'boodschap') { bestaand.naam = inhoud.naam; if (inhoud.vakantie) bestaand.tripId = inhoud.vakantie; }
         else if (inhoud.soort === 'taak') { bestaand.titel = inhoud.titel; bestaand.velden = { ...inhoud.velden }; }
+        else if (inhoud.soort === 'vakantie') bestaand.vakantie = { ...inhoud.vakantie };
+        else if (inhoud.soort === 'pakitem') bestaand.pakitem = { ...inhoud.pakitem };
         else bestaand.afspraak = { ...inhoud.afspraak };
         delete bestaand.inhoudNietBewaard;
       }
       return voegToe(bestaand);
     }
-    const nieuw = inhoud.soort === 'boodschap' ? { soort: 'boodschap', id, naam: inhoud.naam }
+    const nieuw = inhoud.soort === 'boodschap' ? { soort: 'boodschap', id, naam: inhoud.naam, ...(inhoud.vakantie ? { tripId: inhoud.vakantie } : {}) }
       : inhoud.soort === 'taak' ? { soort: 'taak', id, titel: inhoud.titel, velden: { ...inhoud.velden } }
-        : { soort: 'afspraak', id, afspraak: { ...inhoud.afspraak } };
+        : inhoud.soort === 'vakantie' ? { soort: 'vakantie', id, vakantie: { ...inhoud.vakantie } }
+          : inhoud.soort === 'pakitem' ? { soort: 'pakitem', id, pakitem: { ...inhoud.pakitem } }
+            : { soort: 'afspraak', id, afspraak: { ...inhoud.afspraak } };
     return voegToe({ ...nieuw, staat: 'nieuw', ooitOnzeker: false });
   }
 
@@ -764,8 +852,9 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   }
 
   // Update met versiecontrole: raakt hij 0 rijen, dan was de versie verouderd (of de rij weg) = conflict.
-  async function bijwerkenMetVersie(tabel, id, versie, velden) {
-    const r = await supabase.from(tabel).update(velden).eq('id', id).eq('version', versie).select('id');
+  // kolommen: wat terugkomt (met 'id,version' kent de app de nieuwe versie, nodig om een verwijdering ongedaan te maken).
+  async function bijwerkenMetVersie(tabel, id, versie, velden, kolommen = 'id') {
+    const r = await supabase.from(tabel).update(velden).eq('id', id).eq('version', versie).select(kolommen);
     if (r.error) return r;
     return r.data.length === 1 ? r : { conflict: true };
   }
@@ -773,9 +862,29 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   const vervang = (lijst, id, f) => lijst.map(x => (x.id === id ? f(x) : x));
   const terugZetten = (lijst, item, l) => (lijst.some(x => x.id === item.id) ? lijst : [...lijst, item].sort(SORTEER[l]));
 
+  // Een fout 23505 bij het herstellen van iets dat er intussen al (opnieuw) is: voor een koppeling is dat het gewenste
+  // eindresultaat (geslaagd); voor een pakitem niet (melding "dubbel", U1).
+  const dubbelIsGoed = uitvoeren => async () => {
+    const r = await uitvoeren();
+    return r.error?.code === '23505' ? { data: [] } : r;
+  };
+  const deels = n => ({ soort: 'deels', tekst: n === 1
+    ? '1 item bleef staan omdat iemand het intussen had aangepast.'
+    : `${n} items bleven staan omdat iemand ze intussen had aangepast.` });
+
+  // Vinkjes van een lijst items in één keer zetten (set_packed). Geeft per item de nieuwe versie of "overgeslagen".
+  async function zetVinkjes(vakantieId, items, { optimistisch, terugdraaien }) {
+    const r = await schrijf(() => supabase.rpc('set_packed', { p_household: huishoudenId, p_trip: vakantieId, p_items: items }), { optimistisch, terugdraaien });
+    if (!r.ok) return r;
+    const per = new Map((r.data || []).map(x => [x.id, x]));
+    return { ok: true, per, overgeslagen: items.filter(i => per.get(i.id)?.outcome !== 'gezet').length };
+  }
+
   const acties = {
-    boodschapToevoegen(naam, opties) {
-      return nieuweToevoeging({ soort: 'boodschap', id: nieuweId(), naam }, opties);
+    // opties.vakantie: de boodschap is (ook) voor deze vakantie (koppeling in dezelfde transactie).
+    boodschapToevoegen(naam, opties = {}) {
+      const { vakantie, ...rest } = opties || {};
+      return nieuweToevoeging({ soort: 'boodschap', id: nieuweId(), naam, ...(vakantie ? { tripId: vakantie } : {}) }, rest);
     },
     boodschapAfvinken(item) {
       const checked_at = item.checked_at ? null : new Date().toISOString();
@@ -854,6 +963,146 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     // Eén voorkomen van een reeks verwijderen (een uitzondering op de reeks).
     afspraakVoorkomenVerwijderen(reeksId, datum) {
       return schrijf(() => supabase.rpc('delete_occurrence', { p_series: reeksId, p_date: datum }));
+    },
+
+    // ---- Vakanties (F8, docs/thuisplanner-vakanties.md §14) ----
+    // Een vakantie toevoegen: een opdracht met vaste UUID (opnieuw proberen maakt nooit dubbel).
+    // v: { name, start_date?, end_date?, destination?, notes? }
+    vakantieToevoegen(v, opties) {
+      const vakantie = { name: v.name, start_date: v.start_date ?? null, end_date: v.end_date ?? null,
+        destination: v.destination ?? null, ...(v.notes != null ? { notes: v.notes } : {}) };
+      return nieuweToevoeging({ soort: 'vakantie', id: nieuweId(), vakantie }, opties);
+    },
+    // Naam, datums, bestemming of notities, met de versie waarmee de gebruiker begon.
+    vakantieBijwerken(v, velden, versie = v.version) {
+      return schrijf(() => bijwerkenMetVersie('trips', v.id, versie, velden), {
+        optimistisch: t => ({ vakanties: vervang(t.vakanties, v.id, x => ({ ...x, ...velden, wachtend: true })).sort(SORTEER.vakanties) }),
+        terugdraaien: t => ({ vakanties: vervang(t.vakanties, v.id, x => ({ ...x, ...Object.fromEntries(Object.keys(velden).map(k => [k, v[k]])), wachtend: false })).sort(SORTEER.vakanties) }),
+      });
+    },
+    // Verwijderen (markeren); data[0].version is nodig om het ongedaan te maken (vakantieHerstellen).
+    vakantieVerwijderen(v) {
+      return schrijf(() => bijwerkenMetVersie('trips', v.id, v.version, { deleted_at: new Date().toISOString() }, 'id,version'), {
+        optimistisch: t => ({ vakanties: t.vakanties.filter(x => x.id !== v.id) }),
+        terugdraaien: t => ({ vakanties: terugZetten(t.vakanties, v, 'vakanties') }),
+      });
+    },
+    vakantieHerstellen(v, versie) {
+      return schrijf(() => bijwerkenMetVersie('trips', v.id, versie, { deleted_at: null }, 'id,version'), {
+        optimistisch: t => ({ vakanties: terugZetten(t.vakanties, v, 'vakanties') }),
+        terugdraaien: t => ({ vakanties: t.vakanties.filter(x => x.id !== v.id) }),
+      });
+    },
+    // Een afgelopen vakantie tonen: haar paklijst gaat mee in elke ophaalronde tot vakantieSluiten.
+    vakantieOpenen(id) { geopend.add(id); return vernieuw(); },
+    vakantieSluiten(id) { geopend.delete(id); },
+
+    // Een pakitem toevoegen voor een lid (lidId) of Gezamenlijk (null): een opdracht met vaste UUID. Staat dezelfde tekst
+    // al bij die persoon, dan melding "dubbel" en niets toegevoegd.
+    pakitemToevoegen(vakantieId, lidId, naam, opties) {
+      return nieuweToevoeging({ soort: 'pakitem', id: nieuweId(), pakitem: { trip_id: vakantieId, member_id: lidId ?? null, name: naam } }, opties);
+    },
+    pakitemAfvinken(item) {
+      const packed_at = item.packed_at ? null : new Date().toISOString();
+      const packed_by_member_id = packed_at ? toestand.lid?.member_id ?? null : null;
+      return schrijf(() => bijwerkenMetVersie('trip_packing_items', item.id, item.version, { packed_at, packed_by_member_id }), {
+        optimistisch: t => ({ pakitems: vervang(t.pakitems, item.id, x => ({ ...x, packed_at, packed_by_member_id, wachtend: true })) }),
+        terugdraaien: t => ({ pakitems: vervang(t.pakitems, item.id, x => ({ ...x, packed_at: item.packed_at, packed_by_member_id: item.packed_by_member_id, wachtend: false })) }),
+      });
+    },
+    // Tekst aanpassen of verplaatsen naar een ander lid of Gezamenlijk ({ name?, member_id? }). Bestaat het daar al:
+    // melding "dubbel" en er verandert niets (U1).
+    pakitemBijwerken(item, velden, versie = item.version) {
+      return schrijf(() => bijwerkenMetVersie('trip_packing_items', item.id, versie, velden), {
+        optimistisch: t => ({ pakitems: vervang(t.pakitems, item.id, x => ({ ...x, ...velden, wachtend: true })) }),
+        terugdraaien: t => ({ pakitems: vervang(t.pakitems, item.id, x => ({ ...x, ...Object.fromEntries(Object.keys(velden).map(k => [k, item[k]])), wachtend: false })) }),
+      });
+    },
+    pakitemVerwijderen(item) {
+      return schrijf(() => bijwerkenMetVersie('trip_packing_items', item.id, item.version, { deleted_at: new Date().toISOString() }, 'id,version'), {
+        optimistisch: t => ({ pakitems: t.pakitems.filter(x => x.id !== item.id) }),
+        terugdraaien: t => ({ pakitems: terugZetten(t.pakitems, item, 'pakitems') }),
+      });
+    },
+    // Ongedaan maken van verwijderen. Staat er intussen een gelijk item: melding "dubbel", niets hersteld (U1).
+    pakitemHerstellen(item, versie) {
+      return schrijf(() => bijwerkenMetVersie('trip_packing_items', item.id, versie, { deleted_at: null }, 'id,version'), {
+        optimistisch: t => ({ pakitems: terugZetten(t.pakitems, item, 'pakitems') }),
+        terugdraaien: t => ({ pakitems: t.pakitems.filter(x => x.id !== item.id) }),
+      });
+    },
+
+    // De paklijst van een eerdere vakantie overnemen: voor iedereen, één lid (lid) of alleen Gezamenlijk (gezamenlijk).
+    // Aanvullend; wat er al staat, wordt overgeslagen. Onzeker (antwoord verloren)? Dan dezelfde `opdracht` opnieuw
+    // meegeven: de server geeft dan dezelfde items terug en maakt niets dubbel (U2).
+    async paklijstOvernemen({ van, naar, lid = null, gezamenlijk = false, opdracht = null }) {
+      const opdr = opdracht || nieuweId();
+      const r = await schrijf(() => supabase.rpc('copy_packing_items', { p_household: huishoudenId, p_command: opdr,
+        p_from_trip: van, p_to_trip: naar, p_member: lid, p_gezamenlijk: !!gezamenlijk }));
+      if (!r.ok && r.melding?.soort === 'onzeker') {
+        const melding = { soort: 'onzeker', tekst: MELDINGEN.overnemenOnzeker };
+        zet({ melding });
+        return { ...r, opdracht: opdr, melding };
+      }
+      return { ...r, opdracht: opdr, items: r.ok ? (r.data || []) : undefined };
+    },
+    // Ongedaan maken van één overname: alleen de items van díe overname (ids uit paklijstOvernemen), en alleen zolang
+    // niemand ze aanpaste (versie 1). Wat intussen is aangepast, blijft staan en wordt gemeld.
+    async overnemenOngedaanMaken(ids) {
+      if (!ids?.length) return { ok: true, verwijderd: 0, gebleven: 0 };
+      const r = await schrijf(() => supabase.from('trip_packing_items').update({ deleted_at: new Date().toISOString() })
+        .eq('household_id', huishoudenId).in('id', ids).eq('version', 1).is('deleted_at', null).select('id'));
+      if (!r.ok) return r;
+      const verwijderd = (r.data || []).length;
+      const gebleven = ids.length - verwijderd;
+      if (gebleven) zet({ melding: deels(gebleven) });
+      return { ok: true, verwijderd, gebleven, melding: gebleven ? deels(gebleven) : null };
+    },
+    // Alle vinkjes van één lid (lidId), van Gezamenlijk (null) of van iedereen ('iedereen') weghalen. Geeft `terug`:
+    // wat vinkjesTerugzetten nodig heeft om precies terug te zetten (moment en persoon).
+    async vinkjesOpnieuw(vakantieId, lidId) {
+      const items = toestand.pakitems.filter(x => x.trip_id === vakantieId && x.packed_at && x.version > 0
+        && !x.wachtend && !x.onzeker && !x.geweigerd && (lidId === 'iedereen' || (x.member_id ?? null) === lidId));
+      if (!items.length) return { ok: true, terug: [], overgeslagen: 0 };
+      const ids = new Set(items.map(i => i.id));
+      const r = await zetVinkjes(vakantieId, items.map(i => ({ id: i.id, version: i.version, packed: false })), {
+        optimistisch: t => ({ pakitems: t.pakitems.map(x => (ids.has(x.id) ? { ...x, packed_at: null, packed_by_member_id: null, wachtend: true } : x)) }),
+        terugdraaien: t => ({ pakitems: t.pakitems.map(x => { const i = items.find(y => y.id === x.id); return i ? { ...x, packed_at: i.packed_at, packed_by_member_id: i.packed_by_member_id, wachtend: false } : x; }) }),
+      });
+      if (!r.ok) return r;
+      const terug = items.filter(i => r.per.get(i.id)?.outcome === 'gezet').map(i => ({ id: i.id, version: r.per.get(i.id).version,
+        packed: true, packed_at: i.packed_at, packed_by: i.packed_by_member_id ?? null }));
+      if (r.overgeslagen) zet({ melding: deels(r.overgeslagen) });
+      return { ok: true, terug, overgeslagen: r.overgeslagen, melding: r.overgeslagen ? deels(r.overgeslagen) : null };
+    },
+    async vinkjesTerugzetten(vakantieId, terug) {
+      if (!terug?.length) return { ok: true, overgeslagen: 0 };
+      const per = new Map(terug.map(i => [i.id, i]));
+      // Een inpakker die intussen geen actief lid meer is, kan de server niet terugzetten: dan de aanroeper.
+      const actief = new Set(toestand.leden.filter(l => l.status === 'active').map(l => l.id));
+      const r = await zetVinkjes(vakantieId, terug.map(i => ({ id: i.id, version: i.version, packed: true,
+        ...(i.packed_at ? { packed_at: i.packed_at } : {}), ...(i.packed_by && actief.has(i.packed_by) ? { packed_by: i.packed_by } : {}) })), {
+        optimistisch: t => ({ pakitems: t.pakitems.map(x => (per.has(x.id) ? { ...x, packed_at: per.get(x.id).packed_at, packed_by_member_id: per.get(x.id).packed_by, wachtend: true } : x)) }),
+        terugdraaien: t => ({ pakitems: t.pakitems.map(x => (per.has(x.id) ? { ...x, packed_at: null, packed_by_member_id: null, wachtend: false } : x)) }),
+      });
+      if (!r.ok) return r;
+      if (r.overgeslagen) zet({ melding: deels(r.overgeslagen) });
+      return { ok: true, overgeslagen: r.overgeslagen, melding: r.overgeslagen ? deels(r.overgeslagen) : null };
+    },
+
+    // Een boodschap niet meer voor deze vakantie (alleen de koppeling; de boodschap blijft op de lijst).
+    boodschapOntkoppelen(k) {
+      return schrijf(() => bijwerkenMetVersie('trip_shopping_links', k.id, k.version, { deleted_at: new Date().toISOString() }, 'id,version'), {
+        optimistisch: t => ({ vakantieKoppelingen: t.vakantieKoppelingen.filter(x => x.id !== k.id) }),
+        terugdraaien: t => ({ vakantieKoppelingen: terugZetten(t.vakantieKoppelingen, k, 'vakantieKoppelingen') }),
+      });
+    },
+    // Ongedaan maken van ontkoppelen. Is de boodschap intussen opnieuw gekoppeld, dan is dat al het gewenste resultaat.
+    boodschapKoppelingHerstellen(k, versie) {
+      return schrijf(dubbelIsGoed(() => bijwerkenMetVersie('trip_shopping_links', k.id, versie, { deleted_at: null }, 'id,version')), {
+        optimistisch: t => ({ vakantieKoppelingen: terugZetten(t.vakantieKoppelingen, k, 'vakantieKoppelingen') }),
+        terugdraaien: t => ({ vakantieKoppelingen: t.vakantieKoppelingen.filter(x => x.id !== k.id) }),
+      });
     },
     // Een niet-bevestigde toevoeging waarvan de inhoud niet op dit toestel staat (P1), opnieuw invoeren onder
     // dezelfde UUID. inhoud: { soort: 'boodschap', naam } | { soort: 'taak', titel, velden } | { soort: 'afspraak', afspraak }.

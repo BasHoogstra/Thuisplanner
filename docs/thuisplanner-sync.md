@@ -470,3 +470,29 @@ niet: dat gebruikt dezelfde UUID.
 
 **Tests:** `tests/integratie/p1p2.test.mjs` (lokale stack) en `app/tests/p1p2.test.tsx`, met tegenproeven tegen de
 versie van vóór P1 (zie het verslag in `docs/thuisplanner-app.md` §6).
+
+## 11. Vakanties (F8, V1.2; 21 oktober 2026, lokaal gebouwd)
+
+Besluit en ontwerp: `docs/thuisplanner-vakanties.md` §14 (de vier adviezen uit §14.8 zijn op 21 oktober 2026 aanvaard).
+Geen databasemigratie; de module gebruikt alleen wat V1.1 heeft.
+
+- **Toestand:** `vakanties`, `pakitems`, `vakantieKoppelingen`; taken hebben `trip_id`.
+- **Ophalen:** alle vakanties; pakitems en koppelingen alleen van vakanties die niet voorbij zijn (laatste dag = einddatum,
+  of vertrek + 13 dagen; zonder datum nooit voorbij), plus de afgelopen vakanties die de app open heeft
+  (`vakantieOpenen`/`vakantieSluiten`). "Vandaag" komt van de app (optie `vandaag`). Onbevestigde vakanties en pakitems
+  worden apart op id nagekeken, zodat ze ook bevestigd raken als hun paklijst niet wordt opgehaald.
+- **Seintjes:** een al bekende versie wordt ook voor `trips`, `trip_packing_items` en `trip_shopping_links` overgeslagen.
+- **Opdrachten:** `vakantie` en `pakitem` zijn opdrachten met een vaste UUID, zoals taken. Een pakitem dat al bij die persoon
+  staat (23505 terwijl het eigen id niet bestaat), is zeker niet opgeslagen: melding `dubbel`, ook na een eerdere onzekere
+  poging (anders bleef het eeuwig "niet bevestigd").
+- **P1:** duurzaam alleen de identiteit; naam, datums, bestemming, vakantie, persoon en tekst blijven in het paginageheugen
+  (of met `bewaarInhoud` in de ontwikkelmodus).
+- **Overnemen:** `paklijstOvernemen` geeft `{ items, opdracht }`; bij een onzekere uitkomst dezelfde `opdracht` opnieuw meegeven
+  geeft dezelfde items (de server leidt de ID's af). `overnemenOngedaanMaken(ids)` verwijdert alleen die items, en alleen
+  als niemand ze aanpaste (`version = 1`); de rest wordt gemeld (`deels`).
+- **Vinkjes:** `vinkjesOpnieuw` en `vinkjesTerugzetten` via `set_packed`, met versies; terugzetten herstelt moment en persoon.
+- **Meldingen:** nieuw `overnemenOnzeker` en de soort `deels`. `meldingVoor` kijkt nu eerst naar de databasecode 23505
+  ("Dat staat er al.") en pas daarna naar HTTP 409 (versieconflict): PostgREST geeft een unieke-sleutelfout ook als 409.
+
+**Tests:** `tests/integratie/vakanties-sync.test.mjs` (V1–V9) en `tests/integratie/vakanties-sync-tegenproeven.mjs`
+(9 sabotages, elk gevangen). Resultaten: `docs/thuisplanner-vakanties.md` §14.9.
