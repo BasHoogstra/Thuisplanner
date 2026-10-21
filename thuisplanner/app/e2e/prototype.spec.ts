@@ -240,7 +240,13 @@ test('los bestand werkt ook in een streng afgeschermd frame (zoals de gedeelde d
   await demo.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Agenda' }).click();
   await demo.getByRole('tab', { name: 'Maand', exact: true }).click();
   await expect(demo.getByRole('table', { name: 'Maandkalender' })).toBeVisible();
+  // B2: de + opent de zin. Eerst de zin zelf in het frame, daarna het volledige formulier via "Alles invullen".
   await demo.locator('.nav-plus').click();
+  await demo.getByRole('dialog').getByLabel('Wat wil je regelen?').fill('tandarts morgen 14:00');
+  await demo.getByRole('dialog').getByRole('button', { name: 'Toevoegen' }).click();
+  await expect(demo.getByRole('status')).toContainText('Tandarts');
+  await demo.locator('.nav-plus').click();
+  await demo.getByRole('dialog').getByRole('button', { name: 'Alles invullen' }).click();
   await demo.getByRole('dialog').getByLabel('Wat?').fill('Kapper');
   await demo.getByRole('dialog').getByRole('button', { name: 'Toevoegen' }).click();
   await expect(demo.getByRole('status')).toContainText('Kapper');
