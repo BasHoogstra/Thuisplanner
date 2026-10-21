@@ -905,3 +905,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - `controleer-code`: `K1_CAPTCHA=uit` alleen op een lokale stack (L3).
 - Tests: RLS-matrix 75/75 (KG-T69 uitgebreid) en RLS-tegenproeven 114/114 (3 nieuw); K1-integratie 16/16 (3 nieuw); K1- en D6-tegenproeven 30/30 (4 nieuw, de tegenproefbank kan nu meer plekken tegelijk saboteren); functietests 11/11 (2 nieuw).
 - De kijkversie op poort 5181 is gestopt. Huisplan ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 3 voorbereid: de proefmail (21 oktober 2026, lokaal)
+- Nieuw: `staging/proefmail.ps1` en `staging/proefmail.mjs`. Ontvanger en Lettermint-token gaan via een verborgen prompt, met een getypte bevestiging. Het script gebruikt de Lettermint-adapter van de Edge Functions en verstuurt één mail, daarna hetzelfde verzoek met dezelfde `Idempotency-Key`. Het toont alleen statuscodes, het `message_id` en een verkort adres.
+- Tests: `tests/functies/proefmail.test.mjs` (5) tegen een nagebootste Lettermint; vier tegenproeven gevangen. Er is niets verstuurd.
+- DNS gecontroleerd (alleen lezend): de Lettermint-records staan live via TransIP. Voor de mail is geen Cloudflare-stap nodig.

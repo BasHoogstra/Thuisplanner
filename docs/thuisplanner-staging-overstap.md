@@ -169,18 +169,49 @@ terugzetten in een gehost project gebruikt `session_replication_role`, en dat is
 
 ### Stap 3 — Proefmail via Lettermint
 
-- **Claude:**
-  - één testmail via de Lettermint-API naar het adres van de producteigenaar;
-  - daarnaast dezelfde aanvraag met dezelfde idempotentiesleutel. Die mag geen tweede mail geven.
-- **Producteigenaar:**
-  - maakt in Lettermint een API-token en een webhookgeheim aan, en bewaart die zelf;
-  - controleert of de Cloudflare-zone van `mijnthuisplanner.nl` actief is. Daar staan de DKIM-records; als de zone niet
-    actief is, komt mail mogelijk niet goed aan. De DNS-overstap heeft een eigen akkoord.
-- **Controle:**
-  - de mail komt aan en niet in de spam;
-  - de afzender klopt;
-  - er komt geen tweede mail.
-- **Akkoord:** ja. Dit is een echte verzending, en mogelijk een DNS-wijziging.
+**DNS (gecontroleerd op 21 oktober 2026, alleen lezend).** `mijnthuisplanner.nl` gebruikt nog de nameservers van
+TransIP. Daar staan alle vier de Lettermint-records en ze lossen goed op:
+- DKIM `lm1` en `lm2._domainkey.mail`;
+- de Return-Path `lm-bounces.mail` → `bounces.lmta.net`;
+- DMARC `_dmarc.mail`.
+
+Voor de mail is dus **geen Cloudflare-stap en geen DNS-overstap nodig**. De overstap houdt zijn eigen akkoord.
+
+- **Producteigenaar, in Lettermint:**
+  - het domein `mail.mijnthuisplanner.nl` staat op geverifieerd, en de afzender `noreply@mail.mijnthuisplanner.nl` mag;
+  - de naam van de route voor transactionele mail noteren (geen geheim);
+  - een API-token met alleen verzendrechten aanmaken, alleen in de wachtwoordmanager;
+  - het gratis plan (300 per maand) en, als dat kan, een gebruiksmelding bij 200.
+  - De webhook pas in stap 6, als `mail-bezorging` online staat.
+- **Hulpmiddel:** `staging/proefmail.ps1`, dat `staging/proefmail.mjs` aanroept. Lokaal gebouwd op 21 oktober 2026.
+  - Ontvangstadres en token gaan bij een verborgen prompt. Ze staan alleen in dat ene proces en worden daarna gewist.
+  - Er is een getypte bevestiging (`verstuur proefmail`).
+  - Het gebruikt precies de Lettermint-adapter van de Edge Functions (`aanbieder.ts`), met de afzender uit
+    `omgevingen.json`.
+  - Het verstuurt één mail en doet daarna, na 3 seconden, hetzelfde verzoek met dezelfde `Idempotency-Key`.
+  - Het toont alleen statuscodes, het `message_id` en een verkort adres.
+  - Uitvoeren:
+    `powershell -NoProfile -ExecutionPolicy Bypass -File .\thuisplanner\supabase\staging\proefmail.ps1 [-Route <naam>]`
+- **Uitkomsten:**
+  - `IDEMPOTENT BEWEZEN` (hetzelfde `message_id`, exit 0);
+  - `NIET IDEMPOTENT` (een ander id: misschien twee mails, exit 3);
+  - `NIET BEWEZEN` (409, time-out of fout bij het tweede verzoek, exit 3);
+  - `NIET VERSTUURD` (de eerste keer niet aangenomen; geen tweede verzoek, exit 1).
+- **Controle in de mailbox:**
+  - precies één mail;
+  - niet in de spam;
+  - de juiste afzender;
+  - in de berichtkoppen `spf=pass`, `dkim=pass` en `dmarc=pass`.
+
+  Pas als dat allemaal klopt én de uitkomst "bewezen" is, mag `LETTERMINT_IDEMPOTENT_BEWEZEN=ja` in stap 6. Eventueel nog
+  een proef naar Gmail of iCloud (H8).
+- **Getest (zonder te versturen):** `tests/functies/proefmail.test.mjs`, 5 tests tegen een nagebootste Lettermint
+  (idempotent, niet idempotent, 409, weigering, en uitvoer zonder token of volledig adres). Tegenproeven gevangen:
+  - een tweede verzoek met een nieuwe sleutel;
+  - elk tweede antwoord als "bewezen" tellen;
+  - het volledige adres in de uitvoer;
+  - na een weigering toch een tweede verzoek.
+- **Akkoord:** ja. Dit is een echte verzending.
 
 ### Stap 3a — Interne beveiligingsreview (lokaal, documentatie)
 
