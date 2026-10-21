@@ -896,3 +896,12 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Nieuw: `staging/hersteltoets.sh` zet een export terug in een aparte, lege lokale stack met precies de migraties uit het manifest, en vergelijkt elke rij. Daarbij controleert hij eerst de SHA-256 van het manifest en de vorm van het schema.
 - Tests: `tests/integratie/export.test.mjs` (6, ook in CI). Een proef met precies 11 migraties en verzonnen gegevens zoals op staging is volledig teruggezet. Alle tegenproeven zijn gevangen, ook de eerst gemiste: een manifest met een migratie minder.
 - De online export zelf is nog niet uitgevoerd (eigen akkoord). Huisplan ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 2b en 3a: export, beveiligingsreview en herstel R1–R3 (21 oktober 2026)
+- Stap 2b uitgevoerd: de staginggegevens (14 tabellen, 14 rijen) zijn geëxporteerd, buiten Git en buiten OneDrive bewaard, en met de hersteltoets volledig teruggezet. Online niets gewijzigd.
+- Stap 3a: interne beveiligingsreview in `docs/thuisplanner-review-staging.md`. Geen kritieke of hoge bevindingen; vijf middel, negen laag, de online te controleren punten, de geaccepteerde restrisico's en wat een onafhankelijke review vóór de bèta moet beoordelen.
+- Herstel in migratie 13 (nog nergens online): zonder instellingenrij is de poort dicht, en de rij is niet te verwijderen of leeg te maken (R1).
+- Herstel in migratie 14 (nog nergens online): K1 gaat dicht zonder instellingenrij (R1); pogingen zonder actieve code tellen niet mee en maken geen rij (R2); standaard hoogstens 8 codes per adres per dag (R3).
+- `controleer-code`: `K1_CAPTCHA=uit` alleen op een lokale stack (L3).
+- Tests: RLS-matrix 75/75 (KG-T69 uitgebreid) en RLS-tegenproeven 114/114 (3 nieuw); K1-integratie 16/16 (3 nieuw); K1- en D6-tegenproeven 30/30 (4 nieuw, de tegenproefbank kan nu meer plekken tegelijk saboteren); functietests 11/11 (2 nieuw).
+- De kijkversie op poort 5181 is gestopt. Huisplan ongewijzigd.

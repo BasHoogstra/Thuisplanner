@@ -11,7 +11,7 @@
 //   429 { code: 'TPK02' }               te veel pogingen; probeer later, of vanaf een toestel waarop je al eerder inlogde
 //   503 { code: 'TPK03' }               inloggen met een code tijdelijk uit (noodstop)
 //   503 { code: 'TPK04' }               storing; probeer het opnieuw
-import { adresHmac, codeHmac, instelling, json, log, ontsleutel, rpc, toestelHmac, willekeurigToken } from '../_gedeeld/k1.ts';
+import { adresHmac, captchaUitToegestaan, codeHmac, instelling, json, log, ontsleutel, rpc, toestelHmac, willekeurigToken } from '../_gedeeld/k1.ts';
 
 // CORS: elke herkomst. Dit endpoint gebruikt geen cookies of inloggegevens (net als de endpoints van Supabase Auth
 // zelf), dus CORS is hier geen beveiligingsgrens; de lokale gateway (Kong) zet bovendien zelf '*'. De bescherming
@@ -21,9 +21,15 @@ function cors(_req: Request): Record<string, string> {
     'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 }
 
+/** De captcha staat uit: alleen lokaal (geen netwerk naar Cloudflare). Online is "uit" een storing, geen omweg. */
+function captchaUit(): boolean {
+  if (instelling('K1_CAPTCHA') !== 'uit') return false;
+  if (!captchaUitToegestaan(Deno.env.get('SUPABASE_URL'))) throw new Error('K1_CAPTCHA=uit is alleen lokaal toegestaan');
+  return true;
+}
+
 async function captchaGeldig(token: unknown): Promise<boolean> {
-  const stand = instelling('K1_CAPTCHA');
-  if (stand === 'uit') return true;   // alleen lokaal (geen netwerk naar Cloudflare); de nacontrole eist "aan" online
+  if (captchaUit()) return true;
   if (typeof token !== 'string' || token.length < 10 || token.length > 4096) return false;
   const form = new FormData();
   form.append('secret', instelling('TURNSTILE_SECRET'));
@@ -45,7 +51,7 @@ Deno.serve(async req => {
   try {
     const adres = await adresHmac(email);
     const nieuwToestel = willekeurigToken();
-    const captchaOk = b.captchaToken ? await captchaGeldig(b.captchaToken) : instelling('K1_CAPTCHA') === 'uit';
+    const captchaOk = b.captchaToken ? await captchaGeldig(b.captchaToken) : captchaUit();
     const [r] = await rpc<{ uitkomst: string; token_hash_enc: string | null; soort: string | null; user_id: string | null }[]>('k1_controleer', {
       p_adres_hmac: adres, p_code_hmac: await codeHmac(adres, code),
       p_toestel_hmac: toestel ? await toestelHmac(toestel) : null, p_nieuw_toestel_hmac: await toestelHmac(nieuwToestel),

@@ -2158,6 +2158,35 @@ do $$ begin
   perform pg_temp.ok('KG-T69');
 end $$;
 
+-- KG-T69 (vervolg, review stap 3a R1): de instellingenrij is niet te verwijderen of leeg te maken; en ontbreekt hij toch
+-- (bijvoorbeeld na een fout bij een herstel), dan is de poort dicht: ook een wachtwoordsessie krijgt niets, en niemand
+-- mag een huishouden maken. Eerder werden alle schakelaars dan NULL en sloegen de controles over (fail-open).
+reset role;
+do $$ begin
+  if not pg_temp.faalt('delete from private.instellingen') then raise exception 'KG-T69: de instellingenrij is te verwijderen'; end if;
+  if not pg_temp.faalt('truncate private.instellingen') then raise exception 'KG-T69: de instellingenrij is leeg te maken'; end if;
+end $$;
+create temp table kg_instellingen_bewaard as select * from private.instellingen;
+set local session_replication_role = replica;
+delete from private.instellingen;
+set local session_replication_role = origin;
+set local role authenticated;
+do $$ declare wachtwoord jsonb := '[{"method": "password", "timestamp": 1}]'; begin
+  perform pg_temp.als('ida');
+  if public.mijn_toegang() is distinct from 'onderhoud' or pg_temp.ziet_iets() <> 0 then raise exception 'KG-T69: zonder instellingenrij is de poort open'; end if;
+  perform pg_temp.als_met('ida', wachtwoord, current_setting('test.ida'));
+  if public.mijn_toegang() is distinct from 'onderhoud' or pg_temp.ziet_iets() <> 0 then raise exception 'KG-T69: zonder instellingenrij krijgt een wachtwoordsessie toegang'; end if;
+  if public.mag_huishouden_maken() then raise exception 'KG-T69: zonder instellingenrij mag iemand een huishouden maken'; end if;
+end $$;
+reset role;
+insert into private.instellingen select * from kg_instellingen_bewaard;
+drop table kg_instellingen_bewaard;
+set local role authenticated;
+do $$ begin
+  perform pg_temp.als('ida');
+  if public.mijn_toegang() is distinct from 'ok' then raise exception 'KG-T69: na het terugzetten van de instellingenrij geen toegang'; end if;
+end $$;
+
 -- KG-T70 Testpoort G1: met de poort dicht maakt alleen een tester een eigen huishouden (TPB01 voor anderen). Een
 -- uitnodiging accepteren kan iedereen. Open: iedereen.
 reset role;

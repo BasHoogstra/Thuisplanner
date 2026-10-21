@@ -17,6 +17,17 @@ export function instelling(naam: string): string {
   return v;
 }
 
+/**
+ * Mag de captcha uit (K1_CAPTCHA=uit)? Alleen als deze functie op een lokale stack draait: de gateway van de lokale
+ * Supabase-stack (kong of een supabase_kong_*-container), of dit toestel. Online (https://<kenmerk>.supabase.co) of bij
+ * een onbekend adres nooit (review stap 3a, L3); de nacontrole meldt het daarnaast.
+ */
+export function captchaUitToegestaan(supabaseUrl: string | undefined): boolean {
+  let host: string;
+  try { host = new URL(supabaseUrl ?? '').hostname; } catch { return false; }
+  return /^(kong|supabase_kong_[a-z0-9_]+|localhost|127\.0\.0\.1|host\.docker\.internal)$/.test(host);
+}
+
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
 const b64 = (b: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(b instanceof Uint8Array ? b : new Uint8Array(b))));
 const uitB64 = (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0));

@@ -115,14 +115,14 @@ bewezen op 21 oktober 2026; de online export zelf heeft een eigen akkoord.
 
 **Waar het staat:**
 - In een lege map buiten de repository, die de producteigenaar kiest, bijvoorbeeld
-  `C:UsersBasThuisplanner-exportsstaging-2026-10-21`. Het script weigert een relatieve map, een map in of boven
+  `C:\Users\Bas\Thuisplanner-exports\staging-2026-10-21`. Het script weigert een relatieve map, een map in of boven
   de repository, en een map die niet leeg is. Dat gebeurt vóór het wachtwoord wordt gevraagd.
 - De export bevat persoonsgegevens: twee adressen en gehashte wachtwoorden. Hij blijft alleen op deze computer en de
   producteigenaar verwijdert hem na een geslaagde acceptatie (stap 11).
 
 **Uitvoering:**
 1. In een tab van het Terminal-paneel, vanuit de repository:
-   `powershell -NoProfile -ExecutionPolicy Bypass -File .	huisplannersupabasestagingerbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl -Export -ExportMap <map>`
+   `powershell -NoProfile -ExecutionPolicy Bypass -File .\thuisplanner\supabase\staging\verbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl -Export -ExportMap <map>`
 2. De producteigenaar plakt de Session pooler-URI (met `[YOUR-PASSWORD]`) en typt het wachtwoord bij de verborgen prompt.
 3. Het script toont per tabel de telling en de SHA-256 van het manifest.
 
@@ -158,6 +158,14 @@ nieuw, leeg Thuisplanner-project na de migraties 1–11. Dat gaat alleen na een 
 terugzetten in een gehost project gebruikt `session_replication_role`, en dat is daar nog niet getoetst.
 
 - **Akkoord:** de online export (één verbinding, alleen lezen) heeft een eigen akkoord. De hersteltoets is lokaal.
+- **Uitgevoerd op 21 oktober 2026:**
+  - **Export:** 14 tabellen, 14 rijen (2 accounts, 1 huishouden met 3 leden, 1 uitnodiging, 1 afspraak, 1 boodschap),
+    migraties tot en met `20261019120000`, schema `f98c68ba8ab9`.
+  - **Manifest:** SHA-256 `81dd0fdfe9e11bd10420924d65c9d6b1fc2be3229657edced672296c7c921622`.
+  - **Opslag:** de export staat in `C:\Users\Bas\Thuisplanner-exports\staging-2026-10-21`, buiten Git en buiten OneDrive.
+  - **Hersteltoets:** geslaagd. Alles is teruggezet en gelijk aan de export, zonder "LET OP": de kolommen van `auth` en de
+    schemavorm komen overeen met de lokale stack.
+  - Online is niets gewijzigd.
 
 ### Stap 3 — Proefmail via Lettermint
 

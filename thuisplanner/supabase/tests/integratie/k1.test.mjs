@@ -263,6 +263,55 @@ test('noodstops: codes uit (geen code, geen controle; bestaande sessies werken d
   } finally { await db.query('update private.instellingen set registratie_open = true'); }
 });
 
+test('zonder instellingenrij: geen code, geen controle en geen toegang (fail-closed, review stap 3a R1)', { timeout: 90000 }, async () => {
+  const email = adres('zonder-rij');
+  const { c } = await inloggen(email);
+  const bewaard = (await db.query('select * from private.instellingen')).rows[0];
+  // Verwijderen kan alleen langs de trigger heen (zoals bij een herstel); gewoon verwijderen wordt geweigerd.
+  await assert.rejects(db.query('delete from private.instellingen'), /altijd precies één rij/);
+  await db.query('begin; set local session_replication_role = replica; delete from private.instellingen; commit;');
+  try {
+    const a = await vraag(email);
+    assert.equal(a.r.error?.status, 503, 'zonder instellingenrij wordt toch een code verstuurd');
+    assert.equal((await controleer(email, '123456')).body?.code, 'TPK03', 'zonder instellingenrij wordt toch gecontroleerd');
+    assert.equal((await c.rpc('mijn_toegang')).data, 'onderhoud', 'zonder instellingenrij is de poort open');
+  } finally {
+    const k = Object.keys(bewaard);
+    await db.query(`insert into private.instellingen (${k.join(', ')}) values (${k.map((_, i) => '$' + (i + 1)).join(', ')})`, k.map(x => bewaard[x]));
+  }
+  assert.equal((await c.rpc('mijn_toegang')).data, 'ok');
+});
+
+test('zonder actieve code: pogingen tellen niet mee en maken geen rij; de echte gebruiker logt daarna gewoon in (review stap 3a R2)', { timeout: 180000 }, async () => {
+  const email = adres('zonder-code');
+  await inloggen(email);   // de code is gebruikt: er is nu geen actieve code
+  const tel = async () => (await db.query(`select a.totaal, a.onbekend from private.k1_accounts a where a.adres_hmac = (
+    select c.adres_hmac from private.k1_codes c join auth.users u on u.id = c.user_id where u.email = $1 limit 1)`, [email])).rows[0];
+  const voor = await tel();
+  // De aanvaller kent alleen het adres: meer pogingen dan de onbekende emmer (U = 30), steeds met een ander toestel.
+  for (let i = 0; i < 35; i++) {
+    const a = await controleer(email, String(100000 + i), { toestel: randomUUID().replace(/-/g, '').repeat(2) });
+    assert.deepEqual({ s: a.status, b: a.body }, { s: 400, b: { code: 'TPK01' } }, 'het antwoord verraadt dat er geen code is');
+  }
+  assert.deepEqual(await tel(), voor, 'pogingen zonder code tellen mee');
+  // Een adres dat nooit een code kreeg, krijgt ook geen rij.
+  const rijen = Number((await db.query('select count(*) n from private.k1_accounts')).rows[0].n);
+  for (let i = 0; i < 5; i++) await controleer(adres('nooit-een-code'), '123456');
+  assert.equal(Number((await db.query('select count(*) n from private.k1_accounts')).rows[0].n), rijen, 'een adres zonder code kreeg een rij');
+  // De echte gebruiker, op een nieuw (onbekend) toestel: gewoon binnen.
+  const { sinds } = await vraag(email);
+  const m = await laatsteMail(email, sinds);
+  assert.equal((await controleer(email, m.code)).status, 200, 'de echte gebruiker is geblokkeerd');
+});
+
+test('standaardgrenzen: hoogstens 8 codes per adres per dag (review stap 3a R3) en de vaste regel H >= U + M * D', async () => {
+  const { rows } = await db.query(`select column_name, column_default from information_schema.columns
+    where table_schema = 'private' and table_name = 'k1_grenzen' and column_name in ('aanvragen_dag', 'aanvragen_kwartier')`);
+  const d = Object.fromEntries(rows.map(r => [r.column_name, r.column_default]));
+  assert.deepEqual(d, { aanvragen_dag: '8', aanvragen_kwartier: '5' });
+  await assert.rejects(db.query('update private.k1_grenzen set u_onbekend = h_totaal + 1'), /k1_grenzen_regel/);
+});
+
 test('AC-8 adres wijzigen: twee eigen codes (oud met waarschuwing, nieuw); pas na beide gewijzigd; hetzelfde account', { timeout: 90000 }, async () => {
   const oud = adres('wijzig');
   const nieuw = `wijzig-${run}-nieuw@test.invalid`;

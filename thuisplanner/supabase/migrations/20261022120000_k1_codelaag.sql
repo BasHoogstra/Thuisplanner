@@ -29,7 +29,9 @@ create table private.k1_grenzen (
   m_toestellen integer not null default 5,
   venster interval not null default interval '24 hours',
   aanvragen_kwartier integer not null default 5,
-  aanvragen_dag integer not null default 20,
+  -- 8 per dag: genoeg voor een paar keer inloggen op meerdere toestellen, en wie alleen het adres kent, maakt het
+  -- mailtegoed (300 per maand op het gratis plan) niet op (review stap 3a, R3).
+  aanvragen_dag integer not null default 8,
   code_geldig interval not null default interval '10 minutes',
   captcha_na_fouten integer not null default 2,
   toestel_geldig interval not null default interval '180 days',
@@ -100,6 +102,8 @@ declare
 begin
   select * into g from private.k1_grenzen where id = 1;
   select * into inst from private.instellingen where id = 1;
+  -- Zonder instellingenrij geen codes (fail-closed; anders zijn codes_aan en registratie_open NULL en slaan ze over).
+  if not found then return query select 'codes-uit'::text, null::uuid; return; end if;
   if not inst.codes_aan then return query select 'codes-uit'::text, null::uuid; return; end if;
   if p_soort = 'signup' and not inst.registratie_open then return query select 'registratie-dicht'::text, null::uuid; return; end if;
   insert into private.k1_accounts (adres_hmac) values (p_adres_hmac) on conflict do nothing;
@@ -148,15 +152,27 @@ declare
 begin
   select * into g from private.k1_grenzen where id = 1;
   select * into inst from private.instellingen where id = 1;
+  if not found then return query select 'codes-uit'::text, null::text, null::text, null::uuid; return; end if;
   if not inst.codes_aan then return query select 'codes-uit'::text, null::text, null::text, null::uuid; return; end if;
+  -- Zonder actieve code valt er niets te raden: meteen 'fout' (hetzelfde antwoord als een verkeerde code), zonder een
+  -- plek te tellen en zonder een rij aan te maken. Anders kan wie alleen het adres kent, de emmers van de echte gebruiker
+  -- leegmaken zonder dat er ooit een code is verstuurd (review stap 3a, R2).
+  if not exists (select 1 from private.k1_codes k where k.adres_hmac = p_adres_hmac and k.status = 'actief') then
+    return query select 'fout'::text, null::text, null::text, null::uuid; return;
+  end if;
   insert into private.k1_accounts (adres_hmac) values (p_adres_hmac) on conflict do nothing;
   -- Vergrendel het adres: alle pogingen voor dit adres lopen na elkaar, ongeacht toestel of IP-adres.
   select * into a from private.k1_accounts where adres_hmac = p_adres_hmac for update;
   if a.venster_start < now() - g.venster then
     update private.k1_accounts set totaal = 0, onbekend = 0, venster_start = now() where adres_hmac = p_adres_hmac returning * into a;
   end if;
-  -- De actieve code van dit adres (er is er hoogstens één).
+  -- De actieve code van dit adres (er is er hoogstens één), opnieuw onder de vergrendeling.
   select * into c from private.k1_codes k where k.adres_hmac = p_adres_hmac and k.status = 'actief' for update;
+  -- Intussen gebruikt, vervangen of verlopen: ook dan 'fout', zonder te tellen (een verlopen code valt niet te raden).
+  if c.id is null or c.verloopt <= now() then
+    if c.id is not null then update private.k1_codes set status = 'vervallen' where id = c.id; end if;
+    return query select 'fout'::text, null::text, null::text, null::uuid; return;
+  end if;
   -- Een bekend toestel: alleen een geldig, niet ingetrokken token van HET ACCOUNT van deze code.
   if p_toestel_hmac is not null and c.id is not null then
     select * into t from private.k1_toestellen d
@@ -178,11 +194,6 @@ begin
   update private.k1_accounts set totaal = totaal + 1, onbekend = onbekend + (case when bekend then 0 else 1 end)
     where adres_hmac = p_adres_hmac;
   if bekend then update private.k1_toestellen set fout = fout + 1 where id = t.id; end if;
-  -- Geen geldige code, of een verlopen code: een fout (zelfde antwoord als een verkeerde code).
-  if c.id is null or c.verloopt <= now() then
-    if c.id is not null then update private.k1_codes set status = 'vervallen' where id = c.id; end if;
-    return query select 'fout'::text, null::text, null::text, null::uuid; return;
-  end if;
   update private.k1_codes set pogingen = pogingen + 1 where id = c.id;
   if c.code_hmac is distinct from p_code_hmac then
     if c.pogingen + 1 >= g.per_code then update private.k1_codes set status = 'vervallen' where id = c.id; end if;

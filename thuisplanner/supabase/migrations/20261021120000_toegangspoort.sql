@@ -44,6 +44,19 @@ create table private.testers (
 
 revoke all on table private.instellingen, private.testers from public, anon, authenticated;
 
+-- De instellingenrij blijft altijd bestaan: wijzigen mag, verwijderen of leegmaken niet. (Ontbreekt hij toch, dan is de
+-- poort dicht; zie toegang_status.) Een herstel met session_replication_role = replica slaat deze triggers bewust over.
+create function private.instellingen_blijft()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  raise exception 'private.instellingen heeft altijd precies één rij; wijzig de waarden in plaats van de rij te verwijderen';
+end $$;
+revoke all on function private.instellingen_blijft() from public, anon, authenticated;
+create trigger instellingen_niet_verwijderen before delete on private.instellingen
+  for each row execute function private.instellingen_blijft();
+create trigger instellingen_niet_leegmaken before truncate on private.instellingen
+  for each statement execute function private.instellingen_blijft();
+
 -- ---------------------------------------------------------------------------------------------
 -- 2. De poort
 -- ---------------------------------------------------------------------------------------------
@@ -58,6 +71,8 @@ declare
 begin
   if (select auth.uid()) is null then return 'geen-sessie'; end if;
   select * into inst from private.instellingen where id = 1;
+  -- Zonder instellingenrij zijn alle schakelaars NULL en sloegen de controles hieronder over: dan dicht (fail-closed).
+  if not found then return 'onderhoud'; end if;
   if inst.onderhoud = 'dicht' then return 'onderhoud'; end if;
   select coalesce(array_agg(e ->> 'method'), '{}') into methoden
   from jsonb_array_elements(case when jsonb_typeof(claims -> 'amr') = 'array' then claims -> 'amr' else '[]'::jsonb end) e;
@@ -223,7 +238,7 @@ create policy profiles_update on public.profiles for update to authenticated
 create function private.mag_huishouden_maken()
 returns boolean language sql stable security definer set search_path = '' as $$
   select (select private.uid()) is not null and (
-    (select i.huishouden_open from private.instellingen i where i.id = 1)
+    coalesce((select i.huishouden_open from private.instellingen i where i.id = 1), false)
     or exists (select 1 from private.testers t where t.email = private.my_email())
   )
 $$;
