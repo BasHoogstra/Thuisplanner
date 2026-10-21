@@ -903,3 +903,21 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - P1 ongewijzigd: geen vakantie- of paklijstinhoud duurzaam op het toestel. Nieuwe meldingen: overnemen onzeker, "deels" (iets bleef staan).
 - `meldingVoor`: een unieke-sleutelfout (23505, door PostgREST als HTTP 409 gegeven) heet nu "Dat staat er al." in plaats van een versieconflict.
 - Tests: `vakanties-sync.test.mjs` (9 van 9) en `vakanties-sync-tegenproeven.mjs` (9 van 9 gevangen); alle bestaande sync- en herstelsuites groen; twee bestaande tegenproeven aangepast aan de nieuwe regel. Geen migratie; de app ongewijzigd (typecheck en 462 unittests groen). Huisplan ongewijzigd.
+
+## Thuisplanner F8 Vakanties, V1.3: de zichtbare vakantieplanner (21 oktober 2026, lokaal)
+- Meer → Vakanties: overzicht Nu / Komend / Eerder; een vakantie met Regelen (voorbereidingen als taken, boodschappen), Inpakken (per gezinslid en Gezamenlijk, persoonskeuze zonder schuiven, snel invoeren, afvinken, aanpassen, verplaatsen, verwijderen en vegen, overnemen en opnieuw beginnen, alles met ongedaan maken) en Notities.
+- Koppelingen: een rustige kaart op Vandaag (zijkolom), de vakantie in de Agenda (week en dag), een vakantielabel bij taken en boodschappen, de regel "Vakantie" in het taak-detail; het volledige taakformulier laat een koppeling staan.
+- Demo met fictieve vakanties; lokale modus via de sync-acties van V1.2.
+- Tests: 31 nieuwe unittests (501 van 501) en `e2e/vakanties.spec.ts` (ook 320 px en donker; volledige e2e 203 geslaagd). Twee bestaande tests aangepast aan de nieuwe demo-staat. Geen migratie, geen sync-wijziging. Huisplan ongewijzigd.
+
+## Thuisplanner F8 Vakanties, V1.3 vormgeving ronde 2 (21 oktober 2026, lokaal)
+- Vakantiekaarten met een klein landschap (alleen tokens), duidelijke hiërarchie en een grote aftelling; een kop met naam, bestemming, periode en aftelling; duidelijke tabbladen.
+- Regelen: Voorbereidingen en Boodschappen voor ‹vakantie› als twee blokken met tellers en voortgangsbalken; dezelfde boodschappen als op de gewone lijst ("Naam aanpassen" opent het gewone venster).
+- Inpakken: grotere persoonsknoppen met voortgangsbalk; grotere afvinkcirkels. Notities: rustig schrijfvlak met "Bewaard".
+- Hersteld: de vakantiestijl voor invoerknoppen gold ook voor de gewone Boodschappen-pagina. Tests: app 502 van 502, e2e 203 geslaagd. Geen sync-, database- of RLS-wijziging; Huisplan ongewijzigd.
+
+## Thuisplanner F8 Vakanties, V1.3 compactheidsronde (21 oktober 2026, lokaal)
+- Regelen: Voorbereidingen en Boodschappen afzonderlijk inklapbaar (kop met voortgang blijft zichtbaar; standaard Voorbereidingen open; één tegelijk; keuze onthouden).
+- Afgeronde voorbereidingen, ingepakte items en gekochte boodschappen compact achter "… · tonen", terugzetten met één tik.
+- Inpakken: compacte persoonsknoppen ("Eva 4/10", minstens 44 px); grote voortgangsbalk alleen bij de gekozen persoon. Kop compacter, tabbladen sticky.
+- Tests: app 505 van 505, e2e 206 geslaagd. Alleen weergave; geen sync-, database- of RLS-wijziging; Huisplan ongewijzigd.

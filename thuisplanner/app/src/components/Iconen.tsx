@@ -39,3 +39,10 @@ export const IcHerhaal = (p: SVGProps<SVGSVGElement>) => (
 export const IcLinks = (p: SVGProps<SVGSVGElement>) => (
   <svg {...basis({ width: 16, height: 16, ...p })}><path d="M15 6l-6 6 6 6" /></svg>
 );
+// F8 Vakanties: een koffer (vakantie) en drie puntjes (aanpassen).
+export const IcKoffer = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis(p)}><rect x="4" y="7" width="16" height="13" rx="2.5" /><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M9 11v5M15 11v5" /></svg>
+);
+export const IcPunten = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis(p)}><circle cx="6" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="18" cy="12" r="1.2" /></svg>
+);

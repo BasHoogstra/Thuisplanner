@@ -9,6 +9,9 @@ import { AfspraakRij, TaakRij, Wie, tijdTekst } from '../components/Rijen';
 import { IcPijl } from '../components/Iconen';
 import { UitnodigingMelding } from '../components/Onboarding';
 import { nieuwId } from '../lib/store';
+import { isTaak } from '../lib/vandaag';
+import { vakantieVoorVandaag, wanneerKort } from '../lib/vakantie';
+import { IcKoffer } from '../components/Iconen';
 
 export function Vandaag() {
   const app = useApp();
@@ -24,6 +27,7 @@ export function Vandaag() {
   const vooruit = binnenkort(staat.items, vandaag);
   const signaal = meedenker(staat.items, vandaag, staat.weggeklikt, huishouden.ik);
   const rustig = !afspraken.length && !taken.length && !klaar.length;
+  const vk = vakantieVoorVandaag(staat.vakanties, vandaag);
 
   return (
     <div className="vandaag">
@@ -116,6 +120,8 @@ export function Vandaag() {
         </div>
 
         <div className="kolom-zij">
+          {/* F8: rustig in de zijkolom, zodat "Straks" de enige nadruk blijft. */}
+          {vk && <VakantieKaart id={vk.id} />}
           <section aria-labelledby="h-boodschappen" className="blok">
             <div className="blok-kop">
               <h2 id="h-boodschappen" className="sectie-kop">Boodschappen</h2>
@@ -158,5 +164,27 @@ export function Vandaag() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** F8: één kaart vanaf 14 dagen vóór vertrek tot en met de laatste dag (docs/thuisplanner-vakanties.md §4.5). */
+function VakantieKaart({ id }: { id: string }) {
+  const { staat, vandaag, openVakantie } = useApp();
+  const v = staat.vakanties.find(x => x.id === id);
+  if (!v) return null;
+  const open = staat.items.filter(isTaak).filter(t => t.vakantieId === v.id && !t.klaar).length;
+  const pak = staat.pakitems.filter(p => p.vakantieId === v.id);
+  const ingepakt = pak.filter(p => p.ingepakt).length;
+  const wanneer = wanneerKort(v, vandaag);
+  const delen = [open ? `${open} ${open === 1 ? 'voorbereiding' : 'voorbereidingen'} open` : '', pak.length ? `ingepakt ${ingepakt}/${pak.length}` : ''];
+  const sub = delen.filter(Boolean).join(' · ');
+  return (
+    <section className="vakantie-kaart" aria-label="Vakantie">
+      <button type="button" className="vakantie-kaart-knop" onClick={() => openVakantie(v.id)}
+        aria-label={`${v.naam}, ${wanneer}${sub ? `, ${sub}` : ''}. Openen`}>
+        <span className="vakantie-kaart-titel"><IcKoffer width={18} height={18} /> {v.naam} · {wanneer}</span>
+        {sub && <span className="vakantie-kaart-sub">{sub}</span>}
+      </button>
+    </section>
   );
 }

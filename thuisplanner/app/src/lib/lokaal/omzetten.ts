@@ -5,9 +5,9 @@
 // komt als `is_busy` zonder titel, plek, notities en voorbereiding binnen (RLS, gate 9); de app maakt
 // daar een afspraak zonder die velden van, die elk scherm als "Bezet" toont.
 import type {
-  AfspraakRij, BoodschapRij, LidRij, NieuweAfspraak, TaakRij, Toestand, Uitzondering,
+  AfspraakRij, BoodschapRij, LidRij, NieuweAfspraak, PakitemRij, TaakRij, Toestand, Uitzondering, VakantieKoppelingRij, VakantieRij,
 } from '../../../../sync/thuisplanner-sync.js';
-import type { Afspraak, Boodschap, Frequentie, Huishouden, Item, Lid, SyncVelden, Taak } from '../types';
+import type { Afspraak, Boodschap, Frequentie, Huishouden, Item, Lid, Pakitem, SyncVelden, Taak, Vakantie, VakantieKoppeling } from '../types';
 
 const NAAR_FREQ: Record<string, Frequentie> = { daily: 'dagelijks', weekly: 'wekelijks', monthly: 'maandelijks', yearly: 'jaarlijks' };
 const VAN_FREQ: Record<Frequentie, string> = { dagelijks: 'daily', wekelijks: 'weekly', maandelijks: 'monthly', jaarlijks: 'yearly' };
@@ -69,7 +69,7 @@ export const ZONDER_INHOUD = { taak: 'Taak', boodschap: 'Boodschap' } as const;
 export function naarTaak(r: TaakRij): Taak {
   return {
     id: r.id, soort: 'taak', titel: r.title ?? ZONDER_INHOUD.taak, datum: r.due_date ?? null, voor: r.assignee_member_id ?? null,
-    klaar: !!r.done_on, klaarOp: r.done_on ?? null, versie: r.version, sync: syncStaat(r),
+    klaar: !!r.done_on, klaarOp: r.done_on ?? null, versie: r.version, sync: syncStaat(r), vakantieId: r.trip_id ?? null,
   };
 }
 
@@ -121,7 +121,38 @@ export function naarNieuweAfspraak(a: Afspraak, versie: number | null): NieuweAf
   };
 }
 
-/** Velden voor een taak (toevoegen of bijwerken). */
-export function naarTaakVelden(t: Taak): { title: string; due_date: string | null; assignee_member_id: string | null } {
-  return { title: t.titel, due_date: t.datum, assignee_member_id: t.voor };
+/**
+ * Velden voor een taak (toevoegen of bijwerken). De vakantie (trip_id) alleen als het veld bestaat: een formulier zonder
+ * vakantieveld laat een bestaande koppeling dan staan.
+ */
+export function naarTaakVelden(t: Taak): { title: string; due_date: string | null; assignee_member_id: string | null; trip_id?: string | null } {
+  return { title: t.titel, due_date: t.datum, assignee_member_id: t.voor, ...(t.vakantieId !== undefined ? { trip_id: t.vakantieId } : {}) };
+}
+
+// ---- F8 Vakanties ----
+export function naarVakantie(r: VakantieRij): Vakantie {
+  const v: Vakantie = { id: r.id, naam: r.name ?? 'Vakantie', vertrek: r.start_date ?? null, terug: r.end_date ?? null, versie: r.version, sync: syncStaat(r) };
+  if (r.destination) v.bestemming = r.destination;
+  if (r.notes) v.notities = r.notes;
+  return v;
+}
+
+/** Zonder vakantie (inhoud niet op dit toestel, P1) hoort een pakitem bij geen paklijst: dan staat het alleen in Meer. */
+export function naarPakitem(r: PakitemRij): Pakitem | null {
+  if (!r.trip_id || r.name == null) return null;
+  return { id: r.id, vakantieId: r.trip_id, lid: r.member_id ?? null, naam: r.name, ingepakt: !!r.packed_at,
+    ingepaktOp: r.packed_at ?? null, ingepaktDoor: r.packed_by_member_id ?? null, versie: r.version, sync: syncStaat(r) };
+}
+
+export function naarKoppeling(r: VakantieKoppelingRij): VakantieKoppeling {
+  return { id: r.id, vakantieId: r.trip_id, boodschapId: r.shopping_item_id, afgehandeld: !!r.settled_at, versie: r.version };
+}
+
+/** Vakanties, paklijsten en koppelingen uit de toestand van de sync-module. */
+export function naarVakantieGegevens(t: Pick<Toestand, 'vakanties' | 'pakitems' | 'vakantieKoppelingen'>): { vakanties: Vakantie[]; pakitems: Pakitem[]; koppelingen: VakantieKoppeling[] } {
+  return {
+    vakanties: (t.vakanties ?? []).filter(v => !v.inhoudNietBewaard).map(naarVakantie),
+    pakitems: (t.pakitems ?? []).map(naarPakitem).filter((p): p is Pakitem => p !== null),
+    koppelingen: (t.vakantieKoppelingen ?? []).map(naarKoppeling),
+  };
 }

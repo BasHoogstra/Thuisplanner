@@ -15,7 +15,7 @@ const ITEMS: { id: Scherm; label: string; Icoon: typeof IcVandaag }[] = [
 export function Navigatie({ actief }: { actief: Scherm }) {
   const { gaNaar, openToevoegen, huishouden } = useApp();
   const link = ({ id, label, Icoon }: (typeof ITEMS)[number]) => (
-    <a key={id} href={`#/${id}`} className="nav-item" aria-current={actief === id ? 'page' : undefined}
+    <a key={id} href={`#/${id}`} className="nav-item" aria-current={actief === id || (id === 'meer' && actief === 'vakanties') ? 'page' : undefined}
       onClick={e => { e.preventDefault(); gaNaar(id); }}>
       <Icoon />
       <span>{label}</span>

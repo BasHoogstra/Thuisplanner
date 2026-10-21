@@ -112,7 +112,8 @@ describe('demo-staat', () => {
 
   it('taken zonder datum en afgeronde taken', () => {
     const s = beginStaat(V);
-    expect(takenZonderDatum(s.items).map(t => t.titel)).toEqual(['Aanslag gemeentebelasting nakijken']);
+    // Sinds F8 staan ook de voorbereidingen van de demovakantie Frankrijk zonder datum hier (open eerst, afgerond laatst).
+    expect(takenZonderDatum(s.items).map(t => t.titel)).toEqual(['Aanslag gemeentebelasting nakijken', 'Kattenoppas vragen', 'Camping bevestigen']);
     expect(afgerondVandaag(s.items, V).map(t => t.titel)).toEqual(['Groene container buiten zetten']);
   });
 });

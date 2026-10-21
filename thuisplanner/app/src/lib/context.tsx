@@ -29,6 +29,10 @@ export interface AppContext extends DemoActies {
   /** Opent een bestaand item om te bekijken, bewerken of verwijderen. */
   openItem: (id: string) => void;
   gaNaar: (scherm: Scherm) => void;
+  /** F8: de geopende vakantie op het scherm Vakanties (null: het overzicht). */
+  vakantie: string | null;
+  /** Opent een vakantie (of het overzicht met null) op het scherm Vakanties. */
+  openVakantie: (id: string | null) => void;
   agenda: AgendaStand;
   zetAgenda: (stand: Partial<AgendaStand>) => void;
   lokaal?: LokaalContext;
@@ -85,7 +89,7 @@ export interface LokaalContext {
   uitloggen: (opties?: { wissen?: boolean }) => void;
 }
 
-export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer';
+export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer' | 'vakanties';
 
 export const Ctx = createContext<AppContext | null>(null);
 

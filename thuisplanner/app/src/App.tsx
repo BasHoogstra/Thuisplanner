@@ -17,14 +17,18 @@ import { Vandaag } from './screens/Vandaag';
 import { Agenda } from './screens/Agenda';
 import { Boodschappen } from './screens/Boodschappen';
 import { Meer } from './screens/Meer';
+import { Vakanties } from './screens/Vakanties';
 
-const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer'];
-const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer' };
+const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties'];
+const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties' };
 
-function schermUitHash(): Scherm {
-  const h = window.location.hash.replace('#/', '').replace('#', '') as Scherm;
-  return SCHERMEN.includes(h) ? h : 'vandaag';
+/** "#/agenda" → agenda; "#/vakanties/<id>" → vakanties met die vakantie open (F8). */
+function uitHash(): { scherm: Scherm; vakantie: string | null } {
+  const [h, id] = window.location.hash.replace('#/', '').replace('#', '').split('/') as [Scherm, string | undefined];
+  if (!SCHERMEN.includes(h)) return { scherm: 'vandaag', vakantie: null };
+  return { scherm: h, vakantie: h === 'vakanties' && id ? decodeURIComponent(id) : null };
 }
+function schermUitHash(): Scherm { return uitHash().scherm; }
 
 /**
  * Demo-klok. Met ?nu=2026-10-10T11:20 in de adresbalk zet je de tijd vast (voor tests en screenshots).
@@ -116,9 +120,9 @@ function LokaleApp({ config }: { config: LokaleConfig }) {
 function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: Momentopname; uitnodigingen: LokaalContext['uitnodigingen'] }) {
   const klok = useKlok();
   const vandaag = naarDatum(klok);
-  const { keuze, sluitKeuze, opnieuwProberen, vergeten, herinvoeren, syncMeldingWeg, ...data } = useLokaleStaat(sessie, snap, vandaag);
   const t = snap.toestand!;
   const hh = useMemo(() => naarHuishouden(t, snap.huishouden!.naam), [t, snap.huishouden]);
+  const { keuze, sluitKeuze, opnieuwProberen, vergeten, herinvoeren, syncMeldingWeg, ...data } = useLokaleStaat(sessie, snap, vandaag, hh);
   const lokaal: LokaalContext = {
     omgeving: sessie.config.omgeving,
     beheer: {
@@ -161,13 +165,14 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
 }) {
   const vandaag = naarDatum(klok);
   const [scherm, zetScherm] = useState<Scherm>(schermUitHash);
+  const [vakantie, zetVakantie] = useState<string | null>(() => uitHash().vakantie);
   const [venster, zetVenster] = useState<VensterOpdracht | null>(null);
   const [agenda, zetAgendaStand] = useState<AgendaStand>({ weergave: 'week', datum: vandaag, filter: null });
   const zetAgenda = useCallback((s: Partial<AgendaStand>) => zetAgendaStand(a => ({ ...a, ...s })), []);
   const hoofd = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const opHash = () => zetScherm(schermUitHash());
+    const opHash = () => { const u = uitHash(); zetScherm(u.scherm); zetVakantie(u.vakantie); };
     window.addEventListener('hashchange', opHash);
     return () => window.removeEventListener('hashchange', opHash);
   }, []);
@@ -177,6 +182,15 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
   const gaNaar = useCallback((s: Scherm) => {
     if (window.location.hash !== `#/${s}`) window.location.hash = `#/${s}`;
     zetScherm(s);
+    zetVakantie(null);
+    window.scrollTo({ top: 0 });
+    hoofd.current?.focus({ preventScroll: true });
+  }, []);
+  const openVakantie = useCallback((id: string | null) => {
+    const doel = id ? `#/vakanties/${encodeURIComponent(id)}` : '#/vakanties';
+    if (window.location.hash !== doel) window.location.hash = doel;
+    zetScherm('vakanties');
+    zetVakantie(id);
     window.scrollTo({ top: 0 });
     hoofd.current?.focus({ preventScroll: true });
   }, []);
@@ -203,6 +217,8 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
     openToevoegen: (soort, datum) => zetVenster({ type: 'nieuw', soort, datum }),
     openItem: id => zetVenster({ type: 'bewerk', id }),
     gaNaar,
+    vakantie,
+    openVakantie,
     agenda,
     zetAgenda,
     lokaal,
@@ -218,6 +234,7 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
           {scherm === 'agenda' && <Agenda />}
           {scherm === 'boodschappen' && <Boodschappen />}
           {scherm === 'meer' && <Meer />}
+          {scherm === 'vakanties' && <Vakanties />}
         </main>
         {venster && <ItemVenster opdracht={venster} sluit={sluitVenster} />}
         {children}

@@ -416,7 +416,7 @@ Bewust niet speculatief: geen lege kolommen "voor later" en geen generieke `link
 | V0 | Dit document; de roadmap bijgewerkt | **Gedaan** (21 oktober 2026, lokaal, niet gecommit) |
 | V1.1 | Database, RLS en tests (§12), alleen lokaal; daarna een onafhankelijke review | **Lokaal gebouwd en getest** (21 oktober 2026; akkoord op lokaal toepassen en testen); niet gecommit, niet op staging; wacht op review |
 | V1.2 | Sync-module, types, integratietests (twee accounts, seintjes) | Na V1.1 |
-| V1.3 | Schermen, demodata, unit- en e2e-tests, `CHANGELOG.md` | Na V1.2 |
+| V1.3 | Schermen, demodata, unit- en e2e-tests, `CHANGELOG.md` | **Lokaal gebouwd en getest** (21 oktober 2026, §15); niet gecommit; wacht op de telefoonproef van de producteigenaar |
 | — | Staging | Apart besluit, los van het lopende stagingtraject |
 | V2 | Afspraken koppelen (eigen gate 9-bewijs), tijdens de reis | Na V1 en gebruik |
 
@@ -712,3 +712,115 @@ Beide draaien in de workflow `thuisplanner-db.yml` op een PR.
 
 **Niet gedaan:** de syncdemo-e2e (`thuisplanner/dev`) en de app-e2e tegen de lokale stack (Playwright-browsers); die raken
 de vakantielaag nog niet (er is nog geen scherm).
+
+## 15. V1.3 — de zichtbare vakantieplanner (akkoord 21 oktober 2026; lokaal gebouwd)
+
+**Status:** lokaal gebouwd en getest in de worktree `Thuisplanner-vakanties`; niet gecommit, niet op staging. Eerst de
+telefoonproef van de producteigenaar; daarna pas verdere stappen.
+
+### 15.1 Wat er is
+- **Meer → Vakanties:** het overzicht Nu / Komend / Eerder (ingeklapt), met periode en aftelling; nieuwe vakantie met
+  alleen een naam, of met vertrek, terug en bestemming (terug pas na vertrek, nooit vóór vertrek).
+- **Een vakantie:** kop met periode, bestemming en aftelling; ⋯ voor aanpassen en verwijderen (ongedaan te maken). Drie
+  onderdelen: **Regelen** (voorbereidingen als gewone taken; te kopen als gewone boodschappen), **Inpakken** en
+  **Notities** (vanzelf bewaard). Het laatst gekozen onderdeel en de laatst gekozen persoon onthoudt het toestel (alleen
+  ID's, geen inhoud).
+- **Inpakken:** persoonskeuze die doorloopt op een volgende regel (alle leden en Gezamenlijk zichtbaar, minstens 44 px),
+  met de voortgang per persoon; de gekozen persoon in de kop en in het invoerveld; snel achter elkaar invoeren; afvinken
+  (één vinkje); tik op de tekst om aan te passen, te verplaatsen of te verwijderen; naar links vegen verwijdert; "Staat
+  al op de lijst van …" bij dubbel; "Ingepakt (n)" ingeklapt. Bij een lege paklijst één rustige suggestie: "Begin met de
+  paklijst van …" (de laatste vakantie waar je geweest bent). Stille tekstknoppen: overnemen van een eerdere vakantie
+  (voor iedereen, één persoon of Gezamenlijk) en afvinken opnieuw beginnen (voor de gekozen persoon of iedereen). Alles
+  met ongedaan maken.
+- **Koppelingen:** Vandaag toont één rustige kaart in de zijkolom (14 dagen vooraf en tijdens; "Straks" blijft de enige
+  nadruk); de Agenda (week en dag) toont de vakantie als dunne regel op de dagen van de periode (zonder terugdatum alleen
+  op de vertrekdag); taken en boodschappen krijgen een klein vakantielabel; het taak-detail heeft een regel "Vakantie"
+  (komende en lopende vakanties, of Geen). Het volledige taakformulier laat een koppeling staan.
+- **Lokale modus:** dezelfde schermen via de sync-acties van V1.2, met ongedaan maken voor verwijderen, overnemen, vinkjes
+  opnieuw en ontkoppelen. Onbevestigde vakanties en pakitems staan in Meer → Niet bevestigd.
+- **Demo:** fictieve vakanties Frankrijk (over negen dagen, met paklijsten per gezinslid en voorbereidingen), Kerst op
+  Texel (alleen vertrek), Noorwegen (geen datum) en Italië (voorbij, om over te nemen). Bewust geen demoboodschappen voor
+  de vakantie: de bestaande tests tellen de boodschappen van de demo.
+
+### 15.2 Afwijkingen van §4 (ontwerp)
+- De vakantiekaart op Vandaag staat in de zijkolom in plaats van bovenaan, zodat "Straks" de enige nadruk blijft.
+- Overnemen en opnieuw beginnen zijn twee stille tekstknoppen onder de paklijst in plaats van een ⋯-menu (één tik minder).
+- De suggestie en het overnemen-venster kiezen standaard de laatste vakantie waar je geweest bent.
+
+### 15.3 Tests en de 29 acceptatiecriteria (§9)
+| Wat | Resultaat |
+| --- | --- |
+| Unittests app (`vitest run`), waarvan nieuw: `vakantie.test.ts`, `vakanties-store.test.ts`, `vakanties.test.tsx`, `vakanties-lokaal.test.tsx` | 501 van 501 (31 nieuw) |
+| E2e demo (`playwright test`, 360 en 390 px en desktop), waarvan nieuw `e2e/vakanties.spec.ts` (ook 320 px, licht en donker) | 203 geslaagd, 10 overgeslagen (vegen op desktop en bestaande overslagen) |
+| Typecheck (`tsc --noEmit`) | schoon |
+| Bestaande tests aangepast | `kg3.test.ts` (twee vakantietaken zonder datum in de demo) en `detail.test.tsx` (de staat heeft nu vakantielijsten) |
+
+Criteria: 1–7, 9, 10, 12, 16, 19, 20, 23, 24, 26 en 27 in de app-tests (demo); 8, 11, 13–15, 21, 22 en 25 (conflict) in de
+sync- en databasetests van V1.1/V1.2 plus de lokale koppelingstest; 17 en 18 in `vakanties.test.tsx` (zonder datum,
+loskoppelen); 28 voor de demo in de e2e; 29 in de RLS-matrix.
+
+**Niet gedaan:** de e2e van de lokale modus (`e2e:lokaal`). Die vraagt `npm run lokaal:seed`, en dat wist en herschept de
+fictieve accounts in de lokale database (een destructieve databasehandeling, alleen met akkoord). De lokale koppeling is
+wel getest met een nagebootste sync-module (`vakanties-lokaal.test.tsx`), en de sync zelf met de echte stack (V1.2).
+In de demo maakt "Ongedaan maken" van een overname de hele laatste stap ongedaan (één gebruiker); de regel "intussen
+aangepaste items blijven staan" geldt in de lokale modus (§7).
+
+## 16. Vormgeving ronde 2 (na de telefoonproef, 21 oktober 2026; lokaal)
+
+Opdracht van de producteigenaar: verzorgder, beter leesbaar en duidelijker, in de bestaande uitstraling (donker: diepgroene
+ondergrond, mintgroen accent). Alleen de bestaande tokens; geen nieuwe kleurwaarden, afhankelijkheden of diensten.
+
+- **Overzicht:** een kaart per vakantie met een klein landschap (zon en heuvels, alleen CSS en tokens, geen externe
+  afbeelding), naam, bestemming en periode in duidelijke volgorde, en de aftelling als groot getal ("9 dagen") of als
+  label ("morgen", "dag 3 van 15", "geen datum"). Nu gemarkeerd met het accent; Eerder compact en ingeklapt.
+- **Vakantie:** een kop met het beeld, een grote naam, de bestemming, de periode en de aftelling als accentlabel; de drie
+  tabbladen met een duidelijk actieve keuze (accentvlak).
+- **Regelen:** twee volwaardige blokken onder elkaar: Voorbereidingen ("1 van 4 klaar", voortgangsbalk, invoerveld,
+  afvinklijst met open taken eerst en afgeronde onderaan) en Boodschappen voor ‹vakantie› ("1 van 2 gekocht",
+  voortgangsbalk, invoerveld, afvinklijst). Geen vierde tabblad, geen categorieën. Het zijn dezelfde boodschappen als op
+  de gewone lijst (koppelingen, geen kopie); "Naam aanpassen" opent het gewone boodschappenvenster.
+- **Inpakken:** grotere persoonsknoppen in een raster (twee per rij op de telefoon; Gezamenlijk over de volle breedte als
+  hij alleen staat), met de voortgang als getal en balk; de actieve persoon in het accent; een blok met de naam, "4 van
+  10 ingepakt" en een voortgangsbalk; grotere afvinkcirkels (26 px) met een tikvlak van minstens 48 bij 52 px.
+- **Notities:** een eigen blok met een rustig schrijfvlak (17 px, ruime regelafstand) en de stand "Bewaard" / "Wordt
+  bewaard…"; de automatische opslag is ongewijzigd.
+- **Regressie hersteld:** de regel `.snel .knop` uit V1.3 gold ook voor de gewone Boodschappen-pagina; die geldt nu
+  alleen in de vakantieschermen.
+
+**Afwijkingen:** voorbereidingen tonen nu ook de afgeronde taken in de lijst (onderaan, doorgestreept) in plaats van
+ingeklapt, zodat "1 van 4 klaar" klopt met wat je ziet. Geen functionele wijzigingen aan sync, database, RLS of koppelingen.
+
+**Tests:** app 502 van 502 (nieuw: aanpassen en afvinken van een vakantieboodschap gelden ook op de gewone lijst), e2e 203
+geslaagd (360, 390 en desktop; de vakantie-spec ook 320 px en donker), typecheck schoon.
+
+## 17. Compactheidsronde (na de tweede telefoonproef, 21 oktober 2026; lokaal)
+Opdracht van de producteigenaar: minder scrollen, vooral bij Regelen en Inpakken, met behoud van uitstraling, leesbaarheid
+en bediening. Alleen weergave; geen wijziging aan sync, datamodel, privacy of ongedaan maken.
+
+- **Regelen:** Voorbereidingen en Boodschappen voor ‹vakantie› zijn afzonderlijk inklapbaar. De kop (titel, "1 van 4
+  klaar" en de voortgangsbalk) blijft altijd zichtbaar; de hele kop is de knop (minstens 44 px). Standaard staat
+  Voorbereidingen open en Boodschappen dicht; één blok tegelijk open (allebei dicht mag ook). De laatste keuze wordt op
+  het toestel onthouden (`thuisplanner-vakantie:regelen`, zoals de al bestaande tabkeuze), ook na wegnavigeren.
+- **Afgeronde items compact:** bij Voorbereidingen ("3 afgerond · tonen"), Inpakken ("4 ingepakt · tonen") en
+  Boodschappen ("1 gekocht · tonen") staan open items eerst en afgeronde items achter één regel van minstens 44 px, in
+  dezelfde schrijfwijze als "afgerond vandaag" op Vandaag. In de uitgeklapte lijst zet één tik op het rondje een item
+  terug naar open. Bij Boodschappen is het alleen een andere weergave van dezelfde items: afvinken blijft `wissel`, de
+  gewone boodschappenlijst is ongewijzigd.
+- **Inpakken:** compacte persoonsknoppen ("● Eva 4/10") die over meerdere regels doorlopen, minstens 44 px hoog, de
+  gekozen persoon in het accent; geen balk meer per knop. De grote voortgangsbalk staat alleen bij de gekozen persoon;
+  de paklijst staat er direct onder. Overnemen, verplaatsen, vegen en ongedaan maken ongewijzigd.
+- **Kop en tabbladen:** dezelfde kop, met minder lucht (kleiner beeld op de telefoon, minder binnenruimte en marges). De
+  tabbladen blijven bij het scrollen bovenaan staan (één regel `position: sticky`, geen extra constructie), zodat
+  Regelen, Inpakken en Notities altijd bereikbaar zijn.
+
+**Gemeten (demo Frankrijk, paginahoogte in CSS-pixels, 390 / 360 / 320 px):** Regelen standaard 1080→888 / 1100→886 /
+1218→973; Regelen met drie boodschappen 1295→875 / 1292→872 / 1411→927; Inpakken 1306→1153 / 1304→1203 / 1322→1221; het
+eerste pakitem begint 150 / 98 / 98 px hoger; de tabbladen staan 32 px hoger.
+
+**Afwijkingen:** een afgevinkt item verdwijnt direct uit de open lijst (de teller loopt op; terug te vinden achter
+"… · tonen"). De tabbladen zijn nu sticky. De teksten "· tonen" / "· verbergen" volgen de bestaande schrijfwijze van
+Vandaag (kleine letter).
+
+**Tests:** app 505 van 505 (nieuw: inklappen en onthouden, afgerond tonen en terugzetten, ingepakt per persoon), e2e 206
+geslaagd en 10 overgeslagen (360, 390 en desktop; de nieuwe compact-test ook op 320 px en donker), typecheck en
+statische controles schoon.

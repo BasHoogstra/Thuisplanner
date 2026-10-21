@@ -226,6 +226,8 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
       const taak = {
         id: vorig?.id ?? nieuwId('t'), soort: 'taak' as const, titel: t, datum: dag === 'ooit' ? null : dag,
         voor: wie[0] ?? null, klaar: vorig?.klaar ?? false, klaarOp: vorig?.klaarOp ?? null, versie: beginVersie,
+        // Dit formulier toont de vakantie niet; een bestaande koppeling blijft staan (F8).
+        vakantieId: vorig?.vakantieId,
       };
       if (herinvoerId && app.lokaal) app.lokaal.herinvoeren(herinvoerId, { ...taak, id: herinvoerId }, `${t} staat op de takenlijst`);
       else if (vorig) app.bijwerken(taak, `${t} aangepast`);

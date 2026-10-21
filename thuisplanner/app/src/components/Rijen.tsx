@@ -1,7 +1,7 @@
 import { useApp } from '../lib/context';
 import { isBezetVanAnder } from '../lib/rechten';
-import type { Afspraak, Boodschap, LidId, Taak } from '../lib/types';
-import { IcHerhaal, IcPijl, IcSlot, IcVink } from './Iconen';
+import type { Afspraak, Boodschap, LidId, Taak, Vakantie } from '../lib/types';
+import { IcHerhaal, IcKoffer, IcPijl, IcSlot, IcVink } from './Iconen';
 import { SyncLabel } from './Lokaal';
 
 export function Wie({ ids, klein }: { ids: LidId[]; klein?: boolean }) {
@@ -60,6 +60,18 @@ export function AfspraakRij({ a, voorbij }: { a: Afspraak; voorbij?: boolean }) 
   );
 }
 
+/** F8: een klein label met de vakantie waar een taak of boodschap bij hoort. */
+export function VakantieLabel({ vakanties }: { vakanties: Vakantie[] }) {
+  if (!vakanties.length) return null;
+  return <span className="plek vakantie-label"><IcKoffer width={14} height={14} /> {vakanties.map(v => v.naam).join(' · ')}</span>;
+}
+/** De vakantie van een taak (als die bestaat). */
+function useTaakVakantie(t: Taak): Vakantie[] {
+  const { staat } = useApp();
+  const v = t.vakantieId ? staat.vakanties.find(x => x.id === t.vakantieId) : undefined;
+  return v ? [v] : [];
+}
+
 export function Vinkje({ aan }: { aan: boolean }) {
   return <span className={'vinkje' + (aan ? ' aan' : '')} aria-hidden="true">{aan && <IcVink />}</span>;
 }
@@ -107,6 +119,7 @@ export function WeekAfspraakRij({ a, voorbij }: { a: Afspraak; voorbij?: boolean
 /** Een taak in de week (W2): afvinken, de titel (hoogstens twee regels) en één persoonsmarkering. */
 export function WeekTaakRij({ t }: { t: Taak }) {
   const { wissel, openItem } = useApp();
+  const vak = useTaakVakantie(t);
   return (
     <li className={'week-rij taak' + (t.klaar ? ' klaar' : '')}>
       <button type="button" className="vink-knop" role="checkbox" aria-checked={t.klaar} disabled={!!t.sync}
@@ -116,7 +129,7 @@ export function WeekTaakRij({ t }: { t: Taak }) {
       <button type="button" className="week-rij-knop" onClick={() => openItem(t.id)} aria-label={`${t.titel} openen`}>
         <span className="week-inhoud">
           <span className="week-rij-titel">{t.titel}</span>
-          {(t.voor || t.sync) && <span className="week-sub">{t.voor && <WeekWie ids={[t.voor]} />}<SyncLabel sync={t.sync} /></span>}
+          {(t.voor || t.sync || vak.length > 0) && <span className="week-sub">{t.voor && <WeekWie ids={[t.voor]} />}<VakantieLabel vakanties={vak} /><SyncLabel sync={t.sync} /></span>}
         </span>
       </button>
     </li>
@@ -124,8 +137,10 @@ export function WeekTaakRij({ t }: { t: Taak }) {
 }
 
 /** Afvinken en openen zijn twee aparte knoppen, zodat je niet per ongeluk afvinkt als je wilt aanpassen. */
-export function TaakRij({ t, extra }: { t: Taak; extra?: string }) {
+export function TaakRij({ t, extra, zonderVakantie }: { t: Taak; extra?: string; zonderVakantie?: boolean }) {
   const { wissel, openItem } = useApp();
+  const taakVak = useTaakVakantie(t);
+  const vak = zonderVakantie ? [] : taakVak;
   return (
     <li className={'rij taak' + (t.klaar ? ' klaar' : '')}>
       {/* Afvinken kan pas als de server de taak kent (zie de sync-module); tot dan staat het vinkje stil. */}
@@ -136,10 +151,11 @@ export function TaakRij({ t, extra }: { t: Taak; extra?: string }) {
       <button type="button" className="rij-open" onClick={() => openItem(t.id)} aria-label={`${t.titel} openen`}>
         <span className="rij-inhoud">
           <span className="rij-titel">{t.titel}</span>
-          {(t.voor || extra || t.sync) && (
+          {(t.voor || extra || t.sync || vak.length > 0) && (
             <span className="rij-sub">
               {t.voor && <Wie ids={[t.voor]} klein />}
               {extra && <span className="plek">{extra}</span>}
+              <VakantieLabel vakanties={vak} />
               <SyncLabel sync={t.sync} />
             </span>
           )}
@@ -150,7 +166,8 @@ export function TaakRij({ t, extra }: { t: Taak; extra?: string }) {
   );
 }
 
-export function BoodschapRij({ b }: { b: Boodschap }) {
+/** vakanties: voor welke (niet voorbije) vakanties deze boodschap nu nodig is (F8). */
+export function BoodschapRij({ b, vakanties = [] }: { b: Boodschap; vakanties?: Vakantie[] }) {
   const { wissel, openItem } = useApp();
   return (
     <li className={'rij boodschap' + (b.afgevinkt ? ' klaar' : '')}>
@@ -161,7 +178,7 @@ export function BoodschapRij({ b }: { b: Boodschap }) {
       <button type="button" className="rij-open" onClick={() => openItem(b.id)} aria-label={`${b.naam} aanpassen`}>
         <span className="rij-inhoud">
           <span className="rij-titel">{b.naam}</span>
-          {b.sync && <span className="rij-sub"><SyncLabel sync={b.sync} /></span>}
+          {(b.sync || vakanties.length > 0) && <span className="rij-sub"><VakantieLabel vakanties={vakanties} /><SyncLabel sync={b.sync} /></span>}
         </span>
         <IcPijl className="rij-pijl" />
       </button>

@@ -87,6 +87,8 @@ export interface Taak extends SyncVelden {
   klaar: boolean;
   /** Wanneer de taak is afgevinkt; zo kan Vandaag "afgerond vandaag" tonen en weer openzetten. */
   klaarOp?: Datum | null;
+  /** F8: de vakantie waarvoor dit een voorbereiding is. Ontbreekt het veld, dan blijft een bestaande koppeling staan. */
+  vakantieId?: string | null;
 }
 
 export interface Boodschap extends SyncVelden {
@@ -97,3 +99,36 @@ export interface Boodschap extends SyncVelden {
 }
 
 export type Item = Afspraak | Taak | Boodschap;
+
+// ---- F8 Vakanties (docs/thuisplanner-vakanties.md). Los van Item: een vakantie is geen afspraak, taak of boodschap. ----
+
+export interface Vakantie extends SyncVelden {
+  id: string;
+  naam: string;
+  /** Leeg: nog geen datum. */
+  vertrek: Datum | null;
+  /** Alleen met een vertrekdatum. Leeg: de vakantie telt als hoogstens 14 dagen. */
+  terug: Datum | null;
+  bestemming?: string;
+  notities?: string;
+}
+
+export interface Pakitem extends SyncVelden {
+  id: string;
+  vakantieId: string;
+  /** Leeg: Gezamenlijk. */
+  lid: LidId | null;
+  naam: string;
+  ingepakt: boolean;
+  ingepaktOp?: string | null;
+  ingepaktDoor?: LidId | null;
+}
+
+/** Een boodschap voor een vakantie. Afgehandeld: gekocht en daarna voor iets anders weer op de lijst gezet. */
+export interface VakantieKoppeling {
+  id: string;
+  vakantieId: string;
+  boodschapId: string;
+  afgehandeld: boolean;
+  versie?: number;
+}

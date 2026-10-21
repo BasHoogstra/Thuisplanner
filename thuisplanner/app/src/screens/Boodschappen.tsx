@@ -4,9 +4,13 @@ import { splitsBoodschappen } from '../lib/boodschappen';
 import { isBoodschap } from '../lib/vandaag';
 import { BoodschapRij } from '../components/Rijen';
 import { perCategorie } from '../lib/categorie';
+import { vakantiesVoorBoodschap } from '../lib/vakantie';
+import type { Boodschap } from '../lib/types';
 
 export function Boodschappen() {
-  const { staat, voegBoodschappenToe, verwijder, lokaal } = useApp();
+  const { staat, voegBoodschappenToe, verwijder, lokaal, vandaag } = useApp();
+  // F8: het label alleen voor vakanties waarvoor de boodschap nu nodig is (geen oude koppelingen, §6.2).
+  const vak = (b: Boodschap) => vakantiesVoorBoodschap(b.id, staat.koppelingen, staat.vakanties, vandaag);
   const [tekst, zetTekst] = useState('');
   const alle = staat.items.filter(isBoodschap);
   const open = alle.filter(b => !b.afgevinkt);
@@ -43,7 +47,7 @@ export function Boodschappen() {
           ? perCategorie(open).map(({ categorie, items }) => (
             <section key={categorie.sleutel} className="categorie" aria-label={categorie.naam}>
               <h3 className="categorie-kop">{categorie.naam} <span className="teller">{items.length}</span></h3>
-              <ul className="lijst">{items.map(b => <BoodschapRij key={b.id} b={b} />)}</ul>
+              <ul className="lijst">{items.map(b => <BoodschapRij key={b.id} b={b} vakanties={vak(b)} />)}</ul>
             </section>
           ))
           : <p className="stil-tekst">Niets meer nodig.</p>}
@@ -57,7 +61,7 @@ export function Boodschappen() {
               Mandje leegmaken
             </button>
           </div>
-          <ul className="lijst">{klaar.map(b => <BoodschapRij key={b.id} b={b} />)}</ul>
+          <ul className="lijst">{klaar.map(b => <BoodschapRij key={b.id} b={b} vakanties={vak(b)} />)}</ul>
         </section>
       )}
       <p className="demo-noot">Tik op het rondje om af te vinken, op de naam om aan te passen of te verwijderen.

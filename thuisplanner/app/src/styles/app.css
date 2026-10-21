@@ -473,3 +473,170 @@ a { color: var(--accent); }
 
 /* ---------- Uitnodigingen voor jou (KG-5H deel 1b) ---------- */
 .meedenker.uitnodiging-melding { margin-top: 16px; }
+
+/* ---------- F8 Vakanties (docs/thuisplanner-vakanties.md §4 en §16). Alleen bestaande tokens: in donker een diepgroene
+   ondergrond met mintgroen accent, in licht dezelfde rust. Duidelijke hiërarchie, grote tikvlakken, één kolom. ---------- */
+.terug-link { display: inline-flex; align-items: center; gap: 2px; margin: 0 0 0 -4px; padding: 6px 4px; border: 0; background: none;
+  color: var(--accent); font-weight: 600; font-size: 15px; min-height: 40px; }
+.kop-regel { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+.kop-regel h1 { min-width: 0; overflow-wrap: anywhere; }
+.kop-regel .icoonknop, .vak-navigatie .icoonknop { flex: 0 0 auto; width: 44px; height: 44px; }
+.vak-plus { background: var(--accent); color: var(--accent-inkt); }
+.vak-weg { margin: 8px 2px 0; }
+.vak-eerste { margin-top: 18px; }
+.uitklap { padding: 0; font-size: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--inkt-2); font-weight: 700; }
+.uitklap-pijl { transition: transform .15s; }
+.uitklap-pijl.open { transform: rotate(90deg); }
+
+/* Een klein landschap (zon en heuvels) als rustig beeld per vakantie; geen externe afbeelding. */
+.vak-beeld { position: relative; overflow: hidden; flex: 0 0 56px; width: 56px; height: 56px; border-radius: 16px;
+  background: linear-gradient(180deg, var(--accent-zacht), color-mix(in srgb, var(--accent-zacht) 55%, var(--vlak))); }
+.vak-beeld-zon { position: absolute; top: 22%; right: 20%; width: 28%; height: 28%; border-radius: 50%; background: var(--lid-1); opacity: .9; }
+.vak-beeld::before, .vak-beeld-heuvel { content: ""; position: absolute; border-radius: 50% 50% 0 0; }
+.vak-beeld::before { left: -30%; right: 25%; bottom: -30%; height: 72%; background: color-mix(in srgb, var(--accent) 55%, var(--vlak)); }
+.vak-beeld-heuvel { left: 20%; right: -35%; bottom: -38%; height: 70%; background: var(--accent); }
+.vak-beeld.groot { flex-basis: 72px; width: 72px; height: 72px; border-radius: 20px; }
+@media (max-width: 959px) { .vak-held .vak-beeld.groot { flex-basis: 60px; width: 60px; height: 60px; border-radius: 18px; } }
+.rust .vak-beeld.groot { margin: 0 auto 18px; display: block; }
+
+/* Overzicht: een kaart per vakantie; Nu duidelijk gemarkeerd; Eerder compact en ingeklapt. */
+.vak-kaarten { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.vak-kaart { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 84px; padding: 14px 14px 14px 12px;
+  border: 1px solid var(--lijn); border-radius: var(--radius); background: var(--vlak); box-shadow: var(--schaduw);
+  color: inherit; font: inherit; text-align: left; }
+.vak-kaart.nu { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), var(--schaduw); }
+@media (hover: hover) { .vak-kaart:hover { border-color: var(--lijn-sterk); } }
+.vak-kaart-tekst { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.vak-kaart-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.vak-kaart-naam { font-family: var(--font-kop); font-size: 19px; font-weight: 700; line-height: 1.25; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.vak-kaart-bestemming { font-size: 15px; font-weight: 600; color: var(--inkt-2); overflow-wrap: anywhere; }
+.vak-kaart-periode { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 8px; font-size: 14px; color: var(--inkt-3); font-variant-numeric: tabular-nums; }
+.vak-teller { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; min-width: 52px; line-height: 1; }
+.vak-teller strong { font-family: var(--font-kop); font-size: 28px; font-weight: 750; color: var(--accent); font-variant-numeric: tabular-nums; }
+.vak-teller small { margin-top: 4px; font-size: 12px; color: var(--inkt-2); }
+.vak-teller-tekst { flex: 0 0 auto; max-width: 42%; padding: 5px 10px; border-radius: 99px; background: var(--accent-zacht); color: var(--inkt);
+  font-size: 13px; font-weight: 650; text-align: center; }
+.vak-teller-tekst.nu { background: var(--accent); color: var(--accent-inkt); }
+.vak-teller-tekst.stil { background: var(--vlak-2); color: var(--inkt-3); font-weight: 500; }
+.vak-eerder { margin-top: 6px; }
+.vak-eerder-lijst .rij-titel { color: var(--inkt-2); }
+
+/* Eén vakantie: een duidelijke kop, de aftelling als accent, en tabbladen met een goed zichtbare actieve keuze. */
+.vak-navigatie { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 4px; }
+.vak-held { display: flex; align-items: center; gap: 14px; margin-top: 2px; padding: 14px; border: 1px solid var(--lijn);
+  border-radius: var(--radius); background: linear-gradient(160deg, var(--accent-zacht), var(--vlak) 70%); }
+.vak-held-tekst { min-width: 0; flex: 1 1 auto; }
+.vak-held h1 { margin: 0; font-family: var(--font-kop); font-size: clamp(28px, 8vw, 38px); font-weight: 750; line-height: 1.1;
+  letter-spacing: -.025em; overflow-wrap: anywhere; }
+.vak-held-sub { margin: 2px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; color: var(--inkt-2); font-size: 15px; font-variant-numeric: tabular-nums; }
+.vak-held-bestemming { margin: 4px 0 0; font-size: 17px; font-weight: 650; color: var(--inkt); overflow-wrap: anywhere; }
+.vak-aftelling { display: inline-flex; margin: 8px 0 0; padding: 5px 12px; border-radius: 99px; background: var(--accent); color: var(--accent-inkt);
+  font-size: 15px; font-weight: 700; }
+.vak-aftelling.voorbij { background: var(--vlak-2); color: var(--inkt-2); font-weight: 600; }
+.vak-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 12px 0 4px; padding: 5px;
+  border-radius: 16px; background: var(--vlak-2); }
+/* De tabbladen blijven bovenaan staan bij het scrollen (eenvoudig sticky; de rand in de achtergrondkleur dekt de inhoud af). */
+.vakantie .vak-tabs { position: sticky; top: max(8px, env(safe-area-inset-top)); z-index: 5; box-shadow: 0 0 0 8px var(--bg); }
+.vak-tab { min-height: 46px; border: 0; border-radius: 12px; background: transparent; color: var(--inkt-2); font-size: 16px; font-weight: 650; }
+.vak-tab.aan { background: var(--accent); color: var(--accent-inkt); box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent); }
+@media (hover: hover) { .vak-tab:not(.aan):hover { color: var(--inkt); background: color-mix(in srgb, var(--vlak) 60%, transparent); } }
+
+/* Blokken: Voorbereidingen, Boodschappen voor …, de paklijst, Notities. */
+.vak-blok { margin-top: 12px; padding: 14px; border: 1px solid var(--lijn); border-radius: var(--radius); background: var(--vlak); }
+.vak-blok-kop { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.vak-blok-kop h2 { margin: 0; font-family: var(--font-kop); font-size: 19px; font-weight: 700; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.vak-blok-tel { color: var(--inkt-2); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Inklapbaar blok (Regelen): de hele kop is de knop; titel, voortgang en pijl blijven altijd zichtbaar. */
+.vak-blok-kop h2:has(.vak-blok-knop) { flex: 1 1 auto; min-width: 0; }
+.vak-blok-knop { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin: -6px 0; padding: 0;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.vak-blok-tekst { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; flex: 1 1 auto; min-width: 0; }
+.vak-blok-knop .vak-blok-titel { min-width: 0; overflow-wrap: anywhere; }
+.vak-blok-knop .vak-blok-tel { font-family: var(--font); letter-spacing: normal; }
+.vak-blok-knop .uitklap-pijl { flex: 0 0 auto; color: var(--inkt-2); }
+.vak-blok.dicht .voortgang { margin-bottom: 0; }
+.vak-afgerond { margin-top: 4px; }
+.vak-afgerond .afgerond-knop { min-height: 44px; font-size: 15px; }
+.voortgang { display: block; height: 8px; margin: 10px 0 4px; border-radius: 99px; background: var(--vlak-2); overflow: hidden; }
+.voortgang.klein { height: 4px; }
+.voortgang-balk { display: block; height: 100%; border-radius: 99px; background: var(--accent); transition: width .25s ease-out; }
+.vak-snel { margin: 12px 0 4px; }
+.vak-snel input { background: var(--bg); }
+.vak-snel .knop { flex: 0 0 auto; min-width: 50px; min-height: 50px; padding: 0 14px; border-radius: var(--radius-klein); }
+.vak-leeg { margin-top: 10px; }
+.vak-noot { margin: 12px 2px 0; font-size: 13px; color: var(--inkt-3); }
+.vak-blok .vak-lijst { margin-top: 4px; border: 0; border-radius: 0; background: none; overflow: visible; }
+.vak-blok .vak-lijst .vink-knop { padding-left: 0; }
+.vak-blok .vak-lijst .rij-open { padding-right: 0; }
+/* Prettig bedienbaar op de telefoon: een groot rondje met een tikvlak van minstens 48 bij 52 px. */
+.vakantie .rij { min-height: 56px; }
+.vakantie .vink-knop { min-width: 48px; min-height: 52px; align-items: center; }
+.vakantie .vinkje { width: 26px; height: 26px; margin-top: 0; }
+.vakantie .rij-open { align-items: center; }
+.vakantie .rij-titel { font-size: 17px; }
+
+/* Inpakken: compacte persoonsknoppen ("Eva 4/10") die doorlopen over meerdere regels, minstens 44 px hoog; de actieve
+   persoon in het accent. De grote voortgangsbalk staat alleen bij de gekozen persoon. Nooit horizontaal schuiven. */
+.pak-personen { display: flex; flex-wrap: wrap; gap: 8px 6px; margin: 12px 0 4px; }
+.pak-persoon { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; min-height: 44px; padding: 0 12px;
+  border-radius: 99px; border: 1.5px solid var(--lijn-sterk); background: var(--vlak); color: var(--inkt); font-size: 16px; }
+.pak-persoon svg { flex: 0 0 auto; color: var(--inkt-2); }
+.pak-persoon-naam { min-width: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pak-persoon-tel { flex: 0 0 auto; color: var(--inkt-2); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pak-persoon.aan { border-color: var(--accent); background: var(--accent); color: var(--accent-inkt);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 35%, transparent); }
+.pak-persoon.aan .pak-persoon-tel, .pak-persoon.aan svg { color: color-mix(in srgb, var(--accent-inkt) 85%, transparent); }
+.pak-persoon.aan .stip { box-shadow: 0 0 0 2px var(--accent-inkt); }
+.pak-blok { margin-top: 10px; }
+.pak-kop { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; }
+.vak-blok-kop .pak-kop .pak-kop-naam { font-family: var(--font-kop); font-size: 22px; font-weight: 750; }
+.pak-kop-tel { font-family: var(--font); font-size: 15px; font-weight: 600; color: var(--inkt-2); font-variant-numeric: tabular-nums; }
+.pak-voorstel { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 12px;
+  padding: 12px 14px; border-radius: var(--radius-klein); background: var(--accent-zacht); }
+.pak-voorstel p { margin: 0; font-weight: 600; }
+.pak-meer { display: flex; flex-direction: column; align-items: flex-start; gap: 0; margin-top: 10px; }
+.pak-meer .tekstknop { min-height: 44px; color: var(--inkt-2); font-weight: 500; }
+.rij.pakitem { background: var(--vlak); transition: transform .12s ease-out; touch-action: pan-y; }
+
+/* Notities: een rustig, goed leesbaar schrijfvlak. */
+.vak-notities { display: block; width: 100%; min-height: 260px; margin-top: 12px; padding: 14px 16px; border-radius: var(--radius-klein);
+  border: 1px solid var(--lijn); background: var(--bg); color: var(--inkt); font: inherit; font-size: 17px; line-height: 1.65; resize: vertical; }
+.vak-notities::placeholder { color: var(--inkt-3); }
+.vak-notities:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* Vensters. */
+.pak-bij { margin: 18px 0 8px; }
+.vak-datums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.vak-datums .veld input { min-width: 0; padding: 0 10px; }
+.vak-datums .veld input:disabled { opacity: .55; }
+.vak-verwijder { margin-top: 14px; color: var(--fout); }
+.keuze-lijst { margin-bottom: 4px; }
+.keuze-lijst .rij-knop { align-items: center; }
+.keuze-rondje { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; border: 1.8px solid var(--lijn-sterk); }
+.keuze-rondje.aan { border: 6px solid var(--accent); }
+.rij-knop.gekozen { background: var(--accent-zacht); }
+
+/* Vandaag: één rustige kaart rond en tijdens een vakantie (zijkolom). */
+.vakantie-kaart { margin-top: 28px; }
+@media (min-width: 960px) { .kolom-zij > .vakantie-kaart:first-child { margin-top: 16px; } }
+.vakantie-kaart-knop { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 14px 16px; border: 1px solid var(--lijn);
+  border-radius: var(--radius); background: var(--vlak); color: inherit; font: inherit; text-align: left; }
+.vakantie-kaart-titel { display: inline-flex; align-items: center; gap: 8px; font-weight: 650; }
+.vakantie-kaart-titel svg { color: var(--accent); flex: 0 0 auto; }
+.vakantie-kaart-sub { color: var(--inkt-2); font-size: 14px; padding-left: 26px; }
+@media (hover: hover) { .vakantie-kaart-knop:hover { border-color: var(--lijn-sterk); } }
+
+/* Agenda en rijen: de vakantie als dunne regel en klein label. */
+.week-vakantie { display: flex; align-items: center; gap: 6px; width: 100%; margin: 2px 0 4px; padding: 3px 8px; border: 0;
+  border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--accent-zacht); color: var(--inkt);
+  font: inherit; font-size: 13px; font-weight: 600; text-align: left; }
+.week-vakantie svg { flex: 0 0 auto; color: var(--accent); }
+.dag-vakantie { margin-top: 12px; }
+.dag-vakantie:empty { display: none; }
+.vakantie-label { display: inline-flex; align-items: center; gap: 4px; }
+.vakantie-label svg { flex: 0 0 auto; }
+.meer-vakanties { margin-top: 8px; }
+.vak-icoon { background: var(--accent-zacht); color: var(--accent); }
+@media (min-width: 960px) {
+  .week-vakantie { font-size: 12px; padding: 2px 6px; }
+}

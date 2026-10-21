@@ -8,7 +8,24 @@ import { titelVoor } from '../lib/rechten';
 import { isVoorbij, takenZonderDatum } from '../lib/vandaag';
 import type { Datum } from '../lib/types';
 import { AfspraakRij, TaakRij, WeekAfspraakRij, WeekTaakRij } from '../components/Rijen';
-import { IcLinks, IcPijl, IcPlus } from '../components/Iconen';
+import { IcKoffer, IcLinks, IcPijl, IcPlus } from '../components/Iconen';
+import { vakantiesOp } from '../lib/vakantie';
+
+/** F8: een dunne regel met de vakantie op deze dag (zonder terugdatum alleen op de vertrekdag). Tik opent de vakantie. */
+function VakantieRegel({ datum }: { datum: Datum }) {
+  const { staat, openVakantie } = useApp();
+  const op = vakantiesOp(staat.vakanties, datum);
+  if (!op.length) return null;
+  return (
+    <>
+      {op.map(({ v, vertrek }) => (
+        <button key={v.id} type="button" className="week-vakantie" onClick={() => openVakantie(v.id)} aria-label={`Vakantie ${v.naam}${vertrek ? ', vertrek' : ''}. Openen`}>
+          <IcKoffer width={14} height={14} /> {v.naam}{vertrek && ' · vertrek'}
+        </button>
+      ))}
+    </>
+  );
+}
 
 const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september',
   'oktober', 'november', 'december'];
@@ -100,6 +117,7 @@ function DagWeergave() {
   const { afspraken, taken } = dagInhoud(staat.items, datum, filter);
   return (
     <div className="dag-weergave" aria-label={`Dagoverzicht ${langeDatum(datum)}`} role="region">
+      <div className="dag-vakantie"><VakantieRegel datum={datum} /></div>
       <section aria-labelledby="h-dag-afspraken">
         <h2 id="h-dag-afspraken" className="sectie-kop">Afspraken</h2>
         {afspraken.length
@@ -131,8 +149,9 @@ function WeekWeergave() {
   const { agenda, zetAgenda, staat, vandaag, nu, openToevoegen } = useApp();
   const maandag = maandagVan(agenda.datum);
   const dagen = Array.from({ length: 7 }, (_, n) => plusDagen(maandag, n));
-  const inhoud = dagen.map(datum => ({ datum, ...dagInhoud(staat.items, datum, agenda.filter) }));
-  const isLeeg = (i: number) => !inhoud[i].afspraken.length && !inhoud[i].taken.length;
+  const inhoud = dagen.map(datum => ({ datum, ...dagInhoud(staat.items, datum, agenda.filter), vakantie: vakantiesOp(staat.vakanties, datum).length > 0 }));
+  // Een dag met (alleen) een vakantie telt niet als leeg: de vakantieregel moet zichtbaar blijven.
+  const isLeeg = (i: number) => !inhoud[i].afspraken.length && !inhoud[i].taken.length && !inhoud[i].vakantie;
   // Opeenvolgende lege dagen staan op mobiel samen op één regel (D5); op desktop blijft elke dag een eigen kolom (D6).
   const groepVan = (i: number) => {
     if (!isLeeg(i)) return null;
@@ -180,7 +199,8 @@ function WeekWeergave() {
                 <IcPlus width={16} height={16} />
               </button>
             </div>
-            {!leeg && (
+            <VakantieRegel datum={datum} />
+            {(afspraken.length > 0 || taken.length > 0) && (
               <ul className="lijst week-lijst">
                 {afspraken.map(a => <WeekAfspraakRij key={a.id} a={a} voorbij={datum < vandaag || (isVandaag && isVoorbij(a, nu))} />)}
                 {taken.map(t => <WeekTaakRij key={t.id} t={t} />)}

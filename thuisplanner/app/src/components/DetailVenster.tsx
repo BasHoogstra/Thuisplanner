@@ -12,6 +12,7 @@ import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen,
 import { herhalingTekst, wordtDubbel } from '../lib/herhaling';
 import { magZichtbaarheidKiezen } from '../lib/rechten';
 import { nieuwId } from '../lib/store';
+import { kiesbareVakanties } from '../lib/vakantie';
 import type { Afspraak, Datum, Herhaling, LidId, Taak } from '../lib/types';
 import { DatumKeuze, TijdKeuze, WieKeuze } from './Keuzepanelen';
 import { IcHerhaal, IcSlot } from './Iconen';
@@ -25,7 +26,7 @@ function schuif(oudStart: string, oudEind: string, nieuwStart: string): string {
   return e > minuten(nieuwStart) && e < 24 * 60 ? `${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}` : '';
 }
 
-type Paneel = 'dag' | 'tijd' | 'wie' | 'plek' | 'herhaling' | null;
+type Paneel = 'dag' | 'tijd' | 'wie' | 'plek' | 'herhaling' | 'vakantie' | null;
 
 export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: {
   item: Afspraak | Taak;
@@ -47,6 +48,7 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
     wie: afspraak ? afspraak.wie : taak!.voor ? [taak!.voor] : [],
     plek: afspraak?.plek ?? '',
     prive: afspraak?.zichtbaarheid === 'prive',
+    vakantie: taak?.vakantieId ?? null,
   };
   const [titel, zetTitel] = useState(begin.titel);
   const [dag, zetDag] = useState<Datum | null>(begin.dag);
@@ -55,6 +57,8 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
   const [wie, zetWie] = useState<LidId[]>(begin.wie);
   const [plek, zetPlek] = useState(begin.plek);
   const [prive, zetPrive] = useState(begin.prive);
+  const [vakantie, zetVakantie] = useState<string | null>(begin.vakantie);
+  const vakanties = taak ? kiesbareVakanties(staat.vakanties, vandaag, begin.vakantie) : [];
   const [paneel, zetPaneel] = useState<Paneel>(null);
   const [meer, zetMeer] = useState(false);
   const [verwijderen, zetVerwijderen] = useState(false);
@@ -67,21 +71,22 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
   const kanPrive = !!afspraak && magZichtbaarheidKiezen(afspraak, huishouden.ik);
   const herhaling = reeks?.herhaling ?? afspraak?.herhaling;
   const gewijzigd = titel.trim().replace(/\s+/g, ' ') !== begin.titel || dag !== begin.dag || start !== begin.start || eind !== begin.eind
-    || wie.join() !== begin.wie.join() || plek.trim() !== begin.plek || prive !== begin.prive;
+    || wie.join() !== begin.wie.join() || plek.trim() !== begin.plek || prive !== begin.prive || vakantie !== begin.vakantie;
   const open = (p: Exclude<Paneel, null>) => zetPaneel(x => (x === p ? null : p));
   const tijd = start ? (eind ? `${start} – ${eind}` : start) : 'Hele dag';
   const wieTekst = wie.length ? wie.map(id => lid(id)?.naam ?? '?').join(', ') : afspraak ? 'Iedereen' : 'Nog niemand';
 
   function weggooien() {
     zetTitel(begin.titel); zetDag(begin.dag); zetStart(begin.start); zetEind(begin.eind); zetWie(begin.wie);
-    zetPlek(begin.plek); zetPrive(begin.prive); zetPaneel(null); zetFout(null);
+    zetPlek(begin.plek); zetPrive(begin.prive); zetVakantie(begin.vakantie); zetPaneel(null); zetFout(null);
   }
 
   function opslaan(bereik?: 'deze' | 'reeks') {
     const t = titel.trim().replace(/\s+/g, ' ');
     if (!t) { zetFout('Geef het even een naam.'); return; }
     if (taak) {
-      const nieuw: Taak = { ...taak, titel: t, datum: dag, voor: wie[0] ?? null, versie: beginVersie };
+      // De vakantie alleen meegeven als die is gewijzigd; anders blijft het veld zoals het was (F8).
+      const nieuw: Taak = { ...taak, titel: t, datum: dag, voor: wie[0] ?? null, ...(vakantie !== begin.vakantie ? { vakantieId: vakantie } : {}), versie: beginVersie };
       app.bijwerken(nieuw, `${t} aangepast`);
       sluit();
       return;
@@ -184,6 +189,18 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
               <span className="detail-label">Zichtbaar</span>{' '}
               <span className="detail-waarde">{prive ? <><IcSlot /> Alleen voor jou</> : 'Voor het hele huishouden'}</span>
             </button>
+          )}
+          {taak && vakanties.length > 0 && rij('vakantie', 'Vakantie', vakanties.find(v => v.id === vakantie)?.naam ?? 'Geen')}
+          {taak && paneel === 'vakantie' && (
+            <div className="paneel">
+              <div className="keuzes" role="group" aria-label="Hoort bij vakantie">
+                {vakanties.map(v => (
+                  <button key={v.id} type="button" className={'keuze' + (vakantie === v.id ? ' aan' : '')} aria-pressed={vakantie === v.id}
+                    onClick={() => { zetVakantie(v.id); zetPaneel(null); }}>{v.naam}</button>
+                ))}
+                <button type="button" className={'keuze' + (!vakantie ? ' aan' : '')} aria-pressed={!vakantie} onClick={() => { zetVakantie(null); zetPaneel(null); }}>Geen</button>
+              </div>
+            </div>
           )}
           {taak && (
             <div className="detail-rij statisch">

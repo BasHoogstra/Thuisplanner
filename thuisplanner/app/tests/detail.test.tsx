@@ -23,7 +23,7 @@ function opzet(items: Item[], id: string) {
     { id: THOMAS, naam: 'Thomas', soort: 'volwassene', kleur: 'blue', heeftAccount: true },
     { id: LOTTE, naam: 'Lotte', soort: 'kind', kleur: 'green', heeftAccount: false }];
   const ctx = {
-    staat: { scenario: 'gewoon', items, weggeklikt: new Set(), vorige: null, melding: null },
+    staat: { scenario: 'gewoon', items, vakanties: [], pakitems: [], koppelingen: [], weggeklikt: new Set(), vorige: null, melding: null },
     huishouden: { naam: 'Familie De Boer', ik: EVA, leden }, vandaag: V, nu: '09:00', uur: 9,
     lid: (lid: string) => leden.find(l => l.id === lid), meld: vi.fn(), toevoegen: vi.fn(), ...f,
   } as unknown as AppContext;

@@ -188,12 +188,16 @@ export function SyncLabel({ sync }: { sync: SyncVelden['sync'] }) {
 }
 
 /** Herstelkeuzes voor een onbevestigde opdracht (in het venster van dat item en in Meer). */
-export function HerstelKnoppen({ id, sync, na }: { id: string; sync: SyncVelden['sync']; na?: () => void }) {
+export function HerstelKnoppen({ id, sync, na, alleenVergeten = false }: {
+  id: string; sync: SyncVelden['sync']; na?: () => void;
+  /** Een vakantie of pakitem zonder inhoud voer je opnieuw in bij de vakantie zelf; hier alleen vergeten (F8). */
+  alleenVergeten?: boolean;
+}) {
   const { lokaal, openItem } = useApp();
   if (!lokaal || !sync || sync === 'wachtend') return null;
   return (
     <div className="keuzes herstel">
-      {sync === 'zonder-inhoud' ? (
+      {alleenVergeten ? null : sync === 'zonder-inhoud' ? (
         // Inhoud niet op dit toestel: opnieuw invoeren onder dezelfde opdracht-ID (zie ItemVenster).
         <button type="button" className="knop klein" onClick={() => { na?.(); openItem(id); }}>Opnieuw invoeren</button>
       ) : (

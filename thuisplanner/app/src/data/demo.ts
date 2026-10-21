@@ -1,7 +1,7 @@
 // Fictieve voorbeeldgegevens. Er bestaat geen echt gezin De Boer; alle namen, tijden en plekken zijn
 // verzonnen. Datums zijn relatief aan "vandaag", zodat de demo altijd actueel oogt.
 import { plusDagen } from '../lib/datum';
-import type { Datum, Huishouden, Item } from '../lib/types';
+import type { Datum, Huishouden, Item, Pakitem, Vakantie, VakantieKoppeling } from '../lib/types';
 
 export const huishouden: Huishouden = {
   naam: 'Familie De Boer',
@@ -73,4 +73,51 @@ export function demoItems(vandaag: Datum, scenario: Scenario): Item[] {
     { id: 'b-bananen', soort: 'boodschap', naam: 'Bananen', afgevinkt: false },
     { id: 'b-wc', soort: 'boodschap', naam: 'Wc-papier', afgevinkt: true },
   ];
+}
+
+// ---- F8 Vakanties: fictieve vakanties (docs/thuisplanner-vakanties.md). Frankrijk begint over negen dagen (de kaart op
+// Vandaag), Kerst op Texel heeft alleen een vertrekdatum, Noorwegen nog geen datum, en Italië is voorbij: daarvan kun je
+// de paklijst overnemen. ----
+export interface DemoVakanties {
+  vakanties: Vakantie[];
+  pakitems: Pakitem[];
+  koppelingen: VakantieKoppeling[];
+  /** Voorbereidingen (taken) en boodschappen voor de vakanties. */
+  items: Item[];
+}
+
+export function demoVakanties(vandaag: Datum): DemoVakanties {
+  const d = (n: number) => plusDagen(vandaag, n);
+  const vakanties: Vakantie[] = [
+    { id: 'v-frankrijk', naam: 'Frankrijk', vertrek: d(9), terug: d(23), bestemming: 'Ardèche',
+      notities: 'Camping Les Peupliers, plek 14. Inchecken vanaf 15:00. Reserveringsnummer staat in de mail van maart.' },
+    { id: 'v-texel', naam: 'Kerst op Texel', vertrek: d(64), terug: null, bestemming: 'De Koog' },
+    { id: 'v-noorwegen', naam: 'Noorwegen', vertrek: null, terug: null },
+    { id: 'v-italie', naam: 'Italië', vertrek: d(-120), terug: d(-106), bestemming: 'Gardameer' },
+  ];
+  let n = 0;
+  const pak = (vakantieId: string, lid: string | null, namen: string[], ingepakt = 0): Pakitem[] =>
+    namen.map((naam, i) => ({ id: `p-${vakantieId.slice(2)}-${++n}`, vakantieId, lid, naam, ingepakt: i < ingepakt,
+      ingepaktOp: i < ingepakt ? `${d(-1)}T20:00:00.000Z` : null, ingepaktDoor: i < ingepakt ? lid ?? 'm-eva' : null }));
+  const pakitems: Pakitem[] = [
+    ...pak('v-frankrijk', 'm-eva', ['Zwemkleding', 'Sokken', 'Onderbroeken', 'Shirts korte mouw', 'Korte broeken', 'Vest', 'Sandalen', 'Leesboek', 'Zonnebril', 'Oplader telefoon'], 4),
+    ...pak('v-frankrijk', 'm-thomas', ['Zwembroek', 'Sokken', 'Onderbroeken', 'Shirts', 'Wandelschoenen', 'Pet', 'Oplader telefoon']),
+    ...pak('v-frankrijk', 'm-lotte', ['Zwempak', 'Sokken', 'Onderbroeken', 'Shirts', 'Knuffel', 'Tekenspullen', 'Waterschoenen'], 2),
+    ...pak('v-frankrijk', 'm-daan', ['Zwembroek', 'Sokken', 'Onderbroeken', 'Shirts', 'Speen voor de nacht', 'Lievelingsboek']),
+    ...pak('v-frankrijk', null, ['Paspoorten', 'Zonnebrand', 'EHBO-doos', 'Tent', 'Luchtbedden', 'Campingkookstel', 'Wasknijpers'], 1),
+    ...pak('v-italie', 'm-eva', ['Zwemkleding', 'Sokken', 'Onderbroeken', 'Shirts korte mouw', 'Zonnehoed', 'Leesboek'], 6),
+    ...pak('v-italie', 'm-thomas', ['Zwembroek', 'Sokken', 'Onderbroeken', 'Shirts', 'Wandelschoenen'], 5),
+    ...pak('v-italie', 'm-lotte', ['Zwempak', 'Sokken', 'Onderbroeken', 'Knuffel', 'Duikbril'], 5),
+    ...pak('v-italie', 'm-daan', ['Zwembroek', 'Sokken', 'Onderbroeken', 'Zwembandjes'], 4),
+    ...pak('v-italie', null, ['Paspoorten', 'Zonnebrand', 'EHBO-doos', 'Strandlaken'], 4),
+  ];
+  const items: Item[] = [
+    { id: 't-vignet', soort: 'taak', titel: 'Vignet regelen', datum: d(3), voor: 'm-thomas', klaar: false, vakantieId: 'v-frankrijk' },
+    { id: 't-paspoort', soort: 'taak', titel: 'Paspoort Lotte ophalen', datum: d(5), voor: 'm-eva', klaar: false, vakantieId: 'v-frankrijk' },
+    { id: 't-oppas', soort: 'taak', titel: 'Kattenoppas vragen', datum: null, voor: null, klaar: false, vakantieId: 'v-frankrijk' },
+    { id: 't-camping', soort: 'taak', titel: 'Camping bevestigen', datum: null, voor: 'm-eva', klaar: true, klaarOp: d(-3), vakantieId: 'v-frankrijk' },
+  ];
+  // Geen demoboodschappen voor de vakantie: de bestaande tests tellen de boodschappen van de demo. Te kopen begint leeg.
+  const koppelingen: VakantieKoppeling[] = [];
+  return { vakanties, pakitems, koppelingen, items };
 }
