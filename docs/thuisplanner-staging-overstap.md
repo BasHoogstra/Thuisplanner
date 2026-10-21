@@ -88,40 +88,76 @@ Akkoord gegeven op 21 oktober 2026.
   - de geschiedenis bestaat precies uit de migraties 1–11;
   - de dry-run toont alleen de migraties 12–16.
 - **Akkoord:** ja. Dit is een online verbinding, maar er wordt niets gewijzigd.
+- **Uitgevoerd op 21 oktober 2026** (na een correctie van de URI): PostgreSQL 17.11, 11 migraties, 11 tabellen in
+  `public`, schema `private` aanwezig, 2 accounts, pg_cron aan. De dry-run toonde precies de migraties 12–16; de stand
+  was voor en na gelijk (`f98c68ba8ab9`). Er is niets gewijzigd.
 
 ### Stap 2b — Controleerbare export vóór de migraties
 
-Supabase Free heeft geen back-ups en geen herstel naar een tijdstip. Daarom maken we zelf een export.
+Supabase Free heeft geen back-ups en geen herstel naar een tijdstip. Daarom maken we zelf een export. Lokaal gebouwd en
+bewezen op 21 oktober 2026; de online export zelf heeft een eigen akkoord.
 
 **Wat we exporteren:**
-- het schema (zoals het online staat);
-- de gegevens van `public` en `private`;
-- uit `auth` alleen de accounts en identiteiten. Sessies, verversingstokens, eenmalige tokens en het auditlogboek gaan
-  niet mee.
+- **de gegevens:** alle gewone tabellen in `public` en `private`, en uit `auth` alleen `users` en `identities`.
+  Sessies, verversingstokens, eenmalige tokens en het auditlogboek gaan niet mee;
+- **het schema:** dat is de repository. Het manifest legt de migratieversies vast, en de vorm van het schema: per schema
+  het aantal relaties, functies en policies, en per tabel de kolommen met hun type.
 
-**Hoe:**
-- Met `supabase db dump` (de CLI draait pg_dump in Docker; er is geen nieuwe software nodig).
-- Over dezelfde verbinding als stap 2: `sslmode=verify-full` en alleen de vastgepinde root. Nooit `sslmode=disable` of
-  iets vergelijkbaars.
-- Het wachtwoord alleen via de verborgen prompt.
-- Hiervoor krijgt `verbinding.ps1` een modus `-Export`. Die wordt eerst lokaal gebouwd en tegen de lokale stack bewezen.
-  Dat is een kleine scriptwijziging met een eigen akkoord, vóór deze stap.
+**Hoe** (`staging/export.mjs`, aangeroepen door `verbinding.ps1 -Export`):
+- Dezelfde verbinding als stap 2: TLS met keten- en hostnaamcontrole en alleen de vastgepinde Supabase-root. Nooit
+  `sslmode=disable` of iets vergelijkbaars.
+- Het wachtwoord alleen via de verborgen prompt. Geen `pg_dump` en geen nieuwe software: de bestaande `pg`-bibliotheek.
+- Eén read-only transactie met één momentopname (repeatable read): de telling en de rijen horen bij hetzelfde moment.
+  Het schema wordt vóór en na de export vergeleken; is het veranderd, dan wordt er niets geschreven.
+- Per tabel één JSON-bestand, plus `manifest.json` met de telling en de SHA-256 per bestand. Na het schrijven leest het
+  script alles terug en controleert het.
+- Het script toont aan het eind de **SHA-256 van `manifest.json`**. Die noteren we; de hersteltoets vraagt hem.
 
 **Waar het staat:**
-- Buiten de repository, in een map die de producteigenaar kiest, bijvoorbeeld
-  `%USERPROFILE%\Thuisplanner-exports\staging-<datum>`.
-- De export bevat persoonsgegevens (testadressen en gehashte wachtwoorden). Na een geslaagde acceptatie (stap 11)
-  verwijdert de producteigenaar hem.
-- De wijziging voor `-Export` voegt een statische controle toe die een export in `thuisplanner/` weigert.
+- In een lege map buiten de repository, die de producteigenaar kiest, bijvoorbeeld
+  `C:UsersBasThuisplanner-exportsstaging-2026-10-21`. Het script weigert een relatieve map, een map in of boven
+  de repository, en een map die niet leeg is. Dat gebeurt vóór het wachtwoord wordt gevraagd.
+- De export bevat persoonsgegevens: twee adressen en gehashte wachtwoorden. Hij blijft alleen op deze computer en de
+  producteigenaar verwijdert hem na een geslaagde acceptatie (stap 11).
 
-**Wat de export controleerbaar maakt:**
-1. Een SHA-256 per bestand, vastgelegd naast de export.
-2. Een telling per tabel uit de live database, alleen lezend, in dezelfde read-only transactie.
-3. Een **hersteltoets vóór stap 4**: de export wordt teruggezet in een aparte, lege lokale stack, met dezelfde 11
-   migraties. Daarna vergelijken we de tellingen per tabel en de controlesommen. Alleen als alles gelijk is, gaan we
-   naar stap 4.
+**Uitvoering:**
+1. In een tab van het Terminal-paneel, vanuit de repository:
+   `powershell -NoProfile -ExecutionPolicy Bypass -File .	huisplannersupabasestagingerbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl -Export -ExportMap <map>`
+2. De producteigenaar plakt de Session pooler-URI (met `[YOUR-PASSWORD]`) en typt het wachtwoord bij de verborgen prompt.
+3. Het script toont per tabel de telling en de SHA-256 van het manifest.
 
-- **Akkoord:** ja (de scriptwijziging, de verbinding en de lokale hersteltoets).
+**De hersteltoets** (`staging/hersteltoets.sh`, alleen lokaal, vóór stap 4):
+`bash thuisplanner/supabase/staging/hersteltoets.sh <map> <SHA-256 van manifest.json>`
+1. Controleert het manifest tegen de genoteerde SHA-256, en elk bestand tegen zijn controlesom en telling.
+2. Start een aparte, lege lokale stack (`thuisplanner_hersteltoets`, poorten 54430–54434) met precies de migraties uit
+   het manifest, zonder seed en zonder mail-hook. De gewone lokale stack wordt niet geraakt.
+3. Vergelijkt de vorm van het schema met het manifest, vóór er iets wordt teruggezet.
+4. Zet alle tabellen terug (triggers en sleutelcontroles staan daarbij uit, zodat versies en tijden niet veranderen) en
+   vergelijkt per tabel elke rij met de export.
+5. Stopt de stack en verwijdert hem zonder back-up.
+
+Alleen als de hersteltoets "GESLAAGD" meldt, gaan we naar stap 4. Kolommen in `auth` die lokaal niet bestaan (het
+gehoste Supabase Auth kan nieuwer zijn dan de lokale stack), meldt de toets met "LET OP". Die worden niet vergeleken.
+
+**Lokaal bewezen (21 oktober 2026):**
+- Integratietest `tests/integratie/export.test.mjs` (6 tests, ook in CI).
+- Een database met precies migraties 1–11, gevuld zoals staging toen is ingericht (het oude `testers.sql` en
+  `archief-proef.sql`: 4 accounts, een huishouden, leden, uitnodigingen en afspraken). Geëxporteerd en met de hersteltoets
+  volledig teruggezet: 14 tabellen, 21 rijen, gelijk.
+- Tegenproeven, alle gevangen:
+  - niet leegmaken vóór het terugzetten;
+  - triggers aan tijdens het terugzetten;
+  - vergelijken alleen op aantallen;
+  - een gewijzigd, ontbrekend of extra bestand;
+  - een ander manifest;
+  - een manifest met een migratie minder en een nieuwe controlesom: de schemavorm houdt het tegen;
+  - een map in de repository, een relatieve map, of `-Export` samen met `-Push`.
+
+**Herstel online, als het ooit nodig is (scenario "project onbruikbaar" in het herstelplan):** dezelfde stappen tegen een
+nieuw, leeg Thuisplanner-project na de migraties 1–11. Dat gaat alleen na een aparte uitwerking en een eigen akkoord: het
+terugzetten in een gehost project gebruikt `session_replication_role`, en dat is daar nog niet getoetst.
+
+- **Akkoord:** de online export (één verbinding, alleen lezen) heeft een eigen akkoord. De hersteltoets is lokaal.
 
 ### Stap 3 — Proefmail via Lettermint
 

@@ -889,3 +889,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - `staging/testers.sql` vervangen: het zet alleen het adres van de eigenaar op de testerslijst (testpoort G1). Het weigert zonder toegangspoort, met het voorbeeldadres of met wachtwoordsessies aan, en kan veilig opnieuw draaien. Het oude script werkte niet meer met de toegangspoort.
 - Documentatie bijgewerkt: `docs/thuisplanner-staging.md` (stand, aanmelden moet aan, blootgestelde schema's, testers), het bouwverslag (`KG_ANON_KEY`), de README van de app en de uitnodigingsdocumentatie. Nieuw: het uitvoeringsplan `docs/thuisplanner-staging-overstap.md`, met export en herstelprocedure vóór de migraties 12–16.
 - Tests: `omgevingen.test.mjs` (3) en `staging-kenmerk.test.ts` (3), met tegenproeven. Niets online gewijzigd; Huisplan ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 2 en de voorbereiding van stap 2b (21 oktober 2026)
+- Stap 2 uitgevoerd (alleen lezend): staging heeft precies de migraties 1–11, 2 accounts en pg_cron aan; de dry-run toonde alleen de migraties 12–16; de stand was voor en na gelijk. Online niets gewijzigd.
+- Nieuw, lokaal: `verbinding.ps1 -Export -ExportMap <map>` met `staging/export.mjs`. De export leest alles in één read-only momentopname (public, private, en uit auth alleen accounts en identiteiten) en schrijft per tabel JSON met een manifest (tellingen, SHA-256 per bestand, migraties, vorm van het schema). Hij weigert een map in of boven de repository, een relatieve map of een niet-lege map, vóór het wachtwoord wordt gevraagd.
+- Nieuw: `staging/hersteltoets.sh` zet een export terug in een aparte, lege lokale stack met precies de migraties uit het manifest, en vergelijkt elke rij. Daarbij controleert hij eerst de SHA-256 van het manifest en de vorm van het schema.
+- Tests: `tests/integratie/export.test.mjs` (6, ook in CI). Een proef met precies 11 migraties en verzonnen gegevens zoals op staging is volledig teruggezet. Alle tegenproeven zijn gevangen, ook de eerst gemiste: een manifest met een migratie minder.
+- De online export zelf is nog niet uitgevoerd (eigen akkoord). Huisplan ongewijzigd.
