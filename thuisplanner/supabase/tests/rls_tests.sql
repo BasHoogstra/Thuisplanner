@@ -2266,6 +2266,340 @@ do $$ declare t text; f text; n bigint; begin
   perform pg_temp.ok('KG-T72');
 end $$;
 
+-- ============================== F8 Vakanties, V1.1 (docs/thuisplanner-vakanties.md §12.4) ==============================
+-- Huishouden HV (Vakantie): Vera eigenaar, Wout lid met account, Pien kind zonder account, Xan lid met account dat
+-- wordt gearchiveerd. Otto heeft een eigen huishouden HO (Overburen) en is voor HV een buitenstaander.
+-- Vakanties: V1 Frankrijk (doel), V2 Texel (bron voor overnemen), V3 (wordt verwijderd), VO van Otto.
+reset role;
+select set_config('test.vera', gen_random_uuid()::text, true);
+select set_config('test.wout', gen_random_uuid()::text, true);
+select set_config('test.xan',  gen_random_uuid()::text, true);
+select set_config('test.otto', gen_random_uuid()::text, true);
+insert into auth.users (id, email) values
+  (current_setting('test.vera')::uuid, 'vera@test.invalid'),
+  (current_setting('test.wout')::uuid, 'wout@test.invalid'),
+  (current_setting('test.xan')::uuid,  'xan@test.invalid'),
+  (current_setting('test.otto')::uuid, 'otto@test.invalid');
+select set_config('test.v1', gen_random_uuid()::text, true);
+select set_config('test.v2', gen_random_uuid()::text, true);
+select set_config('test.v3', gen_random_uuid()::text, true);
+select set_config('test.vo', gen_random_uuid()::text, true);
+set local role authenticated;
+select pg_temp.als('vera');
+select set_config('test.hv', public.create_household('Vakantie', 'Vera')::text, true);
+select set_config('test.m_vera', (select member_id from public.my_memberships() where household_id = current_setting('test.hv')::uuid)::text, true);
+select set_config('test.m_pien', public.add_member(current_setting('test.hv')::uuid, 'Pien', 'child')::text, true);
+select set_config('test.tok_wout', public.create_invite(current_setting('test.hv')::uuid), true);
+select set_config('test.tok_xan', public.create_invite(current_setting('test.hv')::uuid), true);
+select pg_temp.als('wout');
+select public.accept_invite(current_setting('test.tok_wout'), 'Wout');
+select set_config('test.m_wout', (select member_id from public.my_memberships() where household_id = current_setting('test.hv')::uuid)::text, true);
+select pg_temp.als('xan');
+select public.accept_invite(current_setting('test.tok_xan'), 'Xan');
+select set_config('test.m_xan', (select member_id from public.my_memberships() where household_id = current_setting('test.hv')::uuid)::text, true);
+select pg_temp.als('otto');
+select set_config('test.ho', public.create_household('Overburen', 'Otto')::text, true);
+select set_config('test.m_otto', (select member_id from public.my_memberships() where household_id = current_setting('test.ho')::uuid)::text, true);
+insert into public.trips (id, household_id, name) values (current_setting('test.vo')::uuid, current_setting('test.ho')::uuid, 'Otto-reis');
+select set_config('test.s_otto', (select r.id from public.add_shopping_items(current_setting('test.ho')::uuid, array[gen_random_uuid()], array['Otto-zonnebrand']) r)::text, true);
+-- Bron Texel met een paklijst: Vera, Pien, Xan (wordt gearchiveerd), Gezamenlijk, en een verwijderd item.
+select pg_temp.als('vera');
+insert into public.trips (id, household_id, name, start_date, end_date) values
+  (current_setting('test.v2')::uuid, current_setting('test.hv')::uuid, 'Texel', '2026-07-01', '2026-07-08');
+insert into public.trip_packing_items (household_id, trip_id, member_id, name)
+  select current_setting('test.hv')::uuid, current_setting('test.v2')::uuid, m, n from (values
+    (current_setting('test.m_vera')::uuid, 'Zwembroek'), (current_setting('test.m_vera')::uuid, 'Sokken'),
+    (current_setting('test.m_pien')::uuid, 'Knuffel'), (current_setting('test.m_pien')::uuid, 'Sokken'),
+    (current_setting('test.m_xan')::uuid, 'Laptop'), (null::uuid, 'Zonnebrand'), (null::uuid, 'Paspoorten'),
+    (current_setting('test.m_vera')::uuid, 'Weg')) b(m, n);
+update public.trip_packing_items set deleted_at = now() where name = 'Weg';
+select public.archive_member(current_setting('test.hv')::uuid, current_setting('test.m_xan')::uuid);
+
+-- KG-T76 Vakanties: ieder lid maakt en wijzigt; geen datum, alleen een vertrekdatum of beide; nooit alleen een
+-- einddatum of een einde vóór het vertrek; versie loopt op; echt verwijderen, vaste kolommen en eigen versies kunnen
+-- niet; buitenstaander en gearchiveerd lid zien en schrijven niets.
+do $$ declare h text := current_setting('test.hv'); v text := current_setting('test.v1'); begin
+  perform pg_temp.als('vera');
+  execute format($q$ insert into public.trips (id, household_id, name) values (%L, %L, 'Frankrijk') $q$, v, h);
+  if pg_temp.geraakt(format($q$ update public.trips set start_date = '2027-07-12' where id = %L and version = 1 $q$, v)) <> 1 then raise exception 'KG-T76: alleen een vertrekdatum kan niet'; end if;
+  if pg_temp.geraakt(format($q$ update public.trips set end_date = '2027-07-26' where id = %L and version = 2 $q$, v)) <> 1 then raise exception 'KG-T76: vertrek- en einddatum samen kan niet'; end if;
+  if not pg_temp.faalt(format($q$ update public.trips set end_date = '2027-07-01' where id = %L $q$, v)) then raise exception 'KG-T76: einde vóór het vertrek toegestaan'; end if;
+  if not pg_temp.faalt(format($q$ update public.trips set start_date = null where id = %L $q$, v)) then raise exception 'KG-T76: vertrekdatum weg terwijl de einddatum blijft'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trips (household_id, name, end_date) values (%L, 'Alleen einde', '2027-01-01') $q$, h)) then raise exception 'KG-T76: alleen een einddatum toegestaan'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trips (household_id, name) values (%L, '  ') $q$, h)) then raise exception 'KG-T76: vakantie zonder naam'; end if;
+  if (select version from public.trips where id = v::uuid) <> 3 then raise exception 'KG-T76: versie niet verhoogd'; end if;
+  if pg_temp.geraakt(format($q$ update public.trips set name = 'Oud' where id = %L and version = 1 $q$, v)) <> 0 then raise exception 'KG-T76: verouderde versie wijzigt toch'; end if;
+  perform pg_temp.als('wout');
+  if pg_temp.geraakt(format($q$ update public.trips set destination = 'Ardèche', notes = 'Camping' where id = %L and version = 3 $q$, v)) <> 1 then raise exception 'KG-T76: lid kan een vakantie niet wijzigen'; end if;
+  if not pg_temp.faalt(format('delete from public.trips where id = %L', v)) then raise exception 'KG-T76: echt verwijderen via de API'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trips (household_id, name, version) values (%L, 'X', 7) $q$, h)) then raise exception 'KG-T76: eigen versie zetten'; end if;
+  if not pg_temp.faalt(format($q$ update public.trips set created_at = now() - interval '1 year' where id = %L $q$, v)) then raise exception 'KG-T76: aanmaakmoment te wijzigen'; end if;
+  if not pg_temp.faalt(format($q$ update public.trips set household_id = %L where id = %L $q$, current_setting('test.ho'), v)) then raise exception 'KG-T76: vakantie naar een ander huishouden te verplaatsen'; end if;
+  -- Zonder datum en met alleen een vertrekdatum bestaan naast elkaar.
+  execute format($q$ insert into public.trips (id, household_id, name, start_date) values (%L, %L, 'Weekendje', '2027-03-05') $q$, current_setting('test.v3'), h);
+  if pg_temp.geraakt(format('update public.trips set deleted_at = now() where id = %L', current_setting('test.v3'))) <> 1 then raise exception 'KG-T76: lid kan een vakantie niet verwijderen'; end if;
+  if pg_temp.geraakt(format('update public.trips set deleted_at = null where id = %L', current_setting('test.v3'))) <> 1 then raise exception 'KG-T76: verwijderen niet ongedaan te maken'; end if;
+  perform pg_temp.geraakt(format('update public.trips set deleted_at = now() where id = %L', current_setting('test.v3')));
+  perform pg_temp.als('otto');
+  if pg_temp.aantal(format('select 1 from public.trips where household_id = %L', h)) <> 0 then raise exception 'KG-T76: buitenstaander ziet vakanties'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trips (household_id, name) values (%L, 'Inbraak') $q$, h)) then raise exception 'KG-T76: buitenstaander maakt een vakantie'; end if;
+  if pg_temp.geraakt(format($q$ update public.trips set name = 'Overgenomen' where id = %L $q$, v)) <> 0 then raise exception 'KG-T76: buitenstaander wijzigt een vakantie'; end if;
+  perform pg_temp.als('xan');
+  if pg_temp.aantal('select 1 from public.trips') <> 0 then raise exception 'KG-T76: gearchiveerd lid ziet vakanties'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trips (household_id, name) values (%L, 'Na archiveren') $q$, h)) then raise exception 'KG-T76: gearchiveerd lid maakt een vakantie'; end if;
+  perform pg_temp.ok('KG-T76');
+end $$;
+
+-- KG-T77 Paklijst: per persoon of Gezamenlijk; dezelfde tekst hoogstens één keer per persoon (ongeacht hoofdletters
+-- en spaties), wel bij een andere persoon; geen persoon of vakantie van buiten, geen gearchiveerd lid; ingepakt-door
+-- alleen met een moment; de vakantie ligt vast. Ongedaan maken (U1): herstellen, verplaatsen of hernoemen naar een
+-- item dat er intussen al staat, geeft 23505 en verandert niets.
+do $$ declare h text := current_setting('test.hv'); v text := current_setting('test.v1');
+  p1 uuid := gen_random_uuid(); p2 uuid := gen_random_uuid(); p3 uuid := gen_random_uuid(); pv uuid := gen_random_uuid(); begin
+  perform pg_temp.als('vera');
+  execute format($q$ insert into public.trip_packing_items (id, household_id, trip_id, member_id, name) values (%L, %L, %L, %L, 'Sokken') $q$, p1, h, v, current_setting('test.m_pien'));
+  if pg_temp.fout(format($q$ insert into public.trip_packing_items (household_id, trip_id, member_id, name) values (%L, %L, %L, '  sokken ') $q$, h, v, current_setting('test.m_pien'))) is distinct from '23505' then raise exception 'KG-T77: dubbel item bij dezelfde persoon'; end if;
+  execute format($q$ insert into public.trip_packing_items (id, household_id, trip_id, member_id, name) values (%L, %L, %L, %L, 'Sokken') $q$, pv, h, v, current_setting('test.m_vera'));
+  execute format($q$ insert into public.trip_packing_items (household_id, trip_id, name) values (%L, %L, 'Sokken') $q$, h, v);
+  if pg_temp.fout(format($q$ insert into public.trip_packing_items (household_id, trip_id, name) values (%L, %L, 'SOKKEN') $q$, h, v)) is distinct from '23505' then raise exception 'KG-T77: dubbel item bij Gezamenlijk'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trip_packing_items (household_id, trip_id, member_id, name) values (%L, %L, %L, 'X') $q$, h, v, current_setting('test.m_otto'))) then raise exception 'KG-T77: persoon van een ander huishouden'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trip_packing_items (household_id, trip_id, name) values (%L, %L, 'X') $q$, h, current_setting('test.vo'))) then raise exception 'KG-T77: vakantie van een ander huishouden'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trip_packing_items (household_id, trip_id, member_id, name) values (%L, %L, %L, 'X') $q$, h, v, current_setting('test.m_xan'))) then raise exception 'KG-T77: gearchiveerd lid als persoon'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trip_packing_items (household_id, trip_id, name) values (%L, %L, repeat('x', 101)) $q$, h, v)) then raise exception 'KG-T77: te lange tekst'; end if;
+  perform pg_temp.als('wout');
+  if pg_temp.geraakt(format($q$ update public.trip_packing_items set packed_at = now(), packed_by_member_id = %L where id = %L and version = 1 $q$, current_setting('test.m_wout'), p1)) <> 1 then raise exception 'KG-T77: lid kan niet afvinken'; end if;
+  if not pg_temp.faalt(format('update public.trip_packing_items set packed_at = null where id = %L', p1)) then raise exception 'KG-T77: ingepakt-door zonder moment'; end if;
+  if pg_temp.geraakt(format('update public.trip_packing_items set packed_at = null, packed_by_member_id = null where id = %L and version = 2', p1)) <> 1 then raise exception 'KG-T77: vinkje niet weg te halen'; end if;
+  if not pg_temp.faalt(format('update public.trip_packing_items set trip_id = %L where id = %L', current_setting('test.v2'), p1)) then raise exception 'KG-T77: vakantie van een item te wijzigen'; end if;
+  if not pg_temp.faalt(format('delete from public.trip_packing_items where id = %L', p1)) then raise exception 'KG-T77: echt verwijderen via de API'; end if;
+  -- U1: verwijderen, opnieuw invoeren, dan de verwijdering ongedaan maken.
+  if pg_temp.geraakt(format('update public.trip_packing_items set deleted_at = now() where id = %L', p1)) <> 1 then raise exception 'KG-T77: lid kan niet verwijderen'; end if;
+  execute format($q$ insert into public.trip_packing_items (id, household_id, trip_id, member_id, name) values (%L, %L, %L, %L, 'Sokken') $q$, p2, h, v, current_setting('test.m_pien'));
+  if pg_temp.fout(format('update public.trip_packing_items set deleted_at = null where id = %L', p1)) is distinct from '23505' then raise exception 'KG-T77: herstellen naast een nieuw gelijk item gaf geen 23505'; end if;
+  if pg_temp.aantal(format($q$ select 1 from public.trip_packing_items where trip_id = %L and member_id = %L and name_key = 'sokken' and deleted_at is null $q$, v, current_setting('test.m_pien'))) <> 1 then raise exception 'KG-T77: herstellen maakte een dubbel item'; end if;
+  -- U1 ook bij verplaatsen en hernoemen.
+  execute format($q$ insert into public.trip_packing_items (id, household_id, trip_id, member_id, name) values (%L, %L, %L, %L, 'Shirts') $q$, p3, h, v, current_setting('test.m_pien'));
+  if pg_temp.fout(format('update public.trip_packing_items set member_id = %L where id = %L', current_setting('test.m_pien'), pv)) is distinct from '23505' then raise exception 'KG-T77: verplaatsen naar een persoon met hetzelfde item gaf geen 23505'; end if;
+  if pg_temp.fout(format($q$ update public.trip_packing_items set name = 'sokken' where id = %L $q$, p3)) is distinct from '23505' then raise exception 'KG-T77: hernoemen naar een bestaand item gaf geen 23505'; end if;
+  if (select name from public.trip_packing_items where id = p3) <> 'Shirts' or (select member_id from public.trip_packing_items where id = pv)::text <> current_setting('test.m_vera') then raise exception 'KG-T77: geweigerde wijziging toch doorgevoerd'; end if;
+  perform pg_temp.als('otto');
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where household_id = %L', h)) <> 0 then raise exception 'KG-T77: buitenstaander ziet de paklijst'; end if;
+  if pg_temp.geraakt(format($q$ update public.trip_packing_items set name = 'X' where trip_id = %L $q$, v)) <> 0 then raise exception 'KG-T77: buitenstaander wijzigt de paklijst'; end if;
+  perform pg_temp.als('xan');
+  if pg_temp.aantal('select 1 from public.trip_packing_items') <> 0 then raise exception 'KG-T77: gearchiveerd lid ziet de paklijst'; end if;
+  perform set_config('test.pk_sokken', p2::text, true);
+  perform set_config('test.pk_shirts', p3::text, true);
+  perform pg_temp.ok('KG-T77');
+end $$;
+
+-- KG-T78 Koppelingen vakantie–boodschap: hoogstens één actuele koppeling per vakantie en boodschap; settled_at is niet
+-- door de client te schrijven; vakantie en boodschap liggen vast en komen uit hetzelfde huishouden; ontkoppelen en
+-- opnieuw koppelen; een ontkoppeling herstellen naast een nieuwe koppeling geeft 23505 (U1).
+do $$ declare h text := current_setting('test.hv'); v text := current_setting('test.v1'); s uuid; l uuid := gen_random_uuid(); begin
+  perform pg_temp.als('vera');
+  select r.id into s from public.add_shopping_items(h::uuid, array[gen_random_uuid()], array['T78-zonnebrand']) r;
+  execute format('insert into public.trip_shopping_links (id, household_id, trip_id, shopping_item_id) values (%L, %L, %L, %L)', l, h, v, s);
+  if pg_temp.fout(format('insert into public.trip_shopping_links (household_id, trip_id, shopping_item_id) values (%L, %L, %L)', h, v, s)) is distinct from '23505' then raise exception 'KG-T78: twee actuele koppelingen'; end if;
+  if not pg_temp.faalt(format('update public.trip_shopping_links set settled_at = now() where id = %L', l)) then raise exception 'KG-T78: settled_at door de client te zetten'; end if;
+  if not pg_temp.faalt(format('insert into public.trip_shopping_links (household_id, trip_id, shopping_item_id, settled_at) values (%L, %L, %L, now())', h, current_setting('test.v2'), s)) then raise exception 'KG-T78: settled_at bij invoegen te zetten'; end if;
+  if not pg_temp.faalt(format('insert into public.trip_shopping_links (household_id, trip_id, shopping_item_id) values (%L, %L, %L)', h, current_setting('test.vo'), s)) then raise exception 'KG-T78: vakantie van een ander huishouden'; end if;
+  if not pg_temp.faalt(format('insert into public.trip_shopping_links (household_id, trip_id, shopping_item_id) values (%L, %L, %L)', h, v, current_setting('test.s_otto'))) then raise exception 'KG-T78: boodschap van een ander huishouden'; end if;
+  if not pg_temp.faalt(format('update public.trip_shopping_links set trip_id = %L where id = %L', current_setting('test.v2'), l)) then raise exception 'KG-T78: vakantie van een koppeling te wijzigen'; end if;
+  if not pg_temp.faalt(format('delete from public.trip_shopping_links where id = %L', l)) then raise exception 'KG-T78: echt verwijderen via de API'; end if;
+  perform pg_temp.als('wout');
+  if pg_temp.geraakt(format('update public.trip_shopping_links set deleted_at = now() where id = %L and version = 1', l)) <> 1 then raise exception 'KG-T78: lid kan niet ontkoppelen'; end if;
+  execute format('insert into public.trip_shopping_links (household_id, trip_id, shopping_item_id) values (%L, %L, %L)', h, v, s);
+  if pg_temp.fout(format('update public.trip_shopping_links set deleted_at = null where id = %L', l)) is distinct from '23505' then raise exception 'KG-T78: oude koppeling herstellen naast een nieuwe gaf geen 23505'; end if;
+  if pg_temp.aantal(format('select 1 from public.trip_shopping_links where shopping_item_id = %L and deleted_at is null', s)) <> 1 then raise exception 'KG-T78: verkeerd aantal koppelingen'; end if;
+  perform pg_temp.als('otto');
+  if pg_temp.aantal(format('select 1 from public.trip_shopping_links where household_id = %L', h)) <> 0 then raise exception 'KG-T78: buitenstaander ziet koppelingen'; end if;
+  if not pg_temp.faalt(format('insert into public.trip_shopping_links (household_id, trip_id, shopping_item_id) values (%L, %L, %L)', h, v, s)) then raise exception 'KG-T78: buitenstaander koppelt'; end if;
+  perform pg_temp.als('xan');
+  if pg_temp.aantal('select 1 from public.trip_shopping_links') <> 0 then raise exception 'KG-T78: gearchiveerd lid ziet koppelingen'; end if;
+  perform pg_temp.ok('KG-T78');
+end $$;
+
+-- KG-T79 Voorbereidingen: een gewone taak met trip_id; koppelen, loskoppelen (versie loopt op); geen vakantie van een
+-- ander huishouden; een verwijderde vakantie laat de taak staan.
+do $$ declare h text := current_setting('test.hv'); v text := current_setting('test.v1'); t uuid := gen_random_uuid(); begin
+  perform pg_temp.als('wout');
+  execute format($q$ insert into public.tasks (id, household_id, title, trip_id) values (%L, %L, 'Vignet regelen', %L) $q$, t, h, v);
+  if pg_temp.aantal(format('select 1 from public.tasks where trip_id = %L', v)) <> 1 then raise exception 'KG-T79: taak niet aan de vakantie gekoppeld'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.tasks (household_id, title, trip_id) values (%L, 'X', %L) $q$, h, current_setting('test.vo'))) then raise exception 'KG-T79: vakantie van een ander huishouden'; end if;
+  if pg_temp.geraakt(format('update public.tasks set trip_id = null where id = %L and version = 1', t)) <> 1 then raise exception 'KG-T79: loskoppelen lukt niet'; end if;
+  if pg_temp.geraakt(format('update public.tasks set trip_id = %L where id = %L and version = 2', v, t)) <> 1 then raise exception 'KG-T79: koppelen lukt niet'; end if;
+  if (select version from public.tasks where id = t) <> 3 then raise exception 'KG-T79: versie niet verhoogd'; end if;
+  perform pg_temp.als('otto');
+  if not pg_temp.faalt(format($q$ insert into public.tasks (household_id, title, trip_id) values (%L, 'X', %L) $q$, current_setting('test.ho'), v)) then raise exception 'KG-T79: buitenstaander koppelt aan een vreemde vakantie'; end if;
+  perform pg_temp.als('vera');
+  execute format($q$ insert into public.tasks (household_id, title, trip_id) values (%L, 'Weekendtas', %L) $q$, h, current_setting('test.v3'));
+  if pg_temp.aantal(format($q$ select 1 from public.tasks where title = 'Weekendtas' and trip_id = %L and deleted_at is null $q$, current_setting('test.v3'))) <> 1 then raise exception 'KG-T79: taak bij een verwijderde vakantie verdwenen'; end if;
+  perform pg_temp.ok('KG-T79');
+end $$;
+
+-- KG-T80 Boodschappen toevoegen met een vakantie: koppeling bij nieuw, al op de lijst en terug; een herhaalde
+-- opdracht heeft geen tweede bijwerking; "terug" sluit oude koppelingen af (geen oude koppeling als actueel), ook
+-- zonder vakantie; een vinkje als correctie weghalen laat de koppeling actueel; een vreemde of verwijderde vakantie
+-- geeft een fout zonder bijwerking.
+do $$ declare h uuid := current_setting('test.hv')::uuid; v1 uuid := current_setting('test.v1')::uuid; v2 uuid := current_setting('test.v2')::uuid;
+  c1 uuid := gen_random_uuid(); c5 uuid := gen_random_uuid(); item uuid; item2 uuid; uitkomst text;
+  actueel text := 'select 1 from public.trip_shopping_links where shopping_item_id = %L and deleted_at is null and settled_at is null';
+  afgehandeld text := 'select 1 from public.trip_shopping_links where shopping_item_id = %L and deleted_at is null and settled_at is not null'; begin
+  perform pg_temp.als('vera');
+  select r.id, r.outcome into item, uitkomst from public.add_shopping_items(h, array[c1], array['T80-reispil'], v1) r;
+  if uitkomst <> 'nieuw' or pg_temp.aantal(format(actueel, item)) <> 1 then raise exception 'KG-T80: nieuwe boodschap niet gekoppeld (%)', uitkomst; end if;
+  select r.outcome into uitkomst from public.add_shopping_items(h, array[c1], array['T80-reispil'], v1) r;
+  if uitkomst <> 'nieuw' or pg_temp.aantal(format('select 1 from public.trip_shopping_links where shopping_item_id = %L', item)) <> 1 then raise exception 'KG-T80: herhaalde opdracht had een tweede bijwerking'; end if;
+  select r.outcome into uitkomst from public.add_shopping_items(h, array[gen_random_uuid()], array['t80-REISPIL'], v2) r;
+  if uitkomst <> 'al_op_lijst' or pg_temp.aantal(format(actueel, item)) <> 2 then raise exception 'KG-T80: bestaande boodschap niet aan de tweede vakantie gekoppeld'; end if;
+  if pg_temp.aantal($q$ select 1 from public.shopping_items where name_key = 't80-reispil' and deleted_at is null $q$) <> 1 then raise exception 'KG-T80: boodschap verdubbeld'; end if;
+  -- Gekocht, en later gewoon (zonder vakantie) weer op de lijst gezet: de oude koppelingen zijn afgehandeld.
+  perform pg_temp.als('wout');
+  perform pg_temp.geraakt(format('update public.shopping_items set checked_at = now() where id = %L', item));
+  select r.outcome into uitkomst from public.add_shopping_items(h, array[gen_random_uuid()], array['T80-reispil']) r;
+  if uitkomst <> 'terug' then raise exception 'KG-T80: verwacht terug, kreeg %', uitkomst; end if;
+  if pg_temp.aantal(format(actueel, item)) <> 0 or pg_temp.aantal(format(afgehandeld, item)) <> 2 then raise exception 'KG-T80: oude koppeling blijft actueel na hergebruik'; end if;
+  -- Teruggezet vanuit een vakantie: alleen die vakantie krijgt een nieuwe, actuele koppeling; herhalen verandert niets.
+  perform pg_temp.geraakt(format('update public.shopping_items set checked_at = now() where id = %L', item));
+  select r.outcome into uitkomst from public.add_shopping_items(h, array[c5], array['T80-reispil'], v1) r;
+  if uitkomst <> 'terug' or pg_temp.aantal(format(actueel || ' and trip_id = %L', item, v1)) <> 1 or pg_temp.aantal(format(actueel, item)) <> 1 then raise exception 'KG-T80: terugzetten vanuit een vakantie gaf geen nieuwe actuele koppeling'; end if;
+  select r.outcome into uitkomst from public.add_shopping_items(h, array[c5], array['T80-reispil'], v1) r;
+  if pg_temp.aantal(format(actueel, item)) <> 1 or pg_temp.aantal(format(afgehandeld, item)) <> 2 then raise exception 'KG-T80: herhaling van terug veranderde de koppelingen'; end if;
+  -- Een vinkje per ongeluk zetten en weer weghalen is geen hergebruik.
+  select r.id into item2 from public.add_shopping_items(h, array[gen_random_uuid()], array['T80-handdoek'], v1) r;
+  perform pg_temp.geraakt(format('update public.shopping_items set checked_at = now() where id = %L', item2));
+  perform pg_temp.geraakt(format('update public.shopping_items set checked_at = null where id = %L', item2));
+  if pg_temp.aantal(format(actueel, item2)) <> 1 then raise exception 'KG-T80: correctie van een vinkje sloot de koppeling af'; end if;
+  -- Zonder vakantie: geen koppeling.
+  select r.id into item2 from public.add_shopping_items(h, array[gen_random_uuid()], array['T80-los']) r;
+  if pg_temp.aantal(format('select 1 from public.trip_shopping_links where shopping_item_id = %L', item2)) <> 0 then raise exception 'KG-T80: koppeling zonder vakantie'; end if;
+  -- Vreemde of verwijderde vakantie: fout, niets aangemaakt.
+  if pg_temp.fout(format($q$ select public.add_shopping_items(%L, array[gen_random_uuid()], array['T80-vreemd'], %L) $q$, h, current_setting('test.vo'))) is distinct from 'P0002' then raise exception 'KG-T80: vakantie van een ander huishouden geaccepteerd'; end if;
+  if pg_temp.fout(format($q$ select public.add_shopping_items(%L, array[gen_random_uuid()], array['T80-vreemd'], %L) $q$, h, current_setting('test.v3'))) is distinct from 'P0002' then raise exception 'KG-T80: verwijderde vakantie geaccepteerd'; end if;
+  if pg_temp.aantal($q$ select 1 from public.shopping_items where name = 'T80-vreemd' $q$) <> 0 then raise exception 'KG-T80: boodschap aangemaakt bij een fout'; end if;
+  perform pg_temp.ok('KG-T80');
+end $$;
+
+-- KG-T81 Overnemen: aanvullend (bestaande items blijven en worden overgeslagen), niet afgevinkt, zonder verwijderde
+-- bron-items en zonder niet-actieve leden; voor iedereen, één persoon of Gezamenlijk. Herhaling met dezelfde
+-- opdracht-ID geeft dezelfde items (U2); ongedaan maken laat intussen aangepaste items staan.
+do $$ declare h uuid := current_setting('test.hv')::uuid; v1 uuid := current_setting('test.v1')::uuid; v2 uuid := current_setting('test.v2')::uuid;
+  c uuid := gen_random_uuid(); ids uuid[]; ids2 uuid[]; voor bigint; zwembroek uuid; sokken_vera integer; n bigint; begin
+  perform pg_temp.als('wout');
+  voor := pg_temp.aantal(format('select 1 from public.trip_packing_items where trip_id = %L and deleted_at is null', v1));
+  select version into sokken_vera from public.trip_packing_items where trip_id = v1 and member_id = current_setting('test.m_vera')::uuid and name_key = 'sokken' and deleted_at is null;
+  select array_agg(r.id order by r.id) into ids from public.copy_packing_items(h, c, v2, v1) r;
+  -- Zwembroek (Vera), Knuffel (Pien), Zonnebrand en Paspoorten (Gezamenlijk); Sokken staan er al, Laptop (Xan) en Weg niet.
+  if coalesce(cardinality(ids), 0) <> 4 then raise exception 'KG-T81: verwacht 4 overgenomen items, kreeg %', coalesce(cardinality(ids), 0); end if;
+  if pg_temp.aantal(format($q$ select 1 from public.trip_packing_items where trip_id = %L and deleted_at is null and name in ('Laptop', 'Weg') $q$, v1)) <> 0 then raise exception 'KG-T81: item van een gearchiveerd lid of een verwijderd item overgenomen'; end if;
+  if exists (select 1 from public.trip_packing_items where id = any (ids) and (packed_at is not null or trip_id <> v1)) then raise exception 'KG-T81: overgenomen item afgevinkt of bij de verkeerde vakantie'; end if;
+  if (select version from public.trip_packing_items where trip_id = v1 and member_id = current_setting('test.m_vera')::uuid and name_key = 'sokken' and deleted_at is null) <> sokken_vera then raise exception 'KG-T81: bestaand item overschreven'; end if;
+  select array_agg(r.id order by r.id) into ids2 from public.copy_packing_items(h, c, v2, v1) r;
+  if ids2 is distinct from ids then raise exception 'KG-T81: herhaling met dezelfde opdracht gaf andere items'; end if;
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where trip_id = %L and deleted_at is null', v1)) <> voor + 4 then raise exception 'KG-T81: herhaling maakte items dubbel'; end if;
+  if (select count(*) from public.copy_packing_items(h, gen_random_uuid(), v2, v1)) <> 0 then raise exception 'KG-T81: nog eens overnemen voegde iets toe'; end if;
+  -- Ongedaan maken: alleen wat niemand intussen aanpaste (versie 1).
+  select id into zwembroek from public.trip_packing_items where id = any (ids) and name = 'Zwembroek';
+  perform pg_temp.geraakt(format('update public.trip_packing_items set packed_at = now(), packed_by_member_id = %L where id = %L', current_setting('test.m_wout'), zwembroek));
+  n := pg_temp.geraakt(format('update public.trip_packing_items set deleted_at = now() where id = any (%L::uuid[]) and version = 1', ids));
+  if n <> 3 or pg_temp.aantal(format('select 1 from public.trip_packing_items where id = %L and deleted_at is null', zwembroek)) <> 1 then raise exception 'KG-T81: ongedaan maken raakte een aangepast item (%)', n; end if;
+  -- Eén persoon, en alleen Gezamenlijk.
+  if (select string_agg(r.name, ',') from public.copy_packing_items(h, gen_random_uuid(), v2, v1, current_setting('test.m_pien')::uuid) r) is distinct from 'Knuffel' then raise exception 'KG-T81: overnemen voor één persoon'; end if;
+  if (select string_agg(r.name, ',' order by r.name) from public.copy_packing_items(h, gen_random_uuid(), v2, v1, null, true) r) is distinct from 'Paspoorten,Zonnebrand' then raise exception 'KG-T81: overnemen voor Gezamenlijk'; end if;
+  -- Ongeldig: bron = doel, vreemde of verwijderde vakantie, persoon én Gezamenlijk, lid van buiten.
+  if pg_temp.fout(format('select public.copy_packing_items(%L, gen_random_uuid(), %L, %L)', h, v1, v1)) is distinct from '22023' then raise exception 'KG-T81: bron gelijk aan doel'; end if;
+  if pg_temp.fout(format('select public.copy_packing_items(%L, gen_random_uuid(), %L, %L)', h, current_setting('test.vo'), v1)) is distinct from 'P0002' then raise exception 'KG-T81: bron uit een ander huishouden'; end if;
+  if pg_temp.fout(format('select public.copy_packing_items(%L, gen_random_uuid(), %L, %L)', h, v2, current_setting('test.v3'))) is distinct from 'P0002' then raise exception 'KG-T81: verwijderde vakantie als doel'; end if;
+  if pg_temp.fout(format('select public.copy_packing_items(%L, gen_random_uuid(), %L, %L, %L, true)', h, v2, v1, current_setting('test.m_pien'))) is distinct from '22023' then raise exception 'KG-T81: persoon én Gezamenlijk'; end if;
+  if pg_temp.fout(format('select public.copy_packing_items(%L, gen_random_uuid(), %L, %L, %L)', h, v2, v1, current_setting('test.m_otto'))) is distinct from '22023' then raise exception 'KG-T81: persoon van een ander huishouden'; end if;
+  perform pg_temp.als('otto');
+  if pg_temp.fout(format('select public.copy_packing_items(%L, gen_random_uuid(), %L, %L)', h, v2, v1)) is distinct from '42501' then raise exception 'KG-T81: buitenstaander neemt over'; end if;
+  perform pg_temp.ok('KG-T81');
+end $$;
+
+-- KG-T82 Vinkjes in één keer: zetten (door de aanroeper), weghalen en precies terugzetten (moment en persoon); een
+-- intussen gewijzigd item wordt overgeslagen en teruggemeld; een item van een andere vakantie wordt niet geraakt;
+-- ongeldige invoer, een vreemde of verwijderde vakantie en een buitenstaander geven een fout.
+do $$ declare h uuid := current_setting('test.hv')::uuid; v1 uuid := current_setting('test.v1')::uuid;
+  a uuid := current_setting('test.pk_sokken')::uuid; b uuid := current_setting('test.pk_shirts')::uuid; ander uuid;
+  va integer; vb integer; uit text; moment timestamptz := now() - interval '2 days'; begin
+  perform pg_temp.als('wout');
+  select version into va from public.trip_packing_items where id = a;
+  select version into vb from public.trip_packing_items where id = b;
+  select string_agg(r.outcome, ',' order by r.outcome) into uit from public.set_packed(h, v1, jsonb_build_array(
+    jsonb_build_object('id', a, 'version', va, 'packed', true), jsonb_build_object('id', b, 'version', vb, 'packed', true))) r;
+  if uit <> 'gezet,gezet' then raise exception 'KG-T82: zetten gaf %', uit; end if;
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where id in (%L, %L) and packed_at is not null and packed_by_member_id = %L', a, b, current_setting('test.m_wout'))) <> 2 then raise exception 'KG-T82: vinkjes niet door de aanroeper gezet'; end if;
+  -- Opnieuw beginnen, en ongedaan maken met het oorspronkelijke moment en de oorspronkelijke persoon.
+  select version into va from public.trip_packing_items where id = a;
+  perform 1 from public.set_packed(h, v1, jsonb_build_array(jsonb_build_object('id', a, 'version', va, 'packed', false)));
+  select version into va from public.trip_packing_items where id = a;
+  perform 1 from public.set_packed(h, v1, jsonb_build_array(jsonb_build_object('id', a, 'version', va, 'packed', true,
+    'packed_at', moment, 'packed_by', current_setting('test.m_vera'))));
+  if (select packed_at from public.trip_packing_items where id = a) <> moment or (select packed_by_member_id from public.trip_packing_items where id = a)::text <> current_setting('test.m_vera') then raise exception 'KG-T82: terugzetten niet exact'; end if;
+  -- Verouderde versie: overgeslagen en teruggemeld, niets veranderd.
+  select r.outcome into uit from public.set_packed(h, v1, jsonb_build_array(jsonb_build_object('id', a, 'version', va, 'packed', false))) r;
+  if uit <> 'overgeslagen' or (select packed_at from public.trip_packing_items where id = a) is null then raise exception 'KG-T82: verouderde versie niet overgeslagen'; end if;
+  -- Een item van een andere vakantie: overgeslagen.
+  select id into ander from public.trip_packing_items where trip_id = current_setting('test.v2')::uuid and name = 'Zwembroek';
+  select r.outcome into uit from public.set_packed(h, v1, jsonb_build_array(jsonb_build_object('id', ander, 'version', 1, 'packed', true))) r;
+  if uit <> 'overgeslagen' or (select packed_at from public.trip_packing_items where id = ander) is not null then raise exception 'KG-T82: item van een andere vakantie geraakt'; end if;
+  -- Ongeldig.
+  if pg_temp.fout(format($q$ select public.set_packed(%L, %L, '[{"id": "%s", "version": 1}]') $q$, h, v1, a)) is distinct from '22023' then raise exception 'KG-T82: item zonder packed'; end if;
+  if pg_temp.fout(format($q$ select public.set_packed(%L, %L, '{"id": "%s"}') $q$, h, v1, a)) is distinct from '22023' then raise exception 'KG-T82: geen lijst'; end if;
+  if pg_temp.fout(format($q$ select public.set_packed(%L, %L, jsonb_build_array(jsonb_build_object('id', %L, 'version', 1, 'packed', true, 'packed_at', now() + interval '1 day'))) $q$, h, v1, b)) is distinct from '22023' then raise exception 'KG-T82: moment in de toekomst'; end if;
+  if pg_temp.fout(format($q$ select public.set_packed(%L, %L, jsonb_build_array(jsonb_build_object('id', %L, 'version', 1, 'packed', true, 'packed_by', %L))) $q$, h, v1, b, current_setting('test.m_xan'))) is distinct from '22023' then raise exception 'KG-T82: gearchiveerd lid als inpakker'; end if;
+  if pg_temp.fout(format($q$ select public.set_packed(%L, %L, jsonb_build_array(jsonb_build_object('id', %L, 'version', 1, 'packed', true, 'packed_by', %L))) $q$, h, v1, b, current_setting('test.m_otto'))) is distinct from '22023' then raise exception 'KG-T82: inpakker van buiten'; end if;
+  if pg_temp.fout(format($q$ select public.set_packed(%L, %L, '[]') $q$, h, current_setting('test.vo'))) is distinct from 'P0002' then raise exception 'KG-T82: vakantie van een ander huishouden'; end if;
+  if pg_temp.fout(format($q$ select public.set_packed(%L, %L, '[]') $q$, h, current_setting('test.v3'))) is distinct from 'P0002' then raise exception 'KG-T82: verwijderde vakantie'; end if;
+  perform pg_temp.als('otto');
+  if pg_temp.fout(format($q$ select public.set_packed(%L, %L, '[]') $q$, h, v1)) is distinct from '42501' then raise exception 'KG-T82: buitenstaander zet vinkjes'; end if;
+  perform pg_temp.ok('KG-T82');
+end $$;
+
+-- KG-T83 Catalogus vakanties: elke vakantietabel zendt seintjes met alleen {t, id, v, op} (zonder inhoud) en heeft
+-- een index die met household_id begint; de bulkfuncties vergrendelen het huishouden vóór de lidmaatschapscontrole;
+-- settled_at is niet schrijfbaar; en, ter voorbereiding op V2 (privacy van afspraken), events en event_overview
+-- hebben geen trip_id: een koppeling van een afspraak hoort uitsluitend in event_details.
+reset role;
+do $$ declare t text; f text; def text; m record; begin
+  foreach t in array array['trips', 'trip_packing_items', 'trip_shopping_links'] loop
+    if not exists (select 1 from pg_trigger g join pg_proc p on p.oid = g.tgfoid
+                   where g.tgrelid = ('public.' || t)::regclass and p.proname = 'ping_content' and not g.tgisinternal) then
+      raise exception 'KG-T83: public.% zendt geen seintje', t;
+    end if;
+    if not exists (select 1 from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0]
+                   where i.indrelid = ('public.' || t)::regclass and a.attname = 'household_id') then
+      raise exception 'KG-T83: public.% heeft geen index die met household_id begint', t;
+    end if;
+    if not exists (select 1 from realtime.messages where topic = private.household_topic(current_setting('test.hv')::uuid) and payload->>'t' = t) then
+      raise exception 'KG-T83: geen seintje ontvangen voor %', t;
+    end if;
+  end loop;
+  for m in select payload from realtime.messages where payload->>'t' in ('trips', 'trip_packing_items', 'trip_shopping_links') loop
+    if exists (select 1 from jsonb_object_keys(m.payload) k where k not in ('t', 'id', 'v', 'op')) then raise exception 'KG-T83: seintje bevat meer dan t/id/v/op: %', m.payload; end if;
+    if m.payload::text ~* '(frankrijk|texel|sokken|zwembroek|reispil|ardèche|camping)' then raise exception 'KG-T83: seintje bevat inhoud'; end if;
+  end loop;
+  foreach f in array array['copy_packing_items', 'set_packed', 'add_shopping_items'] loop
+    select pg_get_functiondef(p.oid) into def from pg_proc p where p.pronamespace = 'private'::regnamespace and p.proname = f;
+    if def is null or position('private.lock_household_shared(' in def) = 0 then raise exception 'KG-T83: private.% vergrendelt het huishouden niet', f; end if;
+    if position('private.is_active_member(' in def) between 1 and position('private.lock_household_shared(' in def) then
+      raise exception 'KG-T83: private.% controleert het lidmaatschap vóór de vergrendeling', f;
+    end if;
+  end loop;
+  if has_column_privilege('authenticated', 'public.trip_shopping_links', 'settled_at', 'update')
+     or has_column_privilege('authenticated', 'public.trip_shopping_links', 'settled_at', 'insert') then
+    raise exception 'KG-T83: settled_at schrijfbaar via de API';
+  end if;
+  foreach t in array array['public.events', 'public.event_overview'] loop
+    if exists (select 1 from pg_attribute where attrelid = t::regclass and attname = 'trip_id' and not attisdropped) then
+      raise exception 'KG-T83: % heeft een kolom trip_id (de koppeling van een afspraak hoort in event_details)', t;
+    end if;
+  end loop;
+  perform pg_temp.ok('KG-T83');
+end $$;
+set local role authenticated;
+
 -- KG-T73 tot en met KG-T75: de poort als positieve eis (bouwverslag deel 2, §7.3). Niet "zoek verboden tekst", maar
 -- "bewijs dat de poort gebruikt wordt". Een nieuwe functie, policy of view die dat niet aantoonbaar doet, laat de matrix
 -- falen totdat iemand bewust kiest (een regel in de uitzonderingslijst, met een reden).
@@ -2341,6 +2675,6 @@ do $$ declare r record; begin
 end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 75' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 83' as resultaat;
 
 rollback;

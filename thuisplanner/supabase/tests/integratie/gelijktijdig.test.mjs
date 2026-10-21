@@ -339,3 +339,53 @@ test('KG-5C herstel: voorkomen verplaatsen terwijl de reeks wordt verwijderd: ge
   const open = Number((await db.query('select count(*) from public.events where (id = $1 or series_id = $1) and deleted_at is null', [reeks])).rows[0].count);
   toets('verplaatsen en reeks verwijderen', open !== 0, uitkomst, { weigering: false });
 });
+
+// ============================== F8 Vakanties (V1.1) ==============================
+async function vakantieMetPaklijst(prefix) {
+  const { sam, noa, h, mNoa } = await huishoudenMetLeden(prefix);
+  const bron = randomUUID(), doel = randomUUID();
+  await alsDoe(sam, `insert into public.trips (id, household_id, name) values ($1, $3, 'Texel'), ($2, $3, 'Frankrijk')`, [bron, doel, h]);
+  await alsDoe(sam, `insert into public.trip_packing_items (household_id, trip_id, member_id, name)
+    select $1, $2, m, n from (values ($3::uuid, 'Sokken'), ($3::uuid, 'Knuffel'), (null::uuid, 'Zonnebrand')) b(m, n)`, [h, bron, mNoa]);
+  return { sam, noa, h, mNoa, bron, doel };
+}
+const pakAantal = async (trip, extra = '') => Number((await db.query(
+  `select count(*) from public.trip_packing_items where trip_id = $1 and deleted_at is null ${extra}`, [trip])).rows[0].count);
+
+test('Vakanties: archiveren tijdens overnemen: een gearchiveerd lid neemt niets over', async () => {
+  const { sam, noa, h, mNoa, bron, doel } = await vakantieMetPaklijst('v1');
+  const uitkomst = await race(
+    async c1 => { await als(c1, sam); await c1.query('select public.archive_member($1, $2)', [h, mNoa]); },
+    async c2 => { await als(c2, noa); return volg(c2.query('select * from public.copy_packing_items($1, $2, $3, $4, null, true)', [h, randomUUID(), bron, doel])); });
+  toets('overnemen na archiveren', (await pakAantal(doel)) > 0, uitkomst);
+});
+
+test('Vakanties: hetzelfde pakitem tegelijk toevoegen: één item', zonderTegenproef, async () => {
+  const { sam, noa, h, mNoa, doel } = await vakantieMetPaklijst('v2');
+  const voeg = (c, naam) => c.query('insert into public.trip_packing_items (household_id, trip_id, member_id, name) values ($1, $2, $3, $4)', [h, doel, mNoa, naam]);
+  const uitkomst = await race(
+    async c1 => { await als(c1, sam); await voeg(c1, 'Sokken'); },
+    async c2 => { await als(c2, noa); return volg(voeg(c2, ' sokken ')); });
+  toets('dubbel pakitem', (await pakAantal(doel, `and name_key = 'sokken'`)) !== 1, uitkomst);
+  assert.equal(uitkomst.fout2?.code, '23505');
+});
+
+test('Vakanties: twee keer tegelijk overnemen: niets dubbel', zonderTegenproef, async () => {
+  const { sam, noa, h, bron, doel } = await vakantieMetPaklijst('v3');
+  const neem = c => c.query('select * from public.copy_packing_items($1, $2, $3, $4)', [h, randomUUID(), bron, doel]);
+  const uitkomst = await race(
+    async c1 => { await als(c1, sam); await neem(c1); },
+    async c2 => { await als(c2, noa); return volg(neem(c2)); });
+  toets('dubbel overnemen', (await pakAantal(doel)) !== 3, uitkomst, { weigering: false });
+});
+
+test('Vakanties: dezelfde boodschap tegelijk voor een vakantie: één boodschap, één actuele koppeling', zonderTegenproef, async () => {
+  const { sam, noa, h, doel } = await vakantieMetPaklijst('v4');
+  const voeg = (c, naam) => c.query('select * from public.add_shopping_items($1, $2, $3, $4)', [h, [randomUUID()], [naam], doel]);
+  const uitkomst = await race(
+    async c1 => { await als(c1, sam); await voeg(c1, 'Zonnebrand'); },
+    async c2 => { await als(c2, noa); return volg(voeg(c2, 'zonnebrand ')); });
+  const items = Number((await db.query(`select count(*) from public.shopping_items where household_id = $1 and name_key = 'zonnebrand' and deleted_at is null`, [h])).rows[0].count);
+  const links = Number((await db.query(`select count(*) from public.trip_shopping_links where trip_id = $1 and deleted_at is null and settled_at is null`, [doel])).rows[0].count);
+  toets('boodschap met koppeling', items !== 1 || links !== 1, uitkomst, { weigering: false });
+});

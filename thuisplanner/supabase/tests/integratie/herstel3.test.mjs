@@ -115,10 +115,12 @@ test(TEGENPROEF ? 'R2 TEGENPROEF: met de oude databasefunctie opent de herhaalde
   : 'R2 Melk toevoegen, antwoord verloren, ander gezinslid vinkt af, opnieuw proberen: Melk blijft afgevinkt; bewust nieuw opent hem wel', { timeout: 90000 }, async () => {
   let oudeFunctie;
   if (TEGENPROEF) {
-    oudeFunctie = sql(`select pg_get_functiondef('private.add_shopping_items(uuid, uuid[], text[])'::regprocedure)`);
+    oudeFunctie = sql(`select pg_get_functiondef('private.add_shopping_items(uuid, uuid[], text[], uuid)'::regprocedure)`);
     const bron = readFileSync(new URL('../../migrations/20261012120000_kg5c_inhoud.sql', import.meta.url), 'utf8');
     const i = bron.indexOf('create function private.add_shopping_items');
-    sql(bron.slice(i, bron.indexOf('end $$;', i) + 'end $$;'.length).replace('create function', 'create or replace function'));
+    sql(bron.slice(i, bron.indexOf('end $$;', i) + 'end $$;'.length).replace('create function', 'create or replace function')
+      // Sinds F8 Vakanties (V1.1) heeft de functie een vierde parameter (p_trip); de oude inhoud krijgt die ook.
+      .replace('p_names text[])', 'p_names text[], p_trip uuid default null)'));
   }
   try {
     const h = await huishouden('R2', ['bram']);

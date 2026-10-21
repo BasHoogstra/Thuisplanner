@@ -889,3 +889,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - `staging/testers.sql` vervangen: het zet alleen het adres van de eigenaar op de testerslijst (testpoort G1). Het weigert zonder toegangspoort, met het voorbeeldadres of met wachtwoordsessies aan, en kan veilig opnieuw draaien. Het oude script werkte niet meer met de toegangspoort.
 - Documentatie bijgewerkt: `docs/thuisplanner-staging.md` (stand, aanmelden moet aan, blootgestelde schema's, testers), het bouwverslag (`KG_ANON_KEY`), de README van de app en de uitnodigingsdocumentatie. Nieuw: het uitvoeringsplan `docs/thuisplanner-staging-overstap.md`, met export en herstelprocedure vóór de migraties 12–16.
 - Tests: `omgevingen.test.mjs` (3) en `staging-kenmerk.test.ts` (3), met tegenproeven. Niets online gewijzigd; Huisplan ongewijzigd.
+
+## Thuisplanner F8 Vakanties, V1.1: database, RLS en tests (21 oktober 2026, lokaal)
+- Ontwerp vastgelegd (V0): `docs/thuisplanner-vakanties.md`, met de besluiten van 21 oktober 2026; roadmap bijgewerkt (F8).
+- Migratie `20261025120000_vakanties.sql`: `trips` (naam; geen datum, alleen vertrek of beide), `trip_packing_items` (per lid of Gezamenlijk, één vinkje, geen dubbele tekst per persoon), `trip_shopping_links` (koppeling vakantie–boodschap; bij hergebruik van een boodschap afgesloten met `settled_at`) en `tasks.trip_id`. Alleen gedeeld; RLS via de poort, geen delete-recht, seintjes zonder inhoud.
+- Functies: `add_shopping_items` met optionele vakantie (bestaande aanroepen ongewijzigd), `copy_packing_items` (aanvullend overnemen; herhaling geeft dezelfde items, U2) en `set_packed` (vinkjes in één keer, met versiecontrole en exact ongedaan maken).
+- Tests: RLS-matrix KG-T76 t/m KG-T83 (83 van 83), 14 nieuwe tegenproeven (alle 125 gevangen, één bestaande aangepast aan de nieuwe signatuur), 4 nieuwe gelijktijdigheidsscenario's en `integratie/vakanties.test.mjs` (API en Realtime).
+- Alleen lokaal toegepast en getest; niet gecommit, niet op staging. Geen wijziging aan de sync-module of de app. Huisplan ongewijzigd.

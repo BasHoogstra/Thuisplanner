@@ -58,8 +58,9 @@ Zonder secrets en zonder verbinding met een online Supabase-project.
 
 - **Geen koppeling met een bestaand project:** geen `supabase link` en geen `db push`. Er is ook geen
   verbinding met de Huisplan-projecten (`supabase/`).
-- **Nog niet gebouwd:** geen deploy, geen app en geen inhoudstabellen (agenda, taken, boodschappen,
-  vakantie).
+- **Nog niet gebouwd (oorspronkelijke grens KG-1):** geen deploy, geen app en geen inhoudstabellen (agenda, taken, boodschappen,
+  vakantie). Inmiddels ingehaald: afspraken, taken en boodschappen (KG-5C) en, lokaal, vakanties (F8 V1.1,
+  `docs/thuisplanner-vakanties.md`).
 - **Huisplan blijft ongemoeid:** `index.html`, `test/index.html`, `supabase/` en Firebase worden niet
   aangeraakt (gecontroleerd in `statisch.js`).
 
