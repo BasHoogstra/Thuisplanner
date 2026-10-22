@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 64" role="img" aria-label="Thuisplanner">
+  <!-- Thuisplanner-logo (voorstel): het pictogram met het woordmerk. Op de website staat het woordmerk als tekst in
+       de pagina (scherper en toegankelijk); dit bestand is voor plekken waar alleen een afbeelding kan. -->
+  <g>
+    <rect width="64" height="64" rx="18" fill="#245c4c"/>
+    <path d="M16.5 31.5 32 19l15.5 12.5" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M21 29.5V43a3.5 3.5 0 0 0 3.5 3.5h15A3.5 3.5 0 0 0 43 43V29.5" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="m26.5 37.5 4 4 7.5-8.5" fill="none" stroke="#e0ebe5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="80" y="42" fill="#1b2421" font-family="ui-rounded, 'SF Pro Rounded', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="30" font-weight="700" letter-spacing="-0.4">Thuisplanner</text>
+</svg>

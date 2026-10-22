@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Thuisplanner">
+  <!-- Thuisplanner-pictogram (voorstel, 18 oktober 2026): een huis met een vinkje, "geregeld". Kleuren uit tokens.css. -->
+  <rect width="64" height="64" rx="18" fill="#245c4c"/>
+  <path d="M16.5 31.5 32 19l15.5 12.5" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M21 29.5V43a3.5 3.5 0 0 0 3.5 3.5h15A3.5 3.5 0 0 0 43 43V29.5" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m26.5 37.5 4 4 7.5-8.5" fill="none" stroke="#e0ebe5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -476,19 +476,19 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   B probeert over te nemen; A hervat) en "nooit overnemen zonder Web Locks" (open, gesloten,
   gecrasht). `tests/journaal3.test.js`: 28.
 
-## KomtGoed KG-1 — databasefundament (alleen lokaal, geen app-wijziging)
-- Voorlopige ontwikkelrichting KomtGoed vastgelegd in `docs/roadmap.md` (sectie "Ontwikkelrichting
-  KomtGoed") en als besluit 11 in `docs/productkompas-beslissingen.md`.
-- Nieuwe, gescheiden map `komtgoed/supabase/` met een eigen configuratie (niet gekoppeld) en
+## Thuisplanner KG-1 — databasefundament (alleen lokaal, geen app-wijziging)
+- Voorlopige ontwikkelrichting Thuisplanner vastgelegd in `docs/roadmap.md` (sectie "Ontwikkelrichting
+  Thuisplanner") en als besluit 11 in `docs/productkompas-beslissingen.md`.
+- Nieuwe, gescheiden map `thuisplanner/supabase/` met een eigen configuratie (niet gekoppeld) en
   migratie `20261009120000_kg1_fundament.sql`: profielen, huishoudens, leden (ook kinderen zonder
   account), uitnodigingen (token alleen als hash), rollen owner/admin/member, RLS en
   rechtenfuncties. Eén account kan lid zijn van meerdere huishoudens.
-- Tests: RLS-matrix KG-T01 t/m KG-T22 (`komtgoed/supabase/tests/rls_tests.sql`), 14 tegenproeven,
-  statische controles en `tests/komtgoed.test.js`. CI: `.github/workflows/komtgoed-db.yml`.
+- Tests: RLS-matrix KG-T01 t/m KG-T22 (`thuisplanner/supabase/tests/rls_tests.sql`), 14 tegenproeven,
+  statische controles en `tests/thuisplanner.test.js`. CI: `.github/workflows/thuisplanner-db.yml`.
 - `index.html`, `test/index.html`, `supabase/` en Firebase zijn niet gewijzigd.
 
-## KomtGoed KG-5B — fundament verstevigd (bouwplan stap 1; alleen lokaal, geen app-wijziging)
-- Technisch bouwplan KG-5A vastgelegd in `docs/komtgoed-bouwplan.md`, met de productbeslissingen van
+## Thuisplanner KG-5B — fundament verstevigd (bouwplan stap 1; alleen lokaal, geen app-wijziging)
+- Technisch bouwplan KG-5A vastgelegd in `docs/thuisplanner-bouwplan.md`, met de productbeslissingen van
   10 oktober 2026 (gedeelde items door ieder lid te wijzigen; privé van anderen alleen als "Bezet";
   taken en boodschappen voorlopig alleen gedeeld).
 - Migratie `20261010120000_kg5b_verstevigen.sql`: account verwijderen werkt (trigger op `auth.users`;
@@ -498,7 +498,7 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: matrix KG-T01 t/m KG-T27, 22 tegenproeven, nu ook op een echte lokale Supabase
   (`run.sh --db`); integratietest met supabase-js (API, Auth, Realtime). CI-job `supabase-lokaal`.
 
-## KomtGoed KG-5B herstelronde 1 — vijf reviewbevindingen opgelost (alleen lokaal)
+## Thuisplanner KG-5B herstelronde 1 — vijf reviewbevindingen opgelost (alleen lokaal)
 - Migratie `20261011120000_kg5b_herstel1.sql`: één vergrendelingsprotocol (eerst het huishouden, dan de
   rechtencontrole, dan rijen, dan het account) in alle muterende functies, `ensure_owner` en de
   API-triggers; uitnodigingen alleen geldig zolang de maker ze nog mag geven; `households.created_by`
@@ -507,7 +507,7 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   tegenproef; reproduceren alle vijf problemen op `6da0f47`), strengere realtime-tests.
 
 ## Thuisplanner KG-5C — inhoudsschema (bouwplan stap 2; alleen lokaal, geen app-wijziging)
-- De nieuwe app heet voortaan Thuisplanner (technische map `komtgoed/` blijft).
+- De nieuwe app heet voortaan Thuisplanner (technische map `thuisplanner/` blijft).
 - Migratie `20261012120000_kg5c_inhoud.sql`: `events`, `event_details` (strengere RLS: privé van een
   ander = "Bezet"), `event_participants`, `event_exceptions`, `tasks`, `shopping_items`,
   `households.timezone` en de view `event_overview` (security_invoker). Afspraken via functies
@@ -534,10 +534,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Migratie `20261015120000_kg5d_realtime.sql`: seintjes `{t, id, v, op}` op het private kanaal
   `household:<id>` na elke wijziging (zonder inhoud); RLS op `realtime.messages`: alleen actieve leden
   luisteren, niemand zendt via de client, geen presence.
-- `komtgoed/sync/thuisplanner-sync.js`: synchronisatielaag (opnieuw ophalen op seintje, herverbinden met
+- `thuisplanner/sync/thuisplanner-sync.js`: synchronisatielaag (opnieuw ophalen op seintje, herverbinden met
   backoff, vangnet, versiecontrole en conflictmelding, UUID's van de client, alles wissen bij verlies van
   toegang). Geen nieuwe app-bibliotheken; het prototype van PR #20 is niet aangeraakt.
-- `komtgoed/dev/`: lokale ontwikkelpagina met twee demo-accounts (alleen 127.0.0.1, alleen de anon-sleutel).
+- `thuisplanner/dev/`: lokale ontwikkelpagina met twee demo-accounts (alleen 127.0.0.1, alleen de anon-sleutel).
 - Tests: KG-T47 en KG-T48, 50 tegenproeven, sync-tests met aparte sessies, e2e met twee browsersessies.
 
 ## Thuisplanner KG-5D herstelronde 1 — vier reviewbevindingen (review van 3f3b7da)
@@ -685,3 +685,252 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
   expliciete voorwaarde dat de opdracht vóór de herhaling nog openstaat.
 - Tests (lokaal): R1a 10 van 10 groen; integratie 62 van 62; tegenproeven groen; sync-tegenproeven 22 van 22
   (nummer 22 nog steeds gevangen door R1a). Geen wijziging aan app, sync of database.
+
+## Thuisplanner-staging voorbereid (16 oktober 2026, alleen lokaal; online nog niets aangemaakt)
+- Besluiten: Cloudflare Pages (`thuisplanner-staging`), een eigen Supabase-project in de organisatie Thuisplanner
+  (Frankfurt), Cloudflare Access, twee testers, alleen gratis abonnementen. Stappen en instellingen: `docs/thuisplanner-staging.md`.
+- Stagingmodus (`npm run build:staging`):
+  - alleen precies `https://<20 letters>.supabase.co`, nooit een Huisplan-project;
+  - geen demo-accounts of -wachtwoord, en geen geheime sleutels: zowel de app als de build weigert dat, en de build
+    controleert achteraf ook de gebouwde bestanden;
+  - een vaste markering "Testomgeving";
+  - de sessie blijft op de telefoon bewaard (`localStorage`), en een sessie uit de URL wordt nooit overgenomen.
+- Elke build krijgt `_headers` voor Cloudflare Pages: een strenge CSP (`connect-src` alleen de eigen site plus het
+  stagingproject), `noindex`, `no-referrer`, `nosniff`, `frame-ancestors 'none'` en cacheregels.
+- SQL-scripts voor het dashboard: twee testers in één testhuishouden (`staging/testers.sql`), en de verwijdering na
+  30 dagen controleren (`staging/archief-proef.sql`, `staging/archief-controle.sql`).
+- Tests:
+  - unit 136/136 (9 nieuw);
+  - stagingbuild in de browser met CSP, 5/5 (`npm run e2e:staging`, ook in CI), met tegenproeven;
+  - buildbewaking: acht onjuiste configuraties geweigerd;
+  - de scripts en `pg_cron` zelf op de lokale stack;
+  - demo-e2e (138) en lokale e2e (15/15) groen.
+- Geen wijziging aan de Huisplan-app, de Huisplan-database of GitHub Pages.
+
+## Thuisplanner KG-5H deel 1: onboarding met huishouden en uitnodigen (16 oktober 2026, lokaal)
+- Wie inlogt zonder huishouden, maakt er een aan (en wordt eigenaar), of plakt een uitnodigingslink.
+- In Meer → Huishouden:
+  - leden bekijken en toevoegen (ook kinderen);
+  - uitnodigen via een link met de deelfunctie of kopiëren, 7 dagen geldig en één keer te gebruiken; de eigenaar
+    nodigt standaard uit als beheerder;
+  - open uitnodigingen intrekken;
+  - wisselen als je in meer huishoudens zit.
+- Accepteren gebeurt alleen na een klik. Daarna kun je meteen weer weg ("Toch niet").
+- Het token gaat meteen uit de adresbalk, staat alleen in `sessionStorage` van dat tabblad (en is na 24 uur weg), en
+  overleeft het inloggen.
+- Alleen de bestaande databasefuncties en RLS; geen databasewijziging. Eigenaar en beheerder zijn gelijk voor alle
+  dagelijkse dingen; de eigenaar heeft alleen uitzonderlijke rechten en staat los van een latere betaler.
+- Tests:
+  - unit 150/150 (14 nieuw, met tegenproeven op het wegnemen uit de URL en op niet-automatisch accepteren);
+  - lokale e2e 18/18, waarvan 3 nieuw tegen de echte stack: eerste huishouden, accepteren na inloggen als beheerder,
+    samen live, eenmalig, ingetrokken, twee huishoudens wisselen en gescheiden;
+  - staging-e2e 5/5;
+  - demo-e2e 138.
+- Plan en controles: `docs/thuisplanner-onboarding.md`.
+
+## Thuisplanner KG-5H deel 1b: uitnodigingen op e-mailadres (17 oktober 2026, lokaal)
+- Een beheerder kan iemand uitnodigen op een e-mailadres (optioneel). Alleen een account met dat **bevestigde** adres
+  ziet en accepteert de uitnodiging. De database dwingt dat af, ook via de link. Het adres komt uit `auth.users` en
+  nooit uit het token.
+- De genodigde ziet na het inloggen "Uitnodigingen voor jou", zonder link of plakken. Dat staat op het welkomstscherm,
+  als één rustige melding op Vandaag (met "Later") en in Meer. Accepteren en weigeren kan, ook voor wie al in een
+  huishouden zit, en met meer uitnodigingen naast elkaar. De beheerder ziet "geweigerd".
+- Opnieuw uitnodigen op hetzelfde adres trekt de vorige uitnodiging in. Er staan hoogstens 10 uitnodigingen per
+  huishouden open.
+- Een uitnodiging zonder adres (link) werkt zoals in deel 1.
+- Privacy: het adres verdwijnt bij elke sluiting (trigger plus controle) en na het verlopen (dagelijkse taak
+  `thuisplanner-uitnodigingen-opschonen`). Alleen eigenaar en beheerder zien het. Geen enkele functie meldt of een adres
+  een account heeft.
+- Stabiele foutcodes TPU01–TPU10; de app vertaalt alleen de code (contracttest).
+- Stagingcontrole: een veilige modus `-Bijwerken` voor een tweede migratie, en een nacontrole op de daadwerkelijke
+  opruiming van adressen. Niets uitgevoerd op staging.
+- Tests:
+  - RLS 64/64 en tegenproeven 85/85, met misbruikscenario's;
+  - Auth-integratie 2/2;
+  - unit 164/164;
+  - lokale e2e 21/21;
+  - staging-e2e 5/5;
+  - demo-e2e 138;
+  - statische controles.
+- Bouwverslag en afwijkingen: `docs/thuisplanner-uitnodiging-email.md` §12. Nog niet op staging; daarvoor is een apart
+  akkoord nodig.
+
+## Thuisplanner KG-5H deel 2: inloggen met een e-mailcode (17 oktober 2026, lokaal)
+- Inloggen en aanmelden met een code van zes cijfers uit de mail, zonder wachtwoord. Eigen codelaag (K1): de code
+  staat versleuteld en gehasht in de database, met grenzen per code, per account, per toestel en voor onbekenden, ook
+  onder gelijktijdige verzoeken. Supabase geeft zelf de sessie uit.
+- Toegangspoort: alleen een sessie die met een code is gestart, krijgt toegang (RLS, RPC's, Realtime, Edge Functions).
+  Een vooraf gezet of later toegevoegd wachtwoord geeft nergens toegang. "Uitloggen op alle toestellen" werkt direct.
+- Besloten test: alleen testers of genodigden maken een huishouden (G1).
+- App:
+  - het codescherm, dat herladen overleeft (M1);
+  - altijd zichtbaar met welk adres je bent ingelogd (M2);
+  - geen uitlog bij een netwerkfout;
+  - Account met uitloggen overal en adres wijzigen met twee codes;
+  - de naam wordt één keer gevraagd.
+- Uitnodigingsmail (D6):
+  - de mail bevat geen token;
+  - hoogstens één mail per poging;
+  - "nog eens sturen" hoogstens 3 keer, één per 10 minuten;
+  - 20 per huishouden per dag;
+  - een status bij de uitnodiger.
+- Nacontrole voor staging bijgewerkt (15 migraties, schakelaars van de poort, Storage, Auth-instellingen).
+- Tests:
+  - RLS 72/72 en tegenproeven 101/101;
+  - integratie 88/88;
+  - K1- en D6-tegenproeven 17/17;
+  - sync-tegenproeven 22/22;
+  - unit 188/188;
+  - lokale e2e 24 (2 overgeslagen);
+  - staging-e2e 5/5;
+  - demo-e2e 138;
+  - statische controles.
+- Bouwverslag, afwijkingen, wat lokaal bewezen is en de stappen vóór testers: `docs/thuisplanner-deel2-bouwverslag.md`.
+  Niet gepusht en niet op staging.
+
+## Thuisplanner D6: uitnodigingsmails automatisch versturen (18 oktober 2026, lokaal)
+- De database verstuurt de uitnodigingsmail zelf, ook als niemand de app open heeft:
+  - een seintje na elke nieuwe mail (pg_net, met de URL en het geheim uit Vault);
+  - een vangnet dat elke minuut kijkt (pg_cron).
+- Opnieuw proberen bij een storing na 1, 4 en 9 minuten, daarna "mislukt"; 429 volgt de wachttijd van de aanbieder.
+- Nooit dubbel: een onzekere poging (verloren antwoord) gaat alleen opnieuw met een bewezen idempotente aanbieder.
+- "Aangenomen", "bezorgd" en "niet bezorgd" zijn apart, via ondertekende meldingen (`mail-bezorging`).
+- De koppeling met de mailaanbieder is verwisselbaar (`functions/_gedeeld/aanbieder.ts`); de definitieve aanbieder volgt later.
+- De app verstuurt niets meer zelf en toont alleen de stand.
+- De nacontrole kent pg_net, Vault, de vijfde taak en de stand van de wachtrij.
+- Tests:
+  - integratie 95/95;
+  - K1- en D6-tegenproeven 26/26;
+  - RLS 75/75, tegenproeven 111/111;
+  - unit 188/188;
+  - lokale e2e 24, staging-e2e 5/5, demo-e2e 138.
+- Beschikbaarheid online, afhankelijkheden en kosten: `docs/thuisplanner-uitnodigingsmail-verzending.md` §6. Niets online.
+
+## Thuisplanner: publieke website, gedeelde ontwerpbasis en Lettermint (18 oktober 2026, lokaal)
+- Website voor mijnthuisplanner.nl (`thuisplanner/website`):
+  - een hoofdpagina, privacy, "Welke mails sturen wij?", bedrijfsgegevens en 404;
+  - zonder JavaScript, cookies of bronnen van buiten (CSP), en geen afhankelijkheden;
+  - de knop "Meedoen met de bèta", die later met één instelling naar de app gaat;
+  - de publicatiebouw weigert lege bedrijfsgegevens.
+- Gedeelde ontwerpbasis (`thuisplanner/ontwerp`): kleuren (licht en donker), typografie, en een voorstel voor pictogram en logo. De app gebruikt ze zonder zichtbare wijziging; het tabbladpictogram komt uit dezelfde bron.
+- Lettermint-koppeling voor codes en uitnodigingen:
+  - de idempotentiesleutel gaat altijd mee, maar telt pas als bewezen na een online proef;
+  - een 409 is onzeker;
+  - ondertekende bezorgmeldingen.
+- De omgevingen staan in `thuisplanner/omgevingen.json`. Het pushscript kent `-Omgeving staging|beta|productie` en weigert een projectkenmerk van een andere omgeving.
+- Tests: website-bouw, website-e2e (390 en 1280 px), ontwerpbasis, Lettermint-adapter, omgevingen; de volledige bestaande sets opnieuw (zie `docs/thuisplanner-website.md`).
+- Niets online: geen Pages-project, geen DNS, geen push.
+
+## Thuisplanner: de enige productnaam (18 oktober 2026, lokaal)
+- De oude werknaam is uit het project gehaald:
+  - de map heet `thuisplanner/` (app, supabase, website, ontwerp, sync, dev);
+  - de workflows heten `thuisplanner-app.yml` en `thuisplanner-db.yml`;
+  - verder bijgewerkt: `tests/thuisplanner.test.js`, de pakketnamen, de lokale `project_id`, de zichtbare titels in de app, en de documentatie (besluit 11: alleen de naam in de tekst).
+- Bewust ongewijzigd:
+  - de migraties 1–11 (al online uitgevoerd), met twee technische namen in de database: de trigger `komtgoed_before_account_delete` en de slotsleutel `komtgoed:eigenaar:`. Een migratie die die namen wijzigt, is een voorstel en nog niet beoordeeld (niet in de repository);
+  - de git-geschiedenis;
+  - de neutrale codes `KG-…` en de variabelen `KG_…`.
+- Huisplan ongewijzigd; alle testsets opnieuw gedraaid. Niets online.
+
+## Thuisplanner: twee testreparaties na de eerste CI-run van deel 2 (19 oktober 2026)
+- De unit-tests draaien altijd in Nederlandse tijd (`TZ` in `vite.config.ts`); de CI-runner draait in UTC, waardoor één tekst met een kloktijd verschoof. De app zelf is ongewijzigd.
+- `gelijktijdig.test.mjs` zet de testpoort (`huishouden_open`) zelf open en daarna terug, zodat de test ook op een kale PostgreSQL slaagt (daar draait `seed.sql` niet).
+- Lokaal: unit 191/191 (ook met `TZ=UTC`); RLS 75/75 en tegenproeven 111/111; gelijktijdigheid 12/12 met de poort dicht. Tegenproef: de oude testversies falen precies zoals in CI.
+
+## Thuisplanner P1 en P2: wat het toestel bewaart (19 oktober 2026, lokaal)
+- Besluit: akkoord met P1, P2 en P4 uit `docs/thuisplanner-sync.md` §9. P5 blijft open.
+- P1: op het toestel staat van een onbevestigde afspraak, taak of boodschap alleen de identiteit, nooit de inhoud. Na herladen bevestigt de eerste ophaalronde wat de server al heeft; de rest staat als "inhoud niet op dit toestel" en wordt opnieuw ingevoerd onder dezelfde opdracht-ID (`acties.opnieuwInvoeren`), dus nooit dubbel.
+- P2: uitloggen (ook overal, en in de onboarding) met onbevestigde opdrachten vraagt eerst: "Eerst laten nakijken" of "Van dit toestel wissen en uitloggen". Wissen geldt voor alle huishoudens van dat account, niet voor een ander account.
+- P3/P4: de ontwikkeldemo bewaart met `bewaarInhoud: true` ook de inhoud (fictief; privé nooit). Niets wordt stil gewist.
+- Geen databasemigratie: de server herkent een herhaalde UUID al.
+- Tests: `p1p2.test.mjs` (integratie, 5) en `app/tests/p1p2.test.tsx` (6), twee nieuwe e2e-scenario's, drie nieuwe sync-tegenproeven (25 van 25). B3d en H3b toetsen nu expliciet de ontwikkelmodus.
+- Huisplan ongewijzigd; niets online.
+
+## Thuisplanner: race in de D6-test "herstel" (20 oktober 2026, alleen testcode)
+- De test maakte Vault leeg terwijl er nog een aanroep met het geheim onderweg kon zijn (het vangnet van pg_cron, of de lus van de functie). Die pakte de nieuwe mail terecht op, waardoor de test soms "aangenomen" zag in plaats van "wacht" (CI op PR #27).
+- Nu wacht de test eerst tot pg_net niets meer onderweg heeft, plus een korte marge (`rust()`).
+- Tegenproef met een opzettelijk uitgelokt verzoek: de oude test 2 van 3 keer rood, de nieuwe 3 van 3 groen; daarna 8 van 8 en het hele bestand 2 keer 14 van 14.
+
+## Thuisplanner: leesrace in de D6-test "opnieuw proberen" (20 oktober 2026, alleen testcode)
+- De test las stand, pogingen en "volgende" in drie losse query's. Pakte de functie de mail er tussendoor op, dan zag de test "wacht" van de vorige poging en al het nieuwe aantal pogingen, en mat hij een tijd die nooit zo gepland was (CI: "na 4 min: -1.757 s"). Nu komen ze uit één lezing (`gepland()`); de bewerings en grenzen zijn ongewijzigd.
+- De klaargezette antwoorden van de nagebootste aanbieder worden na die test altijd opgeruimd, ook bij een fout. Anders kreeg de mail van de volgende test (T17) een overgebleven "503".
+- Tegenproef met een verbreed gat tussen de lezingen: de oude test 4 van 4 keer rood met hetzelfde patroon; de nieuwe stabiel (8 van 8, ook 3 van 3 met trage weigeringen) en het hele bestand 3 keer 14 van 14.
+
+## Thuisplanner: de centrale + als één zin, en boodschappen per categorie (20 oktober 2026, lokaal)
+- B1: `begrijp()` herkent soort, dag, tijd, personen, plek, herhaling en privé uit één zin; zonder AI of netwerk. Twijfel wordt een zichtbare melding ("om 4" is 16:00, een bijna-naam als voorstel, een dag bij een boodschap kan nog niet), nooit een stille aanname.
+- B2: de + opent alleen het zinveld; daaronder de herkende onderdelen als knoppen, met één tik te corrigeren of terug in de titel te zetten. "Alles invullen" opent het bestaande formulier. De + in de navigatie en de + per dag kiezen geen soort meer vooraf.
+- C1: boodschappen komen vanzelf in een van 16 categorieën (alleen hele woorden; Overig als het niet herkend wordt) en staan op Boodschappen per categorie. De volgorde komt uit één functie, voor later een looproute per winkel.
+- Toegankelijkheid: na de wissel van de zin naar het formulier gaat de focus bij sluiten terug naar de +.
+- Tests: `zin.test.ts` (69), `categorie.test.ts` (167), `snelinvoer.test.tsx` (12), tegenproeven invoer (23), een nieuwe demo-e2e op 360/390/desktop en een lokaal e2e-scenario met twee accounts; de bestaande formuliertests lopen via "Alles invullen".
+- Geen migratie, geen wijziging aan de sync-module; Huisplan ongewijzigd.
+
+## Thuisplanner W1: een rustig detailvenster voor afspraken en taken (21 oktober 2026, lokaal)
+- Een bestaande afspraak of taak opent eerst een overzicht: de titel (direct te wijzigen), dag, tijd, wie, en als ingevuld waar, herhaling en privé; bij een taak de status met "Afgerond / Weer openzetten". Een tik op een regel opent alleen dat onderdeel, met dezelfde kleine keuzes als de centrale + (gedeeld in `Keuzepanelen.tsx`).
+- "Opslaan" verschijnt pas na een wijziging, met "Wijzigingen weggooien". Bij een reeks pas dan de vraag: alleen deze of de hele reeks (D3).
+- Verwijderen en "Alles bewerken" (het volledige formulier) staan onder "Meer…"; verwijderen vraagt een bevestiging (ook alleen deze of de hele reeks).
+- Gegevensbehoud: opslaan bouwt de afspraak zoals het formulier (notities, voorbereiding, de duur van een meerdaagse afspraak, herhaling, reeksgegevens) met de versie van het openen. Een andere begintijd neemt de duur mee.
+- Ongewijzigd: het venster "Bezet" voor andermans privé-afspraak, onbevestigde items, de boodschappen, privé alleen door de eigenaar, de synchronisatie.
+- Tests: `detail.test.tsx` (13), demo-e2e `detail.spec.ts` op 360/390/desktop, gegevensbehoud via het detail in `afspraakbehoud.test.tsx` en in de lokale e2e met de echte database; de bestaande formuliertests lopen via "Meer… → Alles bewerken".
+- Geen migratie, geen wijziging aan de sync-module; Huisplan ongewijzigd.
+
+## Thuisplanner W2: een rustigere weekweergave (21 oktober 2026, lokaal)
+- Mobiel (D5): de week is één doorlopende lijst. Elke dag heeft een lichte kop in plaats van een kaart; twee of meer lege dagen achter elkaar staan samen op één regel ("Ma 5 + Di 6 + … niets gepland"), elk nog met een eigen dagoverzicht-knop en een eigen +.
+- Desktop (D6): de zeven kolommen blijven; de rijen zijn compacter, zonder kaart en zonder kleurstreep.
+- Elke rij toont alleen de begintijd (of "Hele dag"), de titel (hoogstens twee regels, afgekapt met "…", zonder afbreekstreepjes) en één persoonsmarkering (één naam, of de eerste met "+n"; niets als het voor iedereen is). Privé, "Bezet" en "niet bevestigd" blijven zichtbaar. Plek, eindtijd, herhaling en de volledige lijst personen staan in het detailvenster (W1).
+- De + per dag is stiller (geen rand, gedempte kleur) maar overal beschikbaar.
+- Ongewijzigd: dagkeuze, toevoegen, bewerken, herhaling, privé, synchronisatie, de namen voor schermlezers, de kleuren en de huisstijl, de centrale + en het detailvenster.
+- Tests: demo-e2e `week.spec.ts` op 360/390/desktop (hoogstens twee regels, geen afbreekstreepjes, geen horizontale scroll, de samengevoegde lege dagen, de + van een lege dag, afvinken); tegenproef: met afbreekstreepjes of een clamp van 5 regels faalt de test.
+- Geen migratie, geen wijziging aan de sync-module; Huisplan ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 0: omgeving vastgezet (21 oktober 2026, lokaal)
+- `thuisplanner/omgevingen.json`: het stagingproject (`mcyjpnnjqxlqfwqhkqrl`, organisatie Thuisplanner) is vastgelegd; bèta en productie blijven `null`.
+- De verbindingscontrole (`staging/verbinding-controle.mjs`) weigert nu ook een omgeving zonder vastgelegd kenmerk; eerder werd dan niets gecontroleerd. Bèta en productie zijn daardoor geblokkeerd tot hun project bestaat.
+- `npm run build:staging` (ook in Cloudflare Pages) bouwt alleen tegen het vastgelegde stagingproject (`scripts/staging-kenmerk.mjs`); de offline staging-e2e bouwt bewust met een verzonnen project.
+- `staging/testers.sql` vervangen: het zet alleen het adres van de eigenaar op de testerslijst (testpoort G1). Het weigert zonder toegangspoort, met het voorbeeldadres of met wachtwoordsessies aan, en kan veilig opnieuw draaien. Het oude script werkte niet meer met de toegangspoort.
+- Documentatie bijgewerkt: `docs/thuisplanner-staging.md` (stand, aanmelden moet aan, blootgestelde schema's, testers), het bouwverslag (`KG_ANON_KEY`), de README van de app en de uitnodigingsdocumentatie. Nieuw: het uitvoeringsplan `docs/thuisplanner-staging-overstap.md`, met export en herstelprocedure vóór de migraties 12–16.
+- Tests: `omgevingen.test.mjs` (3) en `staging-kenmerk.test.ts` (3), met tegenproeven. Niets online gewijzigd; Huisplan ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 2 en de voorbereiding van stap 2b (21 oktober 2026)
+- Stap 2 uitgevoerd (alleen lezend): staging heeft precies de migraties 1–11, 2 accounts en pg_cron aan; de dry-run toonde alleen de migraties 12–16; de stand was voor en na gelijk. Online niets gewijzigd.
+- Nieuw, lokaal: `verbinding.ps1 -Export -ExportMap <map>` met `staging/export.mjs`. De export leest alles in één read-only momentopname (public, private, en uit auth alleen accounts en identiteiten) en schrijft per tabel JSON met een manifest (tellingen, SHA-256 per bestand, migraties, vorm van het schema). Hij weigert een map in of boven de repository, een relatieve map of een niet-lege map, vóór het wachtwoord wordt gevraagd.
+- Nieuw: `staging/hersteltoets.sh` zet een export terug in een aparte, lege lokale stack met precies de migraties uit het manifest, en vergelijkt elke rij. Daarbij controleert hij eerst de SHA-256 van het manifest en de vorm van het schema.
+- Tests: `tests/integratie/export.test.mjs` (6, ook in CI). Een proef met precies 11 migraties en verzonnen gegevens zoals op staging is volledig teruggezet. Alle tegenproeven zijn gevangen, ook de eerst gemiste: een manifest met een migratie minder.
+- De online export zelf is nog niet uitgevoerd (eigen akkoord). Huisplan ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 2b en 3a: export, beveiligingsreview en herstel R1–R3 (21 oktober 2026)
+- Stap 2b uitgevoerd: de staginggegevens (14 tabellen, 14 rijen) zijn geëxporteerd, buiten Git en buiten OneDrive bewaard, en met de hersteltoets volledig teruggezet. Online niets gewijzigd.
+- Stap 3a: interne beveiligingsreview in `docs/thuisplanner-review-staging.md`. Geen kritieke of hoge bevindingen; vijf middel, negen laag, de online te controleren punten, de geaccepteerde restrisico's en wat een onafhankelijke review vóór de bèta moet beoordelen.
+- Herstel in migratie 13 (nog nergens online): zonder instellingenrij is de poort dicht, en de rij is niet te verwijderen of leeg te maken (R1).
+- Herstel in migratie 14 (nog nergens online): K1 gaat dicht zonder instellingenrij (R1); pogingen zonder actieve code tellen niet mee en maken geen rij (R2); standaard hoogstens 8 codes per adres per dag (R3).
+- `controleer-code`: `K1_CAPTCHA=uit` alleen op een lokale stack (L3).
+- Tests: RLS-matrix 75/75 (KG-T69 uitgebreid) en RLS-tegenproeven 114/114 (3 nieuw); K1-integratie 16/16 (3 nieuw); K1- en D6-tegenproeven 30/30 (4 nieuw, de tegenproefbank kan nu meer plekken tegelijk saboteren); functietests 11/11 (2 nieuw).
+- De kijkversie op poort 5181 is gestopt. Huisplan ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 3 voorbereid: de proefmail (21 oktober 2026, lokaal)
+- Nieuw: `staging/proefmail.ps1` en `staging/proefmail.mjs`. Ontvanger en Lettermint-token gaan via een verborgen prompt, met een getypte bevestiging. Het script gebruikt de Lettermint-adapter van de Edge Functions en verstuurt één mail, daarna hetzelfde verzoek met dezelfde `Idempotency-Key`. Het toont alleen statuscodes, het `message_id` en een verkort adres.
+- Tests: `tests/functies/proefmail.test.mjs` (5) tegen een nagebootste Lettermint; vier tegenproeven gevangen. Er is niets verstuurd.
+- DNS gecontroleerd (alleen lezend): de Lettermint-records staan live via TransIP. Voor de mail is geen Cloudflare-stap nodig.
+
+## Thuisplanner staging-overstap, stap 5 en 6 voorbereid (22 oktober 2026, lokaal)
+- Nieuw: `staging/functies.ps1` met `staging/functies.mjs`. Het script deployt de vier Edge Functions naar het vastgelegde stagingproject:
+  - het Thuisplanner-token gaat via een verborgen prompt, alleen in dat ene proces; de CLI-inlog van Huisplan wordt niet gebruikt;
+  - vooraf: het kenmerk, de vier functies, `verify_jwt = false` en alles gecommit; Huisplan wordt geweigerd;
+  - daarna een getypte bevestiging en `--project-ref --use-api`;
+  - na afloop wordt de functielijst teruggelezen en gecontroleerd.
+- Tests: `tests/functies/functies-deploy.test.mjs` (5) en vier tegenproeven, gevangen.
+- Uitvoeringsplan: de procedure voor stap 5 en de checklist voor stap 6: geheimen, Auth-instellingen met captcha, de Send Email-hook, Turnstile, de Lettermint-webhook, Vault, en de blootgestelde schema's.
+- Er is niets online gedaan.
+
+## Thuisplanner staging-overstap, stap 4 voorbereid: de nacontrole (22 oktober 2026)
+- De vaste referentie van de nacontrole liep één functie achter (94 in plaats van 95 in `private`, sinds R1). Na de online push had dat een valse afwijking gegeven. Bijgewerkt.
+- Nieuw: `tests/integratie/nacontrole.test.mjs` (4, ook in CI) toetst de referentie, de migraties en de geplande taken tegen de lokale stack; tegenproeven gevangen.
+- `verbinding.ps1 -VoorStap6`: de twee Vault-waarden die tot stap 6 nog ontbreken, staan apart als "verwacht"; al het andere blijft een afwijking.
+- Uitvoeringsplan: stap 4 in drie delen (voorbereiding, nieuwe export, migratie). Online niets gewijzigd.
+
+## Thuisplanner staging-overstap, stap 3 tot en met 5 uitgevoerd (22 oktober 2026)
+- **Stap 3:** de proefmail kwam precies één keer aan. Idempotentie is bewezen, en SPF, DKIM (eigen domein) en DMARC geven `pass`.
+- **Stap 4a:** een nieuwe export, gelijk aan die van 21 oktober, en de hersteltoets is geslaagd.
+- **Stap 4b:** de migraties 12–16 staan online. De nacontrole is in orde; alleen Vault ontbreekt nog, wat tot stap 6 verwacht is.
+- **Stap 5:** de vier Edge Functions staan online (versie 1, `ACTIVE`, `verify_jwt` uit). Tot stap 6 geven ze een storing (503).
+- `staging/functies.ps1` controleert nu direct na de vraag of het token een persoonlijk Supabase-token is (`sbp_` en 40 tekens). Aanleiding: een verkeerde waarde in de eerste poging. Het daarna zichtbaar geplakte token is ingetrokken en uit de geschiedenis verwijderd.
+- De huidige stagingapp werkt tot stap 8 niet. Huisplan en de Vakanties-branch zijn ongemoeid.

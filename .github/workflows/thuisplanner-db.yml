@@ -1,0 +1,106 @@
+# Thuisplanner KG-1/KG-5B: statische controles, RLS-testmatrix en tegenproeven op een tijdelijke, lokale
+# PostgreSQL op de runner, en dezelfde tests plus een integratietest (API, Auth, Realtime) op een
+# lokale Supabase-stack in Docker op de runner (supabase start). Geen secrets, geen verbinding met
+# een online Supabase-project, geen deploy.
+name: Thuisplanner database en sync (thuisplanner)
+
+on:
+  pull_request:
+    paths:
+      - 'thuisplanner/**'
+      - 'tests/thuisplanner.test.js'
+      - '.github/workflows/thuisplanner-db.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'thuisplanner/**'
+      - 'tests/thuisplanner.test.js'
+      - '.github/workflows/thuisplanner-db.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # nodig voor de controle dat Huisplan-bestanden ongewijzigd blijven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Statische controles
+        run: node thuisplanner/supabase/tests/statisch.js
+      - name: Website bouwen en testen (zonder afhankelijkheden)
+        run: |
+          node thuisplanner/website/bouw.mjs
+          node --test thuisplanner/website/tests/*.test.mjs
+      - name: Edge Function-adapters (Lettermint, zonder netwerk naar buiten)
+        run: node --experimental-strip-types --test thuisplanner/supabase/tests/functies/*.test.mjs
+      - name: PostgreSQL 16 (lokaal op de runner)
+        run: |
+          if [ ! -x /usr/lib/postgresql/16/bin/initdb ]; then
+            sudo apt-get update && sudo apt-get install -y postgresql-16
+          fi
+          /usr/lib/postgresql/16/bin/postgres --version
+      - name: RLS-matrix, tegenproeven en gelijktijdigheid
+        env:
+          PGBIN: /usr/lib/postgresql/16/bin
+        run: bash thuisplanner/supabase/tests/run.sh --tegenproef --gelijktijdig
+
+  supabase-lokaal:
+    # Echte Supabase-componenten (PostgreSQL 17, PostgREST, GoTrue, Realtime) in Docker op de runner.
+    # De sleutels zijn de vaste lokale demosleutels uit `supabase status`; niets online.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      SUPABASE: npx --yes supabase@2.117.0
+      DB_URL: postgresql://postgres:postgres@127.0.0.1:55322/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Lokale geheimen voor de codelaag (K1), willekeurig en alleen voor deze run
+        working-directory: thuisplanner
+        run: node supabase/k1-lokaal.mjs
+      - name: Lokale Supabase starten
+        # Met de Edge Runtime: de Send Email-hook (K1) en controleer-code draaien daarin.
+        working-directory: thuisplanner
+        run: $SUPABASE start -x studio,imgproxy,storage-api,logflare,vector,supavisor,postgres-meta
+      - name: RLS-matrix en tegenproeven op de echte stack
+        run: bash thuisplanner/supabase/tests/run.sh --db "$DB_URL" --tegenproef
+      - name: Integratie (API, Auth, Realtime) en gelijktijdigheid
+        # De nagebootste mailaanbieder (testaanbieder.mjs) moet vanuit de containers bereikbaar zijn; op Linux kan dat
+        # niet via 127.0.0.1. De runner is tijdelijk en heeft geen andere gebruikers.
+        env:
+          TESTAANBIEDER_ADRES: 0.0.0.0
+        run: |
+          (cd thuisplanner/supabase/tests/integratie && npm ci --no-audit --no-fund)
+          bash thuisplanner/supabase/tests/integratie/run.sh
+      - name: Syncdemo e2e (twee browsersessies, Playwright)
+        working-directory: thuisplanner/dev
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npm test
+      - name: React-app e2e tegen de lokale stack (Eva en Thomas, twee browsercontexten)
+        working-directory: thuisplanner/app
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npm run e2e:lokaal
+          npm run e2e:website
+        env:
+          CI: '1'
+      - name: LAN-proef (browsers op een aparte netwerkhost, zonder secure context)
+        working-directory: thuisplanner/app
+        run: bash scripts/lan-proef.sh
+        env:
+          CI: '1'
+      - name: Lokale Supabase stoppen
+        if: always()
+        working-directory: thuisplanner
+        run: $SUPABASE stop --no-backup

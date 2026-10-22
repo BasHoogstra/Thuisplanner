@@ -4,10 +4,22 @@
 akkoord met de adviezen bij V1 t/m V6 (§5). Deel A wordt als eerste gebouwd; deel B volgt in eigen,
 kleine stappen (§8).
 
-- **Hoort bij:** KomtGoed-fase F7 ("Centrale invoer (tekst)") in `docs/roadmap.md`, sectie
-  "Ontwikkelrichting KomtGoed". Het rustiger venster (deel A) staat los van F7 en kan eerder.
+**Stand 20 oktober 2026 (lokaal gebouwd, nog niet gecommit):** deel B, na de telefoonproef en het akkoord op K1–K12.
+- **B1:** `begrijp()` in `thuisplanner/app/src/lib/zin.ts`, met `tests/zin.test.ts` (69 gevallen: de vijf voorbeelden van
+  de producteigenaar, twijfel, meerdere boodschappen) en `scripts/tegenproeven-invoer.mjs`.
+- **B2:** de + opent alleen het zinveld (`components/SnelInvoer.tsx`); wat herkend is, staat er als knop onder, een aanname
+  met een stippelrand, twijfel als korte zin, privé altijd zichtbaar bij een afspraak; "Alles invullen" opent het formulier
+  van deel A, met alles al ingevuld. Opslaan via de bestaande acties: geen wijziging aan de sync-module of de database.
+- **C1:** boodschappen vanzelf in een categorie (`lib/categorie.ts`, 16 categorieën met Overig), op Boodschappen
+  gegroepeerd onder "Nog nodig"; de volgorde komt uit `categorieVolgorde()` (later eventueel per winkel, K12).
+- **Nog niet:** een boodschap met een dag (B4) en een correctie van de categorie die het huishouden onthoudt (C2); beide
+  vragen een migratie met een eigen akkoord.
+- **Afwijking van §4.2:** de afkortingen "ma" en "zo" worden bewust niet als dag gelezen (gewone woorden).
+
+- **Hoort bij:** Thuisplanner-fase F7 ("Centrale invoer (tekst)") in `docs/roadmap.md`, sectie
+  "Ontwikkelrichting Thuisplanner". Het rustiger venster (deel A) staat los van F7 en kan eerder.
 - **Gelezen vóór dit voorstel:** `PRODUCT_PRINCIPLES.md`, `docs/productkompas-beslissingen.md`,
-  `docs/roadmap.md`, `docs/identiteit-en-items.md` (4.4, 4.5 en 5.3), `komtgoed/app/ONTWERP.md`,
+  `docs/roadmap.md`, `docs/identiteit-en-items.md` (4.4, 4.5 en 5.3), `thuisplanner/app/ONTWERP.md`,
   `docs/thuisplanner-app.md`, `docs/thuisplanner-inhoud.md`, en de bestaande snelinvoer van Huisplan
   (`parseQuickAdd()` in `index.html`).
 
@@ -101,7 +113,7 @@ Regels:
   gebruikt (principe 4), maar dat is een aparte stap.
 - **Velden die het venster niet toont blijven bewaard,** zoals nu met `notities` en `eindDatum`.
 
-**Gebouwd (14 oktober 2026)** in `komtgoed/app/src/components/ItemVenster.tsx`, met de tests in
+**Gebouwd (14 oktober 2026)** in `thuisplanner/app/src/components/ItemVenster.tsx`, met de tests in
 `tests/toevoegen-rustig.test.tsx`. Kleine uitwerking: "Voor wie" staat nu direct onder "Hoe laat", en de
 knop Meer opties noemt wat erachter zit ("Waar · Herhalen · Privé"; alleen wat voor deze afspraak kan).
 Bij één voorkomen van een reeks blijft Meer opties dicht: de herhaling staat al in de reekskop.

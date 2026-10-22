@@ -160,7 +160,7 @@ vergissing.
 | Integratie | Realtime: na archiveren krijgt een ander lid geen inhoud, en de afspraak valt bij de volgende ophaalronde weg. Account verwijderen tijdens het archief wist de privé-afspraken direct (bestaand gedrag, opnieuw bewezen). | — |
 
 Verder worden het aantal scenario's (51 naar 56) en het aantal tegenproeven bijgewerkt, net als
-`docs/thuisplanner-inhoud.md`, `docs/komtgoed-fundament.md`, de changelog en de roadmap.
+`docs/thuisplanner-inhoud.md`, `docs/thuisplanner-fundament.md`, de changelog en de roadmap.
 
 **Omvang:** één migratie van ongeveer 120 regels, vijf scenario's met tegenproeven en één
 integratietest. Er komt geen app-code bij.
@@ -178,7 +178,7 @@ integratietest. Er komt geen app-code bij.
 ## 9. Uitgevoerd (15 oktober 2026, alleen lokaal)
 
 **Gebouwd:**
-- Migratie `komtgoed/supabase/migrations/20261019120000_archief_bewaartermijn.sql`.
+- Migratie `thuisplanner/supabase/migrations/20261019120000_archief_bewaartermijn.sql`.
 - Scenario's KG-T52 t/m KG-T56 in `rls_tests.sql`, met 8 tegenproeven.
 - `restore_member` staat ook in de controle op het vergrendelingsprotocol (KG-T31).
 - Een integratietest in `sync.test.mjs`.

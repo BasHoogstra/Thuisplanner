@@ -1,7 +1,7 @@
 # Thuisplanner: React-app met echte synchronisatie (lokaal, fictief)
 
-Deze stap brengt het visuele React/Vite-prototype (PR #20, `komtgoed/app`) en de database met
-synchronisatie (PR #22, `komtgoed/supabase` en `komtgoed/sync`) samen in één werkende app. Het doel:
+Deze stap brengt het visuele React/Vite-prototype (PR #20, `thuisplanner/app`) en de database met
+synchronisatie (PR #22, `thuisplanner/supabase` en `thuisplanner/sync`) samen in één werkende app. Het doel:
 op twee telefoons zien dat een afspraak, taak of boodschap die op het ene toestel wordt toegevoegd,
 gewijzigd of afgevinkt, op het andere verschijnt.
 
@@ -31,7 +31,7 @@ Vereist: Docker en de Supabase-CLI, Node 20+.
 (`vEthernet (...)`) slaat het script over.
 
 ```sh
-cd komtgoed && supabase start          # lokale stack (eenmalig per sessie)
+cd thuisplanner && supabase start          # lokale stack (eenmalig per sessie)
 cd app && npm ci
 npm run lokaal:seed                     # gezin De Boer opnieuw klaarzetten (mag vaker)
 npm run lokaal                          # http://127.0.0.1:5180
@@ -71,7 +71,7 @@ een eigen netwerk.
 
 1. Computer en beide telefoons op hetzelfde, vertrouwde netwerk (thuiswifi of de eigen telefoonhotspot;
    geen gastnetwerk met "client-isolatie", geen VPN op de telefoons).
-2. Docker Desktop op "Local only" (zie boven). `cd komtgoed && supabase start`, daarna
+2. Docker Desktop op "Local only" (zie boven). `cd thuisplanner && supabase start`, daarna
    `cd app && npm run lokaal:seed`.
 3. `npm run lokaal:lan`. Het script kiest het wifi-adres van de computer (virtuele netwerken van Docker,
    Hyper-V/WSL, VM's en VPN's slaat het over; bij twijfel noemt het de kandidaten), laat Vite alleen op dat
@@ -97,7 +97,7 @@ supabase-js valt zonder `navigator.locks` terug op een eigen vergrendeling.
 
 `scripts/lokaal.mjs` leest de URL en sleutels uit `supabase status -o env`. De service-role-sleutel
 gebruikt het alleen in Node om de fictieve accounts te maken; de browser krijgt alleen de anon-sleutel
-(`.env.lokaal.local`, door git genegeerd; statisch gecontroleerd in `komtgoed/supabase/tests/statisch.js`).
+(`.env.lokaal.local`, door git genegeerd; statisch gecontroleerd in `thuisplanner/supabase/tests/statisch.js`).
 
 ## 3. Wat werkt er echt, en wat is nog demo?
 
@@ -116,7 +116,7 @@ gebruikt het alleen in Node om de fictieve accounts te maken; de browser krijgt 
 | **Onbevestigde privé-afspraak na herladen** | **Echt**: de inhoud is bewust niet op het toestel bewaard (blijft zo). Onder Meer: "Opnieuw invoeren" opent het venster ("Privé-afspraak opnieuw invoeren", privé vast). Opslaan gebruikt dezelfde opdracht-ID, dus nooit een tweede afspraak; bevestigt de server hem intussen toch, dan wisselt het venster naar de bewaarde afspraak |
 | **Afspraakvelden die het venster niet toont** (notities, einddatum van een meerdaagse afspraak) | **Echt behouden** bij aanpassen, ook bij één voorkomen of de hele reeks; de duur schuift mee met de begindatum |
 | Verbindingsstatus | **Echt**: bovenin (Verbonden, Bijwerken, Geen verbinding, Geen toegang) |
-| Uitloggen | **Echt**: stopt de synchronisatie; onbevestigde opdrachten blijven bewaard (zie §6, P2) |
+| Uitloggen | **Echt**: stopt de synchronisatie. Met onbevestigde opdrachten eerst een keuze: laten nakijken of van dit toestel wissen (§6, P2) |
 | Ongedaan maken | **Niet** in de lokale modus (alleen demo) |
 | Meedenk-signaal wegklikken | Alleen voor dit tabblad (niet opgeslagen) |
 | Demo-scenario's (rustige dag) | Alleen demo |
@@ -133,7 +133,7 @@ React-schermen (ongewijzigd)  ── useApp() ──  Schil (App.tsx)
                                                 │           ▼
                                      Sessie (lib/lokaal/sessie.ts) ── één per pagina, buiten React
                                                 │
-                                     maakSync (komtgoed/sync/thuisplanner-sync.js)  ── Supabase lokaal
+                                     maakSync (thuisplanner/sync/thuisplanner-sync.js)  ── Supabase lokaal
 ```
 
 - **Eén levenscyclus, centraal.** De `Sessie` bestaat één keer per pagina, buiten React. Ze beheert
@@ -160,7 +160,7 @@ React-schermen (ongewijzigd)  ── useApp() ──  Schil (App.tsx)
   handeling één serveropdracht is. In de demo werken ze precies als voorheen.
 - **Sync-module (kleine uitbreiding):** ophalen van `event_exceptions` (keyset over reeks + datum),
   `taakBijwerken` (met versie), `afspraakVoorkomenWijzigen` en `afspraakVoorkomenVerwijderen`. Typen in
-  `thuisplanner-sync.d.ts`. Getest in `komtgoed/supabase/tests/integratie/react.test.mjs`.
+  `thuisplanner-sync.d.ts`. Getest in `thuisplanner/supabase/tests/integratie/react.test.mjs`.
 
 ### Bibliotheken
 
@@ -174,39 +174,45 @@ React-schermen (ongewijzigd)  ── useApp() ──  Schil (App.tsx)
 
 | Laag | Bestand | Wat |
 | --- | --- | --- |
-| Unit (Vitest) | `komtgoed/app/tests/lokaal.test.tsx` | omzetten (bezet zonder details, herhaling + uitzonderingen, versies, syncstaat), alleen-lokaal-adres, sessie: StrictMode/unmount stoppen niets, herstel één keer, uitloggen stopt |
+| Unit (Vitest) | `thuisplanner/app/tests/lokaal.test.tsx` | omzetten (bezet zonder details, herhaling + uitzonderingen, versies, syncstaat), alleen-lokaal-adres, sessie: StrictMode/unmount stoppen niets, herstel één keer, uitloggen stopt |
 | Unit (herstelronde 1) | `tests/afspraakbehoud.test.tsx` | bevinding 1: echte keten serverrij → venster → save_event; alleen de titel wijzigen behoudt notities, einddatum en alle andere velden (los, één voorkomen, hele reeks) |
 | Unit (herstelronde 1) | `tests/sessie.test.tsx` | bevinding 3: uitgestelde antwoorden; uitloggen na elk van de stappen van inloggen en herstellen; snel wisselen van account in beide volgordes; uitloggen + opnieuw inloggen; StrictMode |
 | Unit (herstelronde 1) | `tests/uuid.test.ts` | bevinding 2: zonder `randomUUID` geldige, unieke v4-UUID's uit `getRandomValues`, nooit `Math.random`; fout zonder cryptografische willekeur |
-| Integratie (lokale stack) | `komtgoed/supabase/tests/integratie/react.test.mjs` | uitzonderingen over meerdere pagina's bij beide accounts, voorkomen wijzigen en verwijderen, taak bijwerken met conflict; bevinding 4: privé-afspraak niet aangekomen → herladen → herinvoer met dezelfde ID; aangekomen → laat bevestigd → herinvoer maakt geen tweede; herinvoer met weggevallen antwoord → opnieuw proberen |
-| E2E, twee accounts | `komtgoed/app/e2e-lokaal/sync.spec.ts` (`npm run e2e:lokaal`) | privé "Bezet"; afspraak toevoegen/aanpassen/één voorkomen verwijderen; taak toevoegen en afvinken; boodschappen toevoegen, afvinken, geen dubbele; versieconflict; onbevestigd (aangekomen / niet aangekomen / na herladen / vergeten / keuze bij mogelijk dubbel); schermwissels en uitloggen |
-| E2E (herstelronde 1) | `komtgoed/app/e2e-lokaal/herstel1.spec.ts` | bevinding 1 in de echte app, gecontroleerd in de database; bevinding 4: niet aangekomen + herladen + opnieuw invoeren (zelfde ID, Thomas ziet één keer "Bezet"), aangekomen + herladen (laat bevestigd), herinvoer-venster open tijdens de late bevestiging |
-| LAN-proef | `komtgoed/app/e2e-lan/lan.spec.ts` via `scripts/lan-proef.sh` (`npm run lan-proef`) | bevinding 2: de app draait op het netwerkadres van de ontwikkelmachine; de browsers draaien in een container met een **eigen netwerkstack** (eigen IP) en bereiken app, Auth, REST en Realtime alleen via dat adres, poort 5180 (Vite-proxy; Supabase zelf hoeft niet op het netwerk). Toetst: geen secure context, geen `randomUUID`, toch inloggen, toevoegen, afvinken en realtime-synchronisatie tussen twee accounts. **Geen echte telefoons** |
+| Integratie (lokale stack) | `thuisplanner/supabase/tests/integratie/react.test.mjs` | uitzonderingen over meerdere pagina's bij beide accounts, voorkomen wijzigen en verwijderen, taak bijwerken met conflict; bevinding 4: privé-afspraak niet aangekomen → herladen → herinvoer met dezelfde ID; aangekomen → laat bevestigd → herinvoer maakt geen tweede; herinvoer met weggevallen antwoord → opnieuw proberen |
+| E2E, twee accounts | `thuisplanner/app/e2e-lokaal/sync.spec.ts` (`npm run e2e:lokaal`) | privé "Bezet"; afspraak toevoegen/aanpassen/één voorkomen verwijderen; taak toevoegen en afvinken; boodschappen toevoegen, afvinken, geen dubbele; versieconflict; onbevestigd (aangekomen / niet aangekomen / na herladen / vergeten / keuze bij mogelijk dubbel); schermwissels en uitloggen |
+| E2E (herstelronde 1) | `thuisplanner/app/e2e-lokaal/herstel1.spec.ts` | bevinding 1 in de echte app, gecontroleerd in de database; bevinding 4: niet aangekomen + herladen + opnieuw invoeren (zelfde ID, Thomas ziet één keer "Bezet"), aangekomen + herladen (laat bevestigd), herinvoer-venster open tijdens de late bevestiging |
+| LAN-proef | `thuisplanner/app/e2e-lan/lan.spec.ts` via `scripts/lan-proef.sh` (`npm run lan-proef`) | bevinding 2: de app draait op het netwerkadres van de ontwikkelmachine; de browsers draaien in een container met een **eigen netwerkstack** (eigen IP) en bereiken app, Auth, REST en Realtime alleen via dat adres, poort 5180 (Vite-proxy; Supabase zelf hoeft niet op het netwerk). Toetst: geen secure context, geen `randomUUID`, toch inloggen, toevoegen, afvinken en realtime-synchronisatie tussen twee accounts. **Geen echte telefoons** |
 | Bestaand | demo-e2e (138), unit, sync- en herstelintegratie, RLS-matrix, Huisplan | ongewijzigd groen |
 
-CI: de lokale e2e en de LAN-proef draaien in de job `supabase-lokaal` van `.github/workflows/komtgoed-db.yml`.
+CI: de lokale e2e en de LAN-proef draaien in de job `supabase-lokaal` van `.github/workflows/thuisplanner-db.yml`.
 
 **Tegenproeven (herstelronde 1):** de nieuwe tests zijn tegen de code van 79cebd0 gedraaid en vangen de
 oude fouten: `afspraakbehoud` 4/4 rood, `sessie` 8/14 rood (de races; de overige 6 zijn bewaking),
 `herstel1.spec` 4/5 rood (de late bevestiging werkte al), en de LAN-proef rood met de oude
 `crypto.randomUUID()`.
 
-Screenshots: `komtgoed/app/screenshots/lokaal/` (`npm run screenshots:lokaal`).
+Screenshots: `thuisplanner/app/screenshots/lokaal/` (`npm run screenshots:lokaal`).
 
-## 6. Privacybeslissingen P1–P5: niet ingevoerd
+## 6. Privacybeslissingen P1, P2 en P4: ingevoerd (19 oktober 2026, lokaal)
 
-De lokale modus gebruikt de sync-module zoals die nu is: situatie 1 uit `docs/thuisplanner-sync.md` §9
-(veilige ontwikkelmodus, fictieve gegevens, alleen lokaal). Onbevestigde opdrachten van taken en
-boodschappen staan met inhoud in `localStorage`; privé-afspraken zonder inhoud. Geen van P1–P5 is
-stilzwijgend ingevoerd. Wat er per beslissing nodig is vóór echte gegevens:
+Besluit van de producteigenaar op 19 oktober 2026: akkoord met P1, P2 en P4 uit `docs/thuisplanner-sync.md` §9 (uitvoering
+in §10). P5 (bewaartermijn van het serverregister) staat nog open.
 
-| Beslissing | Huidige stand in de app | Nodig zodra besloten |
-| --- | --- | --- |
-| **P1** alleen identiteit duurzaam | inhoud bewaard (ontwikkelmodus) | sync-module: inhoud alleen in het paginageheugen; app toont "inhoud niet bewaard, voer opnieuw in" (bestaat al voor privé-afspraken: `OnbevestigdVenster`, staat `zonder-inhoud`); API-uitbreiding om een bestaande identiteit opnieuw in te voeren bij taken en boodschappen |
-| **P2** uitloggen wist na waarschuwing | uitloggen wist niets; Meer zegt dat het een open besluit is | `Sessie.uitloggen()` is het enige punt: daar een waarschuwing met het aantal onbevestigde opdrachten, keuze "eerst laten nakijken" of "wissen", en daarna `vergeten` voor alle opdrachten van dat account |
-| **P3** demo blijft | demo-modus ongewijzigd en gemarkeerd; lokale modus gemarkeerd "Lokaal" | niets |
-| **P4** geen automatisch wissen | er wordt niets automatisch gewist; Meer toont ook oudere opdrachten op dit toestel | als het voorstel wordt aangenomen: zo laten |
-| **P5** bewaartermijn serverregister | geen opruiming | een onderhoudstaak op de server (geen app-wijziging) |
+| Beslissing | In de app |
+| --- | --- |
+| **P1** alleen de identiteit duurzaam | Op het toestel staan van onbevestigde afspraken, taken en boodschappen alleen soort, UUID, staat, account en huishouden. Binnen hetzelfde tabblad blijft de inhoud in het geheugen (opnieuw proberen werkt gewoon). Na herladen of sluiten bevestigt de eerste ophaalronde wat de server al heeft; de rest staat als "inhoud niet op dit toestel" in de lijst en onder Meer → Niet bevestigd. Tikken opent "Taak opnieuw invoeren" (of boodschap, afspraak, privé-afspraak), onder dezelfde opdracht-ID: nooit een tweede |
+| **P2** uitloggen wist na een waarschuwing | Staan er op dit toestel onbevestigde opdrachten van dit account (in elk huishouden), dan vraagt uitloggen eerst: "Eerst laten nakijken" (je blijft ingelogd; de app haalt opnieuw op) of "Van dit toestel wissen en uitloggen". Geldt voor Uitloggen, Uitloggen op alle toestellen en de uitlogknoppen in de onboarding. Een ander account op hetzelfde toestel blijft ongemoeid |
+| **P3** demo en ontwikkelmodus | Ongewijzigd: de demo bewaart niets; de ontwikkelpagina `thuisplanner/dev/demo` bewaart met `bewaarInhoud: true` ook de inhoud (fictieve gegevens), behalve van privé-afspraken |
+| **P4** geen automatisch wissen | Een verlopen sessie, een herstart, stoppen of opnieuw ophalen wist niets. Alleen bevestiging door de server, "Vergeten op dit toestel" of de keuze bij uitloggen |
+| **P5** bewaartermijn serverregister | Open; geen opruiming (een onderhoudstaak op de server, geen app-wijziging) |
+
+**Geen databasemigratie.** De server herkent een herhaalde UUID al (zie `docs/thuisplanner-sync.md` §10).
+
+**Tests (19 oktober 2026):** `app/tests/p1p2.test.tsx` (rij zonder inhoud, opnieuw invoeren van taak en boodschap met
+dezelfde ID, de uitlogkeuze) en `supabase/tests/integratie/p1p2.test.mjs` (de opslag bevat geen inhoud; herstart met eerst
+serverbevestiging; opnieuw invoeren nooit dubbel, ook als de server hem al heeft; tellen en wissen per account over alle
+huishoudens; P3 en P4). Tegenproeven: de integratietest tegen de module van vóór P1 en de app-test tegen het oude venster
+falen.
 
 ## 7. Productkompas-toets
 
@@ -218,7 +224,7 @@ stilzwijgend ingevoerd. Wat er per beslissing nodig is vóór echte gegevens:
 4. **Eenvoudiger:** geen extra bibliotheken behalve de Supabase-client; geen nieuwe schermen behalve een
    testinlogpagina; de schermen uit PR #20 zijn hergebruikt.
 5. **Aandacht, controle, privacy:** waarschuwingen alleen bij conflict of onzekerheid; herstel is een
-   keuze van de gebruiker; P1–P5 bewust open.
+   keuze van de gebruiker; P1, P2 en P4 ingevoerd (19 oktober 2026), P5 open.
 6. **Bewijs:** nog hypothese; alleen fictieve gegevens. Het echte bewijs volgt pas met echt gebruik.
 7. **Ultieme toets:** ja; het gezin hoeft elkaar niet meer bij te praten over wat er is ingevoerd.
 

@@ -2,16 +2,16 @@
 
 **Status:** gebouwd en lokaal getest op een eigen branch, als aparte PR boven op PR #21. Niet gemerged, niet gedeployd. Herstelronde 1 na de review van `3f3b7da` (§7) en herstelronde 2 na de review van `79a5852` (§8) en herstelronde 3 na de review van `89e58c5` (§9) verwerkt.
 
-Technische map: `komtgoed/`; productnaam: Thuisplanner.
+Technische map: `thuisplanner/`; productnaam: Thuisplanner.
 
 ## 1. Scope en afwijking van het bouwplan
 
-| Bouwplan (`docs/komtgoed-bouwplan.md`) | Deze stap |
+| Bouwplan (`docs/thuisplanner-bouwplan.md`) | Deze stap |
 | --- | --- |
 | **Stap 3 (KG-5D):** realtime op de server. Een trigger naar `household:<id>` en het beleid op `realtime.messages`. | Volledig gebouwd (§3). |
 | **Stap 4 (KG-5E):** de React-app herindelen met `@tanstack/react-query` en `react-router`, na akkoord op die bibliotheken. | **Niet gedaan.** Dat akkoord staat nog open, en het prototype uit PR #20 wordt bewust niet herbouwd. |
-| **Stap 5–6 en 8 (KG-5F/G/I):** lezen, schrijven en realtime in de app. | De **kern** ervan is gebouwd als losse, framework-onafhankelijke module `komtgoed/sync/thuisplanner-sync.js`. Die kan straks zonder herbouw achter de opslag-interface van stap 4 worden gehangen. |
-| **Stap 7 (KG-5H):** inloggen en nieuwe pagina's, na akkoord. | Geen nieuwe app-pagina's. Wel een **ontwikkelpagina** (`komtgoed/dev/`) met twee vaste, fictieve demo-accounts, zoals in de opdracht gevraagd. Het is uitdrukkelijk geen ontwerp. |
+| **Stap 5–6 en 8 (KG-5F/G/I):** lezen, schrijven en realtime in de app. | De **kern** ervan is gebouwd als losse, framework-onafhankelijke module `thuisplanner/sync/thuisplanner-sync.js`. Die kan straks zonder herbouw achter de opslag-interface van stap 4 worden gehangen. |
+| **Stap 7 (KG-5H):** inloggen en nieuwe pagina's, na akkoord. | Geen nieuwe app-pagina's. Wel een **ontwikkelpagina** (`thuisplanner/dev/`) met twee vaste, fictieve demo-accounts, zoals in de opdracht gevraagd. Het is uitdrukkelijk geen ontwerp. |
 
 **Afwijking:** de opdracht vroeg om synchronisatie met een zichtbare demonstratie. Volgens het bouwplan valt de clientkant pas in stap 5–8. Ik heb de architectuur van het bouwplan aangehouden:
 
@@ -49,7 +49,7 @@ Zo kan stap 4 later zonder herbouw volgen.
   - Presence is uitgesloten.
 - **`postgres_changes`** blijft uit: geen enkele tabel staat in een publicatie (KG-T27).
 
-### Client (`komtgoed/sync/thuisplanner-sync.js`)
+### Client (`thuisplanner/sync/thuisplanner-sync.js`)
 
 - **Online eerst.** Elke ophaalronde controleert eerst het lidmaatschap (`my_memberships`). Daarna haalt ze de kanaalnaam, boodschappen, taken, afspraken (`event_overview`) en leden op, alleen met expliciete kolommen en alleen wat RLS teruggeeft.
 - **Paginering:** elke soort wordt per pagina van 1000 rijen opgehaald, op `id` (keyset: `id > laatste`), tot een lege pagina. Een rij die tijdens het ophalen bestaat, komt precies één keer mee, ook als er intussen rijen bijkomen of verdwijnen. De cache wordt pas vervangen als **alle** pagina's van **alle** soorten binnen zijn; faalt er één, dan blijft de oude cache staan en wordt de status `offline`. De volgorde op het scherm (aanmaakmoment, datum) zet de client zelf.
@@ -87,7 +87,7 @@ Zo kan stap 4 later zonder herbouw volgen.
   - meldingen zijn vaste Nederlandse teksten per foutcode;
   - het optionele `spoor` geeft alleen kanaalstatussen.
 
-### Ontwikkelpagina (`komtgoed/dev/`)
+### Ontwikkelpagina (`thuisplanner/dev/`)
 
 | Bestand | Wat |
 | --- | --- |
@@ -118,7 +118,7 @@ Zo kan stap 4 later zonder herbouw volgen.
 Vereist: Docker en Node 22. Alles draait lokaal, met fictieve gegevens.
 
 ```sh
-cd komtgoed
+cd thuisplanner
 npx supabase@2.117.0 start          # lokale Supabase met alle migraties (eerste keer: images downloaden)
 cd dev
 npm ci                              # supabase-js en playwright (vastgezette versies)
@@ -135,7 +135,7 @@ Wat je ziet en kunt doen:
 5. **Privacy:** de tandartsafspraak is bij Anna volledig zichtbaar ("privé"), bij Bram alleen als "Bezet".
 6. **Onbekende uitkomst:** de e2e-test laat een antwoord van de server wegvallen (Playwright `route.abort`). Het item staat er dan als "niet bevestigd". Na herladen of sluiten en heropenen is het bevestigd, of te bevestigen met "Opnieuw proberen", met dezelfde UUID en nooit dubbel. Dezelfde tekst opnieuw invoeren geeft eerst een keuze. "Vergeten" haalt het alleen van dit toestel.
 
-Opnieuw beginnen: `npm run seed` (verwijdert de demo-accounts en maakt ze opnieuw aan). Afsluiten: `npx supabase@2.117.0 stop` in `komtgoed/`.
+Opnieuw beginnen: `npm run seed` (verwijdert de demo-accounts en maakt ze opnieuw aan). Afsluiten: `npx supabase@2.117.0 stop` in `thuisplanner/`.
 
 Schermafdrukken van de geautomatiseerde e2e-run staan in `docs/afbeeldingen/thuisplanner-sync-*.png`:
 
@@ -164,7 +164,7 @@ Schermafdrukken van de geautomatiseerde e2e-run staan in `docs/afbeeldingen/thui
 | Tegenproeven module | `integratie/sync-tegenproeven.mjs` | 22 mutaties van de module die één herstelde eigenschap terugdraaien; elke mutatie moet haar regressietest laten falen. |
 | Realtime-meting | `integratie/realtime-meting.mjs` | Meet het eigen gedrag van Realtime bij intrekking (geen CI; uitkomst in §7). |
 | Realtime-toegang | `integratie/integratie.test.mjs` | Buitenstaander krijgt een expliciete weigering, lid komt binnen (alleen met het actuele volgnummer), zelf zenden lukt niet. |
-| Demo e2e | `komtgoed/dev/tests/demo.e2e.mjs` | Zeven tests met twee **echte browsersessies** (Playwright, Chromium, eigen context per account); zie het overzicht hieronder. |
+| Demo e2e | `thuisplanner/dev/tests/demo.e2e.mjs` | Zeven tests met twee **echte browsersessies** (Playwright, Chromium, eigen context per account); zie het overzicht hieronder. |
 | Statisch | `statisch.js` | De browsercode noemt nooit de service-role-sleutel; de sync-module logt niet. |
 
 **Synchronisatie (`sync.test.mjs`):**
@@ -421,7 +421,7 @@ Twee idempotentiefouten en een onderzoek naar de privacy van de lokale opslag. D
 
 **Vier situaties apart:**
 
-1. **Veilige ontwikkelmodus met fictieve gegevens** (`komtgoed/dev`, alleen `127.0.0.1`, alleen `@test.invalid`-accounts). Inhoud in `localStorage` is hier aanvaardbaar en handig om herstel te laten zien. Zo staat het nu.
+1. **Veilige ontwikkelmodus met fictieve gegevens** (`thuisplanner/dev`, alleen `127.0.0.1`, alleen `@test.invalid`-accounts). Inhoud in `localStorage` is hier aanvaardbaar en handig om herstel te laten zien. Zo staat het nu.
 2. **Normale accountwisseling en uitloggen.** Nu ruimt `stop()` niets op: onbevestigde opdrachten (met inhoud) blijven na uitloggen op het toestel staan. Ze zijn leesbaar voor de volgende gebruiker van die browser, maar de app neemt ze niet over. Uitloggen is een bewuste privacyhandeling van de gebruiker; een unmount, een verlopen sessie of een herstart is dat niet.
 3. **Herstelbare opdrachten bewaren.** Om dubbelingen te voorkomen is alleen de **identiteit** nodig: daarmee bevestigt de eerste geldige ronde na een herstart een opdracht die de server al heeft, en blijft dezelfde UUID beschikbaar. De **inhoud** is alleen nodig om opnieuw te kunnen versturen zonder opnieuw te typen. Dat is gemak, geen voorwaarde voor idempotentie.
 4. **Privacy op gedeelde apparaten.** De browser is geen grens tussen mensen die één browserprofiel delen. Echte bescherming is alleen: niets gevoeligs op het toestel bewaren, of aparte profielen of accounts op het toestel.
@@ -440,3 +440,33 @@ Twee idempotentiefouten en een onderzoek naar de privacy van de lokale opslag. D
 - **P5 — Bewaartermijn van het serverregister** `private.shopping_commands`. Na het opruimen van een registerregel kan een héél late herhaling weer een bijwerking hebben. Voorstel: 90 dagen bewaren; daarna opruimen in de periodieke onderhoudstaak (nog te bouwen).
 
 Tot er een besluit is, slaat deze ronde geen nieuwe gegevens op het toestel op. Het nieuwe serverregister bevat geen namen.
+
+## 10. Besluit en uitvoering P1, P2 en P4 (19 oktober 2026, lokaal gebouwd)
+
+**Besluit van de producteigenaar (19 oktober 2026):** akkoord met de voorstellen P1, P2 en P4 hierboven. P3 is geen
+apart besluit, maar wel een voorwaarde van de opdracht: de demo en de veilige ontwikkelmodus blijven werken. P5 staat nog
+open.
+
+**Wat de sync-module nu doet** (`thuisplanner/sync/thuisplanner-sync.js`):
+
+| Onderdeel | Gedrag |
+| --- | --- |
+| Duurzame opslag (P1) | Standaard alleen de identiteit: soort, UUID, staat, account en huishouden (van een afspraak ook of hij privé is). Nooit titel, naam, datum, plek of notities. De inhoud blijft in het paginageheugen, dus binnen hetzelfde tabblad werkt opnieuw proberen gewoon |
+| Ontwikkelmodus | Met `bewaarInhoud: true` ook de inhoud (alleen `thuisplanner/dev/demo`, fictieve gegevens). Een privé-afspraak ook dan niet |
+| Na een herstart | De eerste ophaalronde bevestigt wat de server al heeft en haalt het van het toestel. Wat dan nog openstaat, verschijnt als "inhoud niet op dit toestel" (zonder titel of naam). Er wordt niets vanzelf verstuurd |
+| Opnieuw invoeren | `acties.opnieuwInvoeren(id, inhoud)`: de inhoud komt op dezelfde UUID. Staat hij al op de server, dan herkent die hem (taak en afspraak: het id bestaat al; boodschap: het opdrachtregister) en komt er geen tweede. Opnieuw proberen zonder inhoud verstuurt niets en geeft een uitleg |
+| Uitloggen (P2) | `onbevestigdOpToestel({ opslag, gebruiker })` telt de opdrachten van dat account op dit toestel (alle huishoudens). `wisOnbevestigdOpToestel(...)` wist ze uit geheugen en opslag, alleen na de keuze van de gebruiker. Een ander account op hetzelfde toestel blijft ongemoeid |
+| Geen stil wissen (P4) | Stoppen, een verlopen sessie, een herstart of opnieuw ophalen wist nooit een onbevestigde identiteit. Alleen bevestiging, "vergeten" of de keuze bij uitloggen |
+
+**Geen databasemigratie nodig.** Opnieuw invoeren onder dezelfde UUID gebruikt de bestaande server: een taak wordt met
+het id van de app ingevoegd (een tweede keer geeft "bestaat al", en de module controleert dan dat de rij er is), een
+afspraak via `save_event` met het id, en een boodschap via `add_shopping_items` met het opdrachtregister. Het voorstel
+in §9 noemde nog een API-uitbreiding; die bleek niet nodig.
+
+**Bekende grens.** Na een herstart kan de module een nieuwe toevoeging met dezelfde tekst niet meer herkennen als
+"mogelijk dubbel": de tekst staat niet op het toestel. Komt de oude opdracht pas ná de eerste ophaalronde alsnog op de
+server aan (een verzoek dat nog onderweg was), dan kunnen er twee staan. Opnieuw invoeren via het item zelf heeft die grens
+niet: dat gebruikt dezelfde UUID.
+
+**Tests:** `tests/integratie/p1p2.test.mjs` (lokale stack) en `app/tests/p1p2.test.tsx`, met tegenproeven tegen de
+versie van vóór P1 (zie het verslag in `docs/thuisplanner-app.md` §6).
