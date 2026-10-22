@@ -44,6 +44,11 @@ try {
   try { $env:SUPABASE_ACCESS_TOKEN = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr).Trim() }
   finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
   if (-not $env:SUPABASE_ACCESS_TOKEN) { Stop-Hier 'geen token. Er is niets online gedaan.' }
+  # Alleen de vorm van een persoonlijk Supabase-token (sbp_ en 40 tekens). Iets anders (bijvoorbeeld een token van een
+  # andere dienst) stopt hier al, zonder te tonen wat er is ingevoerd en voordat er iets naar buiten gaat.
+  if ($env:SUPABASE_ACCESS_TOKEN -cnotmatch '^sbp_[0-9a-f]{40}$') {
+    Stop-Hier ('dit is geen persoonlijk Supabase-token (verwacht: sbp_ en 40 tekens; ingevoerd: ' + $env:SUPABASE_ACCESS_TOKEN.Length + ' tekens). Er is niets online gedaan. Plak het token bij de verborgen vraag, niet daarna in PowerShell.')
+  }
 
   $ok = Read-Host "Typ precies 'deploy $Omgeving $Ref' om de vier functies te deployen (iets anders stopt)"
   if ($ok -cne "deploy $Omgeving $Ref") { Stop-Hier 'geen bevestiging gegeven. Er is niets online gedaan.' }

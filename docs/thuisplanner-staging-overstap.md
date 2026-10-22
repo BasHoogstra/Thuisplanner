@@ -244,12 +244,35 @@ Voor de mail is dus **geen Cloudflare-stap en geen DNS-overstap nodig**. De over
     de lokale stack, ook in CI, zodat een afwijking voortaan opvalt.
   - `-VoorStap6` toont de twee ontbrekende Vault-waarden als "verwacht" in plaats van als afwijking.
 - **4a (online, alleen lezend):** een nieuwe export en de hersteltoets, als in stap 2b, naar een nieuwe lege map.
+  - **Uitgevoerd op 22 oktober 2026:** `C:\Users\Bas\Thuisplanner-exports\staging-2026-10-22`, 14 tabellen en 14 rijen,
+    schema `f98c68ba8ab9`.
+  - **Manifest:** SHA-256 `fda9952a162646790a6ef858fb64d89bcccdc1d4e0e380fc4d3db70721020975`.
+  - **Hersteltoets:** geslaagd.
+  - **Vergeleken met 21 oktober:** alle 14 tabellen bevatten precies dezelfde gegevens (gelijke controlesommen per
+    tabel), en de migraties en de schemavorm zijn gelijk. Staging is in de tussentijd niet gebruikt.
 - **4b (online, de migratie):**
   `powershell -NoProfile -ExecutionPolicy Bypass -File .\thuisplanner\supabase\staging\verbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl -Bijwerken -Push -VoorStap6`
   - Het script vraagt een getypte bevestiging (`push staging mcyjpnnjqxlqfwqhkqrl`).
   - Daarna de nacontrole (`na`), zonder `KG_ANON_KEY`. Aanmelden in Auth staat tot stap 6b nog uit; dat zou anders een
     verwachte afwijking geven.
 - **Producteigenaar:** typt het wachtwoord bij de verborgen prompt.
+- **4b uitgevoerd op 22 oktober 2026:**
+  - **Vooraf:** het script zag precies de migraties 1–11 online en 5 nieuw, en de stand was voor en na de bevestiging
+    gelijk (`f98c68ba8ab9`).
+  - **De push:** de migraties 12–16 zijn zonder fout uitgevoerd, ook pg_net.
+  - **De nacontrole: IN ORDE.**
+    - 16 migraties;
+    - de schemavorm is gelijk aan de referentie (private: 9 relaties en 95 functies; public: 11 relaties, 34 functies en
+      18 policies);
+    - de Realtime-policy is in orde;
+    - de 5 geplande taken zijn actief;
+    - de schakelaars staan goed (wachtwoordsessies uit, sessiecontrole aan, testpoort dicht, registratie en codes aan);
+    - pg_net staat aan.
+  - **Verwacht tot stap 6:** de twee Vault-waarden ontbreken nog.
+  - **Nog niet gecontroleerd:** de Auth-instellingen en de blootgestelde schema's (zonder `KG_ANON_KEY`); dat gebeurt in
+    stap 6.
+  - **Gevolg:** de huidige stagingapp, die met een wachtwoord inlogt, krijgt geen gegevens meer. Inloggen met een code kan
+    pas na stap 6, en de nieuwe app komt in stap 8.
 - **Controle:**
   - 16 migraties;
   - de geplande taken zijn actief;
@@ -301,6 +324,17 @@ Het gaat om `controleer-code`, `mail-bezorging`, `stuur-code` en `stuur-uitnodig
   Verder lokaal nagespeeld: een ander kenmerk, een ongecommit bestand in `functions/` en geen token. Alle drie stoppen ze
   vóór er iets online gebeurt.
 - **Akkoord:** ja (deployment).
+- **Uitgevoerd op 22 oktober 2026:**
+  - **De eerste poging stopte** zonder deployment, omdat een verkeerde waarde in de tokenvraag kwam; de CLI weigerde die
+    lokaal.
+    - Het echte token werd daarna in PowerShell geplakt. Het is ingetrokken, en uit de PowerShell-geschiedenis verwijderd.
+    - Sindsdien controleert `functies.ps1` de vorm van het token (`sbp_` en 40 tekens) direct na de vraag.
+  - **De tweede poging** (commit `4d3867c`, nieuw token):
+    - alle vier de functies zijn gedeployd, versie 1;
+    - geüpload zijn alleen de `index.ts`-bestanden en de gedeelde code (`_gedeeld/k1.ts`, `aanbieder.ts` en `mails.ts`);
+      geen `.env` of andere bestanden;
+    - de controle na afloop is **IN ORDE**: precies de vier, `ACTIVE`, met `verify_jwt` uit.
+  - **Tot stap 6** antwoorden de functies met een storing (503), omdat de geheimen nog ontbreken. Dat is bedoeld.
 
 ### Stap 6 — Geheimen, hook, Auth en Turnstile (checklist)
 

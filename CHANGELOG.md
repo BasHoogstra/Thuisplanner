@@ -926,3 +926,11 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Nieuw: `tests/integratie/nacontrole.test.mjs` (4, ook in CI) toetst de referentie, de migraties en de geplande taken tegen de lokale stack; tegenproeven gevangen.
 - `verbinding.ps1 -VoorStap6`: de twee Vault-waarden die tot stap 6 nog ontbreken, staan apart als "verwacht"; al het andere blijft een afwijking.
 - Uitvoeringsplan: stap 4 in drie delen (voorbereiding, nieuwe export, migratie). Online niets gewijzigd.
+
+## Thuisplanner staging-overstap, stap 3 tot en met 5 uitgevoerd (22 oktober 2026)
+- **Stap 3:** de proefmail kwam precies één keer aan. Idempotentie is bewezen, en SPF, DKIM (eigen domein) en DMARC geven `pass`.
+- **Stap 4a:** een nieuwe export, gelijk aan die van 21 oktober, en de hersteltoets is geslaagd.
+- **Stap 4b:** de migraties 12–16 staan online. De nacontrole is in orde; alleen Vault ontbreekt nog, wat tot stap 6 verwacht is.
+- **Stap 5:** de vier Edge Functions staan online (versie 1, `ACTIVE`, `verify_jwt` uit). Tot stap 6 geven ze een storing (503).
+- `staging/functies.ps1` controleert nu direct na de vraag of het token een persoonlijk Supabase-token is (`sbp_` en 40 tekens). Aanleiding: een verkeerde waarde in de eerste poging. Het daarna zichtbaar geplakte token is ingetrokken en uit de geschiedenis verwijderd.
+- De huidige stagingapp werkt tot stap 8 niet. Huisplan en de Vakanties-branch zijn ongemoeid.
