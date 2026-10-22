@@ -207,20 +207,20 @@ test.describe('Boodschappen', () => {
     await invoer.fill('melk, Kaas, kaas, wc-papier');
     await invoer.press('Enter');
     await expect(melding(page)).toContainText('Kaas op de lijst · Wc-papier weer nodig · Melk stond er al op');
-    await expect(sectie(page, /^Nog nodig \d+$/).getByRole('checkbox')).toHaveCount(7);
-    await expect(sectie(page, /^Nog nodig \d+$/).getByRole('checkbox', { name: 'Kaas' })).toHaveCount(1);
+    await expect(sectie(page, /^Nu te kopen \d+$/).getByRole('checkbox')).toHaveCount(7);
+    await expect(sectie(page, /^Nu te kopen \d+$/).getByRole('checkbox', { name: 'Kaas' })).toHaveCount(1);
     await expect(page.getByRole('heading', { name: /In het mandje/ })).toHaveCount(0);
   });
 
   test('duidelijk onderscheid tussen nog nodig en in het mandje', async ({ page }) => {
     await nav(page, 'Boodschappen');
-    await sectie(page, /^Nog nodig \d+$/).getByRole('checkbox', { name: 'Melk' }).click();
-    await expect(page.getByRole('heading', { name: 'Nog nodig 4' })).toBeVisible();
+    await sectie(page, /^Nu te kopen \d+$/).getByRole('checkbox', { name: 'Melk' }).click();
+    await expect(page.getByRole('heading', { name: 'Nu te kopen 4' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'In het mandje 2' })).toBeVisible();
     const mandje = page.locator('section.afgevinkt');
     await expect(mandje.getByRole('checkbox', { name: 'Melk' })).toHaveAttribute('aria-checked', 'true');
     await mandje.getByRole('checkbox', { name: 'Melk' }).click();
-    await expect(sectie(page, /^Nog nodig \d+$/).getByRole('checkbox', { name: 'Melk' })).toBeVisible();
+    await expect(sectie(page, /^Nu te kopen \d+$/).getByRole('checkbox', { name: 'Melk' })).toBeVisible();
   });
 
   test('aanpassen en verwijderen; Vandaag volgt direct', async ({ page }) => {
@@ -242,7 +242,7 @@ test('"Ongedaan maken" hoort altijd bij de laatste wijziging', async ({ page }) 
   await sectie(page, 'Te doen').getByRole('checkbox', { name: 'Plantenbak water geven' }).click();
   await expect(melding(page).getByRole('button', { name: 'Ongedaan maken' })).toBeVisible();
   await nav(page, 'Boodschappen');
-  await sectie(page, /^Nog nodig \d+$/).getByRole('checkbox', { name: 'Melk' }).click();
+  await sectie(page, /^Nu te kopen \d+$/).getByRole('checkbox', { name: 'Melk' }).click();
   // Afvinken van een boodschap heeft geen eigen melding; de oude knop mag nu niet de boodschap terugdraaien.
   await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toHaveCount(0);
 });

@@ -616,6 +616,22 @@ a { color: var(--accent); }
 .keuze-rondje.aan { border: 6px solid var(--accent); }
 .rij-knop.gekozen { background: var(--accent-zacht); }
 
+/* Boodschappen "Later nodig" (§18): een ingeklapte lijst onder Nu te kopen; één tik (Nu kopen) zet een boodschap op de
+   lijst. Dezelfde boodschappen; in Regelen een klein label met de status. */
+.later { margin-top: 20px; }
+.later-knop { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+.later-uitleg { margin: 0 2px 8px; font-size: 14px; }
+.rij-actie { flex: 0 0 auto; align-self: center; min-height: 44px; margin: 0 4px 0 6px; padding: 0 14px; border: 1.5px solid var(--lijn-sterk);
+  border-radius: 99px; background: var(--vlak); color: var(--accent); font: inherit; font-size: 14px; font-weight: 650; white-space: nowrap; }
+.rij-actie:disabled { opacity: .55; }
+/* Naast de knop: woorden heel laten (geen "Muggenspra-y" op 320 px); alleen een te lang woord breekt. */
+.rij:has(.rij-actie) .rij-titel { overflow-wrap: break-word; hyphens: auto; }
+@media (max-width: 359px) { .rij-actie { padding: 0 11px; margin-left: 4px; } }
+@media (hover: hover) { .rij-actie:not(:disabled):hover { border-color: var(--accent); } }
+.vak-blok .vak-lijst .rij-actie { margin-right: 0; }
+.vak-status { color: var(--inkt-3); }
+.vak-status.nu { color: var(--accent); font-weight: 600; }
+
 /* Vandaag: één rustige kaart rond en tijdens een vakantie (zijkolom). */
 .vakantie-kaart { margin-top: 28px; }
 @media (min-width: 960px) { .kolom-zij > .vakantie-kaart:first-child { margin-top: 16px; } }

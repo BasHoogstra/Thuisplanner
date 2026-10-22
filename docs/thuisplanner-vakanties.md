@@ -824,3 +824,44 @@ Vandaag (kleine letter).
 **Tests:** app 505 van 505 (nieuw: inklappen en onthouden, afgerond tonen en terugzetten, ingepakt per persoon), e2e 206
 geslaagd en 10 overgeslagen (360, 390 en desktop; de nieuwe compact-test ook op 320 px en donker), typecheck en
 statische controles schoon.
+
+## 18. Boodschappen "Later nodig" (akkoord 22 oktober 2026; lokaal, nog niet gecommit)
+Probleem: boodschappen die je weken vooruit voor een vakantie toevoegt, staan wekenlang tussen de dagelijkse
+boodschappen. Oplossing: de boodschappenpagina krijgt **Nu te kopen** (de gewone lijst, centraal) en **Later nodig**
+(standaard ingeklapt). Algemeen ontworpen: "later" is een eigenschap van de boodschap zelf, los van de reden (vakantie,
+later ook verjaardag of feestje); de reden staat in een koppeling zoals `trip_shopping_links`. Geen verschijndatum in
+deze ronde.
+
+**Datamodel en database** (migratie `20261026120000_boodschappen_later.sql`, alleen op de eigen lokale stack
+`thuisplanner` toegepast):
+- `shopping_items.deferred boolean not null default false`. Eén boodschap blijft één rij: afvinken, aanpassen en
+  verwijderen werken zoals altijd. Geen tweede lijst, geen kopie.
+- Kolomrechten: alleen `insert (deferred)` en `update (deferred)` erbij voor `authenticated`. De RLS (per rij, per
+  huishouden) is ongewijzigd; `guard_content` verhoogt de versie en de seintjes (`{t, id, v, op}`) gaan zoals altijd.
+- `add_shopping_items` krijgt `p_later boolean default false` (oude aanroepen werken ongewijzigd):
+  nieuw → `deferred = p_later`; terug (afgevinkt komt terug) → `deferred = p_later`; al op de lijst → met `p_later` blijft
+  hij waar hij staat, zonder `p_later` (op de gewone lijst toegevoegd) gaat een latere boodschap naar Nu te kopen.
+
+**Sync:** `deferred` wordt opgehaald; `boodschapToevoegen(naam, { vakantie })` geeft standaard `p_later` mee (expliciet
+te kiezen met `later`); nieuw `boodschapLater(item, later, versie)` met versiecontrole en optimistische weergave. P1 is
+ongewijzigd (de vlag hoort bij de opdracht, zoals de vakantie).
+
+**App:**
+- Boodschappen: "Nu te kopen" (was "Nog nodig") met de categorieën; daaronder "Later nodig 4" als ingeklapte regel; in de
+  lijst per boodschap het vakantielabel en de knop **Nu kopen** (één tik, minstens 44 px, met ongedaan maken). Terug
+  naar later via het gewone boodschappenvenster ("Naar Later nodig").
+- Vakantie → Regelen: alle gekoppelde boodschappen blijven zichtbaar, met een klein label "later nodig" of "nu te
+  kopen"; bij "later nodig" ook de knop Nu kopen; in het venster "Nu te kopen" / "Terug naar Later nodig".
+- Toevoegen vanuit een vakantie → Later nodig; toevoegen op de gewone lijst, via + of de zin → Nu te kopen.
+- Vandaag telt alleen Nu te kopen.
+- Demo: Zonnebrand factor 50, Muggenspray en Reisziektetabletten voor Frankrijk; Reisziektetabletten ook voor Kerst op
+  Texel (één boodschap, twee vakanties); Kerstkransjes voor Texel. Allemaal bij Later nodig.
+
+**Afwijkingen en aandachtspunten:**
+- De kop op de boodschappenpagina heet nu "Nu te kopen" in plaats van "Nog nodig".
+- Wie een boodschap die al bij Nu te kopen staat vanuit een vakantie toevoegt, ziet hem bij de vakantie maar hij blijft
+  bij Nu te kopen (je had hem al nodig).
+- Frankrijk vertrekt in de demo over negen dagen (niet enkele weken); Kerst op Texel (over 64 dagen) laat het
+  "weken vooruit" zien. De demodatum is niet verschoven, omdat de kaart op Vandaag en de Agenda-tests daarop rusten.
+- Voor het stagingtraject: deze migratie staat alleen in deze worktree en op de lokale stack `thuisplanner`; niet op
+  staging of de `k12`-stack.

@@ -137,9 +137,9 @@ test('koppelingen: de kaart op Vandaag, de vakantie in de Agenda, en het label b
   // Een boodschap voor de vakantie (komt op de gewone lijst). Het blok staat standaard ingeklapt.
   await page.getByRole('button', { name: /^Boodschappen voor Frankrijk/ }).click();
   const kopen = page.getByRole('textbox', { name: 'Boodschap voor deze vakantie' });
-  await kopen.fill('Zonnebrand factor 50');
+  await kopen.fill('Adapterstekker');
   await kopen.press('Enter');
-  await expect(page.getByRole('checkbox', { name: 'Zonnebrand factor 50' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Adapterstekker' })).toBeVisible();
   // De Agenda: volgende week staat de vakantie op de dagen van de periode.
   await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Agenda' }).click();
   await page.getByRole('tab', { name: 'Week', exact: true }).click();
@@ -148,10 +148,43 @@ test('koppelingen: de kaart op Vandaag, de vakantie in de Agenda, en het label b
   await expect(regels.first()).toBeVisible();
   expect(await regels.count()).toBe(3);   // vrijdag 30 oktober t/m zondag 1 november
   await geenHorizontaleScroll(page, 'agenda met vakantie');
-  // Boodschappen: het label bij Zonnebrand.
+  // Boodschappen: bij Later nodig (ingeklapt), met het label.
   await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Boodschappen' }).click();
-  await expect(page.getByRole('button', { name: 'Zonnebrand factor 50 aanpassen' })).toContainText('Frankrijk');
+  await page.getByRole('button', { name: /^Later nodig/ }).click();
+  await expect(page.getByRole('list', { name: 'Later nodig' }).getByRole('button', { name: 'Adapterstekker aanpassen' })).toContainText('Frankrijk');
   await geenHorizontaleScroll(page, 'boodschappen met label');
+});
+
+test('Later nodig: ingeklapt, één tik naar Nu te kopen, gelijk bij de vakantie (ook 320 px en donker)', async ({ page }) => {
+  const breedtes = isDesktop(page) ? [null] : [null, 320];
+  for (const breed of breedtes) {
+    if (breed) { await page.setViewportSize({ width: breed, height: 700 }); await page.emulateMedia({ colorScheme: 'dark' }); }
+    await page.goto(START + '#/boodschappen');
+    await page.reload();   // verse demo
+    const nu = page.locator('section', { has: page.getByRole('heading', { name: /^Nu te kopen \d+$/ }) });
+    const aantal = await nu.getByRole('checkbox').count();
+    const knop = page.getByRole('button', { name: /^Later nodig 4/ });
+    await expect(knop).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByRole('list', { name: 'Later nodig' })).toHaveCount(0);
+    await knop.click();
+    const later = page.getByRole('list', { name: 'Later nodig' });
+    await expect(later.getByRole('checkbox')).toHaveCount(4);
+    const nuKopen = later.getByRole('button', { name: 'Zonnebrand factor 50 nu kopen' });
+    expect((await nuKopen.boundingBox())!.height, 'Nu kopen lager dan 44 px').toBeGreaterThanOrEqual(44);
+    await geenHorizontaleScroll(page, `later nodig ${breed ?? ''}`);
+    await nuKopen.click();
+    await expect(nu.getByRole('checkbox')).toHaveCount(aantal + 1);
+    await expect(nu.getByRole('checkbox', { name: 'Zonnebrand factor 50' })).toBeVisible();
+    // Afvinken op de gewone lijst geldt ook bij de vakantie (één boodschap).
+    await nu.getByRole('checkbox', { name: 'Zonnebrand factor 50' }).click();
+    await page.goto(START + '#/vakanties/v-frankrijk');
+    await page.getByRole('tab', { name: 'Regelen' }).click();
+    const blok = page.getByRole('button', { name: /^Boodschappen voor Frankrijk/ });
+    if ((await blok.getAttribute('aria-expanded')) === 'false') await blok.click();
+    await expect(blok).toContainText('1 van 3 gekocht');
+    await expect(page.getByRole('button', { name: 'Muggenspray. Meer' })).toContainText('later nodig');
+    await geenHorizontaleScroll(page, `regelen later ${breed ?? ''}`);
+  }
 });
 
 test('compact: uitklappen, afvinken, terugzetten, persoon wisselen en navigeren (ook 320 px en donker)', async ({ page }) => {
@@ -179,16 +212,19 @@ test('compact: uitklappen, afvinken, terugzetten, persoon wisselen en navigeren 
     await kopen.click();
     await expect(taken).toHaveAttribute('aria-expanded', 'false');
     const veld = page.getByRole('textbox', { name: 'Boodschap voor deze vakantie' });
-    await veld.fill('Zonnebrand, Muggenspray'); await veld.press('Enter');
-    await page.getByRole('checkbox', { name: 'Muggenspray' }).click();
-    await expect(kopen).toContainText('1 van 2 gekocht');
+    // De demo heeft al drie boodschappen voor Frankrijk (Later nodig); Muggenspray staat er al en komt er niet dubbel bij.
+    await veld.fill('Pleisters, Muggenspray'); await veld.press('Enter');
+    await expect(kopen).toContainText('0 van 4 gekocht');
+    await page.getByRole('checkbox', { name: 'Pleisters' }).click();
+    await expect(kopen).toContainText('1 van 4 gekocht');
     await page.getByRole('button', { name: '1 gekocht · tonen' }).click();
-    await page.getByRole('list', { name: 'Gekocht voor Frankrijk' }).getByRole('checkbox', { name: 'Muggenspray' }).click();
-    await expect(kopen).toContainText('0 van 2 gekocht');
+    await page.getByRole('list', { name: 'Gekocht voor Frankrijk' }).getByRole('checkbox', { name: 'Pleisters' }).click();
+    await expect(kopen).toContainText('0 van 4 gekocht');
     await geenHorizontaleScroll(page, `regelen ${breed ?? ''}`);
-    // Naar Boodschappen en terug: hetzelfde item, en Boodschappen staat nog open.
+    // Naar Boodschappen en terug: hetzelfde item (bij Later nodig), en Boodschappen staat nog open.
     await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Boodschappen' }).click();
-    await expect(page.getByRole('checkbox', { name: 'Muggenspray' })).toHaveAttribute('aria-checked', 'false');
+    await page.getByRole('button', { name: /^Later nodig/ }).click();
+    await expect(page.getByRole('list', { name: 'Later nodig' }).getByRole('checkbox', { name: 'Pleisters' })).toHaveAttribute('aria-checked', 'false');
     await page.goBack();
     await expect(page.getByRole('button', { name: /^Boodschappen voor Frankrijk/ })).toHaveAttribute('aria-expanded', 'true');
     // Inpakken: compacte persoonsknoppen, één grote balk, de lijst direct zichtbaar.

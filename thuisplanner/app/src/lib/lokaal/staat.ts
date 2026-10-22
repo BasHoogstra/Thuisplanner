@@ -11,7 +11,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type { BoodschapRij, PakitemRij, Resultaat, TaakRij, VakantieKoppelingRij, VakantieRij } from '../../../../sync/thuisplanner-sync.js';
 import { boodschappenMelding } from '../boodschappen';
 import type { Groep, Melding, Staat } from '../store';
-import type { Afspraak, Datum, Huishouden, Item, LidId, Pakitem, Vakantie, VakantieKoppeling } from '../types';
+import type { Afspraak, Boodschap, Datum, Huishouden, Item, LidId, Pakitem, Vakantie, VakantieKoppeling } from '../types';
 import { groepNaam } from '../vakantie';
 import { naarItems, naarNieuweAfspraak, naarTaakVelden, naarVakantieGegevens } from './omzetten';
 import type { Momentopname, Sessie } from './sessie';
@@ -113,19 +113,23 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
       },
       voegBoodschappenToe: (namen: string[], vakantieId?: string) => {
         void (async () => {
-          const uitkomst = { nieuw: [] as string[], alOpLijst: [] as string[], terug: [] as string[] };
+          const uitkomst = { nieuw: [] as string[], alOpLijst: [] as string[], terug: [] as string[], naarNu: [] as string[] };
+          // Vanuit een vakantie standaard bij "Later nodig" (de sync-module geeft p_later mee; zelfde regels als de demo).
+          const opties = vakantieId ? { vakantie: vakantieId } : undefined;
           for (const naam of namen) {
-            const r = await a()?.boodschapToevoegen(naam, vakantieId ? { vakantie: vakantieId } : undefined);
+            // Stond hij bij "Later nodig" en voeg je hem op de gewone lijst toe, dan zet de server hem op "Nu te kopen".
+            const wasLater = !vakantieId && !!t()?.boodschappen.some(b => b.deferred && !b.checked_at && b.name?.trim().toLocaleLowerCase('nl') === naam.trim().toLocaleLowerCase('nl'));
+            const r = await a()?.boodschapToevoegen(naam, opties);
             if (!r) continue;
-            if (!r.ok) { if (r.mogelijkDubbel) void na(Promise.resolve(r), undefined, () => void a()?.boodschapToevoegen(naam, { bewustNieuw: true })); continue; }
+            if (!r.ok) { if (r.mogelijkDubbel) void na(Promise.resolve(r), undefined, () => void a()?.boodschapToevoegen(naam, { ...opties, bewustNieuw: true })); continue; }
             const rijen = (r.data as { name: string; outcome: string }[] | undefined) ?? [];
             for (const x of rijen) {
               if (x.outcome === 'terug') uitkomst.terug.push(x.name);
-              else if (x.outcome === 'al_op_lijst') uitkomst.alOpLijst.push(x.name);
+              else if (x.outcome === 'al_op_lijst') (wasLater ? uitkomst.naarNu : uitkomst.alOpLijst).push(x.name);
               else uitkomst.nieuw.push(x.name);
             }
           }
-          if (uitkomst.nieuw.length + uitkomst.alOpLijst.length + uitkomst.terug.length) meld(boodschappenMelding(uitkomst));
+          if (uitkomst.nieuw.length + uitkomst.alOpLijst.length + uitkomst.terug.length + uitkomst.naarNu.length) meld(boodschappenMelding(uitkomst, !!vakantieId));
         })();
       },
       wijzigVoorkomen: (reeksId: string, datum: Datum, afspraak: Afspraak, melding?: string) => {
@@ -257,6 +261,19 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
           const u = await a()?.boodschapOntkoppelen(r);
           const versie = (u?.data as { version: number }[] | undefined)?.[0]?.version;
           if (u?.ok && versie != null) meldMetTerug(`${naam} niet meer voor deze vakantie`, () => { void na(a()?.boodschapKoppelingHerstellen(r, versie), 'Teruggezet'); });
+        })();
+      },
+      // Tussen "Nu te kopen" en "Later nodig": dezelfde boodschap; ongedaan maken zet hem terug (met de nieuwe versie).
+      boodschapLater: (b: Boodschap, later: boolean) => {
+        const r = rij<BoodschapRij>(t()?.boodschappen, b.id);
+        if (!r) return;
+        void (async () => {
+          const u = await a()?.boodschapLater(r, later);
+          const versie = (u?.data as { version: number }[] | undefined)?.[0]?.version;
+          if (u?.ok && versie != null) {
+            meldMetTerug(later ? `${b.naam} bij Later nodig` : `${b.naam} nu te kopen`,
+              () => { void na(a()?.boodschapLater({ ...r, deferred: later }, !later, versie), 'Teruggezet'); });
+          }
         })();
       },
       vakantieOpenen: (id: string) => { void a()?.vakantieOpenen(id); },

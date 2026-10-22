@@ -74,7 +74,8 @@ export function naarTaak(r: TaakRij): Taak {
 }
 
 export function naarBoodschap(r: BoodschapRij): Boodschap {
-  return { id: r.id, soort: 'boodschap', naam: r.name ?? ZONDER_INHOUD.boodschap, afgevinkt: !!r.checked_at, versie: r.version, sync: syncStaat(r) };
+  return { id: r.id, soort: 'boodschap', naam: r.name ?? ZONDER_INHOUD.boodschap, afgevinkt: !!r.checked_at,
+    ...(r.deferred ? { later: true } : {}), versie: r.version, sync: syncStaat(r) };
 }
 
 export function uitzonderingenPerReeks(rijen: Uitzondering[]): Map<string, string[]> {

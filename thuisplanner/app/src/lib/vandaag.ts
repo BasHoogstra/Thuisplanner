@@ -51,7 +51,8 @@ export function takenZonderDatum(items: Item[]): Taak[] {
 }
 
 export function openBoodschappen(items: Item[]): Boodschap[] {
-  return items.filter(isBoodschap).filter(b => !b.afgevinkt);
+  // "Later nodig" telt hier niet mee: Vandaag gaat over wat je nu moet kopen.
+  return items.filter(isBoodschap).filter(b => !b.afgevinkt && !b.later);
 }
 
 export interface VooruitDag {

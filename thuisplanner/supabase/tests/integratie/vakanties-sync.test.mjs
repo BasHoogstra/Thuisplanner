@@ -270,6 +270,31 @@ test('V6 boodschap voor een vakantie: hergebruik sluit de oude koppeling af; ont
   assert.equal(koppeling().filter(k => k.settled_at).length, 1);
 });
 
+test('V10 Later nodig: vanuit een vakantie bij Later nodig, zichtbaar bij de ander; Nu kopen en terug met versie; gewone boodschap blijft Nu', { timeout: 60000 }, async () => {
+  const { a, b } = await beide();
+  const v = await nieuweVakantie(a, 'Zweden');
+  assert.ok((await a.acties.boodschapToevoegen('Muggenolie', { vakantie: v })).ok);
+  assert.ok((await a.acties.boodschapToevoegen('Brood')).ok);
+  await totdat(() => b.toestand.boodschappen.find(x => x.name === 'Muggenolie')?.deferred === true, 10000, 'Bram ziet Muggenolie bij Later nodig');
+  await totdat(() => b.toestand.boodschappen.find(x => x.name === 'Brood'), 10000, 'Bram ziet Brood');
+  assert.equal(b.toestand.boodschappen.find(x => x.name === 'Brood').deferred, false, 'een gewone boodschap staat bij Nu te kopen');
+  // Bram zet hem op Nu te kopen; Anna ziet het via een seintje. Een verouderde versie geeft een conflict.
+  const item = b.toestand.boodschappen.find(x => x.name === 'Muggenolie');
+  const nu = await b.acties.boodschapLater(item, false);
+  assert.ok(nu.ok);
+  await totdat(() => a.toestand.boodschappen.find(x => x.name === 'Muggenolie')?.deferred === false, 10000, 'Anna ziet Muggenolie bij Nu te kopen');
+  const oud = await a.acties.boodschapLater({ ...item }, true);
+  assert.equal(oud.ok, false, 'een verouderde versie overschreef de stand');
+  // Ongedaan maken met de nieuwe versie (zoals de app doet).
+  assert.ok((await b.acties.boodschapLater({ ...item, deferred: false }, true, nu.data[0].version)).ok);
+  await totdat(() => a.toestand.boodschappen.find(x => x.name === 'Muggenolie')?.deferred === true, 10000, 'Anna ziet het ongedaan maken');
+  // Op de gewone lijst toegevoegd: dezelfde boodschap naar Nu te kopen.
+  assert.ok((await a.acties.boodschapToevoegen('muggenolie')).ok);
+  await a.vernieuw();
+  assert.equal(a.toestand.boodschappen.filter(x => x.name.toLowerCase() === 'muggenolie').length, 1);
+  assert.equal(a.toestand.boodschappen.find(x => x.name === 'Muggenolie').deferred, false);
+});
+
 test('V7 een afgelopen vakantie: paklijst pas na openen, blijft dan actueel, en na sluiten niet meer opgehaald', { timeout: 60000 }, async () => {
   const { a, b } = await beide();
   const oud = await nieuweVakantie(a, 'Lissabon 2024', { start_date: '2024-05-01', end_date: '2024-05-08' });

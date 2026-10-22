@@ -449,6 +449,13 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
         <button type="submit" className="knop breed" onClick={bewaar}>
           {herinvoerId ? 'Opslaan' : !bestaand ? 'Toevoegen' : reeks ? (bereik === 'reeks' ? 'Hele reeks opslaan' : 'Alleen deze opslaan') : 'Opslaan'}
         </button>
+        {bestaand?.soort === 'boodschap' && !bestaand.afgevinkt && (
+          // Dezelfde boodschap, alleen een andere lijst ("Later nodig" of "Nu te kopen").
+          <button type="button" className="knop breed stil" disabled={!!bestaand.sync}
+            onClick={() => { app.boodschapLater(bestaand, !bestaand.later); sluit(); }}>
+            {bestaand.later ? 'Nu te kopen' : 'Naar Later nodig'}
+          </button>
+        )}
         {bestaand && (
           <button type="button" className="knop breed gevaar" onClick={verwijder}>
             {reeks ? (bereik === 'reeks' ? 'Hele reeks verwijderen' : 'Alleen deze verwijderen') : 'Verwijderen'}

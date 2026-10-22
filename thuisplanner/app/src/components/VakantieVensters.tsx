@@ -185,10 +185,16 @@ export function VakantieBoodschapVenster({ b, k, vakantie, sluit }: { b: Boodsch
   return (
     <Venster titel={b.naam} sluit={sluit}>
       <p className="stil-tekst">
-        {b.afgevinkt ? 'Gekocht.' : 'Staat op de boodschappenlijst.'} Afvinken in de winkel geldt ook hier: het is dezelfde boodschap.
+        {b.afgevinkt ? 'Gekocht.' : b.later ? 'Staat op de boodschappenlijst bij Later nodig.' : 'Staat op de boodschappenlijst bij Nu te kopen.'}
+        {' '}Afvinken in de winkel geldt ook hier: het is dezelfde boodschap.
       </p>
+      {!b.afgevinkt && (
+        <button type="button" className="knop breed" disabled={!!b.sync} onClick={() => { app.boodschapLater(b, !b.later); sluit(); }}>
+          {b.later ? 'Nu te kopen' : 'Terug naar Later nodig'}
+        </button>
+      )}
       {/* Hetzelfde venster als op de boodschappenlijst: één item, dus aanpassen geldt overal. */}
-      <button type="button" className="knop breed" onClick={() => { sluit(); app.openItem(b.id); }}>Naam aanpassen</button>
+      <button type="button" className={'knop breed' + (b.afgevinkt ? '' : ' stil')} onClick={() => { sluit(); app.openItem(b.id); }}>Naam aanpassen</button>
       {k && !k.afgehandeld && (
         <button type="button" className="knop breed stil" onClick={() => { app.boodschapOntkoppelen(k, b.naam); sluit(); }}>
           Niet meer voor {vakantie.naam}

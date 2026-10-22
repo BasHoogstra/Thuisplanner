@@ -123,3 +123,35 @@ describe('vakanties en voorbereidingen', () => {
     expect((los.items.find(i => i.id === 't-vignet') as Taak).vakantieId).toBeNull();
   });
 });
+
+describe('Later nodig (zelfde regels als add_shopping_items met p_later)', () => {
+  const b = (s: Staat, naam: string) => s.items.find((i): i is Boodschap => i.soort === 'boodschap' && i.naam.toLowerCase() === naam.toLowerCase());
+  it('vanuit een vakantie: nieuw en terug bij Later nodig; wat al te kopen is blijft te kopen (wel gekoppeld)', () => {
+    let s = reducer(begin(), { type: 'boodschappen', namen: ['Adapterstekker'], vakantieId: 'v-frankrijk' });
+    expect(b(s, 'Adapterstekker')?.later).toBe(true);
+    s = reducer(s, { type: 'boodschappen', namen: ['Wc-papier'] });
+    expect(b(s, 'Wc-papier')?.later).toBeUndefined();
+    s = reducer(s, { type: 'boodschappen', namen: ['Wc-papier'], vakantieId: 'v-frankrijk' });
+    expect(b(s, 'Wc-papier')?.later).toBeUndefined();
+    expect(s.koppelingen.some(k => k.boodschapId === b(s, 'Wc-papier')!.id && k.vakantieId === 'v-frankrijk')).toBe(true);
+    // Afgevinkt en vanuit een vakantie terug: weer bij Later nodig.
+    s = reducer(s, { type: 'wissel', id: b(s, 'Wc-papier')!.id, vandaag: VANDAAG });
+    s = reducer(s, { type: 'boodschappen', namen: ['Wc-papier'], vakantieId: 'v-texel' });
+    expect(b(s, 'Wc-papier')).toMatchObject({ afgevinkt: false, later: true });
+  });
+  it('op de gewone lijst toegevoegd: een latere boodschap gaat naar Nu te kopen, zonder tweede item', () => {
+    const voor = begin();
+    const s = reducer(voor, { type: 'boodschappen', namen: ['muggenspray'] });
+    expect(b(s, 'Muggenspray')?.later).toBeUndefined();
+    expect(s.items.filter(i => i.soort === 'boodschap').length).toBe(voor.items.filter(i => i.soort === 'boodschap').length);
+    expect(s.melding?.tekst).toBe('Muggenspray nu te kopen');
+  });
+  it('heen en terug, aanpassen behoudt Later nodig, en ongedaan maken', () => {
+    let s = reducer(begin(), { type: 'boodschapLater', id: 'b-muggenspray', later: false });
+    expect(b(s, 'Muggenspray')?.later).toBeUndefined();
+    s = reducer(s, { type: 'ongedaan' });
+    expect(b(s, 'Muggenspray')?.later).toBe(true);
+    s = reducer(s, { type: 'bijwerken', item: { id: 'b-muggenspray', soort: 'boodschap', naam: 'Muggenspray deet', afgevinkt: false } });
+    expect(b(s, 'Muggenspray deet')?.later).toBe(true);
+  });
+});

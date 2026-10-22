@@ -11,7 +11,7 @@ import type { Boodschap, LidId, Pakitem, Taak, Vakantie, VakantieKoppeling } fro
 import {
   aftelling, fase, groepNaam, groepen, isVoorbij, leesVoorkeur, overneemBronnen, pakGroepen, periode, zetVoorkeur,
 } from '../lib/vakantie';
-import { TaakRij, Vinkje } from '../components/Rijen';
+import { NuKopenKnop, TaakRij, Vinkje } from '../components/Rijen';
 import { SyncLabel } from '../components/Lokaal';
 import { IcKoffer, IcLinks, IcPijl, IcPlus, IcPunten } from '../components/Iconen';
 import {
@@ -283,6 +283,8 @@ function Regelen({ v }: { v: Vakantie }) {
   // Eén boodschap: hetzelfde item als op de gewone lijst; afvinken is gewoon wissel (geldt dus overal).
   const boodschapRij = ({ k, b, gekocht: afgehandeld }: { k: VakantieKoppeling; b: Boodschap; gekocht: boolean }) => {
     const aan = b.afgevinkt || afgehandeld;
+    // Alle gekoppelde boodschappen staan hier, of ze nu bij "Nu te kopen" of "Later nodig" staan; de status als klein label.
+    const later = !aan && !!b.later;
     return (
       <li key={k.id} className={'rij boodschap' + (aan ? ' klaar' : '')}>
         <button type="button" className="vink-knop" role="checkbox" aria-checked={aan} aria-label={b.naam}
@@ -292,10 +294,14 @@ function Regelen({ v }: { v: Vakantie }) {
         <button type="button" className="rij-open" onClick={() => zetBoodschap({ b, k: afgehandeld ? undefined : k })} aria-label={`${b.naam}${afgehandeld ? ', gekocht' : ''}. Meer`}>
           <span className="rij-inhoud">
             <span className="rij-titel">{b.naam}</span>
-            {(afgehandeld || b.sync) && <span className="rij-sub">{afgehandeld && <span className="plek">gekocht</span>}<SyncLabel sync={b.sync} /></span>}
+            <span className="rij-sub">
+              {afgehandeld ? <span className="plek">gekocht</span> : !aan && <span className={'plek vak-status' + (later ? '' : ' nu')}>{later ? 'later nodig' : 'nu te kopen'}</span>}
+              <SyncLabel sync={b.sync} />
+            </span>
           </span>
-          <IcPijl className="rij-pijl" />
+          {!later && <IcPijl className="rij-pijl" />}
         </button>
+        {later && <NuKopenKnop b={b} />}
       </li>
     );
   };

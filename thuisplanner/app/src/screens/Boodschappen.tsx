@@ -3,6 +3,7 @@ import { useApp } from '../lib/context';
 import { splitsBoodschappen } from '../lib/boodschappen';
 import { isBoodschap } from '../lib/vandaag';
 import { BoodschapRij } from '../components/Rijen';
+import { IcPijl } from '../components/Iconen';
 import { perCategorie } from '../lib/categorie';
 import { vakantiesVoorBoodschap } from '../lib/vakantie';
 import type { Boodschap } from '../lib/types';
@@ -12,8 +13,12 @@ export function Boodschappen() {
   // F8: het label alleen voor vakanties waarvoor de boodschap nu nodig is (geen oude koppelingen, §6.2).
   const vak = (b: Boodschap) => vakantiesVoorBoodschap(b.id, staat.koppelingen, staat.vakanties, vandaag);
   const [tekst, zetTekst] = useState('');
+  const [toonLater, zetToonLater] = useState(false);
   const alle = staat.items.filter(isBoodschap);
-  const open = alle.filter(b => !b.afgevinkt);
+  // Nu te kopen is de gewone lijst; "Later nodig" (bijv. voor een vakantie) staat apart en standaard ingeklapt.
+  // Het blijven dezelfde boodschappen: afvinken, aanpassen en verwijderen werken overal gelijk.
+  const open = alle.filter(b => !b.afgevinkt && !b.later);
+  const later = alle.filter(b => !b.afgevinkt && b.later);
   const klaar = alle.filter(b => b.afgevinkt);
 
   // Zie ItemVenster: de knop handelt het af, zodat het ook werkt waar formulieren verzenden geblokkeerd is.
@@ -41,7 +46,7 @@ export function Boodschappen() {
       </form>
 
       <section aria-labelledby="h-nodig">
-        <h2 id="h-nodig" className="sectie-kop">Nog nodig <span className="teller">{open.length}</span></h2>
+        <h2 id="h-nodig" className="sectie-kop">Nu te kopen <span className="teller">{open.length}</span></h2>
         {open.length > 0
           // Per categorie, vanzelf ingedeeld (C1); de volgorde komt uit categorieVolgorde(), later eventueel per winkel.
           ? perCategorie(open).map(({ categorie, items }) => (
@@ -52,6 +57,22 @@ export function Boodschappen() {
           ))
           : <p className="stil-tekst">Niets meer nodig.</p>}
       </section>
+
+      {later.length > 0 && (
+        <section aria-labelledby="h-later" className="later">
+          <h2 id="h-later" className="sectie-kop">
+            <button type="button" className="link uitklap later-knop" aria-expanded={toonLater} onClick={() => zetToonLater(x => !x)}>
+              Later nodig <span className="teller">{later.length}</span> <IcPijl className={'uitklap-pijl' + (toonLater ? ' open' : '')} width={16} height={16} />
+            </button>
+          </h2>
+          {toonLater && (
+            <>
+              <p className="stil-tekst later-uitleg">Nog niet direct nodig. Met Nu kopen zet je het op de lijst hierboven.</p>
+              <ul className="lijst" aria-label="Later nodig">{later.map(b => <BoodschapRij key={b.id} b={b} vakanties={vak(b)} />)}</ul>
+            </>
+          )}
+        </section>
+      )}
 
       {klaar.length > 0 && (
         <section aria-labelledby="h-klaar" className="afgevinkt">

@@ -166,9 +166,20 @@ export function TaakRij({ t, extra, zonderVakantie }: { t: Taak; extra?: string;
   );
 }
 
-/** vakanties: voor welke (niet voorbije) vakanties deze boodschap nu nodig is (F8). */
+/** Eén tik: van "Later nodig" naar "Nu te kopen" (dezelfde boodschap). */
+export function NuKopenKnop({ b }: { b: Boodschap }) {
+  const { boodschapLater } = useApp();
+  return (
+    <button type="button" className="rij-actie" disabled={!!b.sync} onClick={() => boodschapLater(b, false)} aria-label={`${b.naam} nu kopen`}>
+      Nu kopen
+    </button>
+  );
+}
+
+/** vakanties: voor welke (niet voorbije) vakanties deze boodschap nu nodig is (F8). Bij "Later nodig": de knop Nu kopen. */
 export function BoodschapRij({ b, vakanties = [] }: { b: Boodschap; vakanties?: Vakantie[] }) {
   const { wissel, openItem } = useApp();
+  const later = !!b.later && !b.afgevinkt;
   return (
     <li className={'rij boodschap' + (b.afgevinkt ? ' klaar' : '')}>
       <button type="button" className="vink-knop" role="checkbox" aria-checked={b.afgevinkt} aria-label={b.naam}
@@ -180,8 +191,9 @@ export function BoodschapRij({ b, vakanties = [] }: { b: Boodschap; vakanties?: 
           <span className="rij-titel">{b.naam}</span>
           {(b.sync || vakanties.length > 0) && <span className="rij-sub"><VakantieLabel vakanties={vakanties} /><SyncLabel sync={b.sync} /></span>}
         </span>
-        <IcPijl className="rij-pijl" />
+        {!later && <IcPijl className="rij-pijl" />}
       </button>
+      {later && <NuKopenKnop b={b} />}
     </li>
   );
 }

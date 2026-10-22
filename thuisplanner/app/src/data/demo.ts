@@ -117,7 +117,20 @@ export function demoVakanties(vandaag: Datum): DemoVakanties {
     { id: 't-oppas', soort: 'taak', titel: 'Kattenoppas vragen', datum: null, voor: null, klaar: false, vakantieId: 'v-frankrijk' },
     { id: 't-camping', soort: 'taak', titel: 'Camping bevestigen', datum: null, voor: 'm-eva', klaar: true, klaarOp: d(-3), vakantieId: 'v-frankrijk' },
   ];
-  // Geen demoboodschappen voor de vakantie: de bestaande tests tellen de boodschappen van de demo. Te kopen begint leeg.
-  const koppelingen: VakantieKoppeling[] = [];
+  // Boodschappen voor de vakanties staan bij "Later nodig": ze tellen niet mee in "Nu te kopen" (en dus ook niet in de
+  // bestaande tellingen van de demo). Reisziektetabletten zijn voor twee vakanties: één boodschap, twee koppelingen.
+  const later = (id: string, naam: string): Item => ({ id, soort: 'boodschap', naam, afgevinkt: false, later: true });
+  items.push(
+    later('b-zonnebrand-50', 'Zonnebrand factor 50'),
+    later('b-muggenspray', 'Muggenspray'),
+    later('b-reisziekte', 'Reisziektetabletten'),
+    later('b-kerstkransjes', 'Kerstkransjes'),
+  );
+  const koppel = (vakantieId: string, boodschapId: string): VakantieKoppeling =>
+    ({ id: `k-${vakantieId.slice(2)}-${boodschapId.slice(2)}`, vakantieId, boodschapId, afgehandeld: false });
+  const koppelingen: VakantieKoppeling[] = [
+    koppel('v-frankrijk', 'b-zonnebrand-50'), koppel('v-frankrijk', 'b-muggenspray'), koppel('v-frankrijk', 'b-reisziekte'),
+    koppel('v-texel', 'b-reisziekte'), koppel('v-texel', 'b-kerstkransjes'),
+  ];
   return { vakanties, pakitems, koppelingen, items };
 }

@@ -921,3 +921,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Afgeronde voorbereidingen, ingepakte items en gekochte boodschappen compact achter "… · tonen", terugzetten met één tik.
 - Inpakken: compacte persoonsknoppen ("Eva 4/10", minstens 44 px); grote voortgangsbalk alleen bij de gekozen persoon. Kop compacter, tabbladen sticky.
 - Tests: app 505 van 505, e2e 206 geslaagd. Alleen weergave; geen sync-, database- of RLS-wijziging; Huisplan ongewijzigd.
+
+## Thuisplanner Boodschappen "Later nodig" (22 oktober 2026, lokaal)
+- Boodschappen: Nu te kopen (de gewone lijst) en Later nodig (ingeklapt), met één tik Nu kopen en terug; vanuit een vakantie standaard Later nodig; Vandaag telt alleen Nu.
+- Eén boodschap, één rij: kolom shopping_items.deferred (migratie 20261026120000_boodschappen_later.sql, alleen lokaal toegepast), add_shopping_items met p_later; RLS ongewijzigd.
+- Sync: deferred ophalen, boodschapLater met versiecontrole. Algemeen ontworpen (ook voor verjaardagen en feestjes later); geen verschijndatum.

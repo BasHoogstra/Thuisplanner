@@ -136,18 +136,24 @@ it('te kopen voor de vakantie staat op de gewone boodschappenlijst, met het labe
   const user = userEvent.setup();
   render(<App />);
   await user.click(screen.getByRole('button', { name: /^Boodschappen voor Frankrijk/ }));
-  await user.type(screen.getByRole('textbox', { name: 'Boodschap voor deze vakantie' }), 'Muggenspray{Enter}');
-  expect(screen.getByRole('checkbox', { name: 'Muggenspray' })).toBeInTheDocument();
+  await user.type(screen.getByRole('textbox', { name: 'Boodschap voor deze vakantie' }), 'Adapterstekker{Enter}');
+  expect(screen.getByRole('checkbox', { name: 'Adapterstekker' })).toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('Adapterstekker bij Later nodig');
+  // Op de gewone lijst: niet bij Nu te kopen, maar bij Later nodig (ingeklapt), met het label.
   await user.click(screen.getByRole('link', { name: 'Boodschappen' }));
-  expect(screen.getByRole('button', { name: 'Muggenspray aanpassen' })).toHaveTextContent('Frankrijk');
-  // Afvinken in de winkel = afgevinkt bij de vakantie (één boodschap).
-  await user.click(screen.getByRole('checkbox', { name: 'Muggenspray' }));
+  const nu = screen.getByRole('heading', { name: /^Nu te kopen/ }).closest('section')!;
+  expect(within(nu).queryByRole('checkbox', { name: 'Adapterstekker' })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /^Later nodig/ }));
+  const later = screen.getByRole('list', { name: 'Later nodig' });
+  expect(within(later).getByRole('button', { name: 'Adapterstekker aanpassen' })).toHaveTextContent('Frankrijk');
+  // Afvinken in de winkel = afgevinkt bij de vakantie (één boodschap), ook vanuit Later nodig.
+  await user.click(within(later).getByRole('checkbox', { name: 'Adapterstekker' }));
   await user.click(screen.getByRole('link', { name: 'Meer' }));
   await user.click(screen.getByRole('button', { name: /^Vakanties:/ }));
   await user.click(screen.getByRole('button', { name: /^Frankrijk,/ }));
   expect(screen.getByRole('button', { name: /^Boodschappen voor Frankrijk/ })).toHaveAttribute('aria-expanded', 'true');
   await user.click(screen.getByRole('button', { name: '1 gekocht · tonen' }));
-  expect(within(screen.getByRole('list', { name: 'Gekocht voor Frankrijk' })).getByRole('checkbox', { name: 'Muggenspray' })).toHaveAttribute('aria-checked', 'true');
+  expect(within(screen.getByRole('list', { name: 'Gekocht voor Frankrijk' })).getByRole('checkbox', { name: 'Adapterstekker' })).toHaveAttribute('aria-checked', 'true');
 });
 
 it('Vandaag toont de vakantiekaart (de regels voor 14 dagen vooraf staan in vakantie.test.ts) en die opent de vakantie', async () => {
@@ -163,24 +169,101 @@ it('een boodschap bij de vakantie is hetzelfde item als op de gewone lijst: aanp
   const user = userEvent.setup();
   render(<App />);
   await user.click(screen.getByRole('button', { name: /^Boodschappen voor Frankrijk/ }));
-  await user.type(screen.getByRole('textbox', { name: 'Boodschap voor deze vakantie' }), 'Muggenspray{Enter}');
-  expect(screen.getByText('0 van 1 gekocht')).toBeInTheDocument();
-  // Aanpassen via de vakantie opent het gewone boodschappenvenster.
-  await user.click(screen.getByRole('button', { name: 'Muggenspray. Meer' }));
+  await user.type(screen.getByRole('textbox', { name: 'Boodschap voor deze vakantie' }), 'Adapterstekker{Enter}');
+  expect(screen.getByText('0 van 4 gekocht')).toBeInTheDocument();
+  // Aanpassen via de vakantie opent het gewone boodschappenvenster; Later nodig blijft staan.
+  await user.click(screen.getByRole('button', { name: 'Adapterstekker. Meer' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Naam aanpassen' }));
   const venster = screen.getByRole('dialog');
   const veld = within(venster).getAllByRole('textbox')[0];
   await user.clear(veld);
-  await user.type(veld, 'Muggenspray deet');
+  await user.type(veld, 'Adapterstekker Frankrijk');
   await user.click(within(venster).getByRole('button', { name: /Opslaan|Bewaren/ }));
-  expect(screen.getByRole('checkbox', { name: 'Muggenspray deet' })).toBeInTheDocument();
-  await user.click(screen.getByRole('checkbox', { name: 'Muggenspray deet' }));
-  expect(screen.getByText('1 van 1 gekocht')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Adapterstekker Frankrijk. Meer' })).toHaveTextContent('later nodig');
+  await user.click(screen.getByRole('checkbox', { name: 'Adapterstekker Frankrijk' }));
+  expect(screen.getByText('1 van 4 gekocht')).toBeInTheDocument();
   // Op de gewone lijst: dezelfde naam, en afgevinkt (in het mandje), met het vakantielabel.
   await user.click(screen.getByRole('link', { name: 'Boodschappen' }));
-  expect(screen.getByRole('checkbox', { name: 'Muggenspray deet' })).toHaveAttribute('aria-checked', 'true');
-  expect(screen.getAllByRole('checkbox', { name: /Muggenspray/ })).toHaveLength(1);
-  expect(screen.getByRole('button', { name: 'Muggenspray deet aanpassen' })).toHaveTextContent('Frankrijk');
+  expect(screen.getByRole('checkbox', { name: 'Adapterstekker Frankrijk' })).toHaveAttribute('aria-checked', 'true');
+  expect(screen.getAllByRole('checkbox', { name: /Adapterstekker/ })).toHaveLength(1);
+  expect(screen.getByRole('button', { name: 'Adapterstekker Frankrijk aanpassen' })).toHaveTextContent('Frankrijk');
+});
+
+it('Later nodig: de demo, één tik naar Nu te kopen en weer terug, met ongedaan maken; Vandaag telt alleen Nu', async () => {
+  naar('#/boodschappen');
+  const user = userEvent.setup();
+  render(<App />);
+  const nu = () => screen.getByRole('heading', { name: /^Nu te kopen/ }).closest('section')!;
+  const nuAantal = within(nu()).getAllByRole('checkbox').length;
+  // Standaard ingeklapt, met het aantal.
+  const knop = screen.getByRole('button', { name: /^Later nodig 4/ });
+  expect(knop).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('list', { name: 'Later nodig' })).not.toBeInTheDocument();
+  await user.click(knop);
+  const later = screen.getByRole('list', { name: 'Later nodig' });
+  expect(within(later).getAllByRole('checkbox')).toHaveLength(4);
+  // Reisziektetabletten: één boodschap voor twee vakanties.
+  expect(within(later).getByRole('button', { name: 'Reisziektetabletten aanpassen' })).toHaveTextContent('Frankrijk');
+  await user.click(within(later).getByRole('button', { name: 'Zonnebrand factor 50 nu kopen' }));
+  expect(screen.getByRole('status')).toHaveTextContent('Zonnebrand factor 50 nu te kopen');
+  expect(within(nu()).getByRole('checkbox', { name: 'Zonnebrand factor 50' })).toBeInTheDocument();
+  expect(within(nu()).getAllByRole('checkbox')).toHaveLength(nuAantal + 1);
+  expect(screen.getByRole('button', { name: /^Later nodig 3/ })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Ongedaan maken' }));
+  expect(within(nu()).queryByRole('checkbox', { name: 'Zonnebrand factor 50' })).not.toBeInTheDocument();
+  // Terug naar later via het gewone venster.
+  await user.click(screen.getByRole('button', { name: 'Muggenspray nu kopen' }));
+  await user.click(within(nu()).getByRole('button', { name: 'Muggenspray aanpassen' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Naar Later nodig' }));
+  expect(within(nu()).queryByRole('checkbox', { name: 'Muggenspray' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Later nodig 4/ })).toBeInTheDocument();
+  // Vandaag: de samenvatting telt alleen wat nu te kopen is.
+  await user.click(screen.getByRole('link', { name: 'Vandaag' }));
+  expect(document.body.textContent).not.toContain('Kerstkransjes');
+});
+
+it('Later nodig: gewone boodschappen blijven Nu; toevoegen op de gewone lijst haalt een latere naar Nu; vanuit een vakantie blijft Nu Nu', async () => {
+  naar('#/boodschappen');
+  const user = userEvent.setup();
+  render(<App />);
+  const nu = () => screen.getByRole('heading', { name: /^Nu te kopen/ }).closest('section')!;
+  const invoer = screen.getByRole('textbox', { name: 'Boodschappen toevoegen' });
+  await user.type(invoer, 'Wc-papier{Enter}');
+  expect(within(nu()).getByRole('checkbox', { name: 'Wc-papier' })).toBeInTheDocument();
+  await user.type(invoer, 'muggenspray{Enter}');
+  expect(screen.getByRole('status')).toHaveTextContent('Muggenspray nu te kopen');
+  expect(within(nu()).getByRole('checkbox', { name: 'Muggenspray' })).toBeInTheDocument();
+  expect(screen.getAllByRole('checkbox', { name: 'Muggenspray' })).toHaveLength(1);
+  // Vanuit een vakantie: Wc-papier staat al bij Nu te kopen en blijft daar (wel gekoppeld).
+  await user.click(screen.getByRole('link', { name: 'Meer' }));
+  await user.click(screen.getByRole('button', { name: /^Vakanties:/ }));
+  await user.click(screen.getByRole('button', { name: /^Frankrijk,/ }));
+  await user.click(screen.getByRole('button', { name: /^Boodschappen voor Frankrijk/ }));
+  await user.type(screen.getByRole('textbox', { name: 'Boodschap voor deze vakantie' }), 'Wc-papier{Enter}');
+  expect(screen.getByRole('button', { name: 'Wc-papier. Meer' })).toHaveTextContent('nu te kopen');
+  expect(screen.getByRole('button', { name: 'Muggenspray. Meer' })).toHaveTextContent('nu te kopen');
+  expect(screen.getByRole('button', { name: 'Reisziektetabletten. Meer' })).toHaveTextContent('later nodig');
+});
+
+it('Later nodig bij meerdere vakanties: één boodschap, zichtbaar bij beide, Nu kopen geldt overal', async () => {
+  naar('#/vakanties/v-texel');
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(screen.getByRole('button', { name: /^Boodschappen voor Kerst op Texel/ }));
+  expect(screen.getByRole('button', { name: 'Reisziektetabletten. Meer' })).toHaveTextContent('later nodig');
+  await user.click(screen.getByRole('button', { name: 'Reisziektetabletten nu kopen' }));
+  expect(screen.getByRole('button', { name: 'Reisziektetabletten. Meer' })).toHaveTextContent('nu te kopen');
+  await user.click(screen.getByRole('button', { name: 'Vakanties' }));
+  await user.click(screen.getByRole('button', { name: /^Frankrijk,/ }));
+  expect(screen.getByRole('button', { name: 'Reisziektetabletten. Meer' })).toHaveTextContent('nu te kopen');
+  // Terug naar later vanuit de vakantie.
+  await user.click(screen.getByRole('button', { name: 'Reisziektetabletten. Meer' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Terug naar Later nodig' }));
+  expect(screen.getByRole('button', { name: 'Reisziektetabletten. Meer' })).toHaveTextContent('later nodig');
+  await user.click(screen.getByRole('link', { name: 'Boodschappen' }));
+  expect(screen.queryAllByRole('checkbox', { name: 'Reisziektetabletten' })).toHaveLength(0);   // ingeklapt
+  await user.click(screen.getByRole('button', { name: /^Later nodig/ }));
+  expect(screen.getAllByRole('checkbox', { name: 'Reisziektetabletten' })).toHaveLength(1);
 });
 
 it('Regelen: één blok tegelijk open, de kop met voortgang blijft zichtbaar, en de keuze wordt onthouden', async () => {

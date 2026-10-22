@@ -47,6 +47,7 @@ type Actie =
   | ({ type: 'wissel'; id: string; vandaag: Datum } & Wijziging)
   | ({ type: 'verwijder'; ids: string[] } & Wijziging)
   | { type: 'boodschappen'; namen: string[]; vakantieId?: string }
+  | ({ type: 'boodschapLater'; id: string; later: boolean } & Wijziging)
   | ({ type: 'voorkomenWijzigen'; reeksId: string; datum: Datum; afspraak: Afspraak } & Wijziging)
   | ({ type: 'voorkomenVerwijderen'; reeksId: string; datum: Datum } & Wijziging)
   | ({ type: 'reeksVerwijderen'; reeksId: string } & Wijziging)
@@ -103,22 +104,30 @@ export function reducer(s: Staat, a: Actie): Staat {
     case 'verwijder':
       return wijzig(s, s.items.filter(i => !a.ids.includes(i.id)), a.melding);
     case 'boodschappen': {
-      const r = voegBoodschappenToe(s.items, a.namen, () => nieuwId('b'));
+      // Vanuit een vakantie: standaard bij "Later nodig" (zelfde regels als add_shopping_items met p_later).
+      const later = !!a.vakantieId;
+      const r = voegBoodschappenToe(s.items, a.namen, () => nieuwId('b'), later);
       const sleutel = (n: string) => n.trim().toLocaleLowerCase('nl');
       const idVan = (naam: string) => (r.items.find(i => i.soort === 'boodschap' && sleutel(i.naam) === sleutel(naam)) as Boodschap | undefined)?.id;
       // Hergebruik (afgevinkt komt terug): de oude koppelingen zijn afgehandeld en worden niet opnieuw actueel (§6.2).
       const terugIds = new Set(r.terug.map(idVan).filter(Boolean) as string[]);
       let koppelingen = s.koppelingen.map(k => (terugIds.has(k.boodschapId) && !k.afgehandeld ? { ...k, afgehandeld: true } : k));
       if (a.vakantieId) {
-        for (const naam of [...r.nieuw, ...r.alOpLijst, ...r.terug]) {
+        for (const naam of [...r.nieuw, ...r.alOpLijst, ...r.terug, ...(r.naarNu ?? [])]) {
           const id = idVan(naam);
           if (id && !koppelingen.some(k => k.boodschapId === id && k.vakantieId === a.vakantieId && !k.afgehandeld)) {
             koppelingen = [...koppelingen, { id: nieuwId('k'), vakantieId: a.vakantieId, boodschapId: id, afgehandeld: false }];
           }
         }
       }
-      return wijzigAlles(s, { items: r.items, koppelingen }, boodschappenMelding(r));
+      return wijzigAlles(s, { items: r.items, koppelingen }, boodschappenMelding(r, later));
     }
+    case 'boodschapLater':
+      return wijzig(s, s.items.map(i => {
+        if (i.id !== a.id || i.soort !== 'boodschap') return i;
+        const { later: _, ...rest } = i;
+        return a.later ? { ...rest, later: true } : rest;
+      }), a.melding);
     case 'voorkomenWijzigen':
       return wijzig(s, wijzigVoorkomen(s.items, a.reeksId, a.datum, a.afspraak), a.melding);
     case 'voorkomenVerwijderen':
@@ -190,6 +199,10 @@ function behoudVakantie(oud: Item, nieuw: Item): Item {
   if (oud.soort === 'taak' && nieuw.soort === 'taak' && nieuw.vakantieId === undefined && oud.vakantieId !== undefined) {
     return { ...nieuw, vakantieId: oud.vakantieId };
   }
+  // Een boodschap aanpassen (naam) laat "Later nodig" staan.
+  if (oud.soort === 'boodschap' && nieuw.soort === 'boodschap' && nieuw.later === undefined && oud.later) {
+    return { ...nieuw, later: true };
+  }
   return nieuw;
 }
 
@@ -217,6 +230,9 @@ export function useDemoStaat(vandaag: Datum) {
     // Expliciete handelingen (in plaats van "vervang alles"): zo kan de lokale Supabase-modus precies
     // dezelfde handeling op de server uitvoeren (zie lokaal/staat.ts).
     voegBoodschappenToe: (namen: string[], vakantieId?: string) => dispatch({ type: 'boodschappen', namen, vakantieId }),
+    /** Tussen "Nu te kopen" en "Later nodig"; dezelfde boodschap, met ongedaan maken. */
+    boodschapLater: (b: Boodschap, later: boolean) =>
+      dispatch({ type: 'boodschapLater', id: b.id, later, melding: later ? `${b.naam} bij Later nodig` : `${b.naam} nu te kopen` }),
     wijzigVoorkomen: (reeksId: string, datum: Datum, afspraak: Afspraak, melding?: string) =>
       dispatch({ type: 'voorkomenWijzigen', reeksId, datum, afspraak, melding }),
     verwijderVoorkomen: (reeksId: string, datum: Datum, melding?: string) =>

@@ -19,6 +19,8 @@ export interface VoorlopigeVelden {
 export interface BoodschapRij extends VoorlopigeVelden {
   /** null: inhoud niet op dit toestel (P1, inhoudNietBewaard). */
   id: string; household_id?: string; name: string | null; checked_at: string | null; version: number;
+  /** "Later nodig" (nog niet direct te kopen). Ontbreekt bij een server zonder deze kolom: dan nee. */
+  deferred?: boolean;
   created_at?: string; updated_at?: string;
 }
 export interface TaakRij extends VoorlopigeVelden {
@@ -114,7 +116,8 @@ export interface Openstaand { soort: string; id: string; staat: string; bewaard:
 
 export interface Acties {
   /** opties.vakantie: de boodschap is (ook) voor deze vakantie. */
-  boodschapToevoegen(naam: string, opties?: { bewustNieuw?: boolean; vakantie?: string }): Promise<Resultaat>;
+  boodschapToevoegen(naam: string, opties?: { bewustNieuw?: boolean; vakantie?: string; later?: boolean }): Promise<Resultaat>;
+  boodschapLater(item: BoodschapRij, later: boolean, versie?: number): Promise<Resultaat>;
   boodschapAfvinken(item: BoodschapRij): Promise<Resultaat>;
   boodschapHernoemen(item: BoodschapRij, naam: string, versie?: number): Promise<Resultaat>;
   boodschapVerwijderen(item: BoodschapRij): Promise<Resultaat>;

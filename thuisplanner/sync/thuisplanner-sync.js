@@ -29,7 +29,7 @@
 //    (besluit P3) bewaart de inhoud ook, met bewaarInhoud: true. Niets wordt ooit stil gewist (P4).
 //  - Geen inhoud in logboeken of meldingen: meldingen zijn vaste Nederlandse teksten per foutcode.
 
-const VELDEN_BOODSCHAP = 'id,household_id,name,checked_at,version,created_at,updated_at';
+const VELDEN_BOODSCHAP = 'id,household_id,name,checked_at,deferred,version,created_at,updated_at';
 const VELDEN_TAAK = 'id,household_id,title,due_date,assignee_member_id,done_on,done_by_member_id,trip_id,version,created_at,updated_at';
 // F8 Vakanties (V1.2): vakanties, pakitems en koppelingen vakantie–boodschap (docs/thuisplanner-vakanties.md §14).
 const VELDEN_VAKANTIE = 'id,household_id,name,start_date,end_date,destination,notes,version,created_at,updated_at';
@@ -300,7 +300,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     // Zonder inhoud: van een afspraak alleen of hij privé is (dat bepaalt hoe hij opnieuw wordt ingevoerd).
     const inhoud = prive(o) || !bewaarInhoud || o.inhoudNietBewaard
       ? { inhoudNietBewaard: true, ...(o.soort === 'afspraak' ? { afspraak: { visibility: prive(o) ? 'private' : 'household' } } : {}) }
-      : { naam: o.naam, titel: o.titel, velden: o.velden, afspraak: o.afspraak, tripId: o.tripId, vakantie: o.vakantie, pakitem: o.pakitem };
+      : { naam: o.naam, titel: o.titel, velden: o.velden, afspraak: o.afspraak, tripId: o.tripId, later: o.later, vakantie: o.vakantie, pakitem: o.pakitem };
     try {
       opslag.setItem(prefix() + o.id, JSON.stringify({ v: 1, soort: o.soort, id: o.id, gebruiker, huishouden: huishoudenId,
         staat: o.staat, ooitOnzeker: !!o.ooitOnzeker, ...inhoud }));
@@ -347,11 +347,11 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   function voorlopig(o) {
     const basis = { id: o.id, version: 0, wachtend: o.staat === 'verzenden', onzeker: o.staat === 'onzeker', geweigerd: o.staat === 'geweigerd' };
     // Inhoud niet op dit toestel (na een herstart, P1): alleen de identiteit, zonder titel of naam.
-    if (o.inhoudNietBewaard && o.soort === 'boodschap') return { ...basis, inhoudNietBewaard: true, name: null, checked_at: null };
+    if (o.inhoudNietBewaard && o.soort === 'boodschap') return { ...basis, inhoudNietBewaard: true, name: null, checked_at: null, deferred: false };
     if (o.inhoudNietBewaard && o.soort === 'taak') return { ...basis, inhoudNietBewaard: true, title: null, due_date: null, done_on: null };
     if (o.inhoudNietBewaard && o.soort === 'vakantie') return { ...basis, inhoudNietBewaard: true, name: null, start_date: null, end_date: null, destination: null, notes: null };
     if (o.inhoudNietBewaard && o.soort === 'pakitem') return { ...basis, inhoudNietBewaard: true, trip_id: null, member_id: null, name: null, packed_at: null };
-    if (o.soort === 'boodschap') return { ...basis, name: String(o.naam).trim(), checked_at: null };
+    if (o.soort === 'boodschap') return { ...basis, name: String(o.naam).trim(), checked_at: null, deferred: !!o.later };
     if (o.soort === 'taak') return { ...basis, title: o.titel, done_on: null, ...o.velden };
     if (o.soort === 'vakantie') {
       const v = o.vakantie || {};
@@ -674,7 +674,8 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   function verzend(o) {
     if (o.soort === 'boodschap') {
       // Met een vakantie: de koppeling ontstaat in dezelfde transactie (zonder vakantie: precies de oude aanroep).
-      return supabase.rpc('add_shopping_items', { p_household: huishoudenId, p_ids: [o.id], p_names: [o.naam], ...(o.tripId ? { p_trip: o.tripId } : {}) });
+      // "Later nodig" (p_later) alleen als het gevraagd is; anders blijft de aanroep zoals hij was.
+      return supabase.rpc('add_shopping_items', { p_household: huishoudenId, p_ids: [o.id], p_names: [o.naam], ...(o.tripId ? { p_trip: o.tripId } : {}), ...(o.later ? { p_later: true } : {}) });
     }
     if (o.soort === 'taak') {
       return supabase.from('tasks').insert({ id: o.id, household_id: huishoudenId, title: o.titel, ...o.velden }).select('id');
@@ -808,6 +809,9 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     return voegToe({ ...o, staat: 'nieuw', ooitOnzeker: false });
   }
 
+  // "Later nodig": expliciet (opties.later), of standaard voor een boodschap vanuit een vakantie.
+  const laterVan = o => o.later ?? !!o.vakantie;
+
   // Opnieuw invoeren onder dezelfde UUID: de inhoud komt (weer) op de bestaande opdracht en die wordt verstuurd.
   // Bestaat de opdracht hier niet meer (intussen bevestigd of vergeten), dan toch met deze UUID: staat hij al op de
   // server, dan herkent die hem (taak en afspraak: het id bestaat al; boodschap: het opdrachtregister) en komt er
@@ -817,7 +821,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     if (bestaand && bestaand.soort !== inhoud.soort) return Promise.resolve({ ok: false, melding: { soort: 'ongeldig', tekst: MELDINGEN.ongeldig } });
     if (bestaand) {
       if (bestaand.inhoudNietBewaard) {
-        if (inhoud.soort === 'boodschap') { bestaand.naam = inhoud.naam; if (inhoud.vakantie) bestaand.tripId = inhoud.vakantie; }
+        if (inhoud.soort === 'boodschap') { bestaand.naam = inhoud.naam; if (inhoud.vakantie) bestaand.tripId = inhoud.vakantie; if (laterVan(inhoud)) bestaand.later = true; }
         else if (inhoud.soort === 'taak') { bestaand.titel = inhoud.titel; bestaand.velden = { ...inhoud.velden }; }
         else if (inhoud.soort === 'vakantie') bestaand.vakantie = { ...inhoud.vakantie };
         else if (inhoud.soort === 'pakitem') bestaand.pakitem = { ...inhoud.pakitem };
@@ -826,7 +830,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
       }
       return voegToe(bestaand);
     }
-    const nieuw = inhoud.soort === 'boodschap' ? { soort: 'boodschap', id, naam: inhoud.naam, ...(inhoud.vakantie ? { tripId: inhoud.vakantie } : {}) }
+    const nieuw = inhoud.soort === 'boodschap' ? { soort: 'boodschap', id, naam: inhoud.naam, ...(inhoud.vakantie ? { tripId: inhoud.vakantie } : {}), ...(laterVan(inhoud) ? { later: true } : {}) }
       : inhoud.soort === 'taak' ? { soort: 'taak', id, titel: inhoud.titel, velden: { ...inhoud.velden } }
         : inhoud.soort === 'vakantie' ? { soort: 'vakantie', id, vakantie: { ...inhoud.vakantie } }
           : inhoud.soort === 'pakitem' ? { soort: 'pakitem', id, pakitem: { ...inhoud.pakitem } }
@@ -882,9 +886,11 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
 
   const acties = {
     // opties.vakantie: de boodschap is (ook) voor deze vakantie (koppeling in dezelfde transactie).
+    // opties.later: bij "Later nodig" (standaard ja met een vakantie, anders nee).
     boodschapToevoegen(naam, opties = {}) {
-      const { vakantie, ...rest } = opties || {};
-      return nieuweToevoeging({ soort: 'boodschap', id: nieuweId(), naam, ...(vakantie ? { tripId: vakantie } : {}) }, rest);
+      const { vakantie, later, ...rest } = opties || {};
+      return nieuweToevoeging({ soort: 'boodschap', id: nieuweId(), naam, ...(vakantie ? { tripId: vakantie } : {}),
+        ...(laterVan({ vakantie, later }) ? { later: true } : {}) }, rest);
     },
     boodschapAfvinken(item) {
       const checked_at = item.checked_at ? null : new Date().toISOString();
@@ -897,6 +903,13 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
       return schrijf(() => bijwerkenMetVersie('shopping_items', item.id, versie, { name: naam }), {
         optimistisch: t => ({ boodschappen: vervang(t.boodschappen, item.id, x => ({ ...x, name: naam, wachtend: true })) }),
         terugdraaien: t => ({ boodschappen: vervang(t.boodschappen, item.id, x => ({ ...x, name: item.name, wachtend: false })) }),
+      });
+    },
+    // Tussen "Nu te kopen" en "Later nodig": dezelfde boodschap, alleen een andere lijst.
+    boodschapLater(item, later, versie = item.version) {
+      return schrijf(() => bijwerkenMetVersie('shopping_items', item.id, versie, { deferred: !!later }, 'id,version'), {
+        optimistisch: t => ({ boodschappen: vervang(t.boodschappen, item.id, x => ({ ...x, deferred: !!later, wachtend: true })) }),
+        terugdraaien: t => ({ boodschappen: vervang(t.boodschappen, item.id, x => ({ ...x, deferred: !!item.deferred, wachtend: false })) }),
       });
     },
     boodschapVerwijderen(item) {

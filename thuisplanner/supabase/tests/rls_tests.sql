@@ -2600,6 +2600,57 @@ do $$ declare t text; f text; def text; m record; begin
 end $$;
 set local role authenticated;
 
+-- KG-T84 Boodschappen "Later nodig" (deferred, §18): vanuit een vakantie (p_later) komt een nieuwe of terugkerende
+-- boodschap bij Later nodig; wat al te kopen is blijft te kopen; op de gewone lijst toegevoegd gaat een latere boodschap
+-- naar Nu te kopen (geen tweede rij); een oude aanroep zonder p_later geeft "nu"; ieder lid zet en herstelt het via de
+-- API (met versie); een ander huishouden kan het niet; insert en update van deferred zijn de enige nieuwe rechten.
+do $$ declare h uuid := current_setting('test.hv')::uuid; v1 uuid := current_setting('test.v1')::uuid;
+  item uuid; uitkomst text; n integer; versie integer;
+  later text := 'select 1 from public.shopping_items where id = %L and deferred';
+begin
+  perform pg_temp.als('vera');
+  select r.id, r.outcome into item, uitkomst from public.add_shopping_items(h, array[gen_random_uuid()], array['T84-zonnebrand'], v1, true) r;
+  if uitkomst <> 'nieuw' or pg_temp.aantal(format(later, item)) <> 1 then raise exception 'KG-T84: nieuw vanuit een vakantie niet bij Later nodig'; end if;
+  -- Vanuit een vakantie: wat al later is, blijft later; op de gewone lijst: naar Nu te kopen, dezelfde rij.
+  select r.outcome into uitkomst from public.add_shopping_items(h, array[gen_random_uuid()], array['t84-ZONNEBRAND'], v1, true) r;
+  if uitkomst <> 'al_op_lijst' or pg_temp.aantal(format(later, item)) <> 1 then raise exception 'KG-T84: herhaald vanuit een vakantie veranderde Later nodig'; end if;
+  select r.id, r.outcome into item, uitkomst from public.add_shopping_items(h, array[gen_random_uuid()], array['T84-zonnebrand']) r;
+  if uitkomst <> 'al_op_lijst' or pg_temp.aantal(format(later, item)) <> 0 then raise exception 'KG-T84: op de gewone lijst toegevoegd bleef Later nodig'; end if;
+  if pg_temp.aantal($q$ select 1 from public.shopping_items where name_key = 't84-zonnebrand' and deleted_at is null $q$) <> 1 then raise exception 'KG-T84: boodschap verdubbeld'; end if;
+  -- Al te kopen en vanuit een vakantie toegevoegd: blijft te kopen (wel gekoppeld).
+  select r.outcome into uitkomst from public.add_shopping_items(h, array[gen_random_uuid()], array['T84-zonnebrand'], v1, true) r;
+  if pg_temp.aantal(format(later, item)) <> 0 then raise exception 'KG-T84: te kopen boodschap ging vanuit een vakantie naar Later nodig'; end if;
+  -- Afgevinkt en vanuit een vakantie terug: weer bij Later nodig. Zonder p_later terug: te kopen.
+  update public.shopping_items set checked_at = now() where id = item;
+  select r.outcome into uitkomst from public.add_shopping_items(h, array[gen_random_uuid()], array['T84-zonnebrand'], v1, true) r;
+  if uitkomst <> 'terug' or pg_temp.aantal(format(later, item)) <> 1 then raise exception 'KG-T84: terug vanuit een vakantie niet bij Later nodig'; end if;
+  update public.shopping_items set checked_at = now() where id = item;
+  select r.outcome into uitkomst from public.add_shopping_items(h, array[gen_random_uuid()], array['T84-zonnebrand'], v1) r;
+  if uitkomst <> 'terug' or pg_temp.aantal(format(later, item)) <> 0 then raise exception 'KG-T84: oude aanroep (vier parameters) gaf geen Nu te kopen'; end if;
+  -- Zetten en terugzetten via de API, met versie (zoals de sync-module).
+  select s.version into versie from public.shopping_items s where s.id = item;
+  update public.shopping_items set deferred = true where id = item and version = versie;
+  get diagnostics n = row_count;
+  if n <> 1 or pg_temp.aantal(format(later || ' and version = %s', item, versie + 1)) <> 1 then raise exception 'KG-T84: lid kan Later nodig niet zetten'; end if;
+  update public.shopping_items set deferred = false where id = item and version = versie;
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'KG-T84: verouderde versie overschreef Later nodig'; end if;
+  -- Een ander huishouden ziet en wijzigt niets.
+  perform pg_temp.als('sam');
+  update public.shopping_items set deferred = false where id = item;
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'KG-T84: ander huishouden wijzigde Later nodig'; end if;
+  reset role;
+  if not exists (select 1 from public.shopping_items where id = item and deferred) then raise exception 'KG-T84: Later nodig verdwenen'; end if;
+  if not has_column_privilege('authenticated', 'public.shopping_items', 'deferred', 'update')
+     or has_column_privilege('anon', 'public.shopping_items', 'deferred', 'update')
+     or has_column_privilege('authenticated', 'public.shopping_items', 'household_id', 'update') then
+    raise exception 'KG-T84: kolomrechten van shopping_items kloppen niet';
+  end if;
+  perform pg_temp.ok('KG-T84');
+end $$;
+set local role authenticated;
+
 -- KG-T73 tot en met KG-T75: de poort als positieve eis (bouwverslag deel 2, §7.3). Niet "zoek verboden tekst", maar
 -- "bewijs dat de poort gebruikt wordt". Een nieuwe functie, policy of view die dat niet aantoonbaar doet, laat de matrix
 -- falen totdat iemand bewust kiest (een regel in de uitzonderingslijst, met een reden).
@@ -2675,6 +2726,6 @@ do $$ declare r record; begin
 end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 83' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 84' as resultaat;
 
 rollback;

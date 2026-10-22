@@ -96,6 +96,8 @@ export interface Boodschap extends SyncVelden {
   soort: 'boodschap';
   naam: string;
   afgevinkt: boolean;
+  /** "Later nodig": nog niet direct te kopen (bijvoorbeeld voor een vakantie). Ontbreekt: nu te kopen. */
+  later?: boolean;
 }
 
 export type Item = Afspraak | Taak | Boodschap;
