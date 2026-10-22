@@ -25,7 +25,7 @@ const HUISPLAN_HASHES = new Set([
   'ac0b690fc1fa36c5bb314976c3cc64f799b81ef38494de0e748e26293842125e',
   '81269699bafc709ab950f9156081d6ef6c1359c2f0631e6e99efcbc1690f9b6a',
 ]);
-const isHuisplanRef = r => HUISPLAN_HASHES.has(createHash('sha256').update(r).digest('hex'));
+export const isHuisplanRef = r => HUISPLAN_HASHES.has(createHash('sha256').update(r).digest('hex'));
 
 // De pooler van Supabase gebruikt een eigen CA ("Supabase Root 2021 CA"), die niet in de standaardlijst van Node.js
 // of Windows staat. Daarom vertrouwen we, alleen voor deze verbinding, precies deze roots. Bron: de officiële

@@ -248,52 +248,132 @@ Voor de mail is dus **geen Cloudflare-stap en geen DNS-overstap nodig**. De over
 
 ### Stap 5 — Edge Functions online
 
-Het gaat om `stuur-code`, `controleer-code`, `stuur-uitnodiging` en `mail-bezorging`.
+Het gaat om `controleer-code`, `mail-bezorging`, `stuur-code` en `stuur-uitnodiging`. Het hulpmiddel is
+`staging/functies.ps1`, dat `staging/functies.mjs` gebruikt. Lokaal gebouwd en getest op 22 oktober 2026.
 
-- **Het probleem:** de Supabase CLI op deze laptop is ingelogd op het Huisplan-account en blijft dat.
-- **Daarom een klein script, vergelijkbaar met `verbinding.ps1`:**
-  - het vraagt een persoonlijk token van het Thuisplanner-account bij een verborgen prompt;
-  - het token staat alleen in dat ene proces;
-  - het controleert het kenmerk tegen `omgevingen.json` en weigert Huisplan;
-  - het deployt met een expliciete `--project-ref`.
-- **Producteigenaar:** maakt het token aan en trekt het na afloop in.
-- **Controle:** de functielijst van het stagingproject toont precies deze vier, met `verify_jwt` uit, zoals in
-  `config.toml`.
-- **Akkoord:** ja (het script lokaal, daarna de deployment).
+- **Het probleem:** de Supabase CLI op deze laptop is ingelogd op het Huisplan-account. Die inlog wordt niet gebruikt.
+- **Het token:** het script vraagt een persoonlijk token van het **Thuisplanner-account** bij een verborgen prompt. Dat
+  staat alleen in `SUPABASE_ACCESS_TOKEN` van dat ene proces (dat gaat voor de inlog van de CLI) en wordt daarna gewist.
+- **Vooraf, lokaal:**
+  - het kenmerk is precies het vastgelegde stagingproject uit `omgevingen.json`, nooit Huisplan;
+  - in `functions/` staan precies de vier functies, plus de gedeelde code;
+  - in `config.toml` staat bij elke functie `verify_jwt = false`;
+  - niets in `functions/` of `config.toml` is ongecommit.
+- **Deployen:**
+  - na een getypte bevestiging (`deploy staging <kenmerk>`);
+  - `npx supabase@2.117.0 functions deploy <de vier> --project-ref <kenmerk> --no-verify-jwt --use-api` (bundelen bij
+    Supabase, zonder Docker; nooit `supabase link`).
+- **Daarna, alleen lezend:** `functions list` moet precies de vier tonen, alle vier `ACTIVE` en met `verify_jwt` uit.
+  Extra functies worden ook gemeld.
+- **Uitvoeren:**
+  - eerst alleen controleren (lokaal, niets online):
+    `powershell -NoProfile -ExecutionPolicy Bypass -File .\thuisplanner\supabase\staging\functies.ps1 -Ref mcyjpnnjqxlqfwqhkqrl`
+  - daarna deployen: hetzelfde met `-Deploy`.
+- **Producteigenaar:** maakt het token aan in Supabase (Account → Access Tokens) en **trekt het na afloop in**.
+- **Te verifiëren bij het eerste gebruik:** de JSON-velden van `functions list` (`slug`, `status`, `verify_jwt`). Wijken
+  ze af, dan meldt de controle een afwijking (fail-closed) en kijken we samen.
+- **Getest (zonder verbinding):** `tests/functies/functies-deploy.test.mjs`, 5 tests. Tegenproeven gevangen:
+  - een Huisplan-kenmerk niet geweigerd;
+  - `verify_jwt` na het deployen niet gecontroleerd;
+  - extra functies toegestaan;
+  - `config.toml` niet gecontroleerd.
 
-### Stap 6 — Geheimen, hook, Auth en Turnstile
+  Verder lokaal nagespeeld: een ander kenmerk, een ongecommit bestand in `functions/` en geen token. Alle drie stoppen ze
+  vóór er iets online gebeurt.
+- **Akkoord:** ja (deployment).
 
-Alleen de producteigenaar zet deze waarden, in het dashboard. Claude ziet ze niet. Willekeurige waarden maak je lokaal
-aan in je eigen terminal en plak je rechtstreeks in het dashboard.
+### Stap 6 — Geheimen, hook, Auth en Turnstile (checklist)
 
-**Functiegeheimen:**
-- `K1_PEPPER`
-- `K1_SLEUTEL` (32 bytes, base64)
-- `K1_HOOK_SECRET` (het geheim dat Supabase maakt bij de Send Email-hook)
-- `K1_CAPTCHA=aan` (de nacontrole eist dat online)
-- `TURNSTILE_SECRET`
-- `MAIL_ADAPTER=lettermint`
-- `LETTERMINT_TOKEN`
-- `LETTERMINT_WEBHOOK_GEHEIM`
-- `MAIL_AFZENDER` (zie `omgevingen.json`)
-- `APP_URL`
-- `WACHTRIJ_GEHEIM`
-- `LETTERMINT_IDEMPOTENT_BEWEZEN=ja`, alleen als stap 3 dat heeft aangetoond
+Alleen de producteigenaar zet deze waarden, in het dashboard. Claude ziet ze niet.
 
-**Auth:**
-- de Send Email-hook naar `stuur-code`;
-- een OTP van 10 cijfers, 600 seconden geldig, 60 seconden tussen aanvragen;
-- bevestigen verplicht;
-- alleen e-mail als inlogmethode;
-- **aanmelden aan**. De nacontrole eist dat, anders krijgt een genodigde geen code. De besloten test zit in de database
-  (testpoort G1) en in Cloudflare Access.
+**Willekeurige waarden maak je in je eigen PowerShell-venster**, buiten dit gesprek. Ze gaan rechtstreeks naar het
+klembord, en niet op het scherm:
 
-**Overig:**
-- **Vault:** `thuisplanner_wachtrij_url` en `thuisplanner_wachtrij_geheim`, via de SQL-editor.
-- **Turnstile:** een gratis widget voor `thuisplanner-staging.pages.dev`. De sitekey gaat in stap 8 naar Pages.
-- **Lettermint:** de webhook naar `mail-bezorging`.
+```powershell
+$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b) | Set-Clipboard
+```
 
-- **Controle:** de nacontrole met `KG_ANON_KEY` geeft geen afwijking (H7, H16).
+Plak de waarde in het dashboard, en leeg daarna het klembord: `Set-Clipboard -Value ' '`. Bewaar niets in een bestand.
+De waarden hoeven ook niet in je wachtwoordmanager: als je ze verliest, maak je nieuwe aan. Een nieuwe pepper of sleutel
+maakt dan alleen de codes en de toestellen van dat moment ongeldig.
+
+**6a. Supabase → Edge Functions → Secrets** (het stagingproject):
+
+| Naam | Waarde | Herkomst |
+| --- | --- | --- |
+| `K1_PEPPER` | 32 willekeurige bytes (base64) | Het commando hierboven |
+| `K1_SLEUTEL` | 32 willekeurige bytes (base64), een andere waarde | Het commando hierboven |
+| `K1_HOOK_SECRET` | `v1,whsec_…` | Gemaakt door Supabase bij de hook (6c); hetzelfde geheim |
+| `K1_CAPTCHA` | `aan` | Vast (de nacontrole eist dat online) |
+| `TURNSTILE_SECRET` | De geheime sleutel van de widget | Cloudflare Turnstile (6d) |
+| `MAIL_ADAPTER` | `lettermint` | Vast |
+| `MAIL_AFZENDER` | `Thuisplanner (staging) <noreply@mail.mijnthuisplanner.nl>` | `omgevingen.json` |
+| `LETTERMINT_TOKEN` | Het token uit stap 3 | Lettermint (wachtwoordmanager) |
+| `LETTERMINT_WEBHOOK_GEHEIM` | `whsec_…` | Lettermint, bij de webhook (6e) |
+| `LETTERMINT_IDEMPOTENT_BEWEZEN` | `ja` | Alleen als in stap 3 ook SPF, DKIM en DMARC `pass` zijn |
+| `LETTERMINT_ROUTE` | Alleen als het niet de standaardroute is | Lettermint |
+| `APP_URL` | `https://thuisplanner-staging.pages.dev` | `omgevingen.json` |
+| `WACHTRIJ_GEHEIM` | 32 willekeurige bytes (base64; minstens 32 tekens) | Het commando hierboven; dezelfde waarde gaat ook in Vault (6f) |
+
+`SUPABASE_URL` en `SUPABASE_SERVICE_ROLE_KEY` geeft Supabase zelf aan de functies. Die zet je niet, en ze komen nooit in
+de app.
+
+**6b. Supabase → Authentication:**
+- **Sign In / Providers → Email:**
+  - e-mail aan;
+  - **Allow new users to sign up: aan** (de nacontrole eist dat; de besloten test zit in de testpoort en in Access);
+  - **Confirm email: aan**;
+  - **Secure email change: aan**;
+  - **Email OTP length: 10**;
+  - **Email OTP expiration: 600** seconden.
+- **Alle andere aanmeldmethoden uit:** telefoon, anoniem, SAML en sociale accounts.
+- **URL Configuration:**
+  - Site URL `https://thuisplanner-staging.pages.dev`;
+  - geen extra Redirect URL's.
+- **Rate Limits:** e-mail ten minste 60 seconden tussen aanvragen (H7).
+- **Attack Protection → Captcha: aan, met Turnstile en de geheime sleutel uit 6d** (review R3 en H11). De app stuurt bij
+  het aanvragen van een code een eigen Turnstile-token mee. Het controleren van de code gebruikt een tweede, nieuw token,
+  dus die twee zitten elkaar niet in de weg.
+
+**6c. Supabase → Authentication → Hooks → Send Email:**
+- type HTTPS;
+- adres `https://mcyjpnnjqxlqfwqhkqrl.supabase.co/functions/v1/stuur-code`;
+- **Generate secret**, en dat geheim ook als `K1_HOOK_SECRET` bij 6a zetten;
+- aanzetten.
+
+**6d. Cloudflare → Turnstile:**
+- een nieuwe widget, gratis, voor de hostname `thuisplanner-staging.pages.dev`;
+- modus "Managed";
+- de **sitekey** (geen geheim) gaat in stap 8 naar Pages als `VITE_TURNSTILE_SITEKEY`;
+- de **geheime sleutel** gaat naar `TURNSTILE_SECRET` (6a) en naar de Auth-captcha (6b).
+
+**6e. Lettermint → Webhooks** (pas nu: `mail-bezorging` staat dan online):
+- adres `https://mcyjpnnjqxlqfwqhkqrl.supabase.co/functions/v1/mail-bezorging?aanbieder=lettermint`;
+- gebeurtenissen: `message.delivered`, `message.hard_bounced`, `message.failed`, `message.suppressed` en
+  `message.policy_rejected`;
+- het `whsec_…`-geheim gaat naar `LETTERMINT_WEBHOOK_GEHEIM`.
+
+**6f. Supabase → SQL Editor, Vault** (de waarden alleen in de editor typen, niet in de chat):
+```sql
+select vault.create_secret('https://mcyjpnnjqxlqfwqhkqrl.supabase.co/functions/v1/stuur-uitnodiging', 'thuisplanner_wachtrij_url');
+select vault.create_secret('<dezelfde waarde als WACHTRIJ_GEHEIM>', 'thuisplanner_wachtrij_geheim');
+```
+Het adres moet met `https://` beginnen (review L5).
+
+**6g. Supabase → Project Settings → Data API:** Exposed schemas precies `public` en `graphql_public`, en `private` niet
+in het extra search path. **Realtime → Settings:** "Allow public access" uit.
+
+**Controle na stap 6:** `verbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl -Bijwerken` toont dan niets nieuws. De nacontrole
+(`node verbinding-controle.mjs na`, met `$env:KG_ANON_KEY` gezet) controleert:
+- de Auth-instellingen;
+- de blootgestelde schema's;
+- Vault;
+- pg_net;
+- de schakelaars;
+- de geplande taken.
+
+Dat is H7 en H16.
+
 - **Akkoord:** ja, per onderdeel.
 
 ### Stap 7 — Accounts en huishouden (vóór de telefoonproef klaargezet)

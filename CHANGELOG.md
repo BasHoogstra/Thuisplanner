@@ -910,3 +910,13 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Nieuw: `staging/proefmail.ps1` en `staging/proefmail.mjs`. Ontvanger en Lettermint-token gaan via een verborgen prompt, met een getypte bevestiging. Het script gebruikt de Lettermint-adapter van de Edge Functions en verstuurt één mail, daarna hetzelfde verzoek met dezelfde `Idempotency-Key`. Het toont alleen statuscodes, het `message_id` en een verkort adres.
 - Tests: `tests/functies/proefmail.test.mjs` (5) tegen een nagebootste Lettermint; vier tegenproeven gevangen. Er is niets verstuurd.
 - DNS gecontroleerd (alleen lezend): de Lettermint-records staan live via TransIP. Voor de mail is geen Cloudflare-stap nodig.
+
+## Thuisplanner staging-overstap, stap 5 en 6 voorbereid (22 oktober 2026, lokaal)
+- Nieuw: `staging/functies.ps1` met `staging/functies.mjs`. Het script deployt de vier Edge Functions naar het vastgelegde stagingproject:
+  - het Thuisplanner-token gaat via een verborgen prompt, alleen in dat ene proces; de CLI-inlog van Huisplan wordt niet gebruikt;
+  - vooraf: het kenmerk, de vier functies, `verify_jwt = false` en alles gecommit; Huisplan wordt geweigerd;
+  - daarna een getypte bevestiging en `--project-ref --use-api`;
+  - na afloop wordt de functielijst teruggelezen en gecontroleerd.
+- Tests: `tests/functies/functies-deploy.test.mjs` (5) en vier tegenproeven, gevangen.
+- Uitvoeringsplan: de procedure voor stap 5 en de checklist voor stap 6: geheimen, Auth-instellingen met captcha, de Send Email-hook, Turnstile, de Lettermint-webhook, Vault, en de blootgestelde schema's.
+- Er is niets online gedaan.
