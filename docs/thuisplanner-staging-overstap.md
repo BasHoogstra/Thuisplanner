@@ -212,6 +212,18 @@ Voor de mail is dus **geen Cloudflare-stap en geen DNS-overstap nodig**. De over
   - het volledige adres in de uitvoer;
   - na een weigering toch een tweede verzoek.
 - **Akkoord:** ja. Dit is een echte verzending.
+- **Uitgevoerd op 22 oktober 2026:**
+  - Beide verzoeken zijn aangenomen, met hetzelfde `message_id`; uitkomst "IDEMPOTENT BEWEZEN".
+  - De mail is precies één keer aangekomen in Outlook.com, niet in de spam, met de juiste afzender.
+  - De berichtkoppen zijn in orde:
+    - `spf=pass` (`smtp.mailfrom=lm-bounces.mail.mijnthuisplanner.nl`);
+    - `dkim=pass` voor `header.d=mail.mijnthuisplanner.nl`, de eigen, uitgelijnde handtekening, en ook voor
+      `bounces.lmta.net`;
+    - `dmarc=pass action=none` (`header.from=mail.mijnthuisplanner.nl`);
+    - `compauth=pass`.
+  - Daarmee mag `LETTERMINT_IDEMPOTENT_BEWEZEN=ja` in stap 6.
+  - Het DMARC-beleid staat nog op `p=none` (meten). Naar `quarantine` gaat het pas na een periode zonder fouten, met een
+    eigen akkoord (DNS).
 
 ### Stap 3a — Interne beveiligingsreview (lokaal, documentatie)
 
@@ -226,9 +238,17 @@ Voor de mail is dus **geen Cloudflare-stap en geen DNS-overstap nodig**. De over
 
 ### Stap 4 — Migraties 12–16 online
 
-- **Claude:**
-  - `verbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl -Bijwerken -Push`. Het script vraagt een getypte bevestiging.
-  - Daarna de nacontrole (`na`).
+- **4-voorbereiding (lokaal, 22 oktober 2026):**
+  - De vaste referentie van de nacontrole is bijgewerkt: 95 functies in `private`, sinds R1.
+  - Nieuw is `tests/integratie/nacontrole.test.mjs`. Die toetst de referentie, de migraties en de geplande taken tegen
+    de lokale stack, ook in CI, zodat een afwijking voortaan opvalt.
+  - `-VoorStap6` toont de twee ontbrekende Vault-waarden als "verwacht" in plaats van als afwijking.
+- **4a (online, alleen lezend):** een nieuwe export en de hersteltoets, als in stap 2b, naar een nieuwe lege map.
+- **4b (online, de migratie):**
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\thuisplanner\supabase\staging\verbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl -Bijwerken -Push -VoorStap6`
+  - Het script vraagt een getypte bevestiging (`push staging mcyjpnnjqxlqfwqhkqrl`).
+  - Daarna de nacontrole (`na`), zonder `KG_ANON_KEY`. Aanmelden in Auth staat tot stap 6b nog uit; dat zou anders een
+    verwachte afwijking geven.
 - **Producteigenaar:** typt het wachtwoord bij de verborgen prompt.
 - **Controle:**
   - 16 migraties;

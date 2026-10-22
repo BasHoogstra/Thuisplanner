@@ -8,6 +8,8 @@
 #   export (alleen lezend): ... -Ref <kenmerk> -Export -ExportMap <lege map buiten de repository>
 #                         alle gegevens in één momentopname naar JSON, met manifest en controlesommen (export.mjs);
 #                         de map bevat daarna persoonsgegevens: bewaar hem alleen lokaal en verwijder hem na gebruik
+#   -VoorStap6 (bij -Push): de twee Vault-waarden mogen in de nacontrole nog ontbreken (die zet de producteigenaar in
+#                         stap 6f); ze worden dan als "verwacht" getoond. Al het andere blijft een afwijking.
 #
 # - De session-pooler-URI plak je met de tekst [YOUR-PASSWORD] erin: daar staat geen geheim in.
 # - Het wachtwoord typ je bij een verborgen prompt. Het komt niet in de terminalgeschiedenis (Read-Host wordt niet
@@ -18,7 +20,7 @@
 # - Volgorde: verbinding controleren (vóór verbinden) -> alleen lezend: is dit het lege stagingproject? ->
 #   dry-run, of met -Push: repository-controle, bevestiging en db push -> alleen lezend: nacontrole.
 # - Bij een fout stopt het script meteen. Het voert nooit zelf een herstel of tweede poging uit.
-param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta', 'productie')][string]$Omgeving = 'staging', [switch]$Push, [switch]$Bijwerken, [switch]$Export, [string]$ExportMap)
+param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta', 'productie')][string]$Omgeving = 'staging', [switch]$Push, [switch]$Bijwerken, [switch]$Export, [string]$ExportMap, [switch]$VoorStap6)
 $ErrorActionPreference = 'Stop'
 # Het aantal migraties in de repository dat deze versie van het script verwacht (bij elke nieuwe migratie bijwerken).
 $VerwachtAantal = 16
@@ -110,6 +112,7 @@ try {
   finally { Pop-Location }
 
   Write-Host "`n== 3. Alleen lezend: nacontrole (migraties, RLS, rechten, Realtime, geplande taak)" -ForegroundColor Cyan
+  if ($VoorStap6) { $env:KG_NA_TOT_STAP6 = '1' }
   node $controle na
   $naCode = $LASTEXITCODE
   if ($pushCode -ne 0) { Stop-Hier "db push gaf foutcode $pushCode. De nacontrole hierboven toont de stand." }
@@ -120,7 +123,7 @@ catch {
   if ("$_" -ne 'thuisplanner-gestopt') { Write-Host ('FOUT: ' + $_) -ForegroundColor Red; $script:uitkomst = 1 }
 }
 finally {
-  Remove-Item Env:PGPASSWORD, Env:KG_DB_URL, Env:KG_REF, Env:KG_OMGEVING -ErrorAction SilentlyContinue
+  Remove-Item Env:PGPASSWORD, Env:KG_DB_URL, Env:KG_REF, Env:KG_OMGEVING, Env:KG_NA_TOT_STAP6 -ErrorAction SilentlyContinue
   Remove-Item $stand -ErrorAction SilentlyContinue
   Remove-Variable geheim, bstr -ErrorAction SilentlyContinue
   Write-Host "`nWachtwoord en verbinding gewist uit dit proces." -ForegroundColor Green

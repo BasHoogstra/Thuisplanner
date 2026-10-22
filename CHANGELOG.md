@@ -920,3 +920,9 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Tests: `tests/functies/functies-deploy.test.mjs` (5) en vier tegenproeven, gevangen.
 - Uitvoeringsplan: de procedure voor stap 5 en de checklist voor stap 6: geheimen, Auth-instellingen met captcha, de Send Email-hook, Turnstile, de Lettermint-webhook, Vault, en de blootgestelde schema's.
 - Er is niets online gedaan.
+
+## Thuisplanner staging-overstap, stap 4 voorbereid: de nacontrole (22 oktober 2026)
+- De vaste referentie van de nacontrole liep één functie achter (94 in plaats van 95 in `private`, sinds R1). Na de online push had dat een valse afwijking gegeven. Bijgewerkt.
+- Nieuw: `tests/integratie/nacontrole.test.mjs` (4, ook in CI) toetst de referentie, de migraties en de geplande taken tegen de lokale stack; tegenproeven gevangen.
+- `verbinding.ps1 -VoorStap6`: de twee Vault-waarden die tot stap 6 nog ontbreken, staan apart als "verwacht"; al het andere blijft een afwijking.
+- Uitvoeringsplan: stap 4 in drie delen (voorbereiding, nieuwe export, migratie). Online niets gewijzigd.

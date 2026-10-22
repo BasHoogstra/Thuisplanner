@@ -155,7 +155,7 @@ export function leegFouten(s) {
 // Supabase-stack na precies deze migraties (18 oktober 2026, met deel 2: toegangspoort, K1, de uitnodigingsmail en de automatische verzending).
 // Wijkt staging hiervan af, dan kreeg het niet hetzelfde schema.
 export const VERWACHT_SCHEMA = [
-  { schema: 'private', relaties: 9, functies: 94, policies: 0 },
+  { schema: 'private', relaties: 9, functies: 95, policies: 0 },
   { schema: 'public', relaties: 11, functies: 34, policies: 18 },
 ];
 
@@ -293,6 +293,15 @@ export function naFouten(n, verwachteVersies, verwachtSchema) {
   return f;
 }
 
+/**
+ * Direct na de migraties (stap 4) en vóór de geheimen (stap 6) ontbreken de twee Vault-waarden nog: dat is dan verwacht,
+ * geen afwijking. Met totStap6 komen alleen die meldingen apart te staan; al het andere blijft een afwijking.
+ */
+export function splitsVerwacht(fouten, totStap6) {
+  const verwacht = totStap6 ? fouten.filter(x => /^Vault mist thuisplanner_wachtrij_(geheim|url):/.test(x)) : [];
+  return { fouten: fouten.filter(x => !verwacht.includes(x)), verwacht };
+}
+
 /** De versies van de migraties in de repository (thuisplanner/supabase/migrations). */
 export function repoVersies() {
   const map = path.join(path.dirname(fileURLToPath(import.meta.url)), '../migrations');
@@ -342,7 +351,8 @@ async function hoofd() {
     if (n.adressen) console.log(`e-mailadressen bij uitnodigingen: ${n.adressen.gesloten} bij gesloten, ${n.adressen.verlopen} bij lang verlopen (beide horen 0 te zijn)`);
     if (n.wachtrij) console.log(`uitnodigingsmails: ${Object.entries(n.wachtrij).map(([k, v]) => `${k} ${v}`).join(', ')}; Vault: ${(n.vaultNamen ?? []).join(', ') || 'leeg'}; pg_net ${n.pgNet ? 'aan' : 'uit'}`);
     if (n.instellingen) console.log(`schakelaars: ${Object.entries(n.instellingen).map(([k, v]) => `${k} ${v}`).join(', ')}`);
-    const f = naFouten(n, repoVersies(), VERWACHT_SCHEMA);
+    const { fouten: f, verwacht } = splitsVerwacht(naFouten(n, repoVersies(), VERWACHT_SCHEMA), process.env.KG_NA_TOT_STAP6 === '1');
+    for (const v of verwacht) console.log('VERWACHT tot stap 6: ' + v);
     // De Auth-instellingen (openbaar met de anon-sleutel; geen geheim). Zonder KG_ANON_KEY: overgeslagen en gemeld.
     const anon = process.env.KG_ANON_KEY;
     if (anon) {
