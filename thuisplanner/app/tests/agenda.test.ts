@@ -1,6 +1,6 @@
 // Agenda (docs/thuisplanner-agenda.md), stap 1: de pure hulpjes voor de rustige weergave.
 import { lidKleur } from '../src/components/Rijen';
-import { drukte } from '../src/lib/kalender';
+import { beschrijfDag, drukte } from '../src/lib/kalender';
 
 describe('drukte: één neutraal streepje in drie stappen (A5)', () => {
   it('niets, 1–2, 3–4 en 5 of meer', () => {
@@ -25,5 +25,16 @@ describe('lidKleur: het streepje bij een afspraak (A6)', () => {
   });
   it('een onbekend lid: geen kleur, geen fout', () => {
     expect(lidKleur(['onbekend'], lid)).toBeUndefined();
+  });
+});
+
+describe('beschrijfDag: de schermlezertekst van een dag in de maand en de weekstrip', () => {
+  it('afspraken en open taken, enkelvoud en meervoud', () => {
+    expect(beschrijfDag(1, 0)).toBe('1 afspraak');
+    expect(beschrijfDag(4, 2)).toBe('4 afspraken, 2 taken');
+    expect(beschrijfDag(0, 1)).toBe('1 taak');
+  });
+  it('een lege dag', () => {
+    expect(beschrijfDag(0, 0)).toBe('niets gepland');
   });
 });

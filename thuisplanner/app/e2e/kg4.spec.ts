@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { kiesDag, kiesFilter } from './hulp-agenda';
 
 // KG-4: maand- en dagweergave, herhalende afspraken, gezinsfilter.
 // Vaste demo-klok: zaterdag 10 oktober 2026, 11:20.
@@ -13,7 +14,7 @@ async function naarFormulier(p: Page) {
 }
 const nav = (p: Page, naam: string) => p.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: naam }).click();
 const weergave = (p: Page, naam: 'Dag' | 'Week' | 'Maand') => p.getByRole('tab', { name: naam, exact: true }).click();
-const filter = (p: Page, naam: string) => p.getByRole('group', { name: 'Wiens agenda' }).getByRole('button', { name: naam }).click();
+const filter = (p: Page, naam: string) => kiesFilter(p, naam);   // Agenda stap 4b: op mobiel eerst de filterknop
 const titel = (p: Page) => p.locator('.week-titel');
 const dagLijst = (p: Page) => p.getByRole('region', { name: /^Dagoverzicht/ });
 const weekDag = (p: Page, label: RegExp) => p.locator('section.week-dag').and(p.getByRole('region', { name: label }));
@@ -99,6 +100,7 @@ test.describe('Dagoverzicht', () => {
   });
 
   test('de weekkop opent het dagoverzicht', async ({ page }) => {
+    await kiesDag(page, 'zondag 11 oktober');   // Agenda stap 4: op mobiel eerst de dag in de weekstrip
     await page.getByRole('button', { name: 'Dagoverzicht zondag 11 oktober' }).click();
     await expect(titel(page)).toContainText('Morgen');
     await expect(dagLijst(page)).toContainText('Eten bij oma');
@@ -168,7 +170,9 @@ test.describe('Herhalende afspraken', () => {
     await venster(page).getByRole('button', { name: 'Alleen deze opslaan' }).click();
     await expect(venster(page)).toHaveCount(0);
     await page.getByRole('button', { name: 'Volgende week' }).click();
+    await kiesDag(page, 'vrijdag 23 oktober');   // Agenda stap 4: op mobiel staat alleen de gekozen dag uitgebreid
     await expect(weekDag(page, /^vrijdag 23 oktober$/).getByRole('button', { name: /^Zwemles/ })).toHaveCount(1);
+    await kiesDag(page, 'zaterdag 24 oktober');
     await expect(weekDag(page, /^zaterdag 24 oktober$/).getByRole('button', { name: /^Zwemles/ })).toHaveCount(1);
     await page.getByRole('button', { name: 'Vorige week' }).click();
     await expect(weekDag(page, /^zaterdag 17 oktober$/)).not.toContainText('Zwemles');
@@ -265,6 +269,9 @@ test.describe('Gezinsfilter en privacy', () => {
     await expect(page.getByRole('group', { name: 'Wiens agenda' })).toHaveCount(0);
     await nav(page, 'Agenda');
     await expect(page.getByRole('tab', { name: 'Maand', exact: true })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('group', { name: 'Wiens agenda' }).getByRole('button', { name: 'Daan' })).toHaveAttribute('aria-pressed', 'true');
+    // Agenda stap 4b: op iPhone en tablet toont de filterknop het gekozen lid; op de laptop de keuzes zelf.
+    const filterKnop = page.getByRole('button', { name: /^Wiens agenda/ });
+    if (await filterKnop.isVisible()) await expect(filterKnop).toHaveAccessibleName('Wiens agenda: Daan');
+    else await expect(page.getByRole('group', { name: 'Wiens agenda' }).getByRole('button', { name: 'Daan' })).toHaveAttribute('aria-pressed', 'true');
   });
 });

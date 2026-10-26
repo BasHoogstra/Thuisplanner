@@ -959,3 +959,9 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Ongewijzigd: gezinsfilter, afvinken, privacy, gegevens, sync-module; de Maand en Vandaag tonen geen taken zonder datum.
 - Productrichting (niet gebouwd): een taak zonder datum moet later via Vandaag of de actieve assistent alsnog aandacht kunnen krijgen. Productbeslissing O7 (later bouwen): een taak zonder toegewezen gezinslid blijft bij ieder gezinsfilter zichtbaar, binnen de leesrechten van het account.
 - Tests: drie nieuwe e2e-tests in `e2e/agenda.spec.ts` (ook contrast, tikvlak van 44 px, 320 px en donker); `kg3.spec.ts` klapt eerst open. Typecheck, 468 unittests en 336 demo-e2e-tests groen; tegenproef gevangen. Geen migratie.
+
+## Thuisplanner Agenda stap 4: weekstrip en filterknop op iPhone en tablet (26 oktober 2026, lokaal)
+- **4a (A2/A3, vervangt D5):** onder 960 px een weekstrip met zeven dagen (nummer en één drukte-streepje; vandaag een ring, de gekozen dag gevuld; blijft bovenaan staan), daaronder de gekozen dag (dezelfde dagsectie als een laptopkolom) en de rest van de week, één regel per dag; een tik kiest de dag. De gekozen dag is `agenda.datum`. De laptop houdt de zeven kolommen tot stap 5.
+- **4b (A6):** op iPhone en tablet het gezinsfilter achter één knop naast de titel, met een paneel waarin alle leden passen; kiezen sluit het paneel.
+- Nieuw: `lib/breedte.ts`, `components/Weekstrip.tsx`, `beschrijfDag()` in `lib/kalender.ts` (ook voor de Maand). Weg: de mobiele groep met lege dagen (D5). Geen wijziging aan `App.tsx`, gegevens of de sync-module; geen migratie.
+- Tests: drie nieuwe e2e-tests in `e2e/agenda.spec.ts` en een unittest; `week.spec.ts` aangepast; `kg3.spec.ts` en `kg4.spec.ts` kiezen op mobiel eerst de dag of openen het filterpaneel via `e2e/hulp-agenda.ts` (geen test overgeslagen of verwijderd). Typecheck, 470 unittests en 357 demo-e2e-tests groen (320, 360, 390, 768 en 1280 px, licht en donker); tegenproef gevangen.

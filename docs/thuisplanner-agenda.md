@@ -58,7 +58,8 @@ W2 (21 oktober 2026, `CHANGELOG.md`) besloot:
 
 **Herzien op 26 oktober 2026:** D5 wordt vervangen door **A2 en A3** (weekstrip, gekozen dag, rest van de week). D6 wordt
 vervangen door **A1** (zeven rijen). De herziening wordt van kracht met bouwstap 4 (mobiel) en 5 (laptop); tot dan blijven
-de lijst en de kolommen staan, met de visuele verbeteringen van stap 1.
+de lijst en de kolommen staan, met de visuele verbeteringen van stap 1. **D5 is met stap 4 vervangen** (lokaal gebouwd,
+26 oktober 2026); D6 blijft tot stap 5.
 
 Wat uit W2 blijft gelden: één persoonsmarkering per rij in de week, details (plek, eindtijd, herhaling) in het
 detailvenster, geen afbreekstreepjes, hoogstens twee regels per titel, en de + per dag. Strenger dan W2: woorden breken
@@ -147,6 +148,30 @@ niet gebouwd in deze stap.
   Maand zonder lijst, contrast en tikvlak van minstens 44 px; zijkolom op de laptop-Dag en ingeklapt op mobiel en tablet;
   afvinken naar de eigen afgerond-groep en het filter). `kg3.spec.ts` "taken zonder datum staan in de agenda" klapt nu
   eerst open. Tegenproef: standaard open wordt gevangen.
+
+### Stap 4: de weekstrip en de filterknop op iPhone en tablet (26 oktober 2026, lokaal)
+
+Onder 960 px (iPhone en tablet); de laptop houdt tot stap 5 de zeven kolommen. Vervangt D5.
+
+- **4a, weekstrip (A2):** zeven dagen met het nummer en één neutraal drukte-streepje (`drukte()`); vandaag een ring, de
+  gekozen dag gevuld; blijft bovenaan staan tijdens het scrollen; tikvlak minstens 40 × 44 px. Schermlezer: "dinsdag
+  20 oktober: 1 taak" (`beschrijfDag()`, ook in de Maand). De gekozen dag is de bestaande `agenda.datum`: wisselen van week
+  houdt de weekdag, "Naar vandaag" werkt zoals voorheen, en de dag gaat mee naar de Dag.
+- **De gekozen dag:** dezelfde dagsectie als een laptopkolom (dagkop met "Dagoverzicht …", de + van die dag, compacte rijen,
+  afgerond ingeklapt), zodat het gedrag gelijk blijft.
+- **4a, rest van de week (A3):** de zes andere dagen, elk één regel met de afspraaktitels en het aantal open taken
+  ("niets gepland" alleen als er echt niets is); voorbije dagen rustiger; een tik kiest die dag.
+- **4b, filterknop (A6):** één knop naast de titel ("Wiens agenda: Iedereen" of de naam met de lidkleur); een tik opent
+  een paneel met alle leden (geen schuiven opzij meer, "Daan" valt niet meer van het scherm); kiezen sluit het paneel. De
+  laptop houdt de zichtbare keuzes.
+- **Weg:** de mobiele lijst met lege dagen samen op één regel (D5).
+- **Techniek:** `lib/breedte.ts` (`useBreed`, `matchMedia` vanaf 960 px; zonder `matchMedia`, zoals in de unittests, geldt
+  breed), `components/Weekstrip.tsx`; geen wijziging aan `App.tsx`, `Iconen.tsx`, gegevens of de sync-module.
+- **Tests:** drie nieuwe tests in `e2e/agenda.spec.ts` (strip, keuze, bladeren en de Dag; rest van de week, tikvlakken,
+  contrast, vaste strip; filterknop en paneel) en een unittest voor `beschrijfDag`. Bestaande tests: `week.spec.ts` (de
+  D5-test vervangen door strip of kolommen), en in `kg3.spec.ts` en `kg4.spec.ts` kiest de hulpfunctie `kiesDag` op mobiel
+  eerst de dag in de strip en opent `kiesFilter` eerst het filterpaneel (`e2e/hulp-agenda.ts`); op de laptop doen ze
+  niets. Geen test overgeslagen of verwijderd. Tegenproef: zonder strip (overal de laptopweergave) falen de nieuwe tests.
 
 ## 5. Latere agendakoppelingen (productrichting, nu niet bouwen)
 
