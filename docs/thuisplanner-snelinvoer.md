@@ -4,7 +4,7 @@
 akkoord met de adviezen bij V1 t/m V6 (§5). Deel A wordt als eerste gebouwd; deel B volgt in eigen,
 kleine stappen (§8).
 
-**Stand 20 oktober 2026 (lokaal gebouwd, nog niet gecommit):** deel B, na de telefoonproef en het akkoord op K1–K12.
+**Stand 20 oktober 2026 (lokaal gebouwd; gecommit in 6f1d745; zie §9 en §10 voor latere stappen):** deel B, na de telefoonproef en het akkoord op K1–K12.
 - **B1:** `begrijp()` in `thuisplanner/app/src/lib/zin.ts`, met `tests/zin.test.ts` (69 gevallen: de vijf voorbeelden van
   de producteigenaar, twijfel, meerdere boodschappen) en `scripts/tegenproeven-invoer.mjs`.
 - **B2:** de + opent alleen het zinveld (`components/SnelInvoer.tsx`); wat herkend is, staat er als knop onder, een aanname
@@ -281,3 +281,47 @@ Er zijn nog geen gebruikscijfers (meten met tellers volgt pas later). Daarom:
 2. **Herkenning:** `begrijp()` met de testtabel en tegenproeven, nog zonder scherm.
 3. **Snelinvoer-scherm** in de demo, met de knoppen en Alles invullen.
 4. **Lokale modus en telefoonproef** (§7, stap 2).
+
+## 9. Aanvulling: vakanties en Later nodig (22 oktober 2026, lokaal)
+De zin herkent nu ook "voor <volledige vakantienaam>" (alleen lopende en komende vakanties) als een eigen onderdeel
+(`vakantie`), zichtbaar als knopje en terug te zetten in de titel, zoals elk onderdeel. Bij een boodschap staat er een
+knopje Later nodig / Nu te kopen. Niets wordt onzichtbaar aangenomen: bij twijfel (twee vakanties met dezelfde naam)
+wordt niets gekoppeld tot je kiest. Afspraken worden nog niet gekoppeld. Zie `docs/thuisplanner-vakanties.md` §19.
+
+## 10. De + opnieuw ontworpen: invoerbalk, kaart in gewone taal, Aanpassen op verzoek (24 oktober 2026, lokaal)
+Na de telefoonproef: het scherm voelde technisch en als een formulier, met kleine knopjes, te veel tegelijk, en een knop
+Toevoegen die achter het iPhone-toetsenbord verdween. Besloten door de producteigenaar: richting A.
+
+**Opbouw** (`components/SnelInvoer.tsx`):
+- **Invoerbalk boven het toetsenbord.** De laag volgt het zichtbare deel van het scherm (`lib/scherm.ts`, `visualViewport`):
+  op een iPhone krimpt de pagina niet als het toetsenbord opent, dus een venster onderaan verdween erachter. Het veld groeit
+  mee tot drie regels (17 px); de verzendknop (48 px, rechts, onder de duim) zit in de balk. Enter/Gereed voegt ook toe.
+- **Geen titel en geen label** ("Toevoegen", "Wat wil je regelen?" blijft alleen voor schermlezers). Bovenaan alleen
+  **Formulier** (was "Alles invullen") en Sluiten.
+- **Eén kaart** boven de balk, pas na het typen: een icoon, de titel en één regel betekenis in gewone taal
+  (`lib/betekenis.ts`): "Morgen om 15:00 · met Lotte", "Voor Frankrijk · bij Later nodig", "Voorbereiding voor Frankrijk",
+  "Zonder datum". Een aanname in woorden ("(geen dag genoemd)") in plaats van een stippelrand. Boodschappen als één regel
+  ("Melk, Bananen en 2 meer"), zonder categorieën.
+- **Privé of gedeeld** staat bij een afspraak altijd op de kaart en wisselt met één tik ("Gedeeld met het huishouden" /
+  "Alleen voor jou (privé)"). Dit vervangt de knop uit §4.4; de bescherming blijft.
+- **Hooguit één toelichting** op de kaart (bijvoorbeeld "Muggenspray staat bij Later nodig voor Frankrijk; hij gaat naar
+  Nu te kopen."); de overige staan onder Aanpassen. Niets gaat verloren.
+- **Bij twijfel één vraag** met grote knoppen: "Voor welke vakantie?" (Toevoegen staat uit tot je kiest, zoals voorheen),
+  "Bedoel je Lynn?" ([Lynn] [Nee]), "Bedoel je 16:00?" ([16:00] [04:00]). Bij een naam of "om 4" blijft de zin gelden
+  (V2 ongewijzigd); de vraag is alleen een snelle correctie.
+- **Aanpassen** klapt de kaart uit tot regels van 48 px (Soort, Wanneer, Hoe laat, Wie, Waar, Herhalen, Vakantie, Lijst),
+  alleen wat bij de soort hoort; een tik opent de bestaande keuzes. "Terug in de titel" heet nu **Niet herkennen**.
+  Onderaan **Meer in het formulier**. Met Aanpassen open zakt het toetsenbord weg; een tik in het veld klapt weer in.
+- **Na toevoegen** sluit de + zoals altijd, met de melding en Ongedaan maken. Opent iemand de + terwijl de melding nog
+  staat, dan verdwijnt die meteen: hij blokkeert nooit een volgende invoer.
+
+**Wat niet verandert:** de herkenning (`zin.ts`), de opslag, Vakanties, Later nodig, één onderliggend item, de sync en de
+database. Het formulier (deel A) is ongewijzigd, behalve dat het via "Formulier" en "Meer in het formulier" opent.
+
+**Afwijkingen van het voorstel:** de vraag bij "om 4" en bij een bijna-naam blokkeert Toevoegen niet (besluit 5: de
+bestaande werking blijft); omlaag vegen om te sluiten zit er nog niet in (sluiten met ✕, buiten tikken of Escape).
+
+**Tests:** `betekenis.test.ts` (nieuw), `snelinvoer.test.tsx` (herschreven, 19), `slimme-plus-vakanties.test.tsx` en
+`app.test.tsx` bijgewerkt; e2e `snelinvoer.spec.ts` met een nagebootst iPhone-toetsenbord (het zichtbare deel krimpt, de
+pagina niet) op 390 en 320 px, een lange zin, licht en donker. Een test met een echt iPhone-toetsenbord kan alleen op de
+telefoon zelf.

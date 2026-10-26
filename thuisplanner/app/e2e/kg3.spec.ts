@@ -52,7 +52,7 @@ test.describe('Agenda: weekweergave', () => {
     await nav(page, 'Agenda');
     await page.getByRole('button', { name: 'Volgende week' }).click();
     await page.getByRole('button', { name: 'Toevoegen op woensdag 14 oktober' }).click();
-    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
+    await venster(page).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Oudergesprek');
     await venster(page).getByRole('button', { name: 'Andere tijd' }).click();
     await venster(page).getByLabel('Van', { exact: true }).fill('15:45');

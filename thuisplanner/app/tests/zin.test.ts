@@ -216,3 +216,54 @@ describe('waar je vandaan komt, en wat de gebruiker kiest', () => {
     expect(meldingen(b('morgen'))).toContain('geen-titel');
   });
 });
+
+describe('F8: "voor <vakantie>" (alleen de volledige naam van een lopende of komende vakantie)', () => {
+  const VAK = { vakanties: [{ id: 'v-fr', naam: 'Frankrijk' }, { id: 'v-texel', naam: 'Kerst op Texel' }, { id: 'v-noorwegen', naam: 'Noorwegen' }] };
+  it('de drie voorbeelden: boodschap en taak gekoppeld, zonder vakantie geen koppeling', () => {
+    expect(b('Zonnebrand kopen voor Frankrijk', VAK)).toMatchObject({ soort: 'boodschap', boodschappen: ['Zonnebrand'], vakantie: 'v-fr' });
+    expect(b('Paspoorten controleren voor Frankrijk', VAK)).toMatchObject({ soort: 'taak', titel: 'Paspoorten controleren', vakantie: 'v-fr' });
+    expect(b('Muggenspray kopen', VAK)).toMatchObject({ soort: 'boodschap', boodschappen: ['Muggenspray'], vakantie: null });
+  });
+  it('een naam van meer woorden wordt geen datum of plek; meerdere boodschappen in één zin', () => {
+    expect(b('Kerstkransjes kopen voor Kerst op Texel', VAK)).toMatchObject({ boodschappen: ['Kerstkransjes'], vakantie: 'v-texel', datum: null, plek: undefined });
+    expect(b('Zonnebrand, muggenspray en pleisters kopen voor Frankrijk', VAK)).toMatchObject({ boodschappen: ['Zonnebrand', 'Muggenspray', 'Pleisters'], vakantie: 'v-fr' });
+  });
+  it('hoofdletters en accenten maken niet uit; met een datum erbij blijft die herkend', () => {
+    expect(b('vignet regelen VOOR frankrijk vrijdag', VAK)).toMatchObject({ soort: 'taak', titel: 'Vignet regelen', vakantie: 'v-fr', datum: '2026-10-23' });
+    expect(b('Zonnebrand kopen voor Italie', { vakanties: [{ id: 'v-it', naam: 'Italië' }] })).toMatchObject({ vakantie: 'v-it', boodschappen: ['Zonnebrand'] });
+  });
+  it('geen koppeling bij twijfel: zonder "voor", een voorbije vakantie (niet in de lijst), alleen een deel van de naam, "in …"', () => {
+    expect(b('Zonnebrand Frankrijk kopen', VAK).vakantie).toBeNull();
+    expect(b('Zonnebrand kopen voor Italië', VAK)).toMatchObject({ vakantie: null, boodschappen: ['Zonnebrand voor Italië'] });
+    expect(b('Kransjes kopen voor Kerst', VAK)).toMatchObject({ vakantie: null, boodschappen: ['Kransjes voor Kerst'] });
+    expect(b('Paspoorten controleren in Frankrijk', VAK)).toMatchObject({ soort: 'afspraak', plek: 'Frankrijk', vakantie: null });
+    expect(b('Zonnebrand voor de vakantie', VAK).vakantie).toBeNull();
+    expect(b('Muggenspray kopen voor later', VAK)).toMatchObject({ vakantie: null, boodschappen: ['Muggenspray voor later'] });
+  });
+  it('twee vakanties met dezelfde naam: niets vanzelf, wel een keuze en een melding', () => {
+    const v = b('Zonnebrand kopen voor Frankrijk', { vakanties: [{ id: 'v-fr1', naam: 'Frankrijk' }, { id: 'v-fr2', naam: 'frankrijk' }] });
+    expect(v).toMatchObject({ vakantie: null, vakantieKeuze: ['v-fr1', 'v-fr2'], boodschappen: ['Zonnebrand'] });
+    expect(meldingen(v)).toContain('vakantie-twijfel');
+  });
+  it('een lid wint van een vakantie met dezelfde naam; een bijna-naam is alleen een voorstel', () => {
+    expect(b('Zonnebrand kopen voor Lotte', { vakanties: [{ id: 'v-l', naam: 'Lotte' }] })).toMatchObject({ soort: 'taak', wie: ['m-lotte'], vakantie: null });
+    const v = b('Zonnebrand kopen voor Frankrik', VAK);
+    expect(v).toMatchObject({ vakantie: null, vakantieSuggestie: { woord: 'Frankrik', naam: 'Frankrijk' }, boodschappen: ['Zonnebrand voor Frankrik'] });
+    expect(meldingen(v)).toContain('onbekende-vakantie');
+  });
+  it('een afspraak koppelen kan nog niet: de vakantie blijft in de titel, met een melding', () => {
+    const v = b('Ferry boeken om 10:00 voor Frankrijk', VAK);
+    expect(v).toMatchObject({ soort: 'afspraak', titel: 'Ferry boeken voor Frankrijk', vakantie: null, start: '10:00' });
+    expect(meldingen(v)).toContain('vakantie-afspraak');
+    // Ook als de gebruiker zelf Afspraak kiest.
+    expect(b('Zonnebrand kopen voor Frankrijk', VAK, { soort: 'afspraak' })).toMatchObject({ vakantie: null, titel: 'Zonnebrand kopen voor Frankrijk' });
+  });
+  it('terug in de titel (negeer), meer personen bij een taak, en een lege titel', () => {
+    expect(b('Zonnebrand kopen voor Frankrijk', VAK, { negeer: new Set(['vakantie']) })).toMatchObject({ vakantie: null, boodschappen: ['Zonnebrand voor Frankrijk'] });
+    expect(b('Paspoorten controleren voor Frankrijk met Eva en Thomas', VAK)).toMatchObject({ soort: 'taak', vakantie: 'v-fr', wie: [] });
+    expect(meldingen(b('kopen voor Frankrijk', VAK))).toContain('geen-titel');
+  });
+  it('zonder vakanties in de context: alles zoals het was', () => {
+    expect(b('Zonnebrand kopen voor Frankrijk')).toMatchObject({ boodschappen: ['Zonnebrand voor Frankrijk'], vakantie: null, vakantieKeuze: [] });
+  });
+});

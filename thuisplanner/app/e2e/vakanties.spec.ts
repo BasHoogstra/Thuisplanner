@@ -244,3 +244,60 @@ test('compact: uitklappen, afvinken, terugzetten, persoon wisselen en navigeren 
     await expect(page.getByRole('tab', { name: 'Notities' })).toBeInViewport();
   }
 });
+
+test('slimme +: "voor Frankrijk" koppelt een boodschap (Later nodig) en een taak; vóór opslaan te corrigeren (ook 320 px en donker)', async ({ page }) => {
+  const breedtes = isDesktop(page) ? [null] : [null, 320];
+  for (const breed of breedtes) {
+    if (breed) { await page.setViewportSize({ width: breed, height: 700 }); await page.emulateMedia({ colorScheme: 'dark' }); }
+    await page.goto(START + '#/vandaag');
+    await page.reload();   // verse demo
+    const venster = page.getByRole('dialog');
+    const zin = async (tekst: string) => {
+      await page.locator('.nav-plus').click();
+      await venster.getByLabel('Wat wil je regelen?').fill(tekst);
+    };
+    // De verzendknop in de invoerbalk; een melding van de vorige toevoeging verdwijnt zodra de + opent.
+    const verstuur = () => venster.getByRole('button', { name: 'Toevoegen' }).click();
+    const regel = venster.locator('.kaart-regel');
+    // Een boodschap: gekoppeld en bij Later nodig; de knopjes zijn goed te raken.
+    await zin('Zonnebrand kopen voor Frankrijk');
+    await expect(regel).toHaveText('Voor Frankrijk · bij Later nodig');
+    await geenHorizontaleScroll(page, `slimme + ${breed ?? ''}`);
+    await verstuur();
+    await expect(page.getByRole('status')).toContainText('Zonnebrand bij Later nodig');
+    // Corrigeren vóór opslaan: andere vakantie en Nu te kopen.
+    await zin('Pleisters kopen voor Frankrijk');
+    await venster.getByRole('button', { name: 'Aanpassen' }).click();
+    const vak = venster.getByRole('button', { name: 'Vakantie: Frankrijk' });
+    expect((await vak.boundingBox())!.height, 'regel te klein').toBeGreaterThanOrEqual(44);
+    await vak.click();
+    await venster.getByRole('group', { name: 'Vakantie' }).getByRole('button', { name: 'Kerst op Texel' }).click();
+    await venster.getByRole('button', { name: 'Lijst: Later nodig' }).click();
+    await venster.getByRole('group', { name: 'Lijst' }).getByRole('button', { name: 'Nu te kopen' }).click();
+    await expect(regel).toHaveText('Voor Kerst op Texel · nu te kopen');
+    await geenHorizontaleScroll(page, `slimme + paneel ${breed ?? ''}`);
+    await verstuur();
+    // Een taak: een voorbereiding van Frankrijk.
+    await zin('Paspoorten controleren voor Frankrijk');
+    await expect(regel).toHaveText('Voorbereiding voor Frankrijk');
+    await verstuur();
+    await expect(page.getByRole('status')).toContainText('Paspoorten controleren staat bij de voorbereidingen van Frankrijk');
+    // Boodschappen: Zonnebrand bij Later nodig (Frankrijk), Pleisters bij Nu te kopen (Kerst op Texel); geen "voor Frankrijk".
+    await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Boodschappen' }).click();
+    const nu = page.locator('section', { has: page.getByRole('heading', { name: /^Nu te kopen \d+$/ }) });
+    await expect(nu.getByRole('button', { name: 'Pleisters aanpassen' })).toContainText('Kerst op Texel');
+    await page.getByRole('button', { name: /^Later nodig/ }).click();
+    await expect(page.getByRole('list', { name: 'Later nodig' }).getByRole('button', { name: 'Zonnebrand aanpassen' })).toContainText('Frankrijk');
+    await expect(page.getByText('Zonnebrand voor Frankrijk')).toHaveCount(0);
+    await geenHorizontaleScroll(page, `boodschappen ${breed ?? ''}`);
+    // Regelen bij Frankrijk: de taak en de boodschap.
+    await page.goto(START + '#/vakanties/v-frankrijk');
+    await page.getByRole('tab', { name: 'Regelen' }).click();
+    const taken = page.getByRole('button', { name: /^Voorbereidingen/ });
+    if ((await taken.getAttribute('aria-expanded')) === 'false') await taken.click();
+    await expect(page.getByRole('list', { name: 'Open voorbereidingen' }).getByRole('checkbox', { name: 'Paspoorten controleren' })).toBeVisible();
+    await page.getByRole('button', { name: /^Boodschappen voor Frankrijk/ }).click();
+    await expect(page.getByRole('button', { name: 'Zonnebrand. Meer' })).toContainText('later nodig');
+    await geenHorizontaleScroll(page, `regelen ${breed ?? ''}`);
+  }
+});

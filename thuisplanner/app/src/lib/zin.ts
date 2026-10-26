@@ -11,7 +11,7 @@ import type { Datum, Frequentie, Lid, LidId, Tijd } from './types';
 
 export type Soort = 'afspraak' | 'taak' | 'boodschap';
 /** Wat er in een zin herkend kan worden; elk onderdeel kan de gebruiker terugzetten in de titel. */
-export type Onderdeel = 'datum' | 'tijd' | 'wie' | 'plek' | 'herhaling' | 'prive' | 'soortwoord';
+export type Onderdeel = 'datum' | 'tijd' | 'wie' | 'plek' | 'herhaling' | 'prive' | 'soortwoord' | 'vakantie';
 
 export interface Context {
   vandaag: Datum;
@@ -20,6 +20,8 @@ export interface Context {
   bekendeBoodschappen?: string[];
   /** Waar de + vandaan komt: een dag in de Agenda, of Boodschappen. */
   standaard?: { soort?: Soort; datum?: Datum };
+  /** Vakanties die je kunt kiezen (lopend en komend; zie kiesbareVakanties). Alleen "voor <volledige naam>" telt. */
+  vakanties?: { id: string; naam: string }[];
 }
 
 export interface Opties {
@@ -31,7 +33,7 @@ export interface Opties {
 
 export interface Melding {
   soort: 'middag' | 'tijd-of-datum' | 'herhalende-taak' | 'boodschap-dag' | 'prive-geen-afspraak' | 'taak-meer-personen'
-    | 'plek-geen-afspraak' | 'geen-titel' | 'onbekende-naam';
+    | 'plek-geen-afspraak' | 'geen-titel' | 'onbekende-naam' | 'vakantie-afspraak' | 'vakantie-twijfel' | 'onbekende-vakantie';
   tekst: string;
 }
 
@@ -56,6 +58,12 @@ export interface Voorstel {
   meldingen: Melding[];
   /** Een woord na "met" of "voor" dat bijna een lid is ("Lyn" bij Lynn): alleen een voorstel, nooit vanzelf. */
   suggesties: { woord: string; lid: LidId; naam: string }[];
+  /** De herkende vakantie (alleen bij een taak of boodschap). */
+  vakantie: string | null;
+  /** Meer vakanties met dezelfde naam: niets vanzelf koppelen; de gebruiker kiest (of zet het terug in de titel). */
+  vakantieKeuze: string[];
+  /** Een woord na "voor" dat bijna een vakantienaam is: alleen een voorstel, nooit vanzelf. */
+  vakantieSuggestie?: { woord: string; naam: string };
 }
 
 const WEEKDAGEN: Record<string, number> = {
@@ -166,6 +174,47 @@ export function begrijp(tekst: string, ctx: Context, opties: Opties = {}): Voors
       if (d) return { d, n: jaar ? 3 : 2 };
     }
     return null;
+  }
+
+  // 0. Vakantie: alleen "voor" gevolgd door de volledige naam van een lopende of komende vakantie (langste naam eerst),
+  // vóór datum, plek en het splitsen: zo wordt "Kerst op Texel" geen datum of plek en komt de naam niet in de titel.
+  // Een eenwoordsnaam die ook een lid is, laat het lid winnen. Twee vakanties met dezelfde naam: niets vanzelf koppelen.
+  let vakantie: string | null = null;
+  let vakantieKeuze: string[] = [];
+  let vakIdx: number[] = [];
+  let vakantieSuggestie: Voorstel['vakantieSuggestie'];
+  if (!negeer.has('vakantie') && ctx.vakanties?.length) {
+    const lidNamen = new Set(ctx.leden.map(l => zonderAccent(l.naam.toLowerCase())));
+    const namen = ctx.vakanties.map(v => ({ v, d: v.naam.trim().split(/\s+/).map(norm).filter(Boolean) }))
+      .filter(x => x.d.length && !(x.d.length === 1 && lidNamen.has(x.d[0])));
+    for (let i = 0; i < tokens.length - 1 && !vakIdx.length; i++) {
+      if (w(i) !== 'voor') continue;
+      let lengte = 0, treffers: string[] = [];
+      for (const { v, d } of namen) {
+        if (!d.every((x, k) => w(i + 1 + k) === x)) continue;
+        if (d.length > lengte) { lengte = d.length; treffers = [v.id]; } else if (d.length === lengte) treffers.push(v.id);
+      }
+      if (!lengte) continue;
+      vakIdx = Array.from({ length: lengte + 1 }, (_, k) => i + k);
+      neem(...vakIdx);
+      herkend.add('vakantie');
+      if (treffers.length === 1) vakantie = treffers[0];
+      else {
+        vakantieKeuze = treffers;
+        const naam = ctx.vakanties.find(v => v.id === treffers[0])!.naam;
+        meld({ soort: 'vakantie-twijfel', tekst: `Er zijn meer vakanties met de naam "${naam}": kies welke.` });
+      }
+    }
+    // Bijna een vakantienaam (één letter anders), direct na "voor": alleen een voorstel.
+    if (!vakIdx.length) {
+      for (let i = 1; i < tokens.length && !vakantieSuggestie; i++) {
+        if (w(i - 1) !== 'voor' || w(i).length < 4 || lidNamen.has(w(i))) continue;
+        const bijna = namen.find(x => x.d.length === 1 && x.d[0].length >= 4 && afstand(x.d[0], w(i)) === 1);
+        if (!bijna) continue;
+        vakantieSuggestie = { woord: tokens[i].ruw.replace(/[,.;:!?]+$/, ''), naam: bijna.v.naam };
+        meld({ soort: 'onbekende-vakantie', tekst: `"${vakantieSuggestie.woord}" is geen vakantie; het blijft in de titel.` });
+      }
+    }
   }
 
   // 1. Privé.
@@ -361,10 +410,21 @@ export function begrijp(tekst: string, ctx: Context, opties: Opties = {}): Voors
   if (soort === 'taak' && wie.length > 1) {
     // Een taak heeft één persoon: bij meer namen blijven ze in de titel.
     meld({ soort: 'taak-meer-personen', tekst: 'Een taak is voor één persoon: de namen blijven in de titel.' });
-    for (const t of tokens) if (leden.some(x => x.k === t.w) || ((t.w === 'met' || t.w === 'voor' || t.w === 'en') && t.gebruikt)) t.gebruikt = false;
+    tokens.forEach((t, i) => {
+      if (vakIdx.includes(i)) return;   // "voor <vakantie>" blijft herkend
+      if (leden.some(x => x.k === t.w) || ((t.w === 'met' || t.w === 'voor' || t.w === 'en') && t.gebruikt)) t.gebruikt = false;
+    });
     wieUit = []; herkend.delete('wie');
   }
   if (soort === 'boodschap') { wieUit = []; herkend.delete('wie'); }
+  if (soort === 'afspraak' && vakIdx.length) {
+    // Een afspraak koppelen aan een vakantie kan nog niet (V2, privacy): de woorden blijven in de titel.
+    for (const i of vakIdx) tokens[i].gebruikt = false;
+    vakantie = null; vakantieKeuze = []; herkend.delete('vakantie');
+    const zonderTwijfel = meldingen.filter(m => m.soort !== 'vakantie-twijfel');
+    meldingen.splice(0, meldingen.length, ...zonderTwijfel);
+    meld({ soort: 'vakantie-afspraak', tekst: 'Een afspraak koppelen aan een vakantie kan nog niet: de vakantie blijft in de titel.' });
+  }
   if (soort === 'afspraak' && !datum) { datum = ctx.standaard?.datum ?? ctx.vandaag; aangenomen.push('datum'); }
   if (soort === 'taak' && !datum && ctx.standaard?.datum) { datum = ctx.standaard.datum; aangenomen.push('datum'); }
 
@@ -374,7 +434,7 @@ export function begrijp(tekst: string, ctx: Context, opties: Opties = {}): Voors
 
   return {
     soort, titel, datum, start, eind, wie: wieUit, plek, herhaling, prive, boodschappen,
-    herkend: [...herkend], aangenomen, meldingen, suggesties,
+    herkend: [...herkend], aangenomen, meldingen, suggesties, vakantie, vakantieKeuze, vakantieSuggestie,
   };
 }
 

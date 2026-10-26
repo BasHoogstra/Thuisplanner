@@ -85,14 +85,14 @@ test.describe('Dagoverzicht', () => {
     await weergave(page, 'Maand');
     await maandDag(page, 'donderdag 22 oktober').click();
     await page.getByRole('button', { name: 'Afspraak toevoegen op donderdag 22 oktober' }).click();
-    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
+    await venster(page).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Kinderfeestje');
     await venster(page).getByRole('button', { name: 'Andere tijd' }).click();
     await venster(page).getByLabel('Van', { exact: true }).fill('14:00');
     await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
     await expect(dagLijst(page)).toContainText('Kinderfeestje');
     await page.getByRole('button', { name: 'Taak toevoegen op donderdag 22 oktober' }).click();
-    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
+    await venster(page).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Cadeau inpakken');
     await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
     await expect(dagLijst(page).getByRole('checkbox', { name: 'Cadeau inpakken' })).toBeVisible();
@@ -108,7 +108,7 @@ test.describe('Dagoverzicht', () => {
 test.describe('Herhalende afspraken', () => {
   test('nieuwe wekelijkse afspraak met einddatum staat op elke juiste dag, en niet daarna', async ({ page }) => {
     await page.locator('.nav-plus').click();
-    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
+    await venster(page).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Pianoles');
     await venster(page).getByRole('button', { name: 'Andere dag' }).click();
     await venster(page).getByLabel('Datum').fill('2026-10-14');
@@ -130,7 +130,7 @@ test.describe('Herhalende afspraken', () => {
 
   test('een einddatum vóór de eerste keer wordt geweigerd', async ({ page }) => {
     await page.locator('.nav-plus').click();
-    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
+    await venster(page).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Fout');
     await venster(page).getByRole('button', { name: /^Meer opties/ }).click();
     await venster(page).getByRole('button', { name: 'Elke dag' }).click();
@@ -176,7 +176,7 @@ test.describe('Herhalende afspraken', () => {
 
   test('maandelijks op de 31e: de tekst zegt dat korte maanden worden overgeslagen, en november blijft leeg', async ({ page }) => {
     await page.locator('.nav-plus').click();
-    await venster(page).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit test het formulier
+    await venster(page).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Huur overmaken');
     await venster(page).getByRole('button', { name: 'Andere dag' }).click();
     await venster(page).getByLabel('Datum').fill('2026-10-31');

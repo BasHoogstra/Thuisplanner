@@ -926,3 +926,13 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Boodschappen: Nu te kopen (de gewone lijst) en Later nodig (ingeklapt), met één tik Nu kopen en terug; vanuit een vakantie standaard Later nodig; Vandaag telt alleen Nu.
 - Eén boodschap, één rij: kolom shopping_items.deferred (migratie 20261026120000_boodschappen_later.sql, alleen lokaal toegepast), add_shopping_items met p_later; RLS ongewijzigd.
 - Sync: deferred ophalen, boodschapLater met versiecontrole. Algemeen ontworpen (ook voor verjaardagen en feestjes later); geen verschijndatum.
+
+## Thuisplanner slimme + met Vakanties en Later nodig (22 oktober 2026, lokaal)
+- De + herkent "voor <volledige vakantienaam>": een boodschap wordt gekoppeld en komt bij Later nodig, een taak wordt een voorbereiding; geen losse "Zonnebrand voor Frankrijk" meer.
+- Vóór opslaan te corrigeren (andere vakantie, Geen vakantie, Terug in de titel, Later nodig of Nu te kopen); Alles invullen neemt het mee. Bij twijfel niets vanzelf; afspraken nog niet.
+- Geen migratie; dezelfde handelingen als de Boodschappen- en vakantiepagina. Duidelijke melding als een vakantie intussen verwijderd is.
+
+## Thuisplanner: de + opnieuw ontworpen (24 oktober 2026, lokaal)
+- Invoerbalk vlak boven het toetsenbord met de verzendknop in de balk; het veld groeit mee tot drie regels.
+- Eén kaart in gewone taal ("Morgen om 15:00 · met Lotte"), privé/gedeeld altijd zichtbaar bij een afspraak, één vraag bij twijfel, Aanpassen op verzoek; "Alles invullen" heet Formulier.
+- De melding van een vorige toevoeging verdwijnt zodra de + opent. Herkenning, opslag, Vakanties en Later nodig ongewijzigd.

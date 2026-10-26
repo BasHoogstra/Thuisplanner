@@ -413,10 +413,12 @@ Bewust niet speculatief: geen lege kolommen "voor later" en geen generieke `link
 
 | Stap | Inhoud | Status |
 |---|---|---|
-| V0 | Dit document; de roadmap bijgewerkt | **Gedaan** (21 oktober 2026, lokaal, niet gecommit) |
-| V1.1 | Database, RLS en tests (§12), alleen lokaal; daarna een onafhankelijke review | **Lokaal gebouwd en getest** (21 oktober 2026; akkoord op lokaal toepassen en testen); niet gecommit, niet op staging; wacht op review |
-| V1.2 | Sync-module, types, integratietests (twee accounts, seintjes) | Na V1.1 |
-| V1.3 | Schermen, demodata, unit- en e2e-tests, `CHANGELOG.md` | **Lokaal gebouwd en getest** (21 oktober 2026, §15); niet gecommit; wacht op de telefoonproef van de producteigenaar |
+| V0 | Dit document; de roadmap bijgewerkt | **Gedaan**, lokaal gecommit (24e4625) |
+| V1.1 | Database, RLS en tests (§12), alleen lokaal; daarna een onafhankelijke review | **Lokaal gebouwd en getest**, gecommit (24e4625); niet op staging; review nog open |
+| V1.2 | Sync-module, types, integratietests (twee accounts, seintjes) (§14) | **Lokaal gebouwd en getest**, gecommit (287858e) |
+| V1.3 | Schermen, demodata, unit- en e2e-tests, met vormgeving ronde 2 en de compactheidsronde (§15–17) | **Gebouwd, op de telefoon goedgekeurd**, gecommit (074bbe3) |
+| Later nodig | Boodschappen "Nu te kopen" en "Later nodig", migratie `20261026120000_boodschappen_later.sql` (§18) | **Goedgekeurd**, gecommit (047ab32); migratie alleen lokaal |
+| Slimme + | "… voor <vakantie>" (§19) en het herontwerp van de + (`docs/thuisplanner-snelinvoer.md` §10) | **Lokaal gebouwd en getest**; vastgelegd in een eigen lokale commit (stap I0, 26 oktober 2026); telefoonproef van het herontwerp loopt |
 | — | Staging | Apart besluit, los van het lopende stagingtraject |
 | V2 | Afspraken koppelen (eigen gate 9-bewijs), tijdens de reis | Na V1 en gebruik |
 
@@ -579,7 +581,7 @@ lid); `todos` → taken met `trip_id`; `notes` → `notes`; `_tab` en `_osmCache
 ## 14. V1.2 — synchronisatie (akkoord 21 oktober 2026; lokaal gebouwd, zie §14.9)
 
 **Status:** akkoord op 21 oktober 2026 met de vier adviezen uit §14.8; lokaal gebouwd en getest in de worktree
-`Thuisplanner-vakanties` (branch `thuisplanner-vakanties`), niet gecommit. Geen databasemigratie: V1.2 gebruikt alleen wat
+`Thuisplanner-vakanties` (branch `thuisplanner-vakanties`), gecommit in 287858e. Geen databasemigratie: V1.2 gebruikt alleen wat
 V1.1 al heeft (tabellen, indexen, functies en seintjes).
 
 ### 14.1 Doel
@@ -715,8 +717,8 @@ de vakantielaag nog niet (er is nog geen scherm).
 
 ## 15. V1.3 — de zichtbare vakantieplanner (akkoord 21 oktober 2026; lokaal gebouwd)
 
-**Status:** lokaal gebouwd en getest in de worktree `Thuisplanner-vakanties`; niet gecommit, niet op staging. Eerst de
-telefoonproef van de producteigenaar; daarna pas verdere stappen.
+**Status:** lokaal gebouwd en getest in de worktree `Thuisplanner-vakanties`; na de telefoonproef gecommit in 074bbe3;
+niet op staging.
 
 ### 15.1 Wat er is
 - **Meer → Vakanties:** het overzicht Nu / Komend / Eerder (ingeklapt), met periode en aftelling; nieuwe vakantie met
@@ -825,7 +827,7 @@ Vandaag (kleine letter).
 geslaagd en 10 overgeslagen (360, 390 en desktop; de nieuwe compact-test ook op 320 px en donker), typecheck en
 statische controles schoon.
 
-## 18. Boodschappen "Later nodig" (akkoord 22 oktober 2026; lokaal, nog niet gecommit)
+## 18. Boodschappen "Later nodig" (akkoord 22 oktober 2026; lokaal, gecommit in 047ab32)
 Probleem: boodschappen die je weken vooruit voor een vakantie toevoegt, staan wekenlang tussen de dagelijkse
 boodschappen. Oplossing: de boodschappenpagina krijgt **Nu te kopen** (de gewone lijst, centraal) en **Later nodig**
 (standaard ingeklapt). Algemeen ontworpen: "later" is een eigenschap van de boodschap zelf, los van de reden (vakantie,
@@ -865,3 +867,52 @@ ongewijzigd (de vlag hoort bij de opdracht, zoals de vakantie).
   "weken vooruit" zien. De demodatum is niet verschoven, omdat de kaart op Vandaag en de Agenda-tests daarop rusten.
 - Voor het stagingtraject: deze migratie staat alleen in deze worktree en op de lokale stack `thuisplanner`; niet op
   staging of de `k12`-stack.
+
+## 19. De slimme + met Vakanties en Later nodig (akkoord 22 oktober 2026; lokaal, eigen commit in stap I0)
+Doel: "Zonnebrand kopen voor Frankrijk" wordt één boodschap, gekoppeld aan Frankrijk en standaard bij Later nodig;
+"Paspoorten controleren voor Frankrijk" wordt één taak bij Frankrijk; "Muggenspray kopen" blijft een gewone boodschap
+bij Nu te kopen. Eén onderliggend item, op meerdere plekken zichtbaar; geen databasemigratie.
+
+**Vóór deze ronde** las de + de vakantie niet: "Zonnebrand kopen voor Frankrijk" werd een nieuw, los item
+"Zonnebrand voor Frankrijk" bij Nu te kopen. Dat was de belangrijkste bron van dubbele boodschappen.
+
+**Herkenning** (`lib/zin.ts`, een pure functie, alleen op het toestel):
+- Alleen **"voor" gevolgd door de volledige naam** van een lopende of komende vakantie (`kiesbareVakanties`). Hoofdletters
+  en accenten maken niet uit; de langste naam wint ("Kerst op Texel"). Dit gebeurt vóór datum, plek en het splitsen,
+  zodat "op Texel" geen datum of plek wordt en de naam niet in de boodschap komt.
+- Niet herkend (bewust): zonder "voor", een deel van de naam, een voorbije vakantie, de bestemming, "voor de vakantie",
+  "in Frankrijk" (blijft een plek), en "voor later" (besluit b).
+- Twijfel: twee vakanties met dezelfde naam → niets vanzelf koppelen; het knopje vraagt "Welke vakantie?" (met de
+  periode erbij) en Toevoegen staat uit tot je kiest of de vakantie terugzet in de titel. Een lid wint van een vakantie
+  met dezelfde naam. Eén letter verschil ("Frankrik") is alleen een voorstel ("Bedoel je Frankrijk?").
+- Afspraken koppelen kan nog niet (V2, privacy): de vakantie blijft in de titel, met een korte melding.
+
+**Correctie vóór opslaan** (`SnelInvoer.tsx`): het knopje met de koffer (andere vakantie, Geen vakantie, Terug in de
+titel) en bij een boodschap het knopje Later nodig / Nu te kopen. Vooraf staat er in gewone taal wat er met een bestaande
+boodschap gebeurt ("… staat bij Later nodig voor Frankrijk; hij gaat naar Nu te kopen", "… hij komt er ook voor Kerst op
+Texel bij"). **Alles invullen** neemt de vakantie en de lijst mee; het formulier toont ze dan (alleen dan) als keuze.
+Een gewone boodschap of taak opent het formulier zoals altijd.
+
+**De vier besluiten:** (a) alleen "voor" plus de volledige naam; (b) "voor later" nog niet herkennen; (c) een taak met
+dezelfde titel bij dezelfde vakantie geeft een waarschuwing, toevoegen kan toch; (d) een boodschap die bij Later nodig
+staat en via de + zonder vakantie wordt toegevoegd, gaat naar Nu te kopen, met een melding vooraf en na afloop
+("… nu te kopen (stond bij Later nodig)").
+
+**Opslag:** dezelfde handelingen als de Boodschappen- en vakantiepagina. `voegBoodschappenToe(namen, vakantieId?, later?)`
+(demo-store en lokale modus) geeft de eigen keuze mee; zonder keuze blijft alles zoals het was (met vakantie Later nodig,
+zonder Nu te kopen). De sync-module en `add_shopping_items` (`p_trip`, `p_later`) konden dit al. Een taak krijgt
+`vakantieId` (`tasks.trip_id`). Geen migratie, geen wijziging aan RLS of seintjes.
+
+**Sync-melding:** wordt een vakantie verwijderd terwijl de zin nog open staat, dan zegt de app "Deze vakantie bestaat
+niet meer. De boodschap is niet toegevoegd." (P0002 bij een boodschap met vakantie). Bij een afspraak blijft P0002 bewust
+neutraal "geen toegang" (privacy).
+
+**Afwijkingen:** het knopje Vakantie verschijnt alleen als er een vakantie in de zin staat (geen extra knop bij elke
+invoer). In de lokale modus heeft toevoegen nog geen "Ongedaan maken" (zoals elders); corrigeren kan via de vensters.
+Op de telefoon ligt de melding van een vorige toevoeging soms over de knop Toevoegen van de + (bestaand gedrag);
+Enter/Gereed werkt dan wel.
+
+**Tests:** parser (`zin.test.ts`, +9), de + in de demo (`slimme-plus-vakanties.test.tsx`, 10), demo-store en lokale modus,
+integratie V11 (eigen keuze Nu/Later, verwijderde vakantie, afspraak blijft neutraal), en e2e (320, 360, 390 px, desktop
+en donker).
+

@@ -144,7 +144,7 @@ describe('Later nodig (zelfde regels als add_shopping_items met p_later)', () =>
     const s = reducer(voor, { type: 'boodschappen', namen: ['muggenspray'] });
     expect(b(s, 'Muggenspray')?.later).toBeUndefined();
     expect(s.items.filter(i => i.soort === 'boodschap').length).toBe(voor.items.filter(i => i.soort === 'boodschap').length);
-    expect(s.melding?.tekst).toBe('Muggenspray nu te kopen');
+    expect(s.melding?.tekst).toBe('Muggenspray nu te kopen (stond bij Later nodig)');
   });
   it('heen en terug, aanpassen behoudt Later nodig, en ongedaan maken', () => {
     let s = reducer(begin(), { type: 'boodschapLater', id: 'b-muggenspray', later: false });
@@ -153,5 +153,22 @@ describe('Later nodig (zelfde regels als add_shopping_items met p_later)', () =>
     expect(b(s, 'Muggenspray')?.later).toBe(true);
     s = reducer(s, { type: 'bijwerken', item: { id: 'b-muggenspray', soort: 'boodschap', naam: 'Muggenspray deet', afgevinkt: false } });
     expect(b(s, 'Muggenspray deet')?.later).toBe(true);
+  });
+});
+
+describe('de slimme +: een eigen keuze voor Later nodig of Nu te kopen', () => {
+  const b = (s: Staat, naam: string) => s.items.find((i): i is Boodschap => i.soort === 'boodschap' && i.naam === naam);
+  it('met vakantie maar Nu gekozen: gekoppeld en bij Nu te kopen; zonder vakantie maar Later gekozen: bij Later nodig', () => {
+    let s = reducer(begin(), { type: 'boodschappen', namen: ['Pleisters'], vakantieId: 'v-frankrijk', later: false });
+    expect(b(s, 'Pleisters')?.later).toBeUndefined();
+    expect(s.koppelingen.some(k => k.boodschapId === b(s, 'Pleisters')!.id && k.vakantieId === 'v-frankrijk')).toBe(true);
+    s = reducer(s, { type: 'boodschappen', namen: ['Cadeaupapier'], later: true });
+    expect(b(s, 'Cadeaupapier')?.later).toBe(true);
+    expect(s.koppelingen.some(k => k.boodschapId === b(s, 'Cadeaupapier')!.id)).toBe(false);
+  });
+  it('een bestaande boodschap voor een tweede vakantie: één item, twee koppelingen', () => {
+    const s = reducer(begin(), { type: 'boodschappen', namen: ['zonnebrand factor 50'], vakantieId: 'v-texel' });
+    expect(s.items.filter(i => i.soort === 'boodschap' && i.naam.toLowerCase() === 'zonnebrand factor 50')).toHaveLength(1);
+    expect(s.koppelingen.filter(k => k.boodschapId === 'b-zonnebrand-50').map(k => k.vakantieId).sort()).toEqual(['v-frankrijk', 'v-texel']);
   });
 });

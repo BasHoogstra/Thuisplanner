@@ -5,6 +5,7 @@ import { FREQUENTIES, herhalingTekst, vindAfspraak, wordtDubbel } from '../lib/h
 import { splitsBoodschappen } from '../lib/boodschappen';
 import { isBezetVanAnder, magZichtbaarheidKiezen } from '../lib/rechten';
 import { nieuwId } from '../lib/store';
+import { kiesbareVakanties } from '../lib/vakantie';
 import type { Afspraak, Datum, Frequentie, Herhaling, Item, LidId } from '../lib/types';
 import { tijdTekst, Wie } from './Rijen';
 import { IcHerhaal, IcSlot } from './Iconen';
@@ -111,6 +112,10 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
   const [wie, zetWie] = useState<LidId[]>(
     bestaand?.soort === 'afspraak' ? bestaand.wie : bestaand?.soort === 'taak' && bestaand.voor ? [bestaand.voor] : vi?.wie ?? []);
   const [prive, zetPrive] = useState(herinvoerPrive || (bestaand?.soort === 'afspraak' && bestaand.zichtbaarheid === 'prive') || !!vi?.prive);
+  // F8: uit de slimme + ("Alles invullen"): de gekozen vakantie en Later nodig / Nu te kopen gaan mee en blijven te wijzigen.
+  const metVakantie = !bestaand && !herinvoerId && (!!vi?.vakantieId || vi?.later !== undefined);
+  const [vakantieKeuze, zetVakantieKeuze] = useState<string | null>(vi?.vakantieId ?? null);
+  const [laterKeuze, zetLaterKeuze] = useState(!!vi?.later);
   // Herhaling. Bij een voorkomen van een reeks kies je eerst: alleen deze afspraak, of de hele reeks.
   const voorkomen = bestaand?.soort === 'afspraak' ? bestaand : undefined;
   const reeks = voorkomen?.voorkomenVan
@@ -226,18 +231,23 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
       const taak = {
         id: vorig?.id ?? nieuwId('t'), soort: 'taak' as const, titel: t, datum: dag === 'ooit' ? null : dag,
         voor: wie[0] ?? null, klaar: vorig?.klaar ?? false, klaarOp: vorig?.klaarOp ?? null, versie: beginVersie,
-        // Dit formulier toont de vakantie niet; een bestaande koppeling blijft staan (F8).
-        vakantieId: vorig?.vakantieId,
+        // Dit formulier toont de vakantie niet; een bestaande koppeling blijft staan (F8). Uit de slimme +: de gekozen.
+        vakantieId: vorig ? vorig.vakantieId : metVakantie && vakantieKeuze ? vakantieKeuze : undefined,
       };
       if (herinvoerId && app.lokaal) app.lokaal.herinvoeren(herinvoerId, { ...taak, id: herinvoerId }, `${t} staat op de takenlijst`);
       else if (vorig) app.bijwerken(taak, `${t} aangepast`);
-      else app.toevoegen([taak], dag === 'ooit' ? `${t} staat op de lijst voor later` : `${t} staat op de takenlijst`);
+      else {
+        const v = taak.vakantieId ? staat.vakanties?.find(x => x.id === taak.vakantieId) : undefined;
+        app.toevoegen([taak], v ? `${t} staat bij de voorbereidingen van ${v.naam}` : dag === 'ooit' ? `${t} staat op de lijst voor later` : `${t} staat op de takenlijst`);
+      }
     } else if (herinvoerId && app.lokaal) {
       // Eén boodschap: dezelfde opdracht, dus niet splitsen in meerdere.
       const naam = t.charAt(0).toUpperCase() + t.slice(1);
       app.lokaal.herinvoeren(herinvoerId, { id: herinvoerId, soort: 'boodschap', naam, afgevinkt: false }, `${naam} staat op de lijst`);
     } else if (bestaand?.soort === 'boodschap') {
       app.bijwerken({ ...bestaand, naam: t.charAt(0).toUpperCase() + t.slice(1), versie: beginVersie }, `${t} aangepast`);
+    } else if (metVakantie) {
+      app.voegBoodschappenToe(splitsBoodschappen(t), vakantieKeuze ?? undefined, laterKeuze);
     } else {
       app.voegBoodschappenToe(splitsBoodschappen(t));
     }
@@ -444,6 +454,29 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
             {toonHerhaling && herhalen}
             {kanPriveKiezen && priveSchakel}
           </>
+        )}
+
+        {metVakantie && soort !== 'afspraak' && (
+          <div className="veld">
+            <span className="veld-label" id="vakantie-label">Vakantie</span>
+            <div className="keuzes" role="group" aria-labelledby="vakantie-label">
+              {kiesbareVakanties(staat.vakanties ?? [], vandaag, vakantieKeuze).map(x => (
+                <button type="button" key={x.id} className={'keuze' + (vakantieKeuze === x.id ? ' aan' : '')} aria-pressed={vakantieKeuze === x.id}
+                  onClick={() => { if (soort === 'boodschap' && !vakantieKeuze) zetLaterKeuze(true); zetVakantieKeuze(x.id); }}>{x.naam}</button>
+              ))}
+              <button type="button" className={'keuze' + (!vakantieKeuze ? ' aan' : '')} aria-pressed={!vakantieKeuze}
+                onClick={() => zetVakantieKeuze(null)}>Geen</button>
+            </div>
+          </div>
+        )}
+        {metVakantie && soort === 'boodschap' && (
+          <div className="veld">
+            <span className="veld-label" id="lijst-label">Op de lijst</span>
+            <div className="keuzes" role="group" aria-labelledby="lijst-label">
+              <button type="button" className={'keuze' + (!laterKeuze ? ' aan' : '')} aria-pressed={!laterKeuze} onClick={() => zetLaterKeuze(false)}>Nu te kopen</button>
+              <button type="button" className={'keuze' + (laterKeuze ? ' aan' : '')} aria-pressed={laterKeuze} onClick={() => zetLaterKeuze(true)}>Later nodig</button>
+            </div>
+          </div>
         )}
 
         <button type="submit" className="knop breed" onClick={bewaar}>

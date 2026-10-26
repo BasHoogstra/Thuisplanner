@@ -46,7 +46,7 @@ type Actie =
   | ({ type: 'bijwerken'; item: Item } & Wijziging)
   | ({ type: 'wissel'; id: string; vandaag: Datum } & Wijziging)
   | ({ type: 'verwijder'; ids: string[] } & Wijziging)
-  | { type: 'boodschappen'; namen: string[]; vakantieId?: string }
+  | { type: 'boodschappen'; namen: string[]; vakantieId?: string; later?: boolean }
   | ({ type: 'boodschapLater'; id: string; later: boolean } & Wijziging)
   | ({ type: 'voorkomenWijzigen'; reeksId: string; datum: Datum; afspraak: Afspraak } & Wijziging)
   | ({ type: 'voorkomenVerwijderen'; reeksId: string; datum: Datum } & Wijziging)
@@ -105,7 +105,7 @@ export function reducer(s: Staat, a: Actie): Staat {
       return wijzig(s, s.items.filter(i => !a.ids.includes(i.id)), a.melding);
     case 'boodschappen': {
       // Vanuit een vakantie: standaard bij "Later nodig" (zelfde regels als add_shopping_items met p_later).
-      const later = !!a.vakantieId;
+      const later = a.later ?? !!a.vakantieId;
       const r = voegBoodschappenToe(s.items, a.namen, () => nieuwId('b'), later);
       const sleutel = (n: string) => n.trim().toLocaleLowerCase('nl');
       const idVan = (naam: string) => (r.items.find(i => i.soort === 'boodschap' && sleutel(i.naam) === sleutel(naam)) as Boodschap | undefined)?.id;
@@ -229,7 +229,7 @@ export function useDemoStaat(vandaag: Datum) {
     verwijder: (ids: string[], melding?: string) => dispatch({ type: 'verwijder', ids, melding }),
     // Expliciete handelingen (in plaats van "vervang alles"): zo kan de lokale Supabase-modus precies
     // dezelfde handeling op de server uitvoeren (zie lokaal/staat.ts).
-    voegBoodschappenToe: (namen: string[], vakantieId?: string) => dispatch({ type: 'boodschappen', namen, vakantieId }),
+    voegBoodschappenToe: (namen: string[], vakantieId?: string, later?: boolean) => dispatch({ type: 'boodschappen', namen, vakantieId, later }),
     /** Tussen "Nu te kopen" en "Later nodig"; dezelfde boodschap, met ongedaan maken. */
     boodschapLater: (b: Boodschap, later: boolean) =>
       dispatch({ type: 'boodschapLater', id: b.id, later, melding: later ? `${b.naam} bij Later nodig` : `${b.naam} nu te kopen` }),

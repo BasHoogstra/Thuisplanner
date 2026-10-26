@@ -30,6 +30,14 @@ export const IcSluit = (p: SVGProps<SVGSVGElement>) => (
 export const IcSlot = (p: SVGProps<SVGSVGElement>) => (
   <svg {...basis({ width: 14, height: 14, ...p })}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
 );
+/** Versturen (de invoerbalk van de +): een pijl omhoog. */
+export const IcVerstuur = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis({ width: 22, height: 22, ...p })}><path d="M12 19V5" /><path d="M6 11l6-6 6 6" /></svg>
+);
+/** Het formulier (de invoerbalk van de +): drie regels met een vakje. */
+export const IcFormulier = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis({ width: 22, height: 22, ...p })}><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8 9h8M8 13h8M8 17h5" /></svg>
+);
 export const IcPijl = (p: SVGProps<SVGSVGElement>) => (
   <svg {...basis({ width: 16, height: 16, ...p })}><path d="M9 6l6 6-6 6" /></svg>
 );

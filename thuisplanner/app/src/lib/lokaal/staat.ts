@@ -111,14 +111,15 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
           if (alles && melding) meld(melding);
         })();
       },
-      voegBoodschappenToe: (namen: string[], vakantieId?: string) => {
+      voegBoodschappenToe: (namen: string[], vakantieId?: string, gekozen?: boolean) => {
         void (async () => {
           const uitkomst = { nieuw: [] as string[], alOpLijst: [] as string[], terug: [] as string[], naarNu: [] as string[] };
           // Vanuit een vakantie standaard bij "Later nodig" (de sync-module geeft p_later mee; zelfde regels als de demo).
-          const opties = vakantieId ? { vakantie: vakantieId } : undefined;
+          const later = gekozen ?? !!vakantieId;
+          const opties = vakantieId || gekozen !== undefined ? { ...(vakantieId ? { vakantie: vakantieId } : {}), ...(gekozen !== undefined ? { later: gekozen } : {}) } : undefined;
           for (const naam of namen) {
             // Stond hij bij "Later nodig" en voeg je hem op de gewone lijst toe, dan zet de server hem op "Nu te kopen".
-            const wasLater = !vakantieId && !!t()?.boodschappen.some(b => b.deferred && !b.checked_at && b.name?.trim().toLocaleLowerCase('nl') === naam.trim().toLocaleLowerCase('nl'));
+            const wasLater = !later && !!t()?.boodschappen.some(b => b.deferred && !b.checked_at && b.name?.trim().toLocaleLowerCase('nl') === naam.trim().toLocaleLowerCase('nl'));
             const r = await a()?.boodschapToevoegen(naam, opties);
             if (!r) continue;
             if (!r.ok) { if (r.mogelijkDubbel) void na(Promise.resolve(r), undefined, () => void a()?.boodschapToevoegen(naam, { ...opties, bewustNieuw: true })); continue; }
@@ -129,7 +130,7 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
               else uitkomst.nieuw.push(x.name);
             }
           }
-          if (uitkomst.nieuw.length + uitkomst.alOpLijst.length + uitkomst.terug.length + uitkomst.naarNu.length) meld(boodschappenMelding(uitkomst, !!vakantieId));
+          if (uitkomst.nieuw.length + uitkomst.alOpLijst.length + uitkomst.terug.length + uitkomst.naarNu.length) meld(boodschappenMelding(uitkomst, later));
         })();
       },
       wijzigVoorkomen: (reeksId: string, datum: Datum, afspraak: Afspraak, melding?: string) => {

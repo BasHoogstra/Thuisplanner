@@ -63,7 +63,7 @@ export function boodschappenMelding(r: Pick<BoodschappenResultaat, 'nieuw' | 'al
   if (r.nieuw.length === 1) delen.push(`${r.nieuw[0]} ${waar}`);
   else if (r.nieuw.length > 1) delen.push(later ? `${r.nieuw.length} boodschappen bij Later nodig` : `${r.nieuw.length} boodschappen toegevoegd`);
   if (r.terug.length) delen.push(later ? `${r.terug.join(', ')} weer bij Later nodig` : `${r.terug.join(', ')} weer nodig`);
-  if (r.naarNu?.length) delen.push(`${r.naarNu.join(', ')} nu te kopen`);
+  if (r.naarNu?.length) delen.push(`${r.naarNu.join(', ')} nu te kopen (stond bij Later nodig)`);
   if (r.alOpLijst.length) delen.push(`${r.alOpLijst.join(', ')} stond${r.alOpLijst.length > 1 ? 'en' : ''} er al op`);
   return delen.join(' · ') || 'Niets toegevoegd';
 }

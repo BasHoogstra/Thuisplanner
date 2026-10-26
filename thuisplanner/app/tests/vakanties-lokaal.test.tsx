@@ -83,6 +83,17 @@ describe('lokale modus: vakanties via de sync-module', () => {
     act(() => result.current.voegBoodschappenToe(['Muggenspray'], 'v1'));
     await wacht();
     expect(boodschapToevoegen).toHaveBeenCalledWith('Muggenspray', { vakantie: 'v1' });
+    // De slimme +: een eigen keuze voor Nu te kopen (met vakantie) of Later nodig (zonder) gaat mee naar de sync.
+    act(() => result.current.voegBoodschappenToe(['Pleisters'], 'v1', false));
+    await wacht();
+    expect(boodschapToevoegen).toHaveBeenCalledWith('Pleisters', { vakantie: 'v1', later: false });
+    act(() => result.current.voegBoodschappenToe(['Cadeaupapier'], undefined, true));
+    await wacht();
+    expect(boodschapToevoegen).toHaveBeenCalledWith('Cadeaupapier', { later: true });
+    // Een gewone boodschap: precies de oude aanroep.
+    act(() => result.current.voegBoodschappenToe(['Brood']));
+    await wacht();
+    expect(boodschapToevoegen).toHaveBeenCalledWith('Brood', undefined);
     let id: string | null = null;
     await act(async () => { id = await result.current.vakantieToevoegen({ naam: 'Zweden', vertrek: null, terug: null }); });
     expect(id).toBe('v-nieuw');

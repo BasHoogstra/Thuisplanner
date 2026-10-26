@@ -59,6 +59,7 @@ const MELDINGEN = {
   inhoudNietBewaard: 'De inhoud hiervan is om privacyredenen niet op dit toestel bewaard. Voer het opnieuw in om het af te maken; er komt geen tweede bij.',
   overnemenOnzeker: 'De verbinding viel weg tijdens het overnemen. Het is niet zeker of de paklijst is overgenomen. Opnieuw proberen maakt niets dubbel.',
   toegang: 'Je hebt geen toegang (meer) tot dit huishouden.',
+  vakantieWeg: 'Deze vakantie bestaat niet meer. De boodschap is niet toegevoegd.',
   dubbel: 'Dat staat er al.',
   ongeldig: 'Dat kan niet: controleer wat je hebt ingevuld.',
   fout: 'Er ging iets mis. Probeer het opnieuw.',
@@ -779,7 +780,10 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     } else {
       // Enige poging, zeker geweigerd (ongeldig, geen lid, ...): niets opgeslagen, niets te bewaren.
       if (nogBijgehouden) vergeet(o.id);
-      r = { ok: false, melding: meldingVoor(u.fout) };
+      // Een boodschap voor een vakantie die intussen verwijderd is: dat zeggen. (Bij een afspraak blijft P0002 bewust
+      // neutraal "geen toegang", om een privé-afspraak niet te verraden; een echte toegangsfout geeft hier 42501.)
+      const vakantieWeg = o.soort === 'boodschap' && o.tripId && u.fout?.code === 'P0002';
+      r = { ok: false, melding: vakantieWeg ? { soort: 'vakantie-weg', tekst: MELDINGEN.vakantieWeg } : meldingVoor(u.fout) };
     }
     if (!geldig(g)) return { ...r, vervallen: true };
     if (r.ok) {

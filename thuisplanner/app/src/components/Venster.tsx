@@ -1,17 +1,11 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
 import { IcSluit } from './Iconen';
 
 /**
- * Een rustig venster: onderaan op mobiel, in het midden op desktop. Escape en de sluitknop sluiten;
- * de focus blijft binnen het venster en gaat bij sluiten terug naar wat het opende.
+ * Het gedrag van elk venster: Escape sluit, Tab blijft binnen het venster, de pagina scrolt niet mee, en bij sluiten
+ * gaat de focus terug naar wat het opende. Gedeeld door het gewone venster en de invoerbalk van de + (SnelInvoer).
  */
-export function Venster({ titel, sluit, children, terugNaar }: {
-  titel: string; sluit: () => void; children: ReactNode;
-  /** Waar de focus na het sluiten heen gaat, als dat niet het element is dat nu de focus heeft (bijv. na een wissel van venster). */
-  terugNaar?: HTMLElement | null;
-}) {
-  const kopId = useId();
-  const venster = useRef<HTMLDivElement>(null);
+export function useVensterGedrag(venster: RefObject<HTMLElement | null>, sluit: () => void, terugNaar?: HTMLElement | null) {
   const terug = useRef(terugNaar ?? (document.activeElement as HTMLElement | null));
   const sluitRef = useRef(sluit);
   sluitRef.current = sluit;
@@ -37,7 +31,21 @@ export function Venster({ titel, sluit, children, terugNaar }: {
       document.body.classList.remove('geen-scroll');
       if (vorige?.isConnected) vorige.focus();
     };
-  }, []);
+  }, [venster]);
+}
+
+/**
+ * Een rustig venster: onderaan op mobiel, in het midden op desktop. Escape en de sluitknop sluiten;
+ * de focus blijft binnen het venster en gaat bij sluiten terug naar wat het opende.
+ */
+export function Venster({ titel, sluit, children, terugNaar }: {
+  titel: string; sluit: () => void; children: ReactNode;
+  /** Waar de focus na het sluiten heen gaat, als dat niet het element is dat nu de focus heeft (bijv. na een wissel van venster). */
+  terugNaar?: HTMLElement | null;
+}) {
+  const kopId = useId();
+  const venster = useRef<HTMLDivElement>(null);
+  useVensterGedrag(venster, sluit, terugNaar);
 
   return (
     <div className="laag" onMouseDown={e => { if (e.target === e.currentTarget) sluit(); }}>

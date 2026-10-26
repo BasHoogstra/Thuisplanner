@@ -20,7 +20,10 @@ it('toevoegen via het centrale venster, met ongedaan maken', async () => {
   // De centrale + is één zin (B2): zonder soort vooraf; "ramen lappen vandaag" is een taak voor vandaag (zonder dag
   // zou hij geen datum krijgen, besluit V1, en dus niet op Vandaag staan).
   await user.type(within(venster).getByLabelText('Wat wil je regelen?'), 'ramen lappen vandaag');
-  expect(within(venster).getByRole('button', { name: 'Taak' })).toBeInTheDocument();
+  // De kaart zegt in gewone taal wat het wordt: een taak (vinkje) voor vandaag.
+  expect(within(venster).getByText('Ramen lappen')).toBeInTheDocument();
+  expect(venster.querySelector('.kaart-regel')).toHaveTextContent('Vandaag');
+  expect(venster.querySelector('.kaart-icoon.taak')).not.toBeNull();
   await user.click(within(venster).getByRole('button', { name: 'Toevoegen' }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(screen.getByRole('checkbox', { name: /Ramen lappen/ })).toBeInTheDocument();
@@ -38,7 +41,7 @@ it('lege invoer wordt niet toegevoegd', async () => {
   await user.type(within(venster).getByLabelText('Wat wil je regelen?'), '   ');
   expect(within(venster).getByRole('button', { name: 'Toevoegen' })).toBeDisabled();
   // Via "Alles invullen" geldt de bestaande controle van het formulier.
-  await user.click(within(venster).getByRole('button', { name: 'Alles invullen' }));
+  await user.click(within(venster).getByRole('button', { name: 'Formulier' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Toevoegen' }));
   expect(within(screen.getByRole('dialog')).getByText('Geef het even een naam.')).toBeInTheDocument();
 });

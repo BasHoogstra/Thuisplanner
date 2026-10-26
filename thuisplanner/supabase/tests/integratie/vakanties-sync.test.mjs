@@ -270,6 +270,32 @@ test('V6 boodschap voor een vakantie: hergebruik sluit de oude koppeling af; ont
   assert.equal(koppeling().filter(k => k.settled_at).length, 1);
 });
 
+test('V11 slimme +: eigen keuze Nu of Later gaat mee; een verwijderde vakantie geeft een duidelijke melding en geen item', { timeout: 60000 }, async () => {
+  const { a, b } = await beide();
+  const v = await nieuweVakantie(a, 'Ierland');
+  // Met vakantie maar Nu gekozen: gekoppeld, niet bij Later nodig. Zonder vakantie maar Later gekozen: geen koppeling.
+  assert.ok((await a.acties.boodschapToevoegen('Regenjas', { vakantie: v, later: false })).ok);
+  assert.ok((await a.acties.boodschapToevoegen('Cadeaupapier', { later: true })).ok);
+  await totdat(() => b.toestand.boodschappen.some(x => x.name === 'Cadeaupapier'), 10000, 'Bram ziet Cadeaupapier');
+  await b.vernieuw();
+  const jas = b.toestand.boodschappen.find(x => x.name === 'Regenjas');
+  const papier = b.toestand.boodschappen.find(x => x.name === 'Cadeaupapier');
+  assert.equal(jas.deferred, false);
+  assert.equal(papier.deferred, true);
+  assert.ok(b.toestand.vakantieKoppelingen.some(k => k.shopping_item_id === jas.id && k.trip_id === v && !k.settled_at), 'Regenjas niet gekoppeld');
+  assert.equal(sql(`select count(*) from public.trip_shopping_links where shopping_item_id = '${papier.id}'`), '0');
+  // De vakantie wordt (door de ander) verwijderd terwijl de zin nog open staat: geen item, wel een duidelijke melding.
+  const weg = b.toestand.vakanties.find(x => x.id === v);
+  assert.ok((await b.acties.vakantieVerwijderen(weg)).ok);
+  const r = await a.acties.boodschapToevoegen('Ierse thee', { vakantie: v });
+  assert.equal(r.ok, false);
+  assert.equal(r.melding.soort, 'vakantie-weg');
+  assert.equal(sql(`select count(*) from public.shopping_items where name = 'Ierse thee'`), '0');
+  // Een afspraak met een onbekend id blijft neutraal "geen toegang" (privacy).
+  const w = await a.acties.afspraakBewaren({ id: randomUUID(), version: 1, start_date: '2026-11-21', title: 'X', visibility: 'household' });
+  assert.equal(w.melding.soort, 'toegang');
+});
+
 test('V10 Later nodig: vanuit een vakantie bij Later nodig, zichtbaar bij de ander; Nu kopen en terug met versie; gewone boodschap blijft Nu', { timeout: 60000 }, async () => {
   const { a, b } = await beide();
   const v = await nieuweVakantie(a, 'Zweden');
