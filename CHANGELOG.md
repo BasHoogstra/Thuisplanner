@@ -952,3 +952,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - **Contrast in de Dag:** voorbije afspraken, plek en eindtijd met `--inkt-2` in plaats van doorzichtigheid of `--inkt-3` (alleen in de Agenda).
 - Ongewijzigd: toevoegen, datum, gezinsfilter, "Bezet", detailvensters, gegevens, sync-module, de indeling van week en maand.
 - Tests: drie nieuwe e2e-tests en een uitgebreide contrasttest in `e2e/agenda.spec.ts`; `week.spec.ts` (afvinken en terug) aangepast aan het inklappen. Typecheck, 468 unittests en 315 demo-e2e-tests groen (320–1280 px, licht en donker); tegenproeven gevangen. Geen migratie.
+
+## Thuisplanner Agenda stap 3: taken zonder datum ingeklapt (26 oktober 2026, lokaal)
+- **A8:** onder de dag en de week één kopje met knop "Zonder datum · n open" (of "· niets open"), standaard ingeklapt, met een altijd zichtbare telling; op de laptop-Dag een zijkolom rechts, daar altijd uitgeklapt. Afgeronde taken zonder datum zijn apart in te klappen. Nieuw: `components/ZonderDatum.tsx`; `Afgerond` herbruikbaar in `components/DagBlok.tsx`.
+- Open of dicht blijft staan tijdens het navigeren (optioneel veld `zonderDatumOpen` in `AgendaStand`), niet na herladen. `App.tsx` ongewijzigd.
+- Ongewijzigd: gezinsfilter, afvinken, privacy, gegevens, sync-module; de Maand en Vandaag tonen geen taken zonder datum.
+- Productrichting (niet gebouwd): een taak zonder datum moet later via Vandaag of de actieve assistent alsnog aandacht kunnen krijgen. Productbeslissing O7 (later bouwen): een taak zonder toegewezen gezinslid blijft bij ieder gezinsfilter zichtbaar, binnen de leesrechten van het account.
+- Tests: drie nieuwe e2e-tests in `e2e/agenda.spec.ts` (ook contrast, tikvlak van 44 px, 320 px en donker); `kg3.spec.ts` klapt eerst open. Typecheck, 468 unittests en 336 demo-e2e-tests groen; tegenproef gevangen. Geen migratie.

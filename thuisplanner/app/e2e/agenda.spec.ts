@@ -211,3 +211,74 @@ test('Week: afgerond staat per dag ingeklapt en is per dag open te klappen (A7)'
   expect(await gebrokenWoorden(page)).toEqual([]);
   await geenHorizontaleScroll(page);
 });
+
+// ---------- Stap 3: taken zonder datum ingeklapt (A8) ----------
+const zdKnop = (p: Page) => p.getByRole('button', { name: /^Zonder datum · / });
+const zdLijst = (p: Page) => p.getByRole('list', { name: 'Taken zonder datum' });
+
+test('Zonder datum: standaard ingeklapt met een zichtbare telling; de stand blijft staan tijdens het navigeren (A8)', async ({ page }) => {
+  await weergave(page, 'Week');
+  await expect(page.getByRole('heading', { name: /^Zonder datum · 1 open/ })).toBeVisible();
+  await expect(zdKnop(page)).toHaveText('Zonder datum · 1 open');
+  await expect(zdKnop(page)).toHaveAttribute('aria-expanded', 'false');
+  await expect(zdLijst(page)).toBeHidden();
+  await zdKnop(page).click();
+  await expect(zdKnop(page)).toHaveAttribute('aria-expanded', 'true');
+  await expect(zdLijst(page)).toContainText('Aanslag gemeentebelasting nakijken');
+  // Naar Vandaag en terug, en via de Dag terug naar de Week: nog steeds open.
+  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Vandaag' }).click();
+  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Agenda' }).click();
+  await expect(zdKnop(page)).toHaveAttribute('aria-expanded', 'true');
+  await weergave(page, 'Dag');
+  await expect(zdLijst(page)).toBeVisible();
+  await weergave(page, 'Week');
+  await zdKnop(page).click();
+  await expect(zdLijst(page)).toBeHidden();
+  // De Maand heeft geen lijst zonder datum (zoals voorheen).
+  await weergave(page, 'Maand');
+  await expect(page.getByRole('heading', { name: /^Zonder datum/ })).toHaveCount(0);
+  const c = await (async () => { await weergave(page, 'Week'); return laagsteContrast(page, '.zd-knop, .zd-telling'); })();
+  expect(c!.waarde).toBeGreaterThanOrEqual(4.5);
+  const knop = await zdKnop(page).boundingBox();
+  expect(knop!.height, 'de knop is groot genoeg om te raken').toBeGreaterThanOrEqual(44);
+  await geenHorizontaleScroll(page);
+});
+
+test('Zonder datum op de Dag: laptop in een zijkolom, altijd open; mobiel en tablet ingeklapt onder de dag (A8)', async ({ page }) => {
+  await weergave(page, 'Dag');
+  const blok = await page.locator('.dagblok').boundingBox();
+  if (isDesktop(page)) {
+    await expect(zdLijst(page)).toBeVisible();
+    await expect(zdKnop(page)).toBeHidden();
+    await expect(page.getByRole('heading', { name: /^Zonder datum · 1 open/ })).toBeVisible();
+    const zij = await page.locator('.zonder-datum.zij').boundingBox();
+    expect(zij!.x, 'de zijkolom staat rechts van de dag').toBeGreaterThan(blok!.x + blok!.width);
+  } else {
+    await expect(zdKnop(page)).toHaveAttribute('aria-expanded', 'false');
+    await expect(zdLijst(page)).toBeHidden();
+    const knop = await zdKnop(page).boundingBox();
+    expect(knop!.y, 'de knop staat onder de dag').toBeGreaterThan(blok!.y + blok!.height);
+  }
+  expect(await gebrokenWoorden(page)).toEqual([]);
+  await geenHorizontaleScroll(page);
+});
+
+test('Zonder datum: afvinken gaat naar een eigen ingeklapte groep afgerond; de telling blijft zichtbaar; het gezinsfilter werkt zoals voorheen', async ({ page }) => {
+  await weergave(page, 'Week');
+  await zdKnop(page).click();
+  await zdLijst(page).getByRole('checkbox', { name: 'Aanslag gemeentebelasting nakijken' }).click();
+  await expect(zdKnop(page)).toHaveText('Zonder datum · niets open');
+  const sectie = page.locator('section.zonder-datum');
+  const afgerond = sectie.getByRole('button', { name: '1 afgerond · tonen' });
+  await expect(afgerond).toHaveAttribute('aria-expanded', 'false');
+  await afgerond.click();
+  const lijst = page.getByRole('list', { name: 'Afgerond zonder datum' });
+  await lijst.getByRole('checkbox', { name: 'Aanslag gemeentebelasting nakijken' }).click();
+  await expect(zdKnop(page)).toHaveText('Zonder datum · 1 open');
+  // Het filter werkt zoals voorheen (taakPast): met één lid gekozen vallen taken zonder persoon weg, met Iedereen komen ze terug.
+  const filter = page.getByRole('group', { name: 'Wiens agenda' });
+  await filter.getByRole('button', { name: 'Thomas' }).click();
+  await expect(page.getByRole('heading', { name: /^Zonder datum/ })).toHaveCount(0);
+  await filter.getByRole('button', { name: 'Iedereen' }).click();
+  await expect(zdKnop(page)).toHaveText('Zonder datum · 1 open');
+});

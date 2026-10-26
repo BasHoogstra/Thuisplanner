@@ -378,6 +378,22 @@ a { color: var(--accent); }
 .agenda .rij.voorbij .rij-streep { opacity: .4; }
 .agenda .plek, .agenda .rij-tijd small { color: var(--inkt-2); }
 .week-afgerond .afgerond-knop { padding: 8px 2px 8px 71px; font-size: 14px; }
+/* Agenda (stap 3, A8): taken zonder datum standaard ingeklapt, met een altijd zichtbare telling. */
+.zonder-datum { margin-top: 24px; }
+.zd-kop { margin: 0 0 6px; }
+.zd-knop {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 2px; border: 0; background: none;
+  color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left;
+}
+.zd-knop::before {
+  content: ""; flex: 0 0 auto; width: 7px; height: 7px; margin: 0 6px 3px 2px; border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform .15s;
+}
+.zonder-datum.open .zd-knop::before { transform: rotate(45deg); margin-bottom: 5px; }
+.zd-telling { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 14px; color: var(--inkt-2); }
+.zd-titel, .zd-inhoud { display: none; }
+.zonder-datum.open .zd-inhoud { display: block; }
+.zonder-datum .afgerond { margin-top: 6px; }
 .dag-acties { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .dag-acties .knop { gap: 6px; }
 .herhaalt { display: inline-flex; align-items: center; }
@@ -499,6 +515,12 @@ a { color: var(--accent); }
   .week-rij.afspraak .week-sub::before { content: "·"; color: var(--inkt-2); }
   .week-rij.afspraak.voorbij .week-rij-knop { border-left-color: color-mix(in srgb, var(--kleur) 40%, transparent); }
   .week-afgerond .afgerond-knop { padding: 6px 6px; font-size: 13px; }
+  /* Laptop-Dag (A8): de dag links, "Zonder datum" in een zijkolom rechts, daar altijd uitgeklapt. */
+  .dag-raster { display: grid; grid-template-columns: minmax(0, 680px) minmax(240px, 320px); gap: 32px; align-items: start; }
+  .zonder-datum.zij { margin-top: 16px; }
+  .zonder-datum.zij .zd-knop { display: none; }
+  .zonder-datum.zij .zd-titel { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+  .zonder-datum.zij .zd-inhoud { display: block; }
 }
 
 /* ---------- Lokale modus (alleen met een lokale Supabase) ---------- */

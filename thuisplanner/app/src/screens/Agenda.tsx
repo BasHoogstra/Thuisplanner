@@ -3,13 +3,13 @@ import { useApp, type AgendaWeergave } from '../lib/context';
 import {
   langeDatum, langeDatumHoofdletter, maandagVan, plusDagen, vanDatum, weekBereik, weekdagKort, weekNummer,
 } from '../lib/datum';
-import { taakPast } from '../lib/filter';
 import { dagInhoud, drukte, maandBegin, maandRaster, plusMaanden } from '../lib/kalender';
 import { titelVoor } from '../lib/rechten';
-import { isVoorbij, takenZonderDatum } from '../lib/vandaag';
+import { isVoorbij } from '../lib/vandaag';
 import type { Datum } from '../lib/types';
 import { DagBlok } from '../components/DagBlok';
-import { lidKleur, TaakRij, WeekAfspraakRij, WeekTaakRij } from '../components/Rijen';
+import { lidKleur, WeekAfspraakRij, WeekTaakRij } from '../components/Rijen';
+import { ZonderDatum } from '../components/ZonderDatum';
 import { IcLinks, IcPijl, IcPlus } from '../components/Iconen';
 
 const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september',
@@ -19,12 +19,11 @@ const WEERGAVEN: { id: AgendaWeergave; label: string }[] = [
 ];
 
 export function Agenda() {
-  const { agenda, zetAgenda, vandaag, huishouden, staat, lokaal } = useApp();
+  const { agenda, zetAgenda, vandaag, huishouden, lokaal } = useApp();
   const { weergave, datum, filter } = agenda;
   const stap = (n: number) => zetAgenda({
     datum: weergave === 'dag' ? plusDagen(datum, n) : weergave === 'week' ? plusDagen(datum, 7 * n) : plusMaanden(datum, n),
   });
-  const zonderDatum = takenZonderDatum(staat.items).filter(t => taakPast(t, filter));
 
   const titel = weergave === 'dag' ? dagTitel(datum, vandaag)
     : weergave === 'week' ? weekTitel(datum, vandaag)
@@ -70,16 +69,9 @@ export function Agenda() {
         </div>
       </header>
 
-      {weergave === 'dag' && <DagWeergave />}
-      {weergave === 'week' && <WeekWeergave />}
+      {weergave === 'dag' && <div className="dag-raster"><DagWeergave /><ZonderDatum zij /></div>}
+      {weergave === 'week' && <><WeekWeergave /><ZonderDatum /></>}
       {weergave === 'maand' && <MaandWeergave />}
-
-      {weergave !== 'maand' && zonderDatum.length > 0 && (
-        <section aria-labelledby="h-ooit" className="blok">
-          <h2 id="h-ooit" className="sectie-kop">Taken zonder datum</h2>
-          <ul className="lijst">{zonderDatum.map(t => <TaakRij key={t.id} t={t} />)}</ul>
-        </section>
-      )}
       <p className="demo-noot">{lokaal ? 'Nog niet' : 'Demo'}: delen met mensen buiten het gezin en uitnodigingen komen in een latere fase.</p>
     </div>
   );

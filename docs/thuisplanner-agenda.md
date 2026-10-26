@@ -47,6 +47,7 @@
 | O4 | Meerdaagse afspraken staan alleen op de eerste dag | Oplossen vóór de agendakoppelingen (stap 9) |
 | O5 | De vakantie in de Agenda | Na de merge van Vakanties (stap 8) |
 | O6 | Agendakoppelingen in Gratis of Premium | Productbesluit voor later |
+| O7 | **Taken zonder toegewezen gezinslid en het gezinsfilter** | **Productbeslissing (26 oktober 2026), voor latere implementatie, niet in stap 3.** Een taak zonder toegewezen gezinslid geldt als een gezamenlijke, nog niet opgepakte taak en blijft bij ieder gezinsfilter zichtbaar, net als een afspraak voor iedereen. Dit geldt uitsluitend voor taken waarvoor het account leesrechten heeft: het gezinsfilter mag nooit privacyrechten omzeilen. Nu filtert `taakPast` (`lib/filter.ts`) zulke taken weg zodra één lid gekozen is; dat gedrag en de bestaande test ("één lid: …" in `e2e/kg4.spec.ts`) blijven tot de implementatie ongewijzigd. Raakt bij de bouw Week, Dag en Zonder datum |
 
 ## 3. Herziening van W2 (D5 en D6)
 
@@ -124,6 +125,28 @@ Alleen de Agenda, alleen CSS en weergave; geen gegevens, geen gedrag.
 - **Tests:** drie nieuwe tests in `e2e/agenda.spec.ts` (één blok en volgorde, lege dag, afgerond in Dag en Week,
   afvinken heen en terug) en de contrasttest uitgebreid met de Dag; `week.spec.ts` "afvinken in de week, en terug"
   aangepast aan het inklappen. Tegenproeven: afgerond standaard open, en de oude doorzichtigheid, worden gevangen.
+
+### Stap 3: taken zonder datum ingeklapt (26 oktober 2026, lokaal)
+
+**Uitgangspunt van de producteigenaar:** taken zonder datum mogen in de Agenda standaard ingeklapt zijn, maar mogen
+nooit definitief uit beeld verdwijnen. Later moet een taak zonder datum via Vandaag of de actieve assistent
+(`docs/thuisplanner-meldingen.md`) alsnog aandacht kunnen krijgen wanneer dat relevant is; dat is productrichting en
+niet gebouwd in deze stap.
+
+- **Mobiel, tablet en Week (A8):** onder de dag of de week één kopje met knop "Zonder datum · n open" (of "· niets
+  open"), standaard ingeklapt; één tik toont de lijst. De telling is altijd zichtbaar. Nieuw:
+  `components/ZonderDatum.tsx`.
+- **Laptop-Dag:** "Zonder datum" in een zijkolom rechts van de dag, daar altijd uitgeklapt (vanaf 960 px; alleen CSS).
+- **Afgerond:** binnen "Zonder datum" apart ingeklapt ("n afgerond · tonen"); hetzelfde onderdeel als in de Dag
+  (`Afgerond` in `components/DagBlok.tsx`).
+- **Onthouden:** open of dicht staat in `AgendaStand.zonderDatumOpen` (optioneel veld) en blijft staan bij het wisselen
+  tussen Dag en Week en naar Vandaag en terug; na herladen is het weer dicht. `App.tsx` is niet gewijzigd.
+- **Ongewijzigd:** het gezinsfilter (met één lid gekozen vallen taken zonder persoon weg, zoals voorheen in `taakPast`),
+  afvinken, openen, privacy, gegevens, sync-module; de Maand toont geen taken zonder datum; Vandaag ook niet.
+- **Tests:** drie nieuwe tests in `e2e/agenda.spec.ts` (ingeklapt met telling, openen en sluiten, stand bij navigeren,
+  Maand zonder lijst, contrast en tikvlak van minstens 44 px; zijkolom op de laptop-Dag en ingeklapt op mobiel en tablet;
+  afvinken naar de eigen afgerond-groep en het filter). `kg3.spec.ts` "taken zonder datum staan in de agenda" klapt nu
+  eerst open. Tegenproef: standaard open wordt gevangen.
 
 ## 5. Latere agendakoppelingen (productrichting, nu niet bouwen)
 

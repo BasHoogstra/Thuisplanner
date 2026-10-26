@@ -64,7 +64,9 @@ test.describe('Agenda: weekweergave', () => {
   test('taken zonder datum staan in de agenda, niet op Vandaag', async ({ page }) => {
     await expect(page.getByText('Aanslag gemeentebelasting nakijken')).toHaveCount(0);
     await nav(page, 'Agenda');
-    await expect(sectie(page, 'Taken zonder datum')).toContainText('Aanslag gemeentebelasting nakijken');
+    // Agenda A8: standaard ingeklapt, met een telling; openklappen toont de taak.
+    await page.getByRole('button', { name: 'Zonder datum · 1 open' }).click();
+    await expect(page.getByRole('list', { name: 'Taken zonder datum' })).toContainText('Aanslag gemeentebelasting nakijken');
   });
 });
 
