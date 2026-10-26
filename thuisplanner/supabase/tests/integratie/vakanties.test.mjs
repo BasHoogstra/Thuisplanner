@@ -157,3 +157,36 @@ test('vakanties realtime: seintjes van de drie vakantietabellen bevatten alleen 
   }
   await wout.removeChannel(k);
 });
+
+test('extra inpaklijsten via de API: maken, items, verwijderen en herstellen, overnemen; buitenstaander niets; oude app-risico', async () => {
+  const v1 = randomUUID(), v2 = randomUUID(), lijst = randomUUID();
+  ok(await vera.from('trips').insert([{ id: v1, household_id: h, name: 'Bron' }, { id: v2, household_id: h, name: 'Doel' }]));
+  ok(await vera.from('trip_packing_lists').insert({ id: lijst, household_id: h, trip_id: v1, name: 'Paard' }));
+  ok(await wout.from('trip_packing_items').insert([{ household_id: h, trip_id: v1, list_id: lijst, name: 'Zadel' },
+    { household_id: h, trip_id: v1, list_id: lijst, name: 'Hoefkrabber' }]));
+  // Dezelfde naam en de naam van een lid: geweigerd, met een databasecode die de app kan vertalen.
+  assert.equal((await wout.from('trip_packing_lists').insert({ household_id: h, trip_id: v1, name: 'paard' })).error?.code, '23505');
+  assert.equal((await wout.from('trip_packing_lists').insert({ household_id: h, trip_id: v1, name: 'Wout' })).error?.code, '23514');
+  // Hernoemen met versie (zoals de sync-module).
+  assert.equal(ok(await wout.from('trip_packing_lists').update({ name: 'Pony' }).eq('id', lijst).eq('version', 1).select('id,version')).length, 1);
+  // Verwijderen en herstellen via de functies; herhalen is veilig.
+  const weg = ok(await vera.rpc('delete_packing_list', { p_household: h, p_list: lijst, p_version: 2 }))[0];
+  assert.deepEqual([weg.outcome, weg.items], ['verwijderd', 2]);
+  assert.equal(ok(await vera.rpc('delete_packing_list', { p_household: h, p_list: lijst, p_version: 2 }))[0].outcome, 'al_verwijderd');
+  assert.equal(ok(await vera.from('trip_packing_items').select('id').eq('list_id', lijst).is('deleted_at', null)).length, 0);
+  const terug = ok(await wout.rpc('restore_packing_list', { p_household: h, p_list: lijst, p_version: weg.version }))[0];
+  assert.deepEqual([terug.outcome, terug.items], ['hersteld', 2]);
+  // Overnemen met de lijst; zonder p_lists niet (ook niet als Gezamenlijk).
+  ok(await wout.rpc('copy_packing_items', { p_household: h, p_command: randomUUID(), p_from_trip: v1, p_to_trip: v2 }));
+  assert.equal(ok(await vera.from('trip_packing_items').select('id').eq('trip_id', v2).is('deleted_at', null)).length, 0);
+  const over = ok(await wout.rpc('copy_packing_items', { p_household: h, p_command: randomUUID(), p_from_trip: v1, p_to_trip: v2, p_lists: [lijst] }));
+  assert.equal(over.length, 2);
+  assert.ok(over.every(x => x.list_id && x.list_id !== lijst && x.member_id === null));
+  // Buitenstaander: ziet niets, kan niets.
+  assert.equal(ok(await otto.from('trip_packing_lists').select('id').eq('household_id', h)).length, 0);
+  assert.ok((await otto.rpc('delete_packing_list', { p_household: h, p_list: lijst, p_version: terug.version })).error);
+  assert.ok((await otto.from('trip_packing_lists').insert({ household_id: h, trip_id: v1, name: 'Otto' })).error);
+  // Oude app-risico (§20.6): wie list_id niet ophaalt, ziet een item van een extra lijst als Gezamenlijk.
+  const oud = ok(await vera.from('trip_packing_items').select('id,member_id,name').eq('trip_id', v1).is('deleted_at', null));
+  assert.ok(oud.every(x => x.member_id === null), 'zonder list_id lijkt een item van een extra lijst een Gezamenlijk-item');
+});

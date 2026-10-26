@@ -120,7 +120,7 @@ const checks = {
     assert(/rollback;\s*$/i.test(sql), 'rls_tests.sql moet met rollback; eindigen');
     assert(!/\bcommit\b/i.test(sql), 'rls_tests.sql mag geen commit bevatten');
     const nummers = [...new Set([...sql.matchAll(/pg_temp\.ok\('(KG-T\d\d)'\)/g)].map(m => m[1]))];
-    assert(nummers.length === 84, 'Verwacht 84 genummerde scenario\'s, gevonden ' + nummers.length);
+    assert(nummers.length === 88, 'Verwacht 88 genummerde scenario\'s, gevonden ' + nummers.length);
   },
 
   'tegenproeven: elke regel noemt een bestaand scenario'() {

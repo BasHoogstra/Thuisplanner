@@ -2651,6 +2651,175 @@ begin
 end $$;
 set local role authenticated;
 
+-- KG-T85 Extra inpaklijsten (§20): ieder lid maakt en hernoemt; dezelfde naam hoogstens één keer per vakantie (ook na
+-- hernoemen); niet de naam van een actief lid of "Gezamenlijk" (een gearchiveerd lid wel); geen lijst bij een
+-- verwijderde vakantie of een vakantie van een ander huishouden; vaste kolommen, deleted_at en echt verwijderen kunnen
+-- niet via de API; buitenstaander en gearchiveerd lid zien en schrijven niets.
+do $$ declare h text := current_setting('test.hv'); v1 text := current_setting('test.v1'); v2 text := current_setting('test.v2');
+  l1 uuid := gen_random_uuid(); n bigint; begin
+  perform pg_temp.als('vera');
+  execute format($q$ insert into public.trip_packing_lists (id, household_id, trip_id, name) values (%L, %L, %L, 'Paard') $q$, l1, h, v1);
+  if (select version from public.trip_packing_lists where id = l1) <> 1 then raise exception 'KG-T85: nieuwe lijst niet op versie 1'; end if;
+  perform set_config('test.l_paard_v1', l1::text, true);
+  if pg_temp.fout(format($q$ insert into public.trip_packing_lists (household_id, trip_id, name) values (%L, %L, ' paard ') $q$, h, v1)) is distinct from '23505' then raise exception 'KG-T85: dezelfde naam twee keer bij een vakantie'; end if;
+  execute format($q$ insert into public.trip_packing_lists (household_id, trip_id, name) values (%L, %L, 'Paard') $q$, h, v2);   -- andere vakantie: mag
+  if pg_temp.fout(format($q$ insert into public.trip_packing_lists (household_id, trip_id, name) values (%L, %L, 'Gezamenlijk') $q$, h, v1)) is distinct from '23514' then raise exception 'KG-T85: lijst "Gezamenlijk" toegestaan'; end if;
+  if pg_temp.fout(format($q$ insert into public.trip_packing_lists (household_id, trip_id, name) values (%L, %L, 'PIEN') $q$, h, v1)) is distinct from '23514' then raise exception 'KG-T85: lijst met de naam van een lid toegestaan'; end if;
+  execute format($q$ insert into public.trip_packing_lists (household_id, trip_id, name) values (%L, %L, 'Xan') $q$, h, v1);   -- gearchiveerd lid: mag
+  -- Hernoemen: versie loopt op; niet naar een lid of een bestaande naam.
+  if pg_temp.geraakt(format($q$ update public.trip_packing_lists set name = 'Pony' where id = %L and version = 1 $q$, l1)) <> 1 then raise exception 'KG-T85: hernoemen kan niet'; end if;
+  if (select version from public.trip_packing_lists where id = l1) <> 2 then raise exception 'KG-T85: versie niet verhoogd'; end if;
+  if pg_temp.fout(format($q$ update public.trip_packing_lists set name = 'wout' where id = %L $q$, l1)) is distinct from '23514' then raise exception 'KG-T85: hernoemen naar een lid toegestaan'; end if;
+  if pg_temp.fout(format($q$ update public.trip_packing_lists set name = 'xan' where id = %L $q$, l1)) is distinct from '23505' then raise exception 'KG-T85: hernoemen naar een bestaande lijst toegestaan'; end if;
+  -- Vaste kolommen en rechten.
+  if not pg_temp.faalt(format($q$ update public.trip_packing_lists set trip_id = %L where id = %L $q$, v2, l1)) then raise exception 'KG-T85: lijst naar een andere vakantie verplaatst'; end if;
+  if not pg_temp.faalt(format($q$ update public.trip_packing_lists set deleted_at = now() where id = %L $q$, l1)) then raise exception 'KG-T85: deleted_at direct schrijfbaar'; end if;
+  if not pg_temp.faalt(format($q$ update public.trip_packing_lists set version = 99 where id = %L $q$, l1)) then raise exception 'KG-T85: eigen versie gezet'; end if;
+  if not pg_temp.faalt(format($q$ delete from public.trip_packing_lists where id = %L $q$, l1)) then raise exception 'KG-T85: echt verwijderen kan'; end if;
+  if pg_temp.fout(format($q$ insert into public.trip_packing_lists (household_id, trip_id, name) values (%L, %L, 'Laat') $q$, h, current_setting('test.v3'))) is distinct from 'P0002' then raise exception 'KG-T85: lijst bij een verwijderde vakantie'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trip_packing_lists (household_id, trip_id, name) values (%L, %L, 'Vreemd') $q$, h, current_setting('test.vo'))) then raise exception 'KG-T85: lijst bij een vakantie van een ander huishouden'; end if;
+  -- Buitenstaander en gearchiveerd lid.
+  perform pg_temp.als('otto');
+  if pg_temp.aantal(format('select 1 from public.trip_packing_lists where household_id = %L', h)) <> 0 then raise exception 'KG-T85: buitenstaander ziet lijsten'; end if;
+  if pg_temp.geraakt(format($q$ update public.trip_packing_lists set name = 'Gekaapt' where id = %L $q$, l1)) <> 0 then raise exception 'KG-T85: buitenstaander hernoemt'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trip_packing_lists (household_id, trip_id, name) values (%L, %L, 'Otto') $q$, h, v1)) then raise exception 'KG-T85: buitenstaander maakt een lijst'; end if;
+  perform pg_temp.als('xan');
+  if pg_temp.aantal(format('select 1 from public.trip_packing_lists where household_id = %L', h)) <> 0 then raise exception 'KG-T85: gearchiveerd lid ziet lijsten'; end if;
+  perform pg_temp.ok('KG-T85');
+end $$;
+
+-- KG-T86 Items in een extra lijst: alleen in een lijst van dezelfde vakantie én hetzelfde huishouden; nooit tegelijk
+-- bij een lid; dezelfde tekst hoogstens één keer per lijst (wel in een andere lijst, bij een lid of Gezamenlijk);
+-- verplaatsen tussen lijst, lid en Gezamenlijk binnen de vakantie; leden- en Gezamenlijk-items werken als voorheen.
+do $$ declare h text := current_setting('test.hv'); v1 text := current_setting('test.v1'); v2 text := current_setting('test.v2');
+  l1 text := current_setting('test.l_paard_v1'); l2 uuid; lo uuid := gen_random_uuid(); item uuid; begin
+  perform pg_temp.als('otto');
+  execute format($q$ insert into public.trip_packing_lists (id, household_id, trip_id, name) values (%L, %L, %L, 'Otto-lijst') $q$, lo, current_setting('test.ho'), current_setting('test.vo'));
+  perform pg_temp.als('vera');
+  select id into l2 from public.trip_packing_lists where household_id = h::uuid and trip_id = v2::uuid and name = 'Paard';
+  execute format($q$ insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (%L, %L, %L, 'Zadel') returning id $q$, h, v1, l1) into item;
+  if not pg_temp.faalt(format($q$ insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (%L, %L, %L, 'Fout') $q$, h, v1, l2)) then raise exception 'KG-T86: item in een lijst van een andere vakantie'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (%L, %L, %L, 'Fout') $q$, h, v1, lo)) then raise exception 'KG-T86: item in een lijst van een ander huishouden'; end if;
+  if not pg_temp.faalt(format($q$ insert into public.trip_packing_items (household_id, trip_id, member_id, list_id, name) values (%L, %L, %L, %L, 'Fout') $q$, h, v1, current_setting('test.m_vera'), l1)) then raise exception 'KG-T86: item bij een lid én een lijst'; end if;
+  if pg_temp.fout(format($q$ insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (%L, %L, %L, 'zadel ') $q$, h, v1, l1)) is distinct from '23505' then raise exception 'KG-T86: dezelfde tekst twee keer in een lijst'; end if;
+  execute format($q$ insert into public.trip_packing_items (household_id, trip_id, name) values (%L, %L, 'Zadel') $q$, h, v1);   -- Gezamenlijk: mag
+  execute format($q$ insert into public.trip_packing_items (household_id, trip_id, member_id, name) values (%L, %L, %L, 'Zadel') $q$, h, v1, current_setting('test.m_pien'));   -- lid: mag
+  -- Verplaatsen: naar een lijst van een andere vakantie niet; naar Gezamenlijk (bezet) niet; naar een lid en terug wel.
+  if not pg_temp.faalt(format($q$ update public.trip_packing_items set list_id = %L where id = %L $q$, l2, item)) then raise exception 'KG-T86: item naar een lijst van een andere vakantie verplaatst'; end if;
+  if pg_temp.fout(format($q$ update public.trip_packing_items set list_id = null where id = %L $q$, item)) is distinct from '23505' then raise exception 'KG-T86: verplaatsen naar Gezamenlijk maakte een dubbel'; end if;
+  if not pg_temp.faalt(format($q$ update public.trip_packing_items set member_id = %L where id = %L $q$, current_setting('test.m_wout'), item)) then raise exception 'KG-T86: item bij een lid én een lijst (via bijwerken)'; end if;
+  if pg_temp.geraakt(format($q$ update public.trip_packing_items set list_id = null, member_id = %L where id = %L $q$, current_setting('test.m_wout'), item)) <> 1 then raise exception 'KG-T86: van lijst naar lid kan niet'; end if;
+  if pg_temp.geraakt(format($q$ update public.trip_packing_items set member_id = null, list_id = %L where id = %L $q$, l1, item)) <> 1 then raise exception 'KG-T86: van lid naar lijst kan niet'; end if;
+  -- Otto kan niets in de lijst van Vera.
+  perform pg_temp.als('otto');
+  if not pg_temp.faalt(format($q$ insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (%L, %L, %L, 'Otto') $q$, h, v1, l1)) then raise exception 'KG-T86: buitenstaander voegt toe aan een lijst'; end if;
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where list_id = %L', l1)) <> 0 then raise exception 'KG-T86: buitenstaander ziet items van een lijst'; end if;
+  perform pg_temp.ok('KG-T86');
+end $$;
+
+-- KG-T87 Een lijst verwijderen en herstellen: alleen via de functies, met versie (anders PT409); lijst en items samen,
+-- precies die items terug (een los eerder verwijderd item blijft weg); herhalen is veilig; niets in of terug naar een
+-- verwijderde lijst; een intussen gemaakte lijst met dezelfde naam blokkeert herstellen zonder bijwerking; een
+-- buitenstaander kan het niet.
+do $$ declare h uuid := current_setting('test.hv')::uuid; v1 uuid := current_setting('test.v1')::uuid;
+  lk uuid := gen_random_uuid(); los uuid; r record; nieuw uuid; begin
+  perform pg_temp.als('vera');
+  insert into public.trip_packing_lists (id, household_id, trip_id, name) values (lk, h, v1, 'Kampeerspullen');
+  insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (h, v1, lk, 'Tent'), (h, v1, lk, 'Haringen');
+  insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (h, v1, lk, 'Oud') returning id into los;
+  update public.trip_packing_items set deleted_at = now() - interval '1 day' where id = los;
+  if pg_temp.fout(format('select public.delete_packing_list(%L, %L, 99)', h, lk)) is distinct from 'PT409' then raise exception 'KG-T87: verkeerde versie gaf geen conflict'; end if;
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where list_id = %L and deleted_at is null', lk)) <> 2 then raise exception 'KG-T87: conflict had een bijwerking'; end if;
+  select * into r from public.delete_packing_list(h, lk, 1);
+  if r.outcome <> 'verwijderd' or r.items <> 2 then raise exception 'KG-T87: verwijderen (%, %)', r.outcome, r.items; end if;
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where list_id = %L and deleted_at is null', lk)) <> 0 then raise exception 'KG-T87: items blijven zichtbaar na verwijderen'; end if;
+  select * into r from public.delete_packing_list(h, lk, 1);
+  if r.outcome <> 'al_verwijderd' or r.version <> 2 then raise exception 'KG-T87: herhaald verwijderen had een bijwerking'; end if;
+  if pg_temp.fout(format($q$ insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (%L, %L, %L, 'Laat') $q$, h, v1, lk)) is distinct from 'P0002' then raise exception 'KG-T87: item in een verwijderde lijst'; end if;
+  if pg_temp.fout(format($q$ update public.trip_packing_items set deleted_at = null where list_id = %L and name = 'Tent' $q$, lk)) is distinct from 'P0002' then raise exception 'KG-T87: item terug in een verwijderde lijst'; end if;
+  -- Een nieuwe lijst met dezelfde naam blokkeert herstellen (zonder bijwerking).
+  insert into public.trip_packing_lists (household_id, trip_id, name) values (h, v1, 'kampeerspullen') returning id into nieuw;
+  if pg_temp.fout(format('select public.restore_packing_list(%L, %L, 2)', h, lk)) is distinct from '23505' then raise exception 'KG-T87: herstellen naast een lijst met dezelfde naam'; end if;
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where list_id = %L and deleted_at is null', lk)) <> 0 then raise exception 'KG-T87: mislukt herstellen had een bijwerking'; end if;
+  perform public.delete_packing_list(h, nieuw, 1);
+  -- Buitenstaander.
+  perform pg_temp.als('otto');
+  if pg_temp.fout(format('select public.restore_packing_list(%L, %L, 2)', h, lk)) is distinct from '42501' then raise exception 'KG-T87: buitenstaander herstelt'; end if;
+  if pg_temp.fout(format('select public.delete_packing_list(%L, %L, 1)', h, current_setting('test.l_paard_v1'))) is distinct from '42501' then raise exception 'KG-T87: buitenstaander verwijdert'; end if;
+  perform pg_temp.als('vera');
+  if pg_temp.fout(format('select public.restore_packing_list(%L, %L, 1)', h, lk)) is distinct from 'PT409' then raise exception 'KG-T87: herstellen met een oude versie'; end if;
+  select * into r from public.restore_packing_list(h, lk, 2);
+  if r.outcome <> 'hersteld' or r.items <> 2 then raise exception 'KG-T87: herstellen (%, %)', r.outcome, r.items; end if;
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where list_id = %L and deleted_at is null', lk)) <> 2
+     or exists (select 1 from public.trip_packing_items where id = los and deleted_at is null) then raise exception 'KG-T87: niet precies de items van de lijst teruggezet'; end if;
+  select * into r from public.restore_packing_list(h, lk, 3);
+  if r.outcome <> 'al_hersteld' then raise exception 'KG-T87: herhaald herstellen had een bijwerking'; end if;
+  perform pg_temp.ok('KG-T87');
+end $$;
+
+-- KG-T88 Overnemen met extra lijsten en de catalogus: zonder p_lists geen items van extra lijsten (ook niet als
+-- Gezamenlijk); met p_lists: een bestaande lijst met die naam aanvullen (niets overschreven), anders een nieuwe lijst;
+-- herhalen maakt niets dubbel; een lijst van een andere vakantie of met de naam van een lid wordt geweigerd of
+-- overgeslagen; seintjes zonder inhoud; vergrendelen vóór de lidmaatschapscontrole; deleted_at niet schrijfbaar.
+do $$ declare h uuid := current_setting('test.hv')::uuid; v2 uuid := current_setting('test.v2')::uuid;
+  doel uuid := gen_random_uuid(); paard uuid; oma uuid; zus uuid; bestaand uuid; c uuid := gen_random_uuid(); n bigint;
+  f text; def text; m record; begin
+  perform pg_temp.als('vera');
+  select id into paard from public.trip_packing_lists where trip_id = v2 and name = 'Paard' and deleted_at is null;
+  insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (h, v2, paard, 'Zadel'), (h, v2, paard, 'Hoefkrabber');
+  insert into public.trip_packing_lists (household_id, trip_id, name) values (h, v2, 'Oma') returning id into oma;
+  insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (h, v2, oma, 'Pillen');
+  insert into public.trip_packing_lists (household_id, trip_id, name) values (h, v2, 'Zus') returning id into zus;
+  insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (h, v2, zus, 'Pop');
+  insert into public.trips (id, household_id, name) values (doel, h, 'Doelreis');
+  insert into public.trip_packing_lists (household_id, trip_id, name) values (h, doel, 'paard') returning id into bestaand;
+  insert into public.trip_packing_items (household_id, trip_id, list_id, name) values (h, doel, bestaand, 'Zadel');
+  -- Zonder lijsten: Gezamenlijk krijgt alleen de echte Gezamenlijk-items.
+  perform public.copy_packing_items(h, gen_random_uuid(), v2, doel);
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where trip_id = %L and member_id is null and list_id is null and name in (%L, %L, %L)', doel, 'Hoefkrabber', 'Pillen', 'Pop')) <> 0 then raise exception 'KG-T88: items van een extra lijst als Gezamenlijk overgenomen'; end if;
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where trip_id = %L and list_id is not null', doel)) <> 1 then raise exception 'KG-T88: extra lijst zonder keuze overgenomen'; end if;
+  -- Een nieuw lid "Zus": die lijst wordt overgeslagen.
+  perform public.add_member(h, 'Zus', 'child');
+  select count(*) into n from public.copy_packing_items(h, c, v2, doel, null, false, array[paard, oma, zus]) r where r.list_id is not null;
+  if pg_temp.aantal(format('select 1 from public.trip_packing_items where list_id = %L and deleted_at is null', bestaand)) <> 2 then raise exception 'KG-T88: bestaande lijst niet aangevuld (of overschreven)'; end if;
+  if pg_temp.aantal(format($q$ select 1 from public.trip_packing_lists where trip_id = %L and deleted_at is null $q$, doel)) <> 2 then raise exception 'KG-T88: verkeerd aantal lijsten na overnemen'; end if;
+  if pg_temp.aantal(format($q$ select 1 from public.trip_packing_lists where trip_id = %L and name = 'Zus' $q$, doel)) <> 0 then raise exception 'KG-T88: lijst met de naam van een lid overgenomen'; end if;
+  if exists (select 1 from public.trip_packing_items where trip_id = doel and packed_at is not null) then raise exception 'KG-T88: overgenomen item afgevinkt'; end if;
+  -- Herhalen: dezelfde uitkomst, niets dubbel.
+  perform public.copy_packing_items(h, c, v2, doel, null, false, array[paard, oma, zus]);
+  if pg_temp.aantal(format($q$ select 1 from public.trip_packing_lists where trip_id = %L and deleted_at is null $q$, doel)) <> 2
+     or pg_temp.aantal(format('select 1 from public.trip_packing_items where trip_id = %L and list_id is not null and deleted_at is null', doel)) <> 3 then raise exception 'KG-T88: herhaald overnemen maakte iets dubbel'; end if;
+  -- Fouten zonder bijwerking.
+  if pg_temp.fout(format('select public.copy_packing_items(%L, %L, %L, %L, null, false, array[%L]::uuid[])', h, gen_random_uuid(), v2, doel, current_setting('test.l_paard_v1'))) is distinct from 'P0002' then raise exception 'KG-T88: lijst van een andere vakantie overgenomen'; end if;
+  if pg_temp.fout(format('select public.copy_packing_items(%L, %L, %L, %L, %L, false, array[%L]::uuid[])', h, gen_random_uuid(), v2, doel, current_setting('test.m_vera'), oma)) is distinct from '22023' then raise exception 'KG-T88: één persoon én lijsten'; end if;
+  -- Catalogus.
+  reset role;
+  if not exists (select 1 from pg_trigger g join pg_proc p on p.oid = g.tgfoid
+                 where g.tgrelid = 'public.trip_packing_lists'::regclass and p.proname = 'ping_content' and not g.tgisinternal) then raise exception 'KG-T88: lijsten zenden geen seintje'; end if;
+  if not exists (select 1 from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0]
+                 where i.indrelid = 'public.trip_packing_lists'::regclass and a.attname = 'household_id') then raise exception 'KG-T88: geen index die met household_id begint'; end if;
+  for m in select payload from realtime.messages where payload->>'t' = 'trip_packing_lists' loop
+    if exists (select 1 from jsonb_object_keys(m.payload) k where k not in ('t', 'id', 'v', 'op')) then raise exception 'KG-T88: seintje bevat meer dan t/id/v/op'; end if;
+    if m.payload::text ~* '(paard|pony|oma|kampeer|zus)' then raise exception 'KG-T88: seintje bevat inhoud'; end if;
+  end loop;
+  if not exists (select 1 from realtime.messages where payload->>'t' = 'trip_packing_lists') then raise exception 'KG-T88: geen seintje ontvangen voor lijsten'; end if;
+  foreach f in array array['delete_packing_list', 'restore_packing_list', 'copy_packing_items'] loop
+    select pg_get_functiondef(p.oid) into def from pg_proc p where p.pronamespace = 'private'::regnamespace and p.proname = f;
+    if def is null or position('private.lock_household_shared(' in def) = 0
+       or position('private.is_active_member(' in def) between 1 and position('private.lock_household_shared(' in def) then
+      raise exception 'KG-T88: private.% vergrendelt niet vóór de lidmaatschapscontrole', f;
+    end if;
+  end loop;
+  if has_column_privilege('authenticated', 'public.trip_packing_lists', 'deleted_at', 'update')
+     or has_column_privilege('authenticated', 'public.trip_packing_lists', 'trip_id', 'update')
+     or has_table_privilege('authenticated', 'public.trip_packing_lists', 'delete')
+     or has_table_privilege('anon', 'public.trip_packing_lists', 'select') then
+    raise exception 'KG-T88: rechten op trip_packing_lists te ruim';
+  end if;
+  perform pg_temp.ok('KG-T88');
+end $$;
+set local role authenticated;
+
 -- KG-T73 tot en met KG-T75: de poort als positieve eis (bouwverslag deel 2, §7.3). Niet "zoek verboden tekst", maar
 -- "bewijs dat de poort gebruikt wordt". Een nieuwe functie, policy of view die dat niet aantoonbaar doet, laat de matrix
 -- falen totdat iemand bewust kiest (een regel in de uitzonderingslijst, met een reden).
@@ -2726,6 +2895,6 @@ do $$ declare r record; begin
 end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 84' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 88' as resultaat;
 
 rollback;

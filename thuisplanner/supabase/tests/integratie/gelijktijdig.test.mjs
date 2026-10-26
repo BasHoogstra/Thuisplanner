@@ -389,3 +389,81 @@ test('Vakanties: dezelfde boodschap tegelijk voor een vakantie: één boodschap,
   const links = Number((await db.query(`select count(*) from public.trip_shopping_links where trip_id = $1 and deleted_at is null and settled_at is null`, [doel])).rows[0].count);
   toets('boodschap met koppeling', items !== 1 || links !== 1, uitkomst, { weigering: false });
 });
+
+
+// ============================== F8 Vakanties: extra inpaklijsten (§20) ==============================
+async function vakantieMetLijst(prefix) {
+  const v = await vakantieMetPaklijst(prefix);
+  v.lijst = randomUUID();
+  await alsDoe(v.sam, `insert into public.trip_packing_lists (id, household_id, trip_id, name) values ($1, $2, $3, 'Paard')`, [v.lijst, v.h, v.doel]);
+  await alsDoe(v.sam, `insert into public.trip_packing_items (household_id, trip_id, list_id, name) values ($1, $2, $3, 'Zadel')`, [v.h, v.doel, v.lijst]);
+  return v;
+}
+const actiefInLijst = async lijst => Number((await db.query(
+  `select count(*) from public.trip_packing_items p join public.trip_packing_lists l on l.id = p.list_id
+   where p.list_id = $1 and p.deleted_at is null and l.deleted_at is not null`, [lijst])).rows[0].count);
+
+test('Extra lijsten: een lijst verwijderen terwijl iemand een item toevoegt: nooit een item in een verwijderde lijst', async () => {
+  const { sam, noa, h, doel, lijst } = await vakantieMetLijst('l1');
+  // Tegenproef: de bewaking zonder gedeelde vergrendeling van de lijst (alleen de verwijzing blijft).
+  let bewaking;
+  if (TEGENPROEF) {
+    bewaking = (await db.query(`select pg_get_functiondef('private.guard_trip_packing_item()'::regprocedure) as d`)).rows[0].d;
+    await db.query(bewaking.replace(/\s+for share;/, ';').replace(/if not found then\s+raise exception 'Inpaklijst niet gevonden' using errcode = 'P0002';\s+end if;/, ''));
+  }
+  try {
+    const uitkomst = await race(
+      async c1 => { await als(c1, sam); await c1.query('select * from public.delete_packing_list($1, $2, 1)', [h, lijst]); },
+      async c2 => { await als(c2, noa); return volg(c2.query(`insert into public.trip_packing_items (household_id, trip_id, list_id, name) values ($1, $2, $3, 'Cap')`, [h, doel, lijst])); });
+    toets('item in verwijderde lijst', (await actiefInLijst(lijst)) > 0, uitkomst);
+    if (!TEGENPROEF) assert.equal(uitkomst.fout2?.code, 'P0002');
+  } finally {
+    if (bewaking) await db.query(bewaking);
+  }
+});
+
+test('Extra lijsten: tegelijk dezelfde naam aanmaken: één lijst', zonderTegenproef, async () => {
+  const { sam, noa, h, doel } = await vakantieMetPaklijst('l2');
+  const maak = (c, naam) => c.query('insert into public.trip_packing_lists (household_id, trip_id, name) values ($1, $2, $3)', [h, doel, naam]);
+  const uitkomst = await race(
+    async c1 => { await als(c1, sam); await maak(c1, 'Hond'); },
+    async c2 => { await als(c2, noa); return volg(maak(c2, ' hond ')); });
+  const n = Number((await db.query(`select count(*) from public.trip_packing_lists where trip_id = $1 and name_key = 'hond' and deleted_at is null`, [doel])).rows[0].count);
+  toets('dubbele lijst', n !== 1, uitkomst);
+  assert.equal(uitkomst.fout2?.code, '23505');
+});
+
+test('Extra lijsten: herstellen terwijl iemand een lijst met dezelfde naam maakt: één actieve lijst', zonderTegenproef, async () => {
+  const { sam, noa, h, doel, lijst } = await vakantieMetLijst('l3');
+  await alsDoe(sam, 'select * from public.delete_packing_list($1, $2, 1)', [h, lijst]);
+  const uitkomst = await race(
+    async c1 => { await als(c1, sam); await c1.query('select * from public.restore_packing_list($1, $2, 2)', [h, lijst]); },
+    async c2 => { await als(c2, noa); return volg(c2.query(`insert into public.trip_packing_lists (household_id, trip_id, name) values ($1, $2, 'paard')`, [h, doel])); });
+  const n = Number((await db.query(`select count(*) from public.trip_packing_lists where trip_id = $1 and name_key = 'paard' and deleted_at is null`, [doel])).rows[0].count);
+  toets('twee actieve lijsten met dezelfde naam', n !== 1, uitkomst);
+  assert.equal(uitkomst.fout2?.code, '23505');
+});
+
+test('Extra lijsten: hernoemen en verwijderen tegelijk: het verwijderen met de oude versie krijgt een conflict', zonderTegenproef, async () => {
+  const { sam, noa, h, lijst } = await vakantieMetLijst('l4');
+  const uitkomst = await race(
+    async c1 => { await als(c1, sam); await c1.query(`update public.trip_packing_lists set name = 'Pony' where id = $1 and version = 1`, [lijst]); },
+    async c2 => { await als(c2, noa); return volg(c2.query('select * from public.delete_packing_list($1, $2, 1)', [h, lijst])); });
+  const weg = (await db.query('select deleted_at from public.trip_packing_lists where id = $1', [lijst])).rows[0].deleted_at;
+  toets('verwijderen met een oude versie', weg !== null, uitkomst);
+  assert.equal(uitkomst.fout2?.code, 'PT409');
+});
+
+test('Extra lijsten: twee keer tegelijk overnemen met lijsten: één lijst per naam, niets dubbel', zonderTegenproef, async () => {
+  const { sam, noa, h, bron, doel } = await vakantieMetPaklijst('l5');
+  const oma = randomUUID();
+  await alsDoe(sam, `insert into public.trip_packing_lists (id, household_id, trip_id, name) values ($1, $2, $3, 'Oma')`, [oma, h, bron]);
+  await alsDoe(sam, `insert into public.trip_packing_items (household_id, trip_id, list_id, name) values ($1, $2, $3, 'Pillen'), ($1, $2, $3, 'Bril')`, [h, bron, oma]);
+  const neem = c => c.query('select * from public.copy_packing_items($1, $2, $3, $4, null, false, $5)', [h, randomUUID(), bron, doel, [oma]]);
+  const uitkomst = await race(
+    async c1 => { await als(c1, sam); await neem(c1); },
+    async c2 => { await als(c2, noa); return volg(neem(c2)); });
+  const lijsten = Number((await db.query(`select count(*) from public.trip_packing_lists where trip_id = $1 and name_key = 'oma' and deleted_at is null`, [doel])).rows[0].count);
+  const items = Number((await db.query(`select count(*) from public.trip_packing_items where trip_id = $1 and list_id is not null and deleted_at is null`, [doel])).rows[0].count);
+  toets('dubbel overnemen met lijsten', lijsten !== 1 || items !== 2, uitkomst, { weigering: false });
+});
