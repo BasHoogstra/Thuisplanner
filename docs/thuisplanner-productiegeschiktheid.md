@@ -79,6 +79,8 @@ stijgen de kosten met het aantal toestellen keer de geschiedenis keer de 30-seco
 
 De eerste implementatie mag intern nog alles ophalen. Later wordt dat gericht ophalen, zonder dat de schermen
 veranderen. Daarvoor is een productbesluit nodig: hoe ver terug Agenda en Taken moeten kunnen kijken (B-data hieronder).
+Sinds 26 oktober 2026 is er een extra reden: de latere agendakoppelingen (Google, Microsoft, Apple) brengen jaren aan
+afspraken mee. Ophalen per periode is nodig vóór die koppelingen (`docs/thuisplanner-agenda.md` §5).
 
 ### F3. Offline is een open productbesluit dat de sync bepaalt
 

@@ -1,13 +1,14 @@
+import type { CSSProperties } from 'react';
 import { useApp, type AgendaWeergave } from '../lib/context';
 import {
   langeDatum, langeDatumHoofdletter, maandagVan, plusDagen, vanDatum, weekBereik, weekdagKort, weekNummer,
 } from '../lib/datum';
 import { taakPast } from '../lib/filter';
-import { dagInhoud, maandBegin, maandRaster, plusMaanden } from '../lib/kalender';
+import { dagInhoud, drukte, maandBegin, maandRaster, plusMaanden } from '../lib/kalender';
 import { titelVoor } from '../lib/rechten';
 import { isVoorbij, takenZonderDatum } from '../lib/vandaag';
 import type { Datum } from '../lib/types';
-import { AfspraakRij, TaakRij, WeekAfspraakRij, WeekTaakRij } from '../components/Rijen';
+import { AfspraakRij, lidKleur, TaakRij, WeekAfspraakRij, WeekTaakRij } from '../components/Rijen';
 import { IcLinks, IcPijl, IcPlus } from '../components/Iconen';
 
 const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september',
@@ -34,7 +35,7 @@ export function Agenda() {
   const eenheid = weergave === 'dag' ? 'dag' : weergave === 'week' ? 'week' : 'maand';
 
   return (
-    <div className="scherm scherm-breed">
+    <div className="scherm scherm-breed agenda">
       <header className="kop agenda-kop">
         <h1>Agenda</h1>
         <div className="agenda-balk">
@@ -194,8 +195,9 @@ function WeekWeergave() {
 }
 
 /**
- * Maand: een rustig raster. Per dag subtiele stippen (afspraken, in de kleur van het lid) en een streepje
- * voor open taken; op desktop ook de eerste titels. Een dag aantikken opent het dagoverzicht.
+ * Maand (A5): een rustig raster. Mobiel per dag alleen het getal en één neutraal streepje voor hoe vol de dag is; desktop
+ * de eerste twee titels (met een streepje in de lidkleur), "nog n" en "n taken". Geen legenda. Een dag aantikken opent
+ * het dagoverzicht.
  */
 function MaandWeergave() {
   const { agenda, zetAgenda, staat, vandaag, lid, huishouden } = useApp();
@@ -225,19 +227,14 @@ function MaandWeergave() {
                   <button type="button" className="maand-knop" onClick={() => zetAgenda({ weergave: 'dag', datum })}
                     aria-label={`${langeDatum(datum)}${datum === vandaag ? ' (vandaag)' : ''}: ${beschrijving}`}>
                     <span className="maand-nr">{vanDatum(datum).getDate()}</span>
-                    <span className="maand-stippen" aria-hidden="true">
-                      {afspraken.slice(0, 3).map(a => (
-                        <span key={a.id} className="maand-stip"
-                          style={{ background: a.wie.length === 1 ? lid(a.wie[0])?.kleur : 'var(--inkt-3)' }} />
-                      ))}
-                      {afspraken.length > 3 && <span className="maand-meer">+{afspraken.length - 3}</span>}
-                      {open.length > 0 && <span className="maand-taak" />}
-                    </span>
+                    <span className={'maand-drukte n' + drukte(afspraken.length + open.length)} aria-hidden="true" />
                     <span className="maand-titels" aria-hidden="true">
-                      {afspraken.slice(0, 2).map(a => (
-                        <span key={a.id}>{titelVoor(a, huishouden.ik)}</span>
-                      ))}
-                      {afspraken.length > 2 && <span className="nog">+{afspraken.length - 2}</span>}
+                      {afspraken.slice(0, 2).map(a => {
+                        const kleur = lidKleur(a.wie, lid);
+                        return <span key={a.id} style={kleur ? { '--kleur': kleur } as CSSProperties : undefined}>{titelVoor(a, huishouden.ik)}</span>;
+                      })}
+                      {afspraken.length > 2 && <span className="nog">nog {afspraken.length - 2}</span>}
+                      {open.length > 0 && <span className="nog">{open.length} {open.length === 1 ? 'taak' : 'taken'}</span>}
                     </span>
                   </button>
                 </div>
@@ -246,10 +243,6 @@ function MaandWeergave() {
           </div>
         ))}
       </div>
-      <p className="maand-legenda" aria-hidden="true">
-        <span><span className="maand-stip" style={{ background: 'var(--inkt-3)' }} /> afspraak</span>
-        <span><span className="maand-taak" /> open taak</span>
-      </p>
     </div>
   );
 }
