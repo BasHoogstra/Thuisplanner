@@ -501,6 +501,15 @@ De integratietest `uitnodigingsmail.test.mjs` (14 tests) toetst:
   - het gedrag van de taken na het pauzeren en hervatten van een gratis project (de bèta).
 - **H14 en H15** (zie §4.2) gelden nu voor deze opzet: V1 tot en met V9 met de echte aanbieder, en de bezorgmeldingen
   via `mail-bezorging`.
+- **Open lokale controles op de geïntegreerde stand (Vakanties, slimme + en Agenda, merge `5fbc966`, 26 oktober 2026):**
+  twee integratietests draaien niet in de testcontainer van de Vakanties-werkmap. Beide falen daar al sinds de
+  Vakanties-integratie (I1) op dezelfde manier; de merges raken hun onderdelen niet. Vóór de bèta moeten ze op die
+  stand geslaagd zijn, in een volledige omgeving (de workflow `thuisplanner-db.yml`, of lokaal met `docker` en de
+  geheimen):
+  - `k1.test.mjs`, scenario AC-11/AC-12 (geen codes of `token_hash` in de logboeken): leest de containerlogboeken met
+    `docker logs`, en in de testcontainer is geen `docker` (`spawnSync docker ENOENT`). De andere 15 k1-tests slagen.
+  - `uitnodigingsmail.test.mjs`: de genegeerde lokale geheimen `supabase/functions/.env` ontbreken in deze werkmap.
+    Niet overgenomen uit een andere werkmap zonder akkoord.
 
 ### 8.5 Beslissingen voor jou
 

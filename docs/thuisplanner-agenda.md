@@ -45,7 +45,7 @@
 | O2 | Vegen tussen dagen | Niet in de eerste versie; eerst tikken |
 | O3 | Herhalende afspraken maken de maand vol | Nu niet aanpassen; eerst Sanne laten oordelen |
 | O4 | Meerdaagse afspraken staan alleen op de eerste dag | Oplossen vóór de agendakoppelingen (stap 9) |
-| O5 | De vakantie in de Agenda | Na de merge van Vakanties (stap 8) |
+| O5 | De vakantie in de Agenda | De vakantieregel per dag werkt sinds de merge met Vakanties (26 oktober 2026, zie "Merge met Vakanties"); de vakantie als periode in week, strip en maand blijft stap 8 |
 | O6 | Agendakoppelingen in Gratis of Premium | Productbesluit voor later |
 | O7 | **Taken zonder toegewezen gezinslid en het gezinsfilter** | **Productbeslissing (26 oktober 2026), voor latere implementatie, niet in stap 3.** Een taak zonder toegewezen gezinslid geldt als een gezamenlijke, nog niet opgepakte taak en blijft bij ieder gezinsfilter zichtbaar, net als een afspraak voor iedereen. Dit geldt uitsluitend voor taken waarvoor het account leesrechten heeft: het gezinsfilter mag nooit privacyrechten omzeilen. Nu filtert `taakPast` (`lib/filter.ts`) zulke taken weg zodra één lid gekozen is; dat gedrag en de bestaande test ("één lid: …" in `e2e/kg4.spec.ts`) blijven tot de implementatie ongewijzigd. Raakt bij de bouw Week, Dag en Zonder datum |
 
@@ -173,6 +173,33 @@ Onder 960 px (iPhone en tablet); de laptop houdt tot stap 5 de zeven kolommen. V
   eerst de dag in de strip en opent `kiesFilter` eerst het filterpaneel (`e2e/hulp-agenda.ts`); op de laptop doen ze
   niets. Geen test overgeslagen of verwijderd. Tegenproef: zonder strip (overal de laptopweergave) falen de nieuwe tests.
 
+### Merge met Vakanties (26 oktober 2026, lokaal, merge-commit `5fbc966`)
+
+Stap 0 t/m 4 (`49326e5`) samengevoegd met de geïntegreerde Vakanties-branch (slimme +, paklijsten, Later nodig). Het
+conflict rond de vakantieregel is bewust opgelost, niet door één kant te kiezen:
+
+- **Dag:** de vakantieregel staat boven het dagblok. **Week:** onder de dagkop van elke dag; op iPhone en tablet bij de
+  gekozen dag. Een dag met alleen een vakantie is niet "Niets gepland".
+- **Weekstrip en "Rest van de week":** noemen de vakantie ("Vakantie Frankrijk"); in de strip alleen voor schermlezers.
+- **Rijen:** het vakantielabel blijft, het rondje in de lidkleur komt erbij.
+- **Zonder datum:** voorbereidingen van een vakantie zonder datum staan erin, met het vakantielabel (zoals op de
+  Vakanties-branch); de demo heeft er daardoor twee open.
+- **Tests:** vitest 562/562; e2e 262 geslaagd (13 overgeslagen); mobiel 146/146; RLS, integratie, sync en alle
+  tegenproeven als vóór de merge. Mobiel doorgelopen in een browser op 390 en 320 px (donker): Agenda met weekstrip en
+  dagkeuze, vakanties, de slimme + vanaf een vakantiedag en vanaf Vandaag, een nieuwe vakantie, het gezinsfilter,
+  Vandaag en Boodschappen; geen fouten, geen schuiven opzij.
+
+**Open na de merge:**
+
+| # | Punt | Wanneer |
+| --- | --- | --- |
+| M1 | **Test op een echte iPhone** (toetsenbord, scrollen, tikken) van de samengevoegde versie: nog niet gedaan; alleen een browser op telefoonformaat | Vóór de test met Sanne |
+| M2 | **Verbeterpunt weekstrip:** een vakantiedag is in de strip niet zichtbaar gemarkeerd (alleen voor schermlezers); de dag zelf en "Rest van de week" tonen hem wel | Stap 8 (de vakantie als periode) |
+| M3 | **Verbeterpunt 320 px:** in de kop van de Agenda zakt de pijl "Volgende" naar een tweede regel naast "Naar vandaag". Komt uit de bestaande kop, niet uit de merge | Een volgende Agenda-stap, met een eigen akkoord |
+
+De twee omgevingstests die in deze opzet niet draaien (k1 AC-11/12 en `uitnodigingsmail.test.mjs`) staan als
+controle vóór de bèta in `docs/thuisplanner-deel2-bouwverslag.md` §8.4.
+
 ## 5. Latere agendakoppelingen (productrichting, nu niet bouwen)
 
 **Productbesluit (26 oktober 2026):** Thuisplanner wordt een volwaardige gezinsagenda die ook bestaande agenda's kan
@@ -214,8 +241,8 @@ Outlook/Microsoft 365 en, waar technisch haalbaar, Apple/iCloud. Er worden nu ge
 
 ## 6. Samenwerking met andere trajecten
 
-- **Vakanties** (`thuisplanner-vakanties`, nog niet gemerged): wijzigt ook `Agenda.tsx` (vakantieregel), `Rijen.tsx`
-  (vakantielabel) en `app.css`. De vakantieweergave in de Agenda komt pas in stap 8, na die merge.
+- **Vakanties:** stap 0 t/m 4 zijn op 26 oktober 2026 lokaal samengevoegd met `thuisplanner-vakanties` (zie "Merge met
+  Vakanties" in §4). Volgende Agenda-stappen bouwen op die branch; de vakantie als periode blijft stap 8.
 - **Slimme +:** wijzigt `kg4.spec.ts`, `SnelInvoer.tsx` en de snelinvoer-documentatie. Stap 7 (de + met de datum) in
   overleg; de Agenda-stappen raken die bestanden verder niet.
 - `docs/thuisplanner-vakanties.md` §4.5 en `docs/thuisplanner-snelinvoer.md` worden pas na de commits van die trajecten

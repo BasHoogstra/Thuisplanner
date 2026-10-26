@@ -1024,3 +1024,8 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - **4b (A6):** op iPhone en tablet het gezinsfilter achter één knop naast de titel, met een paneel waarin alle leden passen; kiezen sluit het paneel.
 - Nieuw: `lib/breedte.ts`, `components/Weekstrip.tsx`, `beschrijfDag()` in `lib/kalender.ts` (ook voor de Maand). Weg: de mobiele groep met lege dagen (D5). Geen wijziging aan `App.tsx`, gegevens of de sync-module; geen migratie.
 - Tests: drie nieuwe e2e-tests in `e2e/agenda.spec.ts` en een unittest; `week.spec.ts` aangepast; `kg3.spec.ts` en `kg4.spec.ts` kiezen op mobiel eerst de dag of openen het filterpaneel via `e2e/hulp-agenda.ts` (geen test overgeslagen of verwijderd). Typecheck, 470 unittests en 357 demo-e2e-tests groen (320, 360, 390, 768 en 1280 px, licht en donker); tegenproef gevangen.
+
+## Thuisplanner: Agenda (stap 0–4) samengevoegd met Vakanties (26 oktober 2026, lokaal)
+- Merge-commit `5fbc966` in `thuisplanner-vakanties`. De vakantieregel staat in de nieuwe Agenda: boven het dagblok (Dag), onder de dagkop (Week, op iPhone bij de gekozen dag); de weekstrip (schermlezer) en "Rest van de week" noemen de vakantie. Rijen houden het vakantielabel en krijgen het rondje in de lidkleur.
+- Tests: vitest 562/562, e2e 262 geslaagd, mobiel 146/146, RLS en tegenproeven, integratie- en synctests als vóór de merge; mobiel doorgelopen op 390 en 320 px. Geen migratie, niet gepusht; Huisplan en staging ongemoeid.
+- Open: de test op een echte iPhone (M1), verbeterpunten weekstrip en 320 px (M2, M3) in `docs/thuisplanner-agenda.md`; de twee omgevingstests (k1 AC-11/12, uitnodigingsmail) als controle vóór de bèta in `docs/thuisplanner-deel2-bouwverslag.md` §8.4.
