@@ -14,6 +14,8 @@ wordt hier niet gewijzigd of aangevuld.
   alleen de naam in de tekst bijgewerkt (de oude werknaam vervangen door Thuisplanner); de inhoud is ongewijzigd. De
   beslissingen 1–10 zijn daarbij niet herschreven; besluit 11 legt alleen vast wanneer gate 9 nu
   geldt en dat de importgates ongewijzigd blijven.
+- Op 26 oktober 2026 is besluit 12 toegevoegd (gescheiden ouders en samengestelde gezinnen), met de keuzes O1–O8 en
+  twee nieuwe gates. De beslissingen 1–11 zijn daarbij niet herschreven.
 - De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
@@ -26,6 +28,8 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 | Het ledenregister op de echte planner is gecontroleerd. | Start van fase 1.5 | Beslissing 8 |
 | Vóór `SupabaseStore` huishouddata gaat lezen/schrijven, moet de Supabase-autorisatie/RLS het onderscheid tussen gedeelde en afgeschermde huishouddata veilig kunnen ondersteunen voor de gegevens waarvoor dat op dat moment nodig is (security/privacy-gate). | 1.10 | Beslissing 9 |
 | De navigatie is getoetst aan werkelijk gebruik. | Fase 3.1 | Beslissing 2 |
+| Koppelingen tussen huishoudens: een gekoppeld huishouden, en een lid zonder toegang in de koppeling, ziet aantoonbaar niets buiten de expliciet gedeelde items; lid worden geeft geen toegang; intrekken werkt direct op de server; de bestaande RLS en huishoudgrenzen zijn niet verzwakt; de AVG-beoordeling voor het delen van kindgegevens is gedaan. Bewezen met testmatrix en tegenproeven (gate 9 voor het domein "koppelingen"). | De eerste migratie met een koppel- of deeltabel, en opnieuw voor ieder volgend gedeeld domein | Beslissing 12 |
+| Optie B (co-ouderschapsomgeving) start pas na een afzonderlijk productbesluit, op basis van werkelijk gebruik van optie A. | De eerste stap van optie B | Beslissing 12 |
 
 ## Beslissingen
 
@@ -161,3 +165,53 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   - De navigatiegate (beslissing 2) blijft.
 - **Wat niet verandert:** het Productkompas, de beslissingen 1–10 en het uitgangspunt dat
   bestaande data nooit verloren gaat.
+
+### 12. Gescheiden ouders en samengestelde gezinnen (26 oktober 2026)
+
+- **Besluit van de producteigenaar:** Thuisplanner gaat gescheiden ouders en samengestelde gezinnen ondersteunen.
+  - **Optie A is de basis:** zelfstandige huishoudens kunnen geselecteerde kindgerelateerde afspraken, taken en
+    informatie met elkaar delen, zonder toegang te krijgen tot elkaars overige huishoudgegevens.
+  - **Optie B is een optionele toekomstige uitbreiding:** een uitgebreidere co-ouderschapsomgeving
+    (verblijfsroosters, overdrachtsmomenten, eventueel kostenverdeling). Optie B wordt niet gebouwd zonder
+    afzonderlijk productbesluit.
+- **Productkompas:** principes 3, 5, 6, 7 en 9, en de regels "Privacy volgt de situatie", "Fouten moeten goedkoop
+  zijn" en "Huisplan groeit mee".
+- **Uitgangspunten:**
+  - Twee huishoudens blijven volledig zelfstandig, met eigen leden, eigenaar en gegevens. Een koppeling maakt niemand
+    lid van het andere huishouden.
+  - Gedeelde kindinformatie geeft geen toegang tot andere huishoudgegevens, in geen van beide richtingen.
+  - Een gedeelde afspraak blijft één onderliggend item van één eigenaarshuishouden, zonder kopieën tussen
+    huishoudens.
+  - Toegang tot gedeelde items geldt per account binnen de koppeling, niet per huishouden. Nieuwe partners en andere
+    nieuwe leden krijgen nooit automatisch toegang. Dit is een bewuste, beperkte uitzondering op principe 7, vanuit
+    "Privacy volgt de situatie"; principe 7 zelf verandert niet.
+  - De bestaande RLS en de huishoudgrenzen (samengestelde verwijzingen op `household_id`) worden niet verzwakt.
+  - Thuisplanner registreert of beoordeelt geen gezag en geen verdeling (principe 9). Bevoegdheden zijn niet
+    automatisch gelijk.
+  - Meldingsinstellingen zijn persoonlijk, per account. Standaard geen meldingen over de grens van het huishouden.
+  - Privé-afspraken en "Bezet" gaan nooit over de grens.
+  - Voor gezinnen zonder koppeling verandert er niets zichtbaars.
+- **Keuzes (vastgesteld op 26 oktober 2026):**
+
+  | # | Keuze | Besluit |
+  | --- | --- | --- |
+  | O1 | Wijzigen door het andere huishouden | Gedeelde afspraken zijn voor het andere huishouden **alleen-lezen**. |
+  | O2 | Nieuwe toegang aan één kant (bijvoorbeeld een nieuwe partner) | Vereist **instemming van beide kanten**. |
+  | O2a | Instemming intrekken | Instemming kan later worden ingetrokken. Intrekken (en stoppen met de koppeling) kan altijd eenzijdig. |
+  | O2b | Termijn van een toegangsverzoek | Een verzoek verloopt na **14 dagen**. Zonder instemming is er geen toegang. |
+  | O3 | Wat wordt gedeeld | Delen staat per gekoppeld kind **standaard uit**. Tijdens het koppelen kan de gebruiker bewust kiezen om afspraken over dat kind voortaan standaard te delen. Per afspraak blijft zichtbaar of hij gedeeld wordt, en de instelling is aan te passen. Privé-afspraken en "Bezet" worden nooit gedeeld. |
+  | O4 | Notities | Worden standaard **niet** gedeeld; alleen met expliciete keuze per afspraak. |
+  | O5 | Herkomst bij de ontvanger | De ontvanger ziet uitsluitend het **eigen label** voor het andere huishouden, niet de huishoudnaam of wie de afspraak maakte. |
+  | O6 | Bijwerken bij de ontvanger | In de eerste versie **periodiek ophalen**, geen realtime. Gedeelde items worden niet gepresenteerd als direct gesynchroniseerd. Intrekken van toegang wordt direct op de server afgedwongen; lokaal aanwezige gegevens worden veilig afgehandeld (zie `docs/thuisplanner-co-ouderschap.md`). |
+  | O7 | Aantal koppelingen | **Meerdere koppelingen per huishouden, hoogstens één per kind.** Het ontwerp blijft voorbereid op meer koppelingen per kind. |
+  | O8 | Gratis of Premium | Optie A is **gratis** (beslissing 3: organiseren blijft gratis). Optie B kan later eventueel Premium worden. |
+
+- **Voorwaarden vóór implementatie:**
+  - gate 9 opnieuw, voor het domein "koppelingen" (zie de tabel met gates);
+  - een AVG-beoordeling voor het delen van kindgegevens met een tweede huishouden (grondslag, toestemming bij
+    koppelen, intrekking, bewaartermijn, uitleg in de privacyverklaring en opname in de data-export);
+  - toestemming en intrekking aantoonbaar server-side;
+  - geen nieuwe migratie zonder uitleg en afzonderlijk akkoord.
+- **Uitwerking:** `docs/thuisplanner-co-ouderschap.md`. De technische oplossingen daarin zijn een ontwerpvoorstel;
+  niets is gebouwd of bewezen.
+- **Wat niet verandert:** het Productkompas en de beslissingen 1–11.
