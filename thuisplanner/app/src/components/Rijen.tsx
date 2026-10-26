@@ -132,15 +132,18 @@ export function WeekTaakRij({ t }: { t: Taak }) {
   );
 }
 
-/** Afvinken en openen zijn twee aparte knoppen, zodat je niet per ongeluk afvinkt als je wilt aanpassen. */
-export function TaakRij({ t, extra }: { t: Taak; extra?: string }) {
-  const { wissel, openItem } = useApp();
+/**
+ * Afvinken en openen zijn twee aparte knoppen, zodat je niet per ongeluk afvinkt als je wilt aanpassen. Het
+ * rondje in de kleur van het lid (Agenda, A6); metLidKleur zet dat aan.
+ */
+export function TaakRij({ t, extra, metLidKleur }: { t: Taak; extra?: string; metLidKleur?: boolean }) {
+  const { wissel, openItem, lid } = useApp();
   return (
     <li className={'rij taak' + (t.klaar ? ' klaar' : '')}>
       {/* Afvinken kan pas als de server de taak kent (zie de sync-module); tot dan staat het vinkje stil. */}
       <button type="button" className="vink-knop" role="checkbox" aria-checked={t.klaar} disabled={!!t.sync}
         aria-label={t.titel} onClick={() => wissel(t.id, t.klaar ? `${t.titel} weer open` : `${t.titel} afgerond`)}>
-        <Vinkje aan={t.klaar} />
+        <Vinkje aan={t.klaar} kleur={metLidKleur && t.voor ? lid(t.voor)?.kleur : undefined} />
       </button>
       <button type="button" className="rij-open" onClick={() => openItem(t.id)} aria-label={`${t.titel} openen`}>
         <span className="rij-inhoud">

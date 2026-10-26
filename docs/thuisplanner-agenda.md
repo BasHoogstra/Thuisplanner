@@ -108,6 +108,23 @@ Alleen de Agenda, alleen CSS en weergave; geen gegevens, geen gedrag.
   lidkleur; maand zonder legenda; contrast inclusief doorzichtigheid), op 320, 360, 390, 768 en 1280 px en in donker.
   Tegenproeven: met de oude afbreekregel en met de oude doorzichtigheid falen de tests.
 
+### Stap 2: het dagblok en afgerond ingeklapt (26 oktober 2026, lokaal)
+
+- **Dag (A4):** één kaart (`components/DagBlok.tsx`) in plaats van de losse blokken "Afspraken" en "Taken". Eerst de
+  afspraken met de bestaande rijen (tijd en eindtijd, streepje in de lidkleur, titel, wie, plek, privé, herhaling), dan
+  een stippellijn, dan de open taken met een rondje in de lidkleur. Geen zichtbare kopjes; voor schermlezers de lijsten
+  "Afspraken", "Taken" en "Afgerond". Een lege dag is één zin: "Niets gepland."
+- **Afgerond (A7):** in de Dag onderaan in de kaart "n afgerond · tonen / verbergen", zoals op Vandaag; in de Week per
+  dag "n afgerond" als kleine knop (schermlezer: "n afgerond op <dag>, tonen"). Een afgevinkte taak schuift naar die
+  groep; de bestaande melding blijft. Een andere dag begint weer ingeklapt.
+- **Contrast in de Dag:** voorbije afspraken, plek en eindtijd gebruiken `--inkt-2` in plaats van doorzichtigheid of
+  `--inkt-3` (alleen in de Agenda; Vandaag houdt de eigen opmaak).
+- **Ongewijzigd:** de knoppen "+ Afspraak" en "+ Taak", datum, gezinsfilter, "Bezet", detailvensters, gegevens,
+  sync-module, de indeling van week en maand.
+- **Tests:** drie nieuwe tests in `e2e/agenda.spec.ts` (één blok en volgorde, lege dag, afgerond in Dag en Week,
+  afvinken heen en terug) en de contrasttest uitgebreid met de Dag; `week.spec.ts` "afvinken in de week, en terug"
+  aangepast aan het inklappen. Tegenproeven: afgerond standaard open, en de oude doorzichtigheid, worden gevangen.
+
 ## 5. Latere agendakoppelingen (productrichting, nu niet bouwen)
 
 **Productbesluit (26 oktober 2026):** Thuisplanner wordt een volwaardige gezinsagenda die ook bestaande agenda's kan

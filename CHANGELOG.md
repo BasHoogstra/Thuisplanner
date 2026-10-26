@@ -945,3 +945,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Nieuw: `docs/thuisplanner-meldingen.md`. Productvereiste: één centraal systeem voor meldingen en herinneringen (*Instellingen → Meldingen en herinneringen*), voorkeuren strikt persoonlijk per account, pushtoestemming en registratie per apparaat, per categorie aan/uit, standaardherinneringen, stille uren en afwijken per afspraak; later voor Agenda, Taken, Verjaardagen en Vakanties.
 - Productrichting: Thuisplanner als actieve gezinsassistent, met per account een ondersteuningsniveau (Rustig, Behulpzaam, Actief); nog geen definitief ontwerp. De risicogrenzen van principe 5 en beslissing 1 gelden in elk niveau.
 - Architectuurpunten om nu te beschermen (per account, niet per lid of huishouden; geen herinneringen op de gedeelde afspraak; privacy in de melding). Roadmap: nieuwe fase F11. Niets gebouwd, geen migratie.
+
+## Thuisplanner Agenda stap 2: het dagblok en afgerond ingeklapt (26 oktober 2026, lokaal)
+- **Dag (A4):** één kaart met eerst de afspraken, een stippellijn en dan de open taken (rondje in de lidkleur); geen zichtbare kopjes meer, voor schermlezers de lijsten "Afspraken", "Taken" en "Afgerond". Een lege dag is één zin: "Niets gepland." Nieuw: `components/DagBlok.tsx`.
+- **Afgerond (A7):** in de Dag ingeklapt onderaan ("n afgerond · tonen / verbergen", zoals op Vandaag), in de Week per dag "n afgerond". Afvinken verplaatst de taak naar die groep; de melding blijft.
+- **Contrast in de Dag:** voorbije afspraken, plek en eindtijd met `--inkt-2` in plaats van doorzichtigheid of `--inkt-3` (alleen in de Agenda).
+- Ongewijzigd: toevoegen, datum, gezinsfilter, "Bezet", detailvensters, gegevens, sync-module, de indeling van week en maand.
+- Tests: drie nieuwe e2e-tests en een uitgebreide contrasttest in `e2e/agenda.spec.ts`; `week.spec.ts` (afvinken en terug) aangepast aan het inklappen. Typecheck, 468 unittests en 315 demo-e2e-tests groen (320–1280 px, licht en donker); tegenproeven gevangen. Geen migratie.

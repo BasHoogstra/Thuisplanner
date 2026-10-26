@@ -363,6 +363,21 @@ a { color: var(--accent); }
 .dag-knop { display: flex; align-items: baseline; gap: 8px; padding: 4px 6px; margin: -4px -6px; border: 0; background: none; border-radius: 10px; color: inherit; font: inherit; }
 @media (hover: hover) { .dag-knop:hover { background: var(--vlak-2); } }
 .dag-weergave .sectie-kop:first-child { margin-top: 16px; }
+/* Agenda (stap 2, A4/A7): één dagblok. Afspraken en taken staan in één kaart, gescheiden door een stippellijn; afgerond
+   staat ingeklapt onderaan in dezelfde kaart. */
+.dagblok { margin-top: 16px; background: var(--vlak); border: 1px solid var(--lijn); border-radius: var(--radius); overflow: hidden; }
+.dagblok > .lijst, .dagblok .afgerond .lijst { background: none; border: 0; border-radius: 0; }
+.dagblok-scheiding { border-top: 1px dashed var(--lijn-sterk); margin: 2px 16px; }
+.dagblok .afgerond { margin: 0; border-top: 1px solid var(--lijn); }
+.dagblok .afgerond-knop { padding: 12px 16px; }
+.dagblok .afgerond .lijst { margin-top: 0; border-top: 1px solid var(--lijn); }
+.agenda .dagblok-leeg { margin-top: 16px; color: var(--inkt-2); }
+/* Voorbij in de Agenda: rustiger door kleur in plaats van doorzichtigheid (≥ 4,5:1), zoals in de week. */
+.agenda .rij.voorbij { opacity: 1; }
+.agenda .rij.voorbij .rij-titel, .agenda .rij.voorbij .rij-tijd, .agenda .rij.voorbij .rij-tijd small { color: var(--inkt-2); font-weight: 500; }
+.agenda .rij.voorbij .rij-streep { opacity: .4; }
+.agenda .plek, .agenda .rij-tijd small { color: var(--inkt-2); }
+.week-afgerond .afgerond-knop { padding: 8px 2px 8px 71px; font-size: 14px; }
 .dag-acties { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .dag-acties .knop { gap: 6px; }
 .herhaalt { display: inline-flex; align-items: center; }
@@ -483,6 +498,7 @@ a { color: var(--accent); }
   .week-rij.afspraak .week-sub { grid-row: 1; grid-column: 2; min-width: 0; }
   .week-rij.afspraak .week-sub::before { content: "·"; color: var(--inkt-2); }
   .week-rij.afspraak.voorbij .week-rij-knop { border-left-color: color-mix(in srgb, var(--kleur) 40%, transparent); }
+  .week-afgerond .afgerond-knop { padding: 6px 6px; font-size: 13px; }
 }
 
 /* ---------- Lokale modus (alleen met een lokale Supabase) ---------- */

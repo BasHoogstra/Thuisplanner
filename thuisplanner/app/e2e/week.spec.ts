@@ -90,10 +90,16 @@ test('de + van een lege dag opent de zin met die dag', async ({ page }) => {
 });
 
 test('een taak afvinken in de week, en terug', async ({ page }) => {
+  // Agenda A7: een afgevinkte taak gaat naar de ingeklapte groep "n afgerond" van die dag; openklappen en terugzetten.
   const vink = page.getByRole('checkbox', { name: 'Plantenbak water geven' });
   await expect(vink).toHaveAttribute('aria-checked', 'false');
   await vink.click();
+  await expect(vink).toBeHidden();
+  const afgerond = page.getByRole('button', { name: /^2 afgerond op zaterdag 10 oktober, tonen$/ });
+  await afgerond.click();
+  await expect(page.getByRole('button', { name: /^2 afgerond op zaterdag 10 oktober, verbergen$/ })).toHaveAttribute('aria-expanded', 'true');
   await expect(vink).toHaveAttribute('aria-checked', 'true');
   await vink.click();
   await expect(vink).toHaveAttribute('aria-checked', 'false');
+  await expect(page.getByRole('button', { name: /^1 afgerond op zaterdag 10 oktober/ })).toBeVisible();
 });

@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useApp, type AgendaWeergave } from '../lib/context';
 import {
   langeDatum, langeDatumHoofdletter, maandagVan, plusDagen, vanDatum, weekBereik, weekdagKort, weekNummer,
@@ -8,7 +8,8 @@ import { dagInhoud, drukte, maandBegin, maandRaster, plusMaanden } from '../lib/
 import { titelVoor } from '../lib/rechten';
 import { isVoorbij, takenZonderDatum } from '../lib/vandaag';
 import type { Datum } from '../lib/types';
-import { AfspraakRij, lidKleur, TaakRij, WeekAfspraakRij, WeekTaakRij } from '../components/Rijen';
+import { DagBlok } from '../components/DagBlok';
+import { lidKleur, TaakRij, WeekAfspraakRij, WeekTaakRij } from '../components/Rijen';
 import { IcLinks, IcPijl, IcPlus } from '../components/Iconen';
 
 const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september',
@@ -94,25 +95,13 @@ function weekTitel(d: Datum, vandaag: Datum): string {
   return n === 0 ? 'Deze week' : n === 1 ? 'Volgende week' : n === -1 ? 'Vorige week' : `Week ${weekNummer(d)}`;
 }
 
-/** Eén dag: afspraken op tijd, taken van die dag, en direct iets toevoegen op die datum. */
+/** Eén dag (A4): het dagblok met afspraken en taken, en direct iets toevoegen op die datum. */
 function DagWeergave() {
-  const { agenda, staat, vandaag, nu, openToevoegen } = useApp();
-  const { datum, filter } = agenda;
-  const { afspraken, taken } = dagInhoud(staat.items, datum, filter);
+  const { agenda, openToevoegen } = useApp();
+  const { datum } = agenda;
   return (
     <div className="dag-weergave" aria-label={`Dagoverzicht ${langeDatum(datum)}`} role="region">
-      <section aria-labelledby="h-dag-afspraken">
-        <h2 id="h-dag-afspraken" className="sectie-kop">Afspraken</h2>
-        {afspraken.length
-          ? <ul className="lijst">{afspraken.map(a => <AfspraakRij key={a.id} a={a} voorbij={datum < vandaag || (datum === vandaag && isVoorbij(a, nu))} />)}</ul>
-          : <p className="stil-tekst">Geen afspraken.</p>}
-      </section>
-      <section aria-labelledby="h-dag-taken">
-        <h2 id="h-dag-taken" className="sectie-kop">Taken</h2>
-        {taken.length
-          ? <ul className="lijst">{taken.map(t => <TaakRij key={t.id} t={t} />)}</ul>
-          : <p className="stil-tekst">Geen taken.</p>}
-      </section>
+      <DagBlok key={datum} datum={datum} />
       <div className="dag-acties">
         <button type="button" className="knop stil" onClick={() => openToevoegen('afspraak', datum)}
           aria-label={`Afspraak toevoegen op ${langeDatum(datum)}`}>
@@ -130,6 +119,9 @@ function DagWeergave() {
 /** Week (KG-3): maandag t/m zondag; de dagkop opent het dagoverzicht. */
 function WeekWeergave() {
   const { agenda, zetAgenda, staat, vandaag, nu, openToevoegen } = useApp();
+  // A7: afgeronde taken staan per dag ingeklapt; dit zijn de dagen die de gebruiker heeft opengeklapt.
+  const [klaarOpen, zetKlaarOpen] = useState<ReadonlySet<Datum>>(new Set());
+  const wisselKlaar = (d: Datum) => zetKlaarOpen(oud => { const s = new Set(oud); if (!s.delete(d)) s.add(d); return s; });
   const maandag = maandagVan(agenda.datum);
   const dagen = Array.from({ length: 7 }, (_, n) => plusDagen(maandag, n));
   const inhoud = dagen.map(datum => ({ datum, ...dagInhoud(staat.items, datum, agenda.filter) }));
@@ -146,6 +138,8 @@ function WeekWeergave() {
       {inhoud.map(({ datum, afspraken, taken }, i) => {
         const leeg = isLeeg(i);
         const isVandaag = datum === vandaag;
+        const klaar = taken.filter(t => t.klaar);
+        const toonKlaar = klaarOpen.has(datum);
         const groep = groepVan(i);
         const groepKop = groep && groep.a === i && (
           <div key={'groep-' + datum} className="week-leeg-groep" aria-label={`${langeDatum(dagen[groep.a])} tot en met ${langeDatum(dagen[groep.b])}: niets gepland`} role="group">
@@ -184,7 +178,16 @@ function WeekWeergave() {
             {!leeg && (
               <ul className="lijst week-lijst">
                 {afspraken.map(a => <WeekAfspraakRij key={a.id} a={a} voorbij={datum < vandaag || (isVandaag && isVoorbij(a, nu))} />)}
-                {taken.map(t => <WeekTaakRij key={t.id} t={t} />)}
+                {taken.filter(t => !t.klaar).map(t => <WeekTaakRij key={t.id} t={t} />)}
+                {klaar.length > 0 && (
+                  <li className="week-afgerond">
+                    <button type="button" className="link afgerond-knop" aria-expanded={toonKlaar} onClick={() => wisselKlaar(datum)}
+                      aria-label={`${klaar.length} afgerond op ${langeDatum(datum)}, ${toonKlaar ? 'verbergen' : 'tonen'}`}>
+                      {klaar.length} afgerond
+                    </button>
+                  </li>
+                )}
+                {toonKlaar && klaar.map(t => <WeekTaakRij key={t.id} t={t} />)}
               </ul>
             )}
           </section>

@@ -132,9 +132,82 @@ test('informatieve tekst in de Agenda heeft minstens 4,5:1 contrast, ook voorbij
     const c = await laagsteContrast(page, sel);
     if (c) expect(c.waarde, `${sel} ("${c.tekst}")`).toBeGreaterThanOrEqual(4.5);
   }
+  await weergave(page, 'Dag');
+  for (const sel of ['.rij-tijd', '.rij-tijd small', '.rij-titel', '.rij-sub', '.plek']) {
+    const c = await laagsteContrast(page, '.dagblok ' + sel);
+    if (c) expect(c.waarde, `${sel} ("${c.tekst}")`).toBeGreaterThanOrEqual(4.5);
+  }
   await weergave(page, 'Maand');
   for (const sel of ['.maand-koppen span', '.maand-dag:not(.buiten) .maand-nr', '.maand-titels span']) {
     const c = await laagsteContrast(page, sel);
     if (c) expect(c.waarde, `${sel} ("${c.tekst}")`).toBeGreaterThanOrEqual(4.5);
   }
+});
+
+// ---------- Stap 2: het dagblok (A4) en afgerond ingeklapt (A7) ----------
+const dag = (p: Page) => p.getByRole('region', { name: /^Dagoverzicht/ });
+
+test('Dag: één blok, afspraken vóór taken, zonder kopjes; een lege dag is één zin (A4)', async ({ page }) => {
+  await weergave(page, 'Dag');
+  await expect(dag(page).locator('.dagblok')).toHaveCount(1);
+  await expect(dag(page).getByRole('heading', { name: /^(Afspraken|Taken)$/ })).toHaveCount(0);
+  const afspraken = dag(page).getByRole('list', { name: 'Afspraken' });
+  const taken = dag(page).getByRole('list', { name: 'Taken' });
+  await expect(afspraken.getByRole('listitem')).toHaveCount(4);
+  await expect(afspraken).toContainText('Bezet');
+  await expect(taken.getByRole('checkbox')).toHaveCount(2);
+  const [a, t] = await Promise.all([afspraken.boundingBox(), taken.boundingBox()]);
+  expect(a!.y, 'afspraken staan boven de taken').toBeLessThan(t!.y);
+  await expect(dag(page).locator('.dagblok-scheiding')).toBeVisible();
+  await expect(taken.getByRole('checkbox', { name: 'Plantenbak water geven' }).locator('.vinkje')).toHaveAttribute('style', /--ring:\s*var\(--lid-3\)/);
+  // Woensdag 7 oktober is leeg: één rustige zin in plaats van "Geen afspraken." en "Geen taken.".
+  for (let n = 0; n < 3; n++) await page.getByRole('button', { name: 'Vorige dag' }).click();
+  await expect(dag(page)).toContainText('Niets gepland.');
+  await expect(dag(page).locator('.dagblok')).toHaveCount(0);
+  await expect(dag(page)).not.toContainText('Geen afspraken');
+  const c = await laagsteContrast(page, '.dagblok-leeg');
+  expect(c!.waarde).toBeGreaterThanOrEqual(4.5);
+  await geenHorizontaleScroll(page);
+});
+
+test('Dag: afgerond staat ingeklapt; afvinken verplaatst de taak, en terug (A7)', async ({ page }) => {
+  await weergave(page, 'Dag');
+  const taken = dag(page).getByRole('list', { name: 'Taken' });
+  const knop = dag(page).getByRole('button', { name: /afgerond ·/ });
+  await expect(knop).toHaveText('1 afgerond · tonen');
+  await expect(knop).toHaveAttribute('aria-expanded', 'false');
+  await expect(dag(page).getByRole('list', { name: 'Afgerond' })).toHaveCount(0);
+  await expect(dag(page)).not.toContainText('Groene container');
+  await knop.click();
+  await expect(knop).toHaveText('1 afgerond · verbergen');
+  await expect(dag(page).getByRole('list', { name: 'Afgerond' })).toContainText('Groene container');
+  // Afvinken: de taak verhuist van "Taken" naar "Afgerond".
+  await taken.getByRole('checkbox', { name: 'Cadeautje voor Noor kopen' }).click();
+  await expect(taken).not.toContainText('Cadeautje voor Noor kopen');
+  await expect(knop).toHaveText('2 afgerond · verbergen');
+  const afgerond = dag(page).getByRole('list', { name: 'Afgerond' });
+  await expect(afgerond.getByRole('checkbox', { name: 'Cadeautje voor Noor kopen' })).toHaveAttribute('aria-checked', 'true');
+  await afgerond.getByRole('checkbox', { name: 'Cadeautje voor Noor kopen' }).click();
+  await expect(taken.getByRole('checkbox', { name: 'Cadeautje voor Noor kopen' })).toHaveAttribute('aria-checked', 'false');
+  await expect(knop).toHaveText('1 afgerond · verbergen');
+  const c = await laagsteContrast(page, '.dagblok .afgerond-knop');
+  expect(c!.waarde).toBeGreaterThanOrEqual(4.5);
+  // Een andere dag begint weer ingeklapt.
+  await page.getByRole('button', { name: 'Volgende dag' }).click();
+  await page.getByRole('button', { name: 'Vorige dag' }).click();
+  await expect(dag(page).getByRole('button', { name: /afgerond ·/ })).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('Week: afgerond staat per dag ingeklapt en is per dag open te klappen (A7)', async ({ page }) => {
+  await weergave(page, 'Week');
+  await expect(page.getByRole('checkbox', { name: 'Groene container buiten zetten' })).toBeHidden();
+  const knop = page.getByRole('button', { name: '1 afgerond op zaterdag 10 oktober, tonen' });
+  await expect(knop).toHaveText('1 afgerond');
+  await knop.click();
+  await expect(page.getByRole('checkbox', { name: 'Groene container buiten zetten' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('button', { name: '1 afgerond op zaterdag 10 oktober, verbergen' })).toHaveAttribute('aria-expanded', 'true');
+  const c = await laagsteContrast(page, '.week-afgerond .afgerond-knop');
+  expect(c!.waarde).toBeGreaterThanOrEqual(4.5);
+  expect(await gebrokenWoorden(page)).toEqual([]);
+  await geenHorizontaleScroll(page);
 });
