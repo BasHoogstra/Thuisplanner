@@ -21,6 +21,11 @@ export function CodeInloggen({ sessie, uitnodiging = false, startFout = null }: 
   const [nieuwe, zetNieuwe] = useState(0);
   const [captcha, zetCaptcha] = useState<string | null>(null);
   const [captchaNodig, zetCaptchaNodig] = useState(!!sessie.config.turnstile);
+  // Een Turnstile-token werkt één keer: na elke poging een nieuwe widget (nieuwe key), en daarna "Opnieuw controleren"
+  // zolang er geen token is, zodat de gebruiker altijd opnieuw kan controleren.
+  const [captchaRonde, zetCaptchaRonde] = useState(0);
+  const [captchaGevraagd, zetCaptchaGevraagd] = useState(false);
+  const nieuweCaptcha = () => { zetCaptcha(null); zetCaptchaRonde(n => n + 1); zetCaptchaGevraagd(true); };
   const codeVeld = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -33,12 +38,13 @@ export function CodeInloggen({ sessie, uitnodiging = false, startFout = null }: 
   const vraag = async (e?: { preventDefault(): void }) => {
     e?.preventDefault();
     if (!geldigAdres(email)) { zetFout('Vul je e-mailadres in, bijvoorbeeld naam@voorbeeld.nl.'); return; }
-    if (captchaNodig && !captcha) { zetFout('Bevestig eerst dat je geen robot bent.'); return; }
+    if (captchaNodig && !captcha) { zetFout('Bevestig eerst dat je geen robot bent.'); zetCaptchaGevraagd(true); return; }
     zetBezig(true); zetFout(null);
     const r = await sessie.vraagCode(email, captcha);
     zetBezig(false);
-    zetCaptcha(null);
-    if (!r.ok) { zetFout(r.fout); return; }
+    if (!r.ok) { if (captchaNodig) nieuweCaptcha(); zetFout(r.fout); return; }
+    // Gelukt: het token is gebruikt; het codescherm krijgt een nieuwe widget, zonder de knop (er is niets misgegaan).
+    if (captchaNodig) { zetCaptcha(null); zetCaptchaRonde(n => n + 1); zetCaptchaGevraagd(false); }
     if (stap === 'code') zetNieuwe(n => n + 1);
     zetStap('code'); zetCode(''); zetWacht(NIEUWE_CODE_NA_S);
   };
@@ -51,7 +57,8 @@ export function CodeInloggen({ sessie, uitnodiging = false, startFout = null }: 
     if (!r.ok) {
       zetFout(r.fout);
       zetCode('');
-      if (r.code === 'TPK06') { zetCaptchaNodig(true); zetCaptcha(null); }
+      if (r.code === 'TPK06') zetCaptchaNodig(true);
+      if (captchaNodig || r.code === 'TPK06') nieuweCaptcha();
       codeVeld.current?.focus();
     }
   };
@@ -77,7 +84,8 @@ export function CodeInloggen({ sessie, uitnodiging = false, startFout = null }: 
           <input id="code-email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false}
             value={email} maxLength={254} onChange={e => zetEmail(e.target.value)} />
         </label>
-        {captchaNodig && sessie.config.turnstile && <Captcha sitekey={sessie.config.turnstile} opToken={zetCaptcha} />}
+        {captchaNodig && sessie.config.turnstile && <Captcha key={captchaRonde} sitekey={sessie.config.turnstile} opToken={zetCaptcha}
+          heeftToken={!!captcha} opnieuwTonen={captchaGevraagd} />}
         {fout && <p className="veld-fout" role="alert">{fout}</p>}
         <button type="submit" className="knop breed" disabled={bezig}>{bezig ? 'Even geduld…' : 'Stuur code'}</button>
       </form>
@@ -95,7 +103,8 @@ export function CodeInloggen({ sessie, uitnodiging = false, startFout = null }: 
           value={code} onChange={e => typ(e.target.value)} disabled={bezig} aria-describedby="code-hulp" />
       </label>
       <p id="code-hulp" className="veld-hulp">Zes cijfers. Plakken mag ook.</p>
-      {captchaNodig && sessie.config.turnstile && <Captcha sitekey={sessie.config.turnstile} opToken={zetCaptcha} />}
+      {captchaNodig && sessie.config.turnstile && <Captcha key={captchaRonde} sitekey={sessie.config.turnstile} opToken={zetCaptcha}
+          heeftToken={!!captcha} opnieuwTonen={captchaGevraagd} />}
       {fout && <p className="veld-fout" role="alert">{fout}</p>}
       <button type="submit" className="knop breed" disabled={bezig || code.length !== 6}>{bezig ? 'Even geduld…' : 'Inloggen'}</button>
       <div className="keuzes">
