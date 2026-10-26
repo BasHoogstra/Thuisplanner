@@ -24,6 +24,16 @@ const SABOTAGES = [
     van: 'if a.aanvragen_kwartier >= g.aanvragen_kwartier or a.aanvragen_dag >= g.aanvragen_dag then', naar: 'if false then' },
   { fn: 'private.k1_nieuwe_code(text,uuid,text,text,text)', test: 'noodstops', wat: 'registratie dicht genegeerd',
     van: "if p_soort = 'signup' and not inst.registratie_open then return query select 'registratie-dicht'::text, null::uuid; return; end if;", naar: '' },
+  // Review stap 3a: R1 (zonder instellingenrij dicht) en R2 (zonder actieve code niets tellen en geen rij).
+  { fn: 'private.k1_nieuwe_code(text,uuid,text,text,text)', test: 'zonder instellingenrij', wat: 'code verstuurd zonder instellingenrij',
+    van: "if not found then return query select 'codes-uit'::text, null::uuid; return; end if;", naar: '' },
+  { fn: 'private.k1_controleer(text,text,text,text,boolean)', test: 'zonder instellingenrij', wat: 'gecontroleerd zonder instellingenrij',
+    van: "if not found then return query select 'codes-uit'::text, null::text, null::text, null::uuid; return; end if;", naar: '' },
+  { fn: 'private.k1_controleer(text,text,text,text,boolean)', test: 'zonder actieve code', wat: 'een rij voor een adres zonder code',
+    van: "if not exists (select 1 from private.k1_codes k where k.adres_hmac = p_adres_hmac and k.status = 'actief') then", naar: 'if false then' },
+  { fn: 'private.k1_controleer(text,text,text,text,boolean)', test: 'zonder actieve code', wat: 'pogingen zonder code tellen mee (het oude gedrag)',
+    van: "if not exists (select 1 from private.k1_codes k where k.adres_hmac = p_adres_hmac and k.status = 'actief') then", naar: 'if false then',
+    extra: [['if c.id is null or c.verloopt <= now() then', 'if false then']] },
   { fn: 'private.k1_toestellen_intrekken(uuid)', test: 'intrekken', wat: 'toestellen niet ingetrokken',
     van: 'update private.k1_toestellen set ingetrokken = true where user_id = p_user_id and not ingetrokken;', naar: 'perform 1;' },
   // D6, de uitnodigingsmail (uitnodigingsmail.test.mjs).
@@ -69,8 +79,10 @@ await db.connect();
 let fouten = 0;
 for (const [i, s] of SABOTAGES.entries()) {
   const def = (await db.query('select pg_get_functiondef($1::regprocedure) d', [s.fn])).rows[0].d;
-  if (!def.includes(s.van)) { console.log(`TEGENPROEF ${i + 1} ONGELDIG (${s.wat}): tekst niet gevonden`); fouten++; continue; }
-  await db.query(def.replace(s.van, s.naar));
+  // Een sabotage kan meer dan één plek tegelijk veranderen (extra): voor een bescherming die op twee plekken zit.
+  const paren = [[s.van, s.naar], ...(s.extra ?? [])];
+  if (paren.some(([van]) => !def.includes(van))) { console.log(`TEGENPROEF ${i + 1} ONGELDIG (${s.wat}): tekst niet gevonden`); fouten++; continue; }
+  await db.query(paren.reduce((d, [van, naar]) => d.replace(van, naar), def));
   try {
     const r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-force-exit', '--test-reporter=tap', `--test-name-pattern=${s.test}`, s.bestand ?? 'k1.test.mjs'],
       { env: process.env, encoding: 'utf8', timeout: 600000 });

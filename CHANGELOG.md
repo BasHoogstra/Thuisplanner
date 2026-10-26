@@ -948,3 +948,48 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Invoerbalk vlak boven het toetsenbord met de verzendknop in de balk; het veld groeit mee tot drie regels.
 - Eén kaart in gewone taal ("Morgen om 15:00 · met Lotte"), privé/gedeeld altijd zichtbaar bij een afspraak, één vraag bij twijfel, Aanpassen op verzoek; "Alles invullen" heet Formulier.
 - De melding van een vorige toevoeging verdwijnt zodra de + opent. Herkenning, opslag, Vakanties en Later nodig ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 2 en de voorbereiding van stap 2b (21 oktober 2026)
+- Stap 2 uitgevoerd (alleen lezend): staging heeft precies de migraties 1–11, 2 accounts en pg_cron aan; de dry-run toonde alleen de migraties 12–16; de stand was voor en na gelijk. Online niets gewijzigd.
+- Nieuw, lokaal: `verbinding.ps1 -Export -ExportMap <map>` met `staging/export.mjs`. De export leest alles in één read-only momentopname (public, private, en uit auth alleen accounts en identiteiten) en schrijft per tabel JSON met een manifest (tellingen, SHA-256 per bestand, migraties, vorm van het schema). Hij weigert een map in of boven de repository, een relatieve map of een niet-lege map, vóór het wachtwoord wordt gevraagd.
+- Nieuw: `staging/hersteltoets.sh` zet een export terug in een aparte, lege lokale stack met precies de migraties uit het manifest, en vergelijkt elke rij. Daarbij controleert hij eerst de SHA-256 van het manifest en de vorm van het schema.
+- Tests: `tests/integratie/export.test.mjs` (6, ook in CI). Een proef met precies 11 migraties en verzonnen gegevens zoals op staging is volledig teruggezet. Alle tegenproeven zijn gevangen, ook de eerst gemiste: een manifest met een migratie minder.
+- De online export zelf is nog niet uitgevoerd (eigen akkoord). Huisplan ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 2b en 3a: export, beveiligingsreview en herstel R1–R3 (21 oktober 2026)
+- Stap 2b uitgevoerd: de staginggegevens (14 tabellen, 14 rijen) zijn geëxporteerd, buiten Git en buiten OneDrive bewaard, en met de hersteltoets volledig teruggezet. Online niets gewijzigd.
+- Stap 3a: interne beveiligingsreview in `docs/thuisplanner-review-staging.md`. Geen kritieke of hoge bevindingen; vijf middel, negen laag, de online te controleren punten, de geaccepteerde restrisico's en wat een onafhankelijke review vóór de bèta moet beoordelen.
+- Herstel in migratie 13 (nog nergens online): zonder instellingenrij is de poort dicht, en de rij is niet te verwijderen of leeg te maken (R1).
+- Herstel in migratie 14 (nog nergens online): K1 gaat dicht zonder instellingenrij (R1); pogingen zonder actieve code tellen niet mee en maken geen rij (R2); standaard hoogstens 8 codes per adres per dag (R3).
+- `controleer-code`: `K1_CAPTCHA=uit` alleen op een lokale stack (L3).
+- Tests: RLS-matrix 75/75 (KG-T69 uitgebreid) en RLS-tegenproeven 114/114 (3 nieuw); K1-integratie 16/16 (3 nieuw); K1- en D6-tegenproeven 30/30 (4 nieuw, de tegenproefbank kan nu meer plekken tegelijk saboteren); functietests 11/11 (2 nieuw).
+- De kijkversie op poort 5181 is gestopt. Huisplan ongewijzigd.
+
+## Thuisplanner staging-overstap, stap 3 voorbereid: de proefmail (21 oktober 2026, lokaal)
+- Nieuw: `staging/proefmail.ps1` en `staging/proefmail.mjs`. Ontvanger en Lettermint-token gaan via een verborgen prompt, met een getypte bevestiging. Het script gebruikt de Lettermint-adapter van de Edge Functions en verstuurt één mail, daarna hetzelfde verzoek met dezelfde `Idempotency-Key`. Het toont alleen statuscodes, het `message_id` en een verkort adres.
+- Tests: `tests/functies/proefmail.test.mjs` (5) tegen een nagebootste Lettermint; vier tegenproeven gevangen. Er is niets verstuurd.
+- DNS gecontroleerd (alleen lezend): de Lettermint-records staan live via TransIP. Voor de mail is geen Cloudflare-stap nodig.
+
+## Thuisplanner staging-overstap, stap 5 en 6 voorbereid (22 oktober 2026, lokaal)
+- Nieuw: `staging/functies.ps1` met `staging/functies.mjs`. Het script deployt de vier Edge Functions naar het vastgelegde stagingproject:
+  - het Thuisplanner-token gaat via een verborgen prompt, alleen in dat ene proces; de CLI-inlog van Huisplan wordt niet gebruikt;
+  - vooraf: het kenmerk, de vier functies, `verify_jwt = false` en alles gecommit; Huisplan wordt geweigerd;
+  - daarna een getypte bevestiging en `--project-ref --use-api`;
+  - na afloop wordt de functielijst teruggelezen en gecontroleerd.
+- Tests: `tests/functies/functies-deploy.test.mjs` (5) en vier tegenproeven, gevangen.
+- Uitvoeringsplan: de procedure voor stap 5 en de checklist voor stap 6: geheimen, Auth-instellingen met captcha, de Send Email-hook, Turnstile, de Lettermint-webhook, Vault, en de blootgestelde schema's.
+- Er is niets online gedaan.
+
+## Thuisplanner staging-overstap, stap 4 voorbereid: de nacontrole (22 oktober 2026)
+- De vaste referentie van de nacontrole liep één functie achter (94 in plaats van 95 in `private`, sinds R1). Na de online push had dat een valse afwijking gegeven. Bijgewerkt.
+- Nieuw: `tests/integratie/nacontrole.test.mjs` (4, ook in CI) toetst de referentie, de migraties en de geplande taken tegen de lokale stack; tegenproeven gevangen.
+- `verbinding.ps1 -VoorStap6`: de twee Vault-waarden die tot stap 6 nog ontbreken, staan apart als "verwacht"; al het andere blijft een afwijking.
+- Uitvoeringsplan: stap 4 in drie delen (voorbereiding, nieuwe export, migratie). Online niets gewijzigd.
+
+## Thuisplanner staging-overstap, stap 3 tot en met 5 uitgevoerd (22 oktober 2026)
+- **Stap 3:** de proefmail kwam precies één keer aan. Idempotentie is bewezen, en SPF, DKIM (eigen domein) en DMARC geven `pass`.
+- **Stap 4a:** een nieuwe export, gelijk aan die van 21 oktober, en de hersteltoets is geslaagd.
+- **Stap 4b:** de migraties 12–16 staan online. De nacontrole is in orde; alleen Vault ontbreekt nog, wat tot stap 6 verwacht is.
+- **Stap 5:** de vier Edge Functions staan online (versie 1, `ACTIVE`, `verify_jwt` uit). Tot stap 6 geven ze een storing (503).
+- `staging/functies.ps1` controleert nu direct na de vraag of het token een persoonlijk Supabase-token is (`sbp_` en 40 tekens). Aanleiding: een verkeerde waarde in de eerste poging. Het daarna zichtbaar geplakte token is ingetrokken en uit de geschiedenis verwijderd.
+- De huidige stagingapp werkt tot stap 8 niet. Huisplan en de Vakanties-branch zijn ongemoeid.

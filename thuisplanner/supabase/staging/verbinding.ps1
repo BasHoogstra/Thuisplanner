@@ -5,6 +5,11 @@
 #   echte push:           ... -Ref <kenmerk> -Push   (alleen na een apart akkoord; vraagt nog een bevestiging)
 #   bijwerken:            ... -Ref <kenmerk> -Bijwerken [-Push]   voor een project waarop eerdere migraties al staan:
 #                         alleen als de geschiedenis precies het begin van de repository is, met nieuwe migraties erna
+#   export (alleen lezend): ... -Ref <kenmerk> -Export -ExportMap <lege map buiten de repository>
+#                         alle gegevens in één momentopname naar JSON, met manifest en controlesommen (export.mjs);
+#                         de map bevat daarna persoonsgegevens: bewaar hem alleen lokaal en verwijder hem na gebruik
+#   -VoorStap6 (bij -Push): de twee Vault-waarden mogen in de nacontrole nog ontbreken (die zet de producteigenaar in
+#                         stap 6f); ze worden dan als "verwacht" getoond. Al het andere blijft een afwijking.
 #
 # - De session-pooler-URI plak je met de tekst [YOUR-PASSWORD] erin: daar staat geen geheim in.
 # - Het wachtwoord typ je bij een verborgen prompt. Het komt niet in de terminalgeschiedenis (Read-Host wordt niet
@@ -15,7 +20,7 @@
 # - Volgorde: verbinding controleren (vóór verbinden) -> alleen lezend: is dit het lege stagingproject? ->
 #   dry-run, of met -Push: repository-controle, bevestiging en db push -> alleen lezend: nacontrole.
 # - Bij een fout stopt het script meteen. Het voert nooit zelf een herstel of tweede poging uit.
-param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta', 'productie')][string]$Omgeving = 'staging', [switch]$Push, [switch]$Bijwerken)
+param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta', 'productie')][string]$Omgeving = 'staging', [switch]$Push, [switch]$Bijwerken, [switch]$Export, [string]$ExportMap, [switch]$VoorStap6)
 $ErrorActionPreference = 'Stop'
 # Het aantal migraties in de repository dat deze versie van het script verwacht (bij elke nieuwe migratie bijwerken).
 $VerwachtAantal = 16
@@ -33,6 +38,13 @@ function Stop-Hier([string]$reden) {
 $script:uitkomst = 0
 
 try {
+  if ($Export) {
+    # Alleen lezend en los van push of bijwerken; de map wordt gecontroleerd vóór het wachtwoord wordt gevraagd.
+    if ($Push -or $Bijwerken) { Stop-Hier '-Export gaat niet samen met -Push of -Bijwerken.' }
+    Write-Host "`n== 0. Exportmap (buiten de repository, leeg)" -ForegroundColor Cyan
+    node (Join-Path $hier 'export.mjs') mapcontrole $ExportMap
+    if ($LASTEXITCODE -ne 0) { Stop-Hier 'de exportmap is niet geschikt. Er is niets uitgevoerd.' }
+  }
   if ($Push) {
     # De migraties moeten precies de gecommitte, gecontroleerde zijn.
     Write-Host "`n== 0. Repository: migraties gecommit en ongewijzigd" -ForegroundColor Cyan
@@ -57,6 +69,13 @@ try {
   $root = (Join-Path $hier 'supabase-root-ca.crt') -replace '\\', '/'
   $cliUrl = $env:KG_DB_URL + '?sslmode=verify-full&sslrootcert=' + $root
 
+  if ($Export) {
+    Write-Host "`n== 1. Alleen lezend: verbinding, export in een momentopname, en controle van de geschreven bestanden" -ForegroundColor Cyan
+    node $controle export $ExportMap
+    if ($LASTEXITCODE -ne 0) { Stop-Hier 'de export slaagde niet (zie hierboven). Er is online niets gewijzigd.' }
+    Write-Host "`nExport geslaagd. Er is online niets gewijzigd." -ForegroundColor Green
+    return
+  }
   if ($Bijwerken) {
     Write-Host "`n== 1. Alleen lezend: verbinding, bestaande Thuisplanner-database en welke migraties nieuw zijn" -ForegroundColor Cyan
     node $controle bijwerken $stand
@@ -93,6 +112,7 @@ try {
   finally { Pop-Location }
 
   Write-Host "`n== 3. Alleen lezend: nacontrole (migraties, RLS, rechten, Realtime, geplande taak)" -ForegroundColor Cyan
+  if ($VoorStap6) { $env:KG_NA_TOT_STAP6 = '1' }
   node $controle na
   $naCode = $LASTEXITCODE
   if ($pushCode -ne 0) { Stop-Hier "db push gaf foutcode $pushCode. De nacontrole hierboven toont de stand." }
@@ -103,7 +123,7 @@ catch {
   if ("$_" -ne 'thuisplanner-gestopt') { Write-Host ('FOUT: ' + $_) -ForegroundColor Red; $script:uitkomst = 1 }
 }
 finally {
-  Remove-Item Env:PGPASSWORD, Env:KG_DB_URL, Env:KG_REF, Env:KG_OMGEVING -ErrorAction SilentlyContinue
+  Remove-Item Env:PGPASSWORD, Env:KG_DB_URL, Env:KG_REF, Env:KG_OMGEVING, Env:KG_NA_TOT_STAP6 -ErrorAction SilentlyContinue
   Remove-Item $stand -ErrorAction SilentlyContinue
   Remove-Variable geheim, bstr -ErrorAction SilentlyContinue
   Write-Host "`nWachtwoord en verbinding gewist uit dit proces." -ForegroundColor Green

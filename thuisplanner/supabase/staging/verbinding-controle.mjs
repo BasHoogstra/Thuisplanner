@@ -11,18 +11,21 @@
 //                                                           repository is en er nieuwe migraties klaarstaan; bewaart de stand
 //   node verbinding-controle.mjs vergelijk <standbestand>   controleert dat er sindsdien niets is veranderd
 //   node verbinding-controle.mjs na                         nacontrole na een push (ook later te herhalen)
+//   node verbinding-controle.mjs export <map>               alleen lezend: export van de gegevens naar een lege map buiten
+//                                                           de repository (export.mjs; stap 2b van de overstap)
 import { createHash, X509Certificate } from 'node:crypto';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { exportMapFouten, leesExport, schrijfExport } from './export.mjs';
 
 // Zelfde lijst als thuisplanner/app/scripts/staging-build.ts: de Huisplan-projecten als SHA-256 van het kenmerk.
 const HUISPLAN_HASHES = new Set([
   'ac0b690fc1fa36c5bb314976c3cc64f799b81ef38494de0e748e26293842125e',
   '81269699bafc709ab950f9156081d6ef6c1359c2f0631e6e99efcbc1690f9b6a',
 ]);
-const isHuisplanRef = r => HUISPLAN_HASHES.has(createHash('sha256').update(r).digest('hex'));
+export const isHuisplanRef = r => HUISPLAN_HASHES.has(createHash('sha256').update(r).digest('hex'));
 
 // De pooler van Supabase gebruikt een eigen CA ("Supabase Root 2021 CA"), die niet in de standaardlijst van Node.js
 // of Windows staat. Daarom vertrouwen we, alleen voor deze verbinding, precies deze roots. Bron: de officiële
@@ -152,7 +155,7 @@ export function leegFouten(s) {
 // Supabase-stack na precies deze migraties (18 oktober 2026, met deel 2: toegangspoort, K1, de uitnodigingsmail en de automatische verzending).
 // Wijkt staging hiervan af, dan kreeg het niet hetzelfde schema.
 export const VERWACHT_SCHEMA = [
-  { schema: 'private', relaties: 9, functies: 94, policies: 0 },
+  { schema: 'private', relaties: 9, functies: 95, policies: 0 },
   { schema: 'public', relaties: 11, functies: 34, policies: 18 },
 ];
 
@@ -290,6 +293,15 @@ export function naFouten(n, verwachteVersies, verwachtSchema) {
   return f;
 }
 
+/**
+ * Direct na de migraties (stap 4) en vóór de geheimen (stap 6) ontbreken de twee Vault-waarden nog: dat is dan verwacht,
+ * geen afwijking. Met totStap6 komen alleen die meldingen apart te staan; al het andere blijft een afwijking.
+ */
+export function splitsVerwacht(fouten, totStap6) {
+  const verwacht = totStap6 ? fouten.filter(x => /^Vault mist thuisplanner_wachtrij_(geheim|url):/.test(x)) : [];
+  return { fouten: fouten.filter(x => !verwacht.includes(x)), verwacht };
+}
+
 /** De versies van de migraties in de repository (thuisplanner/supabase/migrations). */
 export function repoVersies() {
   const map = path.join(path.dirname(fileURLToPath(import.meta.url)), '../migrations');
@@ -313,6 +325,21 @@ async function verbind() {
 
 async function hoofd() {
   const [opdracht, bestand] = process.argv.slice(2);
+  if (opdracht === 'export') {
+    // De map eerst: een verkeerde map stopt vóór er verbinding is.
+    const mapFouten = exportMapFouten(bestand);
+    if (mapFouten.length) { console.log('GEWEIGERD vóór verbinden:\n- ' + mapFouten.join('\n- ')); process.exit(2); }
+    const client = await verbind();
+    let voor, exp, na;
+    try { voor = await leesStand(client); exp = await leesExport(client); na = await leesStand(client); } finally { await client.end(); }
+    const afdruk = s => createHash('sha256').update(JSON.stringify({ migraties: s.migraties, extensies: s.extensies, vingerafdruk: s.vingerafdruk })).digest('hex');
+    if (afdruk(voor) !== afdruk(na)) { console.log('GESTOPT: het schema veranderde tijdens de export. Er is niets geschreven.'); process.exit(1); }
+    const { manifest, sha256Manifest } = schrijfExport(bestand, exp, { omgeving: process.env.KG_OMGEVING, ref: process.env.KG_REF, schemaAfdruk: afdruk(voor) });
+    console.log(`EXPORT geschreven en gecontroleerd: ${manifest.tabellen.length} tabellen, ${manifest.tabellen.reduce((a, t) => a + t.rijen, 0)} rijen, migraties tot ${manifest.migraties.at(-1)}, schema ${afdruk(voor).slice(0, 12)}`);
+    for (const t of manifest.tabellen) console.log(`  ${t.naam}: ${t.rijen}`);
+    console.log('manifest.json SHA-256: ' + sha256Manifest);
+    return;
+  }
   if (opdracht === 'na') {
     const client = await verbind();
     let n;
@@ -324,7 +351,8 @@ async function hoofd() {
     if (n.adressen) console.log(`e-mailadressen bij uitnodigingen: ${n.adressen.gesloten} bij gesloten, ${n.adressen.verlopen} bij lang verlopen (beide horen 0 te zijn)`);
     if (n.wachtrij) console.log(`uitnodigingsmails: ${Object.entries(n.wachtrij).map(([k, v]) => `${k} ${v}`).join(', ')}; Vault: ${(n.vaultNamen ?? []).join(', ') || 'leeg'}; pg_net ${n.pgNet ? 'aan' : 'uit'}`);
     if (n.instellingen) console.log(`schakelaars: ${Object.entries(n.instellingen).map(([k, v]) => `${k} ${v}`).join(', ')}`);
-    const f = naFouten(n, repoVersies(), VERWACHT_SCHEMA);
+    const { fouten: f, verwacht } = splitsVerwacht(naFouten(n, repoVersies(), VERWACHT_SCHEMA), process.env.KG_NA_TOT_STAP6 === '1');
+    for (const v of verwacht) console.log('VERWACHT tot stap 6: ' + v);
     // De Auth-instellingen (openbaar met de anon-sleutel; geen geheim). Zonder KG_ANON_KEY: overgeslagen en gemeld.
     const anon = process.env.KG_ANON_KEY;
     if (anon) {
