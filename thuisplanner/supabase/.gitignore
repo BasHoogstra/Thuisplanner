@@ -1,0 +1,5 @@
+# Lokale toestand van de Supabase CLI (supabase start); nooit committen.
+.branches/
+.temp/
+# Gemaakt door k1-lokaal.mjs (Vault-waarden voor de lokale stack); nooit committen.
+seed-lokaal.sql

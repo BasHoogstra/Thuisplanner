@@ -1,0 +1,18 @@
+{
+  "_uitleg": "Instellingen van de website (thuisplanner/website). Lege bedrijfsgegevens houden de publicatiebouw tegen (node bouw.mjs --publicatie). Vul nooit verzonnen gegevens in.",
+  "basisUrl": "https://mijnthuisplanner.nl",
+  "start": {
+    "_uitleg": "modus 'beta': de knop gaat naar de uitleg over meedoen op uitnodiging. modus 'app': de knop gaat naar appUrl (https://app.mijnthuisplanner.nl).",
+    "modus": "beta",
+    "appUrl": "https://app.mijnthuisplanner.nl"
+  },
+  "bedrijf": {
+    "_uitleg": "Zoals ingeschreven bij de KvK. 'adresAfgeschermd': true als het adres in het Handelsregister is afgeschermd; dan blijft 'adres' leeg. 'btw' alleen als je een btw-id hebt.",
+    "naam": "",
+    "kvk": "",
+    "adres": "",
+    "adresAfgeschermd": false,
+    "email": "",
+    "btw": ""
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "_uitleg": "De online omgevingen van Thuisplanner (geen geheimen; die staan alleen in Supabase, Cloudflare en Lettermint). supabaseRef: het projectkenmerk van het Thuisplanner-project van die omgeving (organisatie Thuisplanner, nooit Huisplan). De scripts en de stagingbuild weigeren een kenmerk dat hier niet precies bij de omgeving staat, en een omgeving zonder vastgelegd kenmerk. De bèta krijgt een eigen, nieuw project (bouwverslag §6, vaste keuze van 17 oktober 2026); tot dat project bestaat, staat het kenmerk op null en is de bèta dus geblokkeerd.",
+  "staging": {
+    "doel": "intern testen (de eigenaar en zijn partner, achter Cloudflare Access)",
+    "supabaseRef": "mcyjpnnjqxlqfwqhkqrl",
+    "pagesProject": "thuisplanner-staging",
+    "appUrl": "https://thuisplanner-staging.pages.dev/",
+    "toegang": "cloudflare-access",
+    "mailAfzender": "Thuisplanner (staging) <noreply@mail.mijnthuisplanner.nl>",
+    "mailAdapter": "lettermint"
+  },
+  "beta": {
+    "doel": "externe testers, op uitnodiging",
+    "supabaseRef": null,
+    "pagesProject": "thuisplanner-app",
+    "appUrl": "https://app.mijnthuisplanner.nl/",
+    "toegang": "code-inlog-en-testpoort",
+    "mailAfzender": "Thuisplanner <noreply@mail.mijnthuisplanner.nl>",
+    "mailAdapter": "lettermint"
+  },
+  "productie": {
+    "doel": "iedereen (na de lancering)",
+    "supabaseRef": null,
+    "pagesProject": "thuisplanner-app",
+    "appUrl": "https://app.mijnthuisplanner.nl/",
+    "toegang": "code-inlog",
+    "mailAfzender": "Thuisplanner <noreply@mail.mijnthuisplanner.nl>",
+    "mailAdapter": "lettermint"
+  },
+  "website": {
+    "doel": "publieke informatie (geen database, geen geheimen)",
+    "pagesProject": "thuisplanner-website",
+    "url": "https://mijnthuisplanner.nl/"
+  }
+}

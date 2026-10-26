@@ -1,0 +1,12 @@
+{
+  "name": "thuisplanner-website",
+  "private": true,
+  "type": "module",
+  "description": "De publieke website van Thuisplanner (mijnthuisplanner.nl). Zonder afhankelijkheden.",
+  "scripts": {
+    "bouw": "node bouw.mjs",
+    "bouw:publicatie": "node bouw.mjs --publicatie",
+    "voorbeeld": "node bouw.mjs && node voorbeeld.mjs",
+    "test": "node --test --test-reporter=spec tests/*.test.mjs"
+  }
+}
