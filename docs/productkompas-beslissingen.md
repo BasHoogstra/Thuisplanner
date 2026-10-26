@@ -16,6 +16,8 @@ wordt hier niet gewijzigd of aangevuld.
   geldt en dat de importgates ongewijzigd blijven.
 - Op 26 oktober 2026 is besluit 12 toegevoegd (gescheiden ouders en samengestelde gezinnen), met de keuzes O1–O8 en
   twee nieuwe gates. De beslissingen 1–11 zijn daarbij niet herschreven.
+- Op 26 oktober 2026 zijn de besluiten 13–16 toegevoegd (slimme projecten, huishoudkennis en contacten, herhalende
+  taken, minimale herinneringen), met vijf nieuwe gates. De beslissingen 1–12 zijn daarbij niet herschreven.
 - De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
@@ -30,6 +32,10 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 | De navigatie is getoetst aan werkelijk gebruik. | Fase 3.1 | Beslissing 2 |
 | Koppelingen tussen huishoudens: een gekoppeld huishouden, en een lid zonder toegang in de koppeling, ziet aantoonbaar niets buiten de expliciet gedeelde items; lid worden geeft geen toegang; intrekken werkt direct op de server; de bestaande RLS en huishoudgrenzen zijn niet verzwakt; de AVG-beoordeling voor het delen van kindgegevens is gedaan. Bewezen met testmatrix en tegenproeven (gate 9 voor het domein "koppelingen"). | De eerste migratie met een koppel- of deeltabel, en opnieuw voor ieder volgend gedeeld domein | Beslissing 12 |
 | Optie B (co-ouderschapsomgeving) start pas na een afzonderlijk productbesluit, op basis van werkelijk gebruik van optie A. | De eerste stap van optie B | Beslissing 12 |
+| Slimme projecten: gate 9 voor het domein "projecten"; een AVG-beoordeling van de AI-verwerker (inclusief verwerkingslocatie); de uitslag van de kwaliteitsproef op een vaste testset. Een betaalde AI-dienst of een abonnement alleen na een afzonderlijk akkoord van de producteigenaar, met een vast kostenplafond. | De eerste migratie voor projecten, en de eerste echte aanvraag aan een AI-dienst | Beslissing 13 |
+| Huishoudkennis en contacten: de server dwingt persoonlijk en gedeeld af bij lezen, zoeken, koppelen aan taken en projecten, signalen, meldingen en de data-export; wie iets niet mag zien, krijgt geen aanwijzing dat het bestaat. Bewezen met testmatrix en tegenproeven per toegangsniveau en per pad (gate 9 voor het domein "kennis en contacten"). | De eerste migratie met een contact- of kennistabel | Beslissing 14 |
+| Herhalende taken: gate 9 voor het takendomein (herhaling, afvinken per keer, uitzonderingen). | De eerste migratie voor herhalende taken | Beslissing 15 |
+| Herinneringen: een pushproef op de testtelefoons; gate 9 voor het domein "meldingen" (voorkeuren, toestellen, verzendlog); de inhoud van een melding bevat nooit privé-details, "Bezet"-inhoud of huishoudkennis. | De eerste migratie voor meldingen | Beslissing 16 |
 
 ## Beslissingen
 
@@ -215,3 +221,89 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 - **Uitwerking:** `docs/thuisplanner-co-ouderschap.md`. De technische oplossingen daarin zijn een ontwerpvoorstel;
   niets is gebouwd of bewezen.
 - **Wat niet verandert:** het Productkompas en de beslissingen 1–11.
+
+### 13. Slimme projecten (26 oktober 2026)
+
+- **Besluit van de producteigenaar:** via de centrale + kan het huishouden een grotere situatie beschrijven, zowel een
+  bekende ("we verhuizen 1 maart") als een onverwachte ("vaatwasser kapot, waterschade in de keuken"). Thuisplanner
+  stelt dan een plan voor: stappen met een logische volgorde en, waar zinvol, datums.
+- **Productkompas:** principes 1, 3, 5 en 6; beslissingen 1, 3 en 5.
+- **Uitgangspunten:**
+  - **Hybride.** Sjablonen waar die helpen; voor vrije en onverwachte situaties een voorstel van een AI-component.
+    Vrije invoer blijft altijd mogelijk.
+  - **De gebruiker beslist.** Het plan is een voorstel, volledig aan te passen. Er wordt pas iets aangemaakt na
+    bevestiging. Bij twijfel stelt Thuisplanner hoogstens één verduidelijkende vraag (beslissing 1).
+  - **Geen schijnintelligentie.** Is er geen betrouwbaar voorstel, dan zegt Thuisplanner dat, en kan de gebruiker zelf
+    stappen opgeven. Een sjabloon wordt nooit als maatwerk gepresenteerd. Bij acuut gevaar (brand, gaslucht,
+    medische spoed) toont Thuisplanner een vaste verwijzing naar 112: een vaste regel, geen AI-advies.
+  - **Minimale gegevens naar buiten.** Naar een externe AI gaat alleen wat nodig is (de zin van de gebruiker en de
+    datum). Nooit huishoudkennis, contacten, namen van leden, privé-afspraken of andere onnodige persoonsgegevens.
+    Welke kennis bij een stap hoort, koppelt Thuisplanner zelf, binnen de eigen rechten. De gebruiker ziet vóór
+    verzending dat de zin naar de AI-hulp gaat; de AI-hulp is per huishouden uit te zetten.
+  - **Keuze van de dienst.** Kwaliteit, betrouwbaarheid, privacy en beheersbare kosten staan voorop; gratis is geen
+    voorwaarde. De verwerker gebruikt de invoer niet om te trainen en bewaart haar niet langer dan nodig. Een betaalde
+    AI-dienst of een abonnement vraagt altijd vooraf een afzonderlijk akkoord van de producteigenaar, met een vast
+    kostenplafond.
+  - **Onverwachte situaties echt ondersteunen.** Vóór de bouw komt een kwaliteitsproef op een vaste testset van
+    realistische situaties; op basis daarvan worden de aanpak en de dienst gekozen.
+- **Voorwaarden vóór implementatie:** gate 9 voor het domein "projecten"; een AVG-beoordeling van de AI-verwerker,
+  inclusief de verwerkingslocatie; de uitslag van de kwaliteitsproef; geen nieuwe migratie zonder uitleg en
+  afzonderlijk akkoord (zie de tabel met gates).
+- **Wat niet verandert:** het Productkompas en de beslissingen 1–12.
+
+### 14. Huishoudkennis en contacten (26 oktober 2026)
+
+- **Besluit van de producteigenaar:** Thuisplanner kan huishoudkennis vastleggen (bijvoorbeeld verzekeraar, huisarts,
+  leasemaatschappij, school) en contacten zonder Thuisplanner-account (bijvoorbeeld familie en vrienden, met
+  verjaardag). Thuisplanner toont deze kennis vanzelf bij relevante taken en projecten. Het beheer staat onder
+  Instellingen; er komt **geen extra hoofdmodule**.
+- **Productkompas:** principes 2, 3 en 7; de regel "Privacy volgt de situatie"; beslissing 6.
+- **Uitgangspunten:**
+  - **Een contact is geen huishoudlid** en wordt nooit automatisch uitgenodigd. Een contact koppelen aan een lid
+    gebeurt alleen bewust.
+  - **Persoonlijk of gedeeld.** Bij toevoegen kies je eenvoudig tussen *persoonlijk* (alleen jij) en *gedeeld* (het
+    huishouden), voor een contact als geheel én voor afzonderlijke gevoelige gegevens. Bij duidelijk algemene
+    huishoudcontacten (bijvoorbeeld loodgieter, school, energieleverancier) is gedeeld de voorgestelde standaard; bij
+    medische en persoonlijke contacten en gegevens, en bij financiële gegevens, is persoonlijk de standaard. De
+    gebruiker kan dit altijd aanpassen.
+  - **De server dwingt de rechten af**, overal: lezen, zoeken, koppelen aan taken en projecten, signalen en
+    realtime, meldingen en de data-export. Wie iets niet mag zien, krijgt ook geen aanwijzing dat het bestaat.
+  - **Nooit naar buiten.** Kennis en contacten gaan nooit naar een externe AI en staan nooit in de inhoud van een
+    melding.
+  - **Niet opslaan:** BSN, wachtwoorden, pincodes en volledige betaalgegevens.
+- **Voorwaarden vóór implementatie:** gate 9 voor het domein "kennis en contacten", met testmatrix en tegenproeven
+  per toegangsniveau en per pad (lezen, zoeken, koppelen, export); geen nieuwe migratie zonder uitleg en afzonderlijk
+  akkoord (zie de tabel met gates).
+- **Wat niet verandert:** het Productkompas en de beslissingen 1–12.
+
+### 15. Herhalende taken (26 oktober 2026)
+
+- **Besluit van de producteigenaar:** herhalende taken horen bij de eerste demo. Ze worden in Huisplan veel gebruikt.
+  Een afspraak voor de hele dag is geen gewenste vervanging; die tijdelijke omweg in de centrale + vervalt zodra
+  herhalende taken er zijn.
+- **Productkompas:** principes 3 en 8.
+- **Uitgangspunten:**
+  - Het ontwerp ondersteunt in elk geval: dagelijks; wekelijks op **geselecteerde weekdagen**; **om de twee weken**
+    (ook op geselecteerde weekdagen); maandelijks; jaarlijks; met een optionele einddatum.
+  - Afvinken gebeurt per keer. Bij wijzigen en verwijderen: "alleen deze" of "hele reeks".
+  - Gemiste keren blijven een korte, vaste tijd zichtbaar.
+  - De centrale + herkent herhalende taken (bijvoorbeeld "elke vrijdag stofzuigen").
+- **Voorwaarden vóór implementatie:** gate 9 voor het takendomein; geen nieuwe migratie zonder uitleg en afzonderlijk
+  akkoord (zie de tabel met gates).
+- **Wat niet verandert:** het Productkompas en de beslissingen 1–12.
+
+### 16. Minimale herinneringen (26 oktober 2026; herbeoordeling van beslissing 4)
+
+- **Besluit van de producteigenaar:** de eerste demo krijgt een kleine set herinneringen: een afspraak met tijd, een
+  verjaardag, en een taak met tijd of de volgende stap van een project.
+- **Productkompas:** principe 6; beslissing 4.
+- **Uitgangspunten:**
+  - Instellingen zijn strikt persoonlijk, per account, nooit per huishouden. De standaard is rustig, met stille uren.
+  - **Geen toestemming vragen bij het eerste openen.** Thuisplanner vraagt pas om meldingen wanneer iemand een
+    herinnering aanzet, met een korte uitleg.
+  - De inhoud van een melding toont nooit details van een privé-afspraak, "Bezet"-inhoud of huishoudkennis.
+  - **Kanaal:** webpush is een mogelijke route. Het wordt pas gekozen nadat ondersteuning en betrouwbaarheid zijn
+    getoetst op de telefoons van de testers.
+- **Voorwaarden vóór implementatie:** een pushproef op de testtelefoons; gate 9 voor het domein "meldingen"; geen
+  nieuwe migratie zonder uitleg en afzonderlijk akkoord (zie de tabel met gates).
+- **Wat niet verandert:** het Productkompas en de beslissingen 1–12.
