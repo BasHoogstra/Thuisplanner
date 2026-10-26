@@ -429,6 +429,28 @@ in het extra search path. **Realtime → Settings:** "Allow public access" uit.
 Dat is H7 en H16.
 
 - **Akkoord:** ja, per onderdeel.
+- **Uitgevoerd op 22 en 24 oktober 2026** (door de producteigenaar in de dashboards; Claude zag geen waarden):
+  - **6a–6c, geheimen en hook:** volgens de melding van de producteigenaar staan de 13 geheimen. De Send Email-hook
+    (HTTPS, `stuur-code`) staat aan, en `K1_HOOK_SECRET` is gezet. `stuur-code` antwoordt op een verzoek zonder geldige
+    handtekening met 401. Dat ze werken, blijkt uit stap 9: de code-inlog slaagt via de hook.
+  - **6b, Auth:** de producteigenaar meldde e-mail aan, aanmelden aan, bevestigen aan, OTP 10 en 600, andere methoden
+    uit, de Site URL gezet, een rate limit van 60 seconden en de captcha aan. Alleen lezend nagemeten (24 oktober):
+    alleen e-mail als inlogmethode, `disable_signup` uit, `mailer_autoconfirm` en `phone_autoconfirm` uit, SAML en
+    passkeys uit. Dat is in orde.
+  - **6d, Turnstile:** de widget staat op de hostname `thuisplanner-staging.pages.dev`. De geheime sleutel is
+    vervangen, en op 26 oktober is gemeten dat hij overeenkomt met de widget (zie stap 9).
+  - **6e, de Lettermint-webhook:** het adres, de vijf gebeurtenissen en `LETTERMINT_WEBHOOK_GEHEIM` zijn ingesteld (volgens
+    de melding). **Open:** er is geen testgebeurtenis bevestigd; dat volgt met de eerste uitnodigingsmail (H14, stap 10).
+  - **6f, Vault** (SQL-controle door de producteigenaar): `thuisplanner_wachtrij_geheim` heeft 44 tekens, en
+    `thuisplanner_wachtrij_url` is het https-adres van `stuur-uitnodiging`. Daarnaast: 5 geplande taken, allemaal
+    actief; de schakelaars `wachtwoordsessies` uit, `sessiecontrole` aan, `onderhoud` leeg en `huishouden_open` uit.
+  - **6g, schema's:** alleen `public` en `graphql_public` zijn blootgesteld. Realtime "Allow public access" staat uit, en
+    er zijn geen Storage-buckets (volgens de melding). Alleen lezend nagemeten: een verzoek op `private` geeft
+    `PGRST106` ("Only the following schemas are exposed: public, graphql_public").
+  - **De nacontrole:** de Auth-instellingen zijn IN ORDE. De schemacontrole gaf een **schijnafwijking**: met een
+    publishable key antwoordt de root van `/rest/v1/` met 401 ("Secret API key required"), en de controle verwacht daar
+    nog het oude antwoord. De meting per tabel hierboven laat zien dat `private` niet bereikbaar is. **Open:** de
+    nacontrole aanpassen aan publishable keys (aparte wijziging, met akkoord).
 
 ### Stap 7 — Accounts en huishouden (vóór de telefoonproef klaargezet)
 
@@ -439,6 +461,13 @@ Dat is H7 en H16.
 - **Sanne:** hoeft niet op de testerslijst, want zij accepteert een uitnodiging.
 - **Cloudflare Access:** de producteigenaar voegt het adres van Sanne toe aan de Access-policy.
 - **Akkoord:** ja.
+- **Stand op 26 oktober 2026:**
+  - De producteigenaar behoudt zijn bestaande account en het bestaande huishouden (besluit van 24 oktober). Er zijn
+    geen gegevens verwijderd of gereset. Hij logt in met een code, en is eigenaar (stap 9).
+  - De testerslijst is leeg (0 adressen, gemeten op 24 oktober), en dat is niet nodig gebleken: een eigen nieuw
+    huishouden maken is niet nodig, omdat het bestaande huishouden er al is.
+  - **Open:** dat het adres van Sanne in de Access-policy staat, is niet aantoonbaar vastgelegd. Te controleren
+    vóór stap 10.
 
 ### Stap 8 — De nieuwe app naar staging
 
@@ -450,6 +479,23 @@ Dat is H7 en H16.
   - de build weigert een ander project, Huisplan, demovariabelen en geheimen;
   - de echte headers en CSP (H17).
 - **Akkoord:** ja (deployment).
+- **Uitgevoerd op 24 en 26 oktober 2026:**
+  - Pages: de root is `thuisplanner/app`, de watch paths `thuisplanner/**`, de build `npm ci && npm run build:staging`,
+    de uitvoer `dist`, en de productiebranch `thuisplanner-staging`.
+  - `thuisplanner-staging` is alleen vooruit gezet: eerst naar `41f105d` (24 oktober), daarna naar `75d167f` (26
+    oktober). Bij beide was de uitrol in Pages **Success** (volgens de melding van de producteigenaar).
+  - **De sitekey:** de eerste build had een geheime sleutel als sitekey. Die is ingetrokken. Een tweede build had nog
+    een oude waarde van 35 tekens. In de derde build bevat de gepubliceerde bundel alleen één sleutel van 24 tekens
+    (`0x4AAA…`), alleen lezend nagemeten in de app. Na het toevoegen van de hostname bij Turnstile (fout 110200) laadt
+    Turnstile.
+  - **Access:** het app-adres, en de preview-adressen (`main.`, `thuisplanner-deel2.` en
+    `thuisplanner-staging.thuisplanner-staging.pages.dev`), geven zonder inlog 302 naar de Access-inlog. Gemeten op 24
+    oktober, en opnieuw op 26 oktober.
+  - **De buildbewaking:** de weigering van een ander project, Huisplan, demovariabelen en geheimen is lokaal en in CI
+    getest. Online is alleen de geslaagde build met de juiste configuratie gezien.
+  - **Open (H17):** de echte response-headers en de CSP van de online app zijn niet afzonderlijk uitgelezen. Wel bekend:
+    de CSP in de build (`_headers`, `frame-ancestors 'none'`, script alleen van `self` en `challenges.cloudflare.com`),
+    en dat Turnstile online laadt. Uitlezen kan alleen met een Access-inlog, in de browser van de producteigenaar.
 
 ### Stap 9 — Toegangstests met één account
 
@@ -461,6 +507,27 @@ Met het eigen adres van de producteigenaar: H1–H7 en H10–H13 uit het bouwver
   - "overal uitloggen" werkt direct;
   - in de logboeken staan geen adres, code of token.
 - **Akkoord:** ja.
+- **Uitgevoerd op 26 oktober 2026:**
+  - **De eerste pogingen mislukten** met `captcha_failed`.
+    - Oorzaak: de geheime Turnstile-sleutel bij de Auth-captcha in Supabase was een andere dan die van de widget. Gemeten
+      zonder de sleutel te tonen: lengte en vingerafdruk (de eerste 8 bytes van SHA-256), plus de siteverify-controle
+      van Cloudflare.
+    - Herstel door de producteigenaar: de sleutel uit Cloudflare (lengte 35, Cloudflare geeft `invalid-input-response`
+      op een nep-token) is gezet bij de Auth-captcha en in `TURNSTILE_SECRET`.
+  - **Reparatie B** (commit `75d167f`, CI groen, Pages-uitrol op `thuisplanner-staging` geslaagd): na een geweigerd of
+    verlopen token komt er een nieuwe widget, en kan de gebruiker altijd opnieuw controleren.
+  - **Inloggen met een code werkt**, op de telefoon en op de laptop. De producteigenaar komt direct in de planner, als
+    eigenaar van het bestaande huishouden. Daarmee geeft `mijn_toegang` dus `ok`.
+  - **"Uitloggen op alle toestellen" werkt direct.**
+    - Na het uitloggen op de telefoon toont de laptop na verversen het inlogscherm.
+    - Het Auth-logboek toont de uitlog (204), en daarna voor de laptop `403 Session not found`: de sessie was op de
+      server al ingetrokken.
+  - **Logboeken schoon.**
+    - `stuur-code` en `controleer-code` schrijven alleen functie, soort, uitkomst en `bekend_toestel`.
+    - Het Auth-logboek toont geen code en geen token. Het adres van de gebruiker legt Supabase zelf vast in het
+      Auth-logboek; dat zien alleen beheerders van het project.
+  - **Niet apart online getest:** dat een sessie met een wachtwoord niets krijgt. Wachtwoordsessies staan uit
+    (`private.instellingen`), en die regel is lokaal bewezen (KG-T65 in `rls_tests.sql`).
 
 ### Stap 10 — Sanne erbij
 
@@ -471,6 +538,13 @@ Met het eigen adres van de producteigenaar: H1–H7 en H10–H13 uit het bouwver
 
 - **Controle:** de uitnodigingsmail komt binnen een minuut, precies één keer (H14).
 - **Akkoord:** ja.
+- **Voorbereiding uitgevoerd op 26 oktober 2026:**
+  - In Cloudflare Access staan beide applicaties op een sessieduur van 1 maand. Beide policies ("Thuisplanner Staging -
+    Alleen testers" en "Allow Members - Cloudflare Pages") volgen de sessieduur van de applicatie.
+  - De previews staan aantoonbaar achter Access (zie stap 8). Welke van de twee applicaties welke hostnames dekt, is
+    niet afzonderlijk vastgesteld.
+  - Sanne is op verzoek van de producteigenaar **nog niet uitgenodigd**.
+  - **Open:** controleren dat het adres van Sanne in de Access-policy staat (zie stap 7).
 
 ### Stap 11 — Acceptatietests samen
 
