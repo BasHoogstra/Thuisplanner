@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { kiesDag } from './hulp-agenda';
 
 // KG-3: weekagenda, openen/bewerken/verwijderen, afvinken en heropenen, boodschappen zonder dubbelingen.
 // Vaste demo-klok: zaterdag 10 oktober 2026, 11:20 (week 41: maandag 5 t/m zondag 11 oktober).
@@ -33,16 +34,19 @@ test.describe('Agenda: weekweergave', () => {
   test('toont maandag t/m zondag, bladert naar volgende week en terug', async ({ page }) => {
     await nav(page, 'Agenda');
     await expect(page.getByText('5 – 11 oktober · week 41')).toBeVisible();
-    await expect(page.locator('section.week-dag')).toHaveCount(7);
+    // Laptop: zeven kolommen. iPhone en tablet (Agenda stap 4): de weekstrip met zeven dagen en de gekozen dag (vandaag).
+    if ((page.viewportSize()?.width ?? 0) >= 960) await expect(page.locator('section.week-dag')).toHaveCount(7);
+    else await expect(page.getByRole('group', { name: 'Kies een dag' }).getByRole('button')).toHaveCount(7);
     await expect(dag(page, /^zaterdag 10 oktober, vandaag$/)).toContainText('Voetbal');
-    // W2 (D5): op mobiel staan opeenvolgende lege dagen (ma 5 t/m do 8) samen op één regel; op desktop elk in een kolom.
-    if ((page.viewportSize()?.width ?? 0) >= 960) await expect(dag(page, /^maandag 5 oktober$/)).toContainText('Niets gepland');
-    else await expect(page.getByRole('group', { name: 'maandag 5 oktober tot en met donderdag 8 oktober: niets gepland' })).toBeVisible();
+    await kiesDag(page, 'maandag 5 oktober');
+    await expect(dag(page, /^maandag 5 oktober$/)).toContainText('Niets gepland');
     await geenHorizontaleScroll(page);
 
     await page.getByRole('button', { name: 'Volgende week' }).click();
     await expect(page.getByText('12 – 18 oktober · week 42')).toBeVisible();
+    await kiesDag(page, 'maandag 12 oktober');
     await expect(dag(page, /^maandag 12 oktober$/)).toContainText('Fietsband Lotte plakken');
+    await kiesDag(page, 'dinsdag 13 oktober');
     await expect(dag(page, /^dinsdag 13 oktober$/)).toContainText('Ouderavond groep 4');
     await page.getByRole('button', { name: 'Naar vandaag' }).click();
     await expect(page.getByText('5 – 11 oktober · week 41')).toBeVisible();
@@ -51,6 +55,7 @@ test.describe('Agenda: weekweergave', () => {
   test('toevoegen op een bepaalde dag via de + van die dag', async ({ page }) => {
     await nav(page, 'Agenda');
     await page.getByRole('button', { name: 'Volgende week' }).click();
+    await kiesDag(page, 'woensdag 14 oktober');   // Agenda stap 4: de + staat bij de gekozen dag
     await page.getByRole('button', { name: 'Toevoegen op woensdag 14 oktober' }).click();
     await venster(page).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; dit test het formulier
     await venster(page).getByLabel('Wat?').fill('Oudergesprek');
@@ -64,7 +69,9 @@ test.describe('Agenda: weekweergave', () => {
   test('taken zonder datum staan in de agenda, niet op Vandaag', async ({ page }) => {
     await expect(page.getByText('Aanslag gemeentebelasting nakijken')).toHaveCount(0);
     await nav(page, 'Agenda');
-    await expect(sectie(page, 'Taken zonder datum')).toContainText('Aanslag gemeentebelasting nakijken');
+    // Agenda A8: standaard ingeklapt, met een telling; openklappen toont de taak.
+    await page.getByRole('button', { name: 'Zonder datum · 2 open' }).click();
+    await expect(page.getByRole('list', { name: 'Taken zonder datum' })).toContainText('Aanslag gemeentebelasting nakijken');
   });
 });
 
@@ -95,6 +102,7 @@ test.describe('Afspraken openen, bewerken en verwijderen', () => {
     await expect(page.getByText('Vandaag: 3 afspraken en 3 taken.')).toBeVisible();
     await nav(page, 'Agenda');
     await page.getByRole('button', { name: 'Volgende week' }).click();
+    await kiesDag(page, 'woensdag 14 oktober');
     await expect(dag(page, /^woensdag 14 oktober$/)).toContainText('Voetbal');
   });
 
@@ -134,6 +142,7 @@ test.describe('Afspraken openen, bewerken en verwijderen', () => {
 
   test('gedeelde afspraak van een ander: wel aanpassen, maar niet privé maken', async ({ page }) => {
     await nav(page, 'Agenda');
+    await kiesDag(page, 'zondag 11 oktober');   // Agenda stap 4: op mobiel eerst de dag in de weekstrip
     await page.getByRole('button', { name: /^Eten bij oma, 17:30\. Openen$/ }).click();
     await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Meer… → Alles bewerken)
     await expect(venster(page).getByLabel('Wat?')).toHaveValue('Eten bij oma');
@@ -177,6 +186,7 @@ test.describe('Taken', () => {
     await venster(page).getByRole('button', { name: 'Opslaan' }).click();
     await expect(sectie(page, 'Te doen')).not.toContainText('Cadeautje');
     await nav(page, 'Agenda');
+    await kiesDag(page, 'zondag 11 oktober');
     const zondag = dag(page, /^zondag 11 oktober$/);
     await expect(zondag.locator('li', { hasText: 'Cadeautje voor Noor kopen' })).toContainText('Daan');
   });

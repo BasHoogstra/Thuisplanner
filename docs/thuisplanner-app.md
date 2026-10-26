@@ -105,7 +105,7 @@ gebruikt het alleen in Node om de fictieve accounts te maken; de browser krijgt 
 | --- | --- |
 | Inloggen met een fictief account, huishouden en leden van de server | **Echt** (wachtwoord, lokaal). Testpagina, niet het ontwerp van KG-5H (e-mailcode, huishouden aanmaken, uitnodigen) |
 | **Vandaag** (agenda, taken, boodschappen, binnenkort) | **Echt**: uit de database, bijgewerkt via realtime-seintjes |
-| **Agenda** dag/week/maand, gezinsfilter | **Echt** (lezen en schrijven) |
+| **Agenda** dag/week/maand, gezinsfilter | **Echt** (lezen en schrijven); de vernieuwing staat in `docs/thuisplanner-agenda.md` |
 | **Afspraken** toevoegen, aanpassen, verwijderen | **Echt** (`save_event`, `delete_event`, met versie) |
 | **Herhalende afspraken**: hele reeks, of "alleen deze" wijzigen/verwijderen | **Echt** (`edit_occurrence`, `delete_occurrence`; uitzonderingen worden nu mee opgehaald) |
 | **Taken** toevoegen, aanpassen, afvinken, verwijderen | **Echt** (in Vandaag en Agenda; PR #20 heeft geen apart Taken-scherm) |

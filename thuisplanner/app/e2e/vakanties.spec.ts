@@ -218,14 +218,59 @@ test('koppelingen: de kaart op Vandaag, de vakantie in de Agenda, en het label b
   await page.getByRole('tab', { name: 'Week', exact: true }).click();
   await page.getByRole('button', { name: 'Volgende week' }).click();
   const regels = page.getByRole('button', { name: 'Vakantie Frankrijk. Openen' });
-  await expect(regels.first()).toBeVisible();
-  expect(await regels.count()).toBe(3);   // vrijdag 30 oktober t/m zondag 1 november
-  await geenHorizontaleScroll(page, 'agenda met vakantie');
+  if (isDesktop(page)) {
+    await expect(regels.first()).toBeVisible();
+    expect(await regels.count()).toBe(3);   // vrijdag 30 oktober t/m zondag 1 november
+    await geenHorizontaleScroll(page, 'agenda met vakantie');
+  } else {
+    // iPhone en tablet (Agenda A2/A3): de gekozen dag (woensdag 28) heeft geen vakantie; de weekstrip en "Rest van de
+    // week" noemen hem bij vrijdag t/m zondag, en een tik op vrijdag toont de regel, die de vakantie opent.
+    await expect(regels).toHaveCount(0);
+    const rest = page.locator('.rest-week').getByRole('button', { name: /Vakantie Frankrijk/ });
+    await expect(rest).toHaveCount(3);
+    await expect(page.getByRole('group', { name: 'Kies een dag' }).getByRole('button', { name: /Vakantie Frankrijk/ })).toHaveCount(3);
+    await rest.first().click();
+    await expect(regels).toHaveCount(1);
+    await expect(page.locator('.week-dag .week-leeg')).toHaveCount(0);   // een vakantiedag is niet "Niets gepland"
+    await geenHorizontaleScroll(page, 'agenda met vakantie');
+    await regels.click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Frankrijk' })).toBeVisible();
+  }
   // Boodschappen: bij Later nodig (ingeklapt), met het label.
   await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Boodschappen' }).click();
   await page.getByRole('button', { name: /^Later nodig/ }).click();
   await expect(page.getByRole('list', { name: 'Later nodig' }).getByRole('button', { name: 'Adapterstekker aanpassen' })).toContainText('Frankrijk');
   await geenHorizontaleScroll(page, 'boodschappen met label');
+});
+
+test('Agenda en slimme +: op een vakantiedag toevoegen; de taak staat op die dag bij de vakantie, Dag en Week tonen beide', async ({ page }) => {
+  await page.goto(START + '#/agenda');
+  await page.getByRole('tab', { name: 'Week', exact: true }).click();
+  await page.getByRole('button', { name: 'Volgende week' }).click();
+  // iPhone en tablet: eerst vrijdag kiezen in de weekstrip; de laptop toont de hele week.
+  if (!isDesktop(page)) await page.getByRole('group', { name: 'Kies een dag' }).getByRole('button', { name: /^vrijdag 30 oktober/ }).click();
+  const vrijdag = page.locator('section.week-dag', { has: page.getByRole('button', { name: 'Dagoverzicht vrijdag 30 oktober' }) });
+  await expect(vrijdag.getByRole('button', { name: 'Vakantie Frankrijk. Openen' })).toBeVisible();
+  await expect(vrijdag.locator('.week-leeg')).toHaveCount(0);
+  // De + van die dag is de slimme + met die datum; "voor Frankrijk" koppelt de taak aan de vakantie.
+  await vrijdag.getByRole('button', { name: 'Toevoegen op vrijdag 30 oktober' }).click();
+  const venster = page.getByRole('dialog');
+  await venster.getByLabel('Wat wil je regelen?').fill('Paspoorten controleren voor Frankrijk');
+  await expect(venster.locator('.kaart-regel')).toContainText('Frankrijk');
+  await geenHorizontaleScroll(page, 'slimme + vanuit de agenda');
+  await venster.getByRole('button', { name: 'Toevoegen' }).click();
+  await expect(page.getByRole('status')).toContainText('Paspoorten controleren staat bij de voorbereidingen van Frankrijk');
+  // In de week op vrijdag: de vakantieregel en de taak met het vakantielabel.
+  await expect(vrijdag.getByRole('button', { name: 'Vakantie Frankrijk. Openen' })).toBeVisible();
+  await expect(vrijdag.getByRole('button', { name: 'Paspoorten controleren openen' })).toContainText('Frankrijk');
+  // Dag: de vakantieregel boven het dagblok, de taak in het dagblok.
+  await vrijdag.getByRole('button', { name: 'Dagoverzicht vrijdag 30 oktober' }).click();
+  const dag = page.getByRole('region', { name: 'Dagoverzicht vrijdag 30 oktober' });
+  await expect(dag.locator('.dag-vakantie').getByRole('button', { name: 'Vakantie Frankrijk. Openen' })).toBeVisible();
+  await expect(dag.getByRole('list', { name: 'Taken' }).getByRole('button', { name: 'Paspoorten controleren openen' })).toContainText('Frankrijk');
+  await geenHorizontaleScroll(page, 'dag met vakantie');
+  await dag.getByRole('button', { name: 'Vakantie Frankrijk. Openen' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Frankrijk' })).toBeVisible();
 });
 
 test('Later nodig: ingeklapt, één tik naar Nu te kopen, gelijk bij de vakantie (ook 320 px en donker)', async ({ page }) => {

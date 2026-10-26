@@ -21,6 +21,22 @@ export function maandRaster(d: Datum): Datum[] {
   return dagen;
 }
 
+/**
+ * Hoe vol een dag is, in drie stappen (0 = niets, 1 = één of twee, 2 = drie of vier, 3 = vijf of meer). Voor één rustig,
+ * neutraal streepje per dag in plaats van stippen (Agenda, A5).
+ */
+export function drukte(aantal: number): 0 | 1 | 2 | 3 {
+  return aantal <= 0 ? 0 : aantal <= 2 ? 1 : aantal <= 4 ? 2 : 3;
+}
+
+/** De schermlezertekst van een dag in de maand en de weekstrip: "2 afspraken, 1 taak", of "niets gepland". */
+export function beschrijfDag(afspraken: number, openTaken: number): string {
+  return [
+    afspraken ? `${afspraken} ${afspraken === 1 ? 'afspraak' : 'afspraken'}` : '',
+    openTaken ? `${openTaken} ${openTaken === 1 ? 'taak' : 'taken'}` : '',
+  ].filter(Boolean).join(', ') || 'niets gepland';
+}
+
 /** Afspraken en taken van één dag, met het gezinsfilter toegepast. */
 export function dagInhoud(items: Item[], datum: Datum, filter: GezinsFilter): { afspraken: Afspraak[]; taken: Taak[] } {
   return {

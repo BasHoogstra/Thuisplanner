@@ -13,6 +13,8 @@ export interface AgendaStand {
   weergave: AgendaWeergave;
   datum: Datum;
   filter: GezinsFilter;
+  /** Taken zonder datum uitgeklapt (A8); leeg of false is dicht. Blijft staan tijdens het navigeren, niet na herladen. */
+  zonderDatumOpen?: boolean;
 }
 
 export type Soort = 'afspraak' | 'taak' | 'boodschap';

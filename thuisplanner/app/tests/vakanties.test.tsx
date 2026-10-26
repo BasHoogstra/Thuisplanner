@@ -121,7 +121,9 @@ it('een voorbereiding is een gewone taak: in de Agenda (zonder datum) met het va
   await user.type(screen.getByRole('textbox', { name: 'Voorbereiding toevoegen' }), 'Auto laten nakijken{Enter}');
   expect(screen.getByRole('checkbox', { name: 'Auto laten nakijken' })).toBeInTheDocument();
   await user.click(screen.getByRole('link', { name: 'Agenda' }));
-  const ooit = screen.getByRole('heading', { name: 'Taken zonder datum' }).closest('section')!;
+  // Agenda A8: "Zonder datum" staat ingeklapt met een telling; openklappen toont de voorbereiding.
+  await user.click(screen.getByRole('button', { name: /^Zonder datum · / }));
+  const ooit = screen.getByRole('heading', { name: /^Zonder datum · / }).closest('section')!;
   const rij = within(ooit).getByRole('button', { name: 'Auto laten nakijken openen' });
   expect(rij).toHaveTextContent('Frankrijk');
   // Het taak-detail: de vakantie wijzigen naar "Geen".

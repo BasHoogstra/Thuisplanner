@@ -128,7 +128,8 @@ a { color: var(--accent); }
 .stip { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .vinkje {
   flex: 0 0 auto; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%;
-  border: 1.8px solid var(--lijn-sterk); display: grid; place-items: center; transition: background .15s, border-color .15s;
+  --ring: var(--lijn-sterk); /* de rij kan dit zetten op de kleur van het lid (Agenda, A6) */
+  border: 1.8px solid var(--ring); display: grid; place-items: center; transition: background .15s, border-color .15s;
 }
 .vinkje.aan { background: var(--accent); border-color: var(--accent); color: var(--accent-inkt); }
 
@@ -360,26 +361,61 @@ a { color: var(--accent); }
 .week-titel { margin: 0 4px; display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 .week-titel span { font-weight: 650; }
 .week-titel small { color: var(--inkt-2); font-size: 14px; }
-/* W2 (D5): de week als één rustige lijst. Een dag krijgt een lichte kop, geen kaart; opeenvolgende lege dagen staan op
-   mobiel samen op één regel. Een rij toont alleen tijd, titel (hoogstens twee regels) en één persoonsmarkering. */
+/* Een dag in de week krijgt een lichte kop, geen kaart. Een rij toont alleen tijd, titel (hoogstens twee regels) en één
+   persoonsmarkering (W2). Op iPhone en tablet staat alleen de gekozen dag zo in beeld (Agenda A2, stap 4). */
 .week { display: flex; flex-direction: column; margin-top: 10px; }
 .week-dag { padding: 10px 0 4px; border-top: 1px solid var(--lijn); }
-.week-dag:first-child, .week-leeg-groep:first-child { border-top: 0; }
+.week-dag:first-child { border-top: 0; }
 .week-dag-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; min-height: 36px; }
 .week-dag-kop h2 { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 14px; }
 .week-dag-naam { text-transform: capitalize; color: var(--inkt-2); font-weight: 600; width: 1.6em; }
 .week-dag-nr { font-weight: 700; font-variant-numeric: tabular-nums; }
 .week-dag-vandaag { font-size: 12px; font-weight: 700; color: var(--accent-inkt); background: var(--accent); border-radius: 99px; padding: 1px 8px; }
-.week-dag.verleden .week-dag-kop { opacity: .6; }
+/* Agenda (stap 1): voorbij is rustiger door kleur, niet door doorzichtigheid, zodat de tekst leesbaar blijft (≥ 4,5:1). */
+.week-dag.verleden .week-dag-nr { color: var(--inkt-2); font-weight: 600; }
 .week-dag.leeg { padding: 4px 0; }
-.week-leeg { flex: 1 1 auto; min-width: 0; color: var(--inkt-3); font-size: 14px; }
-.week-dag.in-groep { display: none; }
-.week-leeg-groep { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; padding: 6px 2px; border-top: 1px solid var(--lijn); }
-.week-leeg-groep .leeg-dag { display: inline-flex; align-items: center; gap: 0; }
-.week-leeg-groep .dag-knop { margin: 0; padding: 4px 4px; gap: 4px; font-size: 14px; }
-.week-leeg-groep .week-dag-naam { width: auto; }
-.week-leeg-groep .week-leeg { flex: 0 0 auto; }
-.week-leeg-groep .leeg-dag.verleden { opacity: .6; }
+.week-leeg { flex: 1 1 auto; min-width: 0; color: var(--inkt-2); font-size: 14px; }
+/* Agenda (stap 4, A2): de weekstrip op iPhone en tablet. Zeven dagen; vandaag een ring, de gekozen dag gevuld, per dag één
+   neutraal drukte-streepje. Blijft bovenaan staan tijdens het scrollen. */
+.weekstrip-houder {
+  position: sticky; top: 0; z-index: 5; margin: 8px -16px 0; padding: 6px 12px 8px;
+  background: var(--bg); border-bottom: 1px solid var(--lijn);
+}
+.weekstrip { display: grid; grid-template-columns: repeat(7, minmax(40px, 1fr)); gap: 2px; }
+.strip-dag {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 64px; padding: 6px 0 4px;
+  border: 0; border-radius: 14px; background: none; color: inherit; font: inherit;
+}
+@media (hover: hover) { .strip-dag:hover { background: var(--vlak-2); } }
+.strip-naam { font-size: 12px; font-weight: 600; color: var(--inkt-2); }
+.strip-nr {
+  width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%;
+  font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.strip-dag.verleden .strip-nr { color: var(--inkt-2); font-weight: 600; }
+.strip-dag.vandaag .strip-nr { color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.strip-dag[aria-pressed="true"] .strip-nr { background: var(--accent); color: var(--accent-inkt); box-shadow: none; }
+.strip-drukte { display: block; height: 3px; width: 0; border-radius: 3px; background: var(--inkt-2); }
+.strip-drukte.n1 { width: 8px; }
+.strip-drukte.n2 { width: 16px; }
+.strip-drukte.n3 { width: 26px; }
+/* A3: de rest van de week, één regel per dag; een tik kiest die dag. */
+.rest-week .sectie-kop { margin-top: 24px; }
+.rest-lijst li + li { border-top: 1px solid var(--lijn); }
+.rest-dag {
+  display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; gap: 10px; align-items: start; width: 100%;
+  min-height: 48px; padding: 12px 14px; border: 0; background: none; text-align: left; color: inherit; font: inherit; font-size: 15px;
+}
+@media (hover: hover) { .rest-dag:hover { background: color-mix(in srgb, var(--vlak-2) 55%, transparent); } }
+.rest-naam { font-weight: 650; }
+.rest-dag.vandaag .rest-naam { color: var(--accent); }
+.rest-dag.verleden .rest-naam { color: var(--inkt-2); font-weight: 600; }
+.rest-tekst {
+  color: var(--inkt-2); overflow-wrap: normal; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+.rest-taken { color: var(--inkt-2); font-size: 14px; white-space: nowrap; padding-top: 1px; }
+@media (max-width: 359px) { .rest-dag { grid-template-columns: 92px minmax(0, 1fr) auto; padding: 12px 10px; } }
 .icoonknop.stil-plus { border-color: transparent; background: none; color: var(--inkt-3); }
 @media (hover: hover) { .icoonknop.stil-plus:hover { color: var(--accent); background: var(--vlak-2); } }
 .week-lijst { background: none; border: 0; border-radius: 0; overflow: visible; }
@@ -390,31 +426,81 @@ a { color: var(--accent); }
 .week-tijd { flex: 0 0 auto; width: 48px; color: var(--inkt-2); font-size: 14px; padding-top: 1px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* De taak heeft geen tijd; het vinkje staat in de tijdkolom, zodat titels onder elkaar beginnen. */
 .week-rij.taak .vink-knop { width: 58px; justify-content: flex-start; }
-.week-inhoud { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+/* Agenda (stap 1, A6): tijd, titel en naam op één regel; links van de titel een streepje in de lidkleur (een taak heeft
+   een rondje in die kleur, het streepje blijft dan leeg zodat de titels onder elkaar beginnen). */
+.week-rij, .maand-titels span { --kleur: transparent; } /* de rij zet dit op de kleur van het lid */
+.week-inhoud {
+  display: flex; align-items: flex-start; gap: 2px 10px; min-width: 0; flex: 1;
+  padding-left: 10px; border-left: 3px solid var(--kleur);
+}
+.week-inhoud .week-rij-titel { flex: 1 1 auto; min-width: 0; }
+.week-inhoud .week-sub { flex: 0 1 auto; max-width: 45%; justify-content: flex-end; padding-top: 2px; }
+/* A12: nooit midden in een woord breken; een woord dat langer is dan de regel wordt afgesneden. */
 .week-rij-titel {
-  font-weight: 550; overflow-wrap: anywhere; hyphens: none;
+  font-weight: 550; overflow-wrap: normal; hyphens: none; text-overflow: ellipsis;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
 }
 .week-rij-titel svg { display: inline-block; vertical-align: -2px; margin-right: 5px; color: var(--inkt-2); }
 .week-rij-titel.bezet { color: var(--inkt-2); font-weight: 500; }
 .week-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; color: var(--inkt-2); font-size: 13px; }
 .week-wie { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.week-rij.voorbij { opacity: .5; }
+.week-rij.voorbij .week-rij-titel, .week-rij.voorbij .week-tijd { color: var(--inkt-2); font-weight: 500; }
+.week-rij.voorbij .week-inhoud { border-left-color: color-mix(in srgb, var(--kleur) 40%, transparent); }
+.agenda .rij-titel { overflow-wrap: normal; overflow: hidden; }
+/* Afgerond: doorgestreept en een afgevinkt rondje; de tekst blijft leesbaar (≥ 4,5:1). */
+.agenda .week-rij.klaar .week-rij-titel, .agenda .rij.klaar .rij-titel { color: var(--inkt-2); }
 .week-rij.klaar .week-rij-titel { text-decoration: line-through; color: var(--inkt-3); }
 
 /* ---------- KG-4: dag, maand, filter, herhaling ---------- */
 .agenda-kop h1 { margin-bottom: 12px; }
+/* Agenda (stap 4b, A6): op iPhone en tablet staat het gezinsfilter achter één knop naast de titel. */
+.agenda-titelrij { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.agenda-titelrij h1 { min-width: 0; }
+.keuze.klein.filter-knop { gap: 6px; min-height: 44px; margin-bottom: 12px; }
+.filter-pijl { transform: rotate(90deg); transition: transform .15s; color: var(--inkt-2); }
+.filter-knop[aria-expanded="true"] .filter-pijl { transform: rotate(-90deg); }
 .agenda-balk { display: flex; flex-direction: column; gap: 10px; }
 .segment.klein { max-width: 320px; }
 .segment.twee { grid-template-columns: repeat(2, 1fr); margin: 12px 0 4px; }
 .segment.klein .segment-knop { min-height: 36px; font-size: 14px; }
-/* Filter: één regel die binnen zichzelf scrollt; de pagina scrollt nooit opzij. */
-.filter-rij { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px; }
-.filter-rij::-webkit-scrollbar { display: none; }
+/* Filter: op iPhone en tablet het uitgeklapte paneel onder de knop, alle leden zichtbaar (geen schuiven opzij). */
+.filter-rij { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 2px 0; }
+.filter-rij .keuze.klein { min-height: 40px; }
 .keuze.klein { flex: 0 0 auto; min-height: 34px; padding: 0 12px; font-size: 14px; }
 .dag-knop { display: flex; align-items: baseline; gap: 8px; padding: 4px 6px; margin: -4px -6px; border: 0; background: none; border-radius: 10px; color: inherit; font: inherit; }
 @media (hover: hover) { .dag-knop:hover { background: var(--vlak-2); } }
 .dag-weergave .sectie-kop:first-child { margin-top: 16px; }
+/* Agenda (stap 2, A4/A7): één dagblok. Afspraken en taken staan in één kaart, gescheiden door een stippellijn; afgerond
+   staat ingeklapt onderaan in dezelfde kaart. */
+.dagblok { margin-top: 16px; background: var(--vlak); border: 1px solid var(--lijn); border-radius: var(--radius); overflow: hidden; }
+.dagblok > .lijst, .dagblok .afgerond .lijst { background: none; border: 0; border-radius: 0; }
+.dagblok-scheiding { border-top: 1px dashed var(--lijn-sterk); margin: 2px 16px; }
+.dagblok .afgerond { margin: 0; border-top: 1px solid var(--lijn); }
+.dagblok .afgerond-knop { padding: 12px 16px; }
+.dagblok .afgerond .lijst { margin-top: 0; border-top: 1px solid var(--lijn); }
+.agenda .dagblok-leeg { margin-top: 16px; color: var(--inkt-2); }
+/* Voorbij in de Agenda: rustiger door kleur in plaats van doorzichtigheid (≥ 4,5:1), zoals in de week. */
+.agenda .rij.voorbij { opacity: 1; }
+.agenda .rij.voorbij .rij-titel, .agenda .rij.voorbij .rij-tijd, .agenda .rij.voorbij .rij-tijd small { color: var(--inkt-2); font-weight: 500; }
+.agenda .rij.voorbij .rij-streep { opacity: .4; }
+.agenda .plek, .agenda .rij-tijd small { color: var(--inkt-2); }
+.week-afgerond .afgerond-knop { padding: 8px 2px 8px 71px; font-size: 14px; }
+/* Agenda (stap 3, A8): taken zonder datum standaard ingeklapt, met een altijd zichtbare telling. */
+.zonder-datum { margin-top: 24px; }
+.zd-kop { margin: 0 0 6px; }
+.zd-knop {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 2px; border: 0; background: none;
+  color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left;
+}
+.zd-knop::before {
+  content: ""; flex: 0 0 auto; width: 7px; height: 7px; margin: 0 6px 3px 2px; border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform .15s;
+}
+.zonder-datum.open .zd-knop::before { transform: rotate(45deg); margin-bottom: 5px; }
+.zd-telling { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 14px; color: var(--inkt-2); }
+.zd-titel, .zd-inhoud { display: none; }
+.zonder-datum.open .zd-inhoud { display: block; }
+.zonder-datum .afgerond { margin-top: 6px; }
 .dag-acties { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .dag-acties .knop { gap: 6px; }
 .herhaalt { display: inline-flex; align-items: center; }
@@ -426,26 +512,25 @@ a { color: var(--accent); }
 
 .maand { margin-top: 12px; }
 .maand-koppen, .maand-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-.maand-koppen span { text-align: center; font-size: 12px; font-weight: 700; color: var(--inkt-3); text-transform: uppercase; letter-spacing: .04em; padding-bottom: 6px; }
+.maand-koppen span { text-align: center; font-size: 12px; font-weight: 700; color: var(--inkt-2); text-transform: uppercase; letter-spacing: .04em; padding-bottom: 6px; }
 .maand-raster { display: flex; flex-direction: column; gap: 4px; }
 .maand-dag { min-width: 0; }
+/* Agenda (stap 1, A5): mobiel geen vakjes, alleen het getal en één neutraal streepje; desktop houdt de vakjes. */
 .maand-knop {
-  width: 100%; min-height: 54px; display: flex; flex-direction: column; align-items: center; gap: 5px;
-  padding: 7px 2px 6px; border: 1px solid var(--lijn); border-radius: 12px; background: var(--vlak); color: inherit; font: inherit;
+  width: 100%; min-height: 50px; display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 8px 2px 6px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: inherit; font: inherit;
 }
 .maand-dag.buiten .maand-knop { background: transparent; border-color: transparent; color: var(--inkt-3); }
-.maand-dag.verleden:not(.vandaag) .maand-nr { color: var(--inkt-3); }
+.maand-dag.verleden:not(.vandaag) .maand-nr { color: var(--inkt-2); font-weight: 500; }
 .maand-dag.vandaag .maand-knop { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .maand-dag.vandaag .maand-nr { color: var(--accent); font-weight: 800; }
 @media (hover: hover) { .maand-knop:hover { border-color: var(--lijn-sterk); } }
 .maand-nr { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
-.maand-stippen { display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 6px; flex-wrap: wrap; }
-.maand-stip { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
-.maand-meer { font-size: 10px; color: var(--inkt-3); line-height: 1; }
-.maand-taak { display: inline-block; width: 8px; height: 2px; border-radius: 2px; background: var(--inkt-2); margin-left: 1px; }
+.maand-drukte { display: block; height: 3px; width: 0; border-radius: 3px; background: var(--inkt-2); }
+.maand-drukte.n1 { width: 8px; }
+.maand-drukte.n2 { width: 16px; }
+.maand-drukte.n3 { width: 26px; }
 .maand-titels { display: none; }
-.maand-legenda { display: flex; gap: 16px; margin: 12px 2px 0; font-size: 13px; color: var(--inkt-3); }
-.maand-legenda > span { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ---------- Melding ---------- */
 .melding-plek {
@@ -499,30 +584,50 @@ a { color: var(--accent); }
   .scherm { max-width: 680px; }
   .scherm.scherm-breed { max-width: none; }
   .agenda-balk { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 12px 20px; }
-  .filter-rij { margin: 0; padding: 2px 0; overflow: visible; flex-wrap: wrap; }
+  .filter-rij { margin: 0; padding: 2px 0; overflow: visible; flex-wrap: wrap; gap: 6px; }
+  .filter-rij .keuze.klein { min-height: 34px; }
   .dag-weergave { max-width: 680px; }
-  .maand-knop { min-height: 104px; align-items: stretch; padding: 8px; gap: 6px; }
+  .maand-knop { min-height: 104px; align-items: stretch; padding: 8px; gap: 6px; border-color: var(--lijn); background: var(--vlak); }
   .maand-nr { align-self: flex-start; }
-  .maand-stippen { justify-content: flex-start; }
-  .maand-stippen .maand-stip, .maand-stippen .maand-meer { display: none; }
+  .maand-drukte { display: none; }
   .maand-titels { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; font-size: 12px; line-height: 1.3; }
-  .maand-titels span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .maand-titels span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 6px; border-left: 2px solid var(--kleur); }
+  .maand-titels .nog { color: var(--inkt-2); }
   .maand-dag.buiten .maand-titels { opacity: .6; }
-  .maand-legenda > span:first-child { display: none; }
   /* W2 (D6): zeven kolommen; compacte rijen, titels hoogstens twee regels, zonder afbreekstreepjes. */
   .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; align-items: start; }
-  .week-dag, .week-dag.leeg, .week-dag.in-groep { display: block; padding: 0; border-top: 0; }
-  .week-leeg-groep { display: none; }
+  .week-dag, .week-dag.leeg { display: block; padding: 0; border-top: 0; }
   .week-dag-kop { padding: 0 2px 6px; border-bottom: 2px solid var(--lijn); margin-bottom: 6px; flex-wrap: wrap; }
   .week-dag.vandaag .week-dag-kop { border-bottom-color: var(--accent); }
   .week-leeg { order: 3; flex-basis: 100%; font-size: 13px; padding-top: 2px; }
   .week-dag-vandaag { display: none; }
   .week-rij { min-height: 0; }
-  .week-rij-knop { flex-direction: column; gap: 1px; padding: 6px 6px; }
+  /* stretch: de inhoud krijgt de breedte van de kolom, zodat een te lang woord wordt afgesneden en niet uitsteekt. */
+  .week-rij-knop { flex-direction: column; align-items: stretch; gap: 1px; padding: 6px 6px; }
   .week-tijd { width: auto; font-size: 13px; padding-top: 0; }
   .week-rij.taak .vink-knop { width: auto; padding: 7px 2px 6px 6px; }
   .week-rij-titel { font-size: 14px; line-height: 1.3; }
   .week-sub { font-size: 12px; }
+  .week-inhoud { flex-direction: column; align-items: stretch; gap: 1px; padding-left: 0; border-left: 0; }
+  .week-inhoud .week-sub { max-width: none; justify-content: flex-start; padding-top: 0; }
+  /* Agenda (stap 1, A6): tijd en naam samen boven de titel (twee regels in plaats van drie); het streepje in de lidkleur
+     staat links van het hele item. */
+  .week-rij.afspraak .week-rij-knop {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 5px; align-items: baseline;
+    padding-left: 8px; border-left: 3px solid var(--kleur); border-radius: 0 10px 10px 0;
+  }
+  .week-rij.afspraak .week-inhoud { display: contents; }
+  .week-rij.afspraak .week-rij-titel { grid-column: 1 / -1; }
+  .week-rij.afspraak .week-sub { grid-row: 1; grid-column: 2; min-width: 0; }
+  .week-rij.afspraak .week-sub::before { content: "·"; color: var(--inkt-2); }
+  .week-rij.afspraak.voorbij .week-rij-knop { border-left-color: color-mix(in srgb, var(--kleur) 40%, transparent); }
+  .week-afgerond .afgerond-knop { padding: 6px 6px; font-size: 13px; }
+  /* Laptop-Dag (A8): de dag links, "Zonder datum" in een zijkolom rechts, daar altijd uitgeklapt. */
+  .dag-raster { display: grid; grid-template-columns: minmax(0, 680px) minmax(240px, 320px); gap: 32px; align-items: start; }
+  .zonder-datum.zij { margin-top: 16px; }
+  .zonder-datum.zij .zd-knop { display: none; }
+  .zonder-datum.zij .zd-titel { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+  .zonder-datum.zij .zd-inhoud { display: block; }
 }
 
 /* ---------- Lokale modus (alleen met een lokale Supabase) ---------- */

@@ -993,3 +993,34 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - **Stap 5:** de vier Edge Functions staan online (versie 1, `ACTIVE`, `verify_jwt` uit). Tot stap 6 geven ze een storing (503).
 - `staging/functies.ps1` controleert nu direct na de vraag of het token een persoonlijk Supabase-token is (`sbp_` en 40 tekens). Aanleiding: een verkeerde waarde in de eerste poging. Het daarna zichtbaar geplakte token is ingetrokken en uit de geschiedenis verwijderd.
 - De huidige stagingapp werkt tot stap 8 niet. Huisplan en de Vakanties-branch zijn ongemoeid.
+
+## Thuisplanner Agenda: ontwerpbesluiten (stap 0) en visuele rust (stap 1) (26 oktober 2026, lokaal)
+- **Stap 0:** de ontwerpbesluiten A1–A12 (voorlopig productakkoord, praktijktest door Sanne volgt), het integratieplan in tien stappen en de productrichting voor latere agendakoppelingen staan in `docs/thuisplanner-agenda.md`. De W2-besluiten **D5** (mobiel één doorlopende lijst) en **D6** (desktop zeven kolommen) zijn daarmee herzien; ze blijven gelden tot bouwstap 4 en 5. Roadmap, `thuisplanner-app.md` en `thuisplanner-productiegeschiktheid.md` (F2) verwijzen ernaar.
+- **Stap 1, alleen weergave:** titels in de Agenda breken niet meer midden in een woord; een te lang woord wordt ingekort met "…". In de week staan tijd, titel en naam mobiel op één regel, op de laptop tijd en naam samen boven de titel. Een afspraak heeft een streepje in de kleur van het lid, een taak een rondje in die kleur; de extra stip vervalt, de naam blijft. De maand toont mobiel per dag één neutraal streepje (`drukte()`), op de laptop titels met een streepje in de lidkleur, "nog n" en "n taken"; de legenda vervalt. Voorbije en afgeronde items zijn rustiger door kleur in plaats van doorzichtigheid, met minstens 4,5:1 contrast.
+- Ongewijzigd: gegevens, sync-module, realtime, herhaling, privacy ("Bezet"), de namen voor schermlezers, de opbouw van de dagweergave en de indeling van week en maand.
+- Tests: `tests/agenda.test.ts` (6) en `e2e/agenda.spec.ts` (4 tests op 320, 360, 390, 768 en 1280 px en in donker); alle unit- (468) en demo-e2e-tests groen; tegenproeven gevangen. Geen migratie; Huisplan, Vakanties en de slimme + ongemoeid.
+
+## Thuisplanner: meldingen, herinneringen en ondersteuningsniveaus vastgelegd (26 oktober 2026, alleen documentatie)
+- Nieuw: `docs/thuisplanner-meldingen.md`. Productvereiste: één centraal systeem voor meldingen en herinneringen (*Instellingen → Meldingen en herinneringen*), voorkeuren strikt persoonlijk per account, pushtoestemming en registratie per apparaat, per categorie aan/uit, standaardherinneringen, stille uren en afwijken per afspraak; later voor Agenda, Taken, Verjaardagen en Vakanties.
+- Productrichting: Thuisplanner als actieve gezinsassistent, met per account een ondersteuningsniveau (Rustig, Behulpzaam, Actief); nog geen definitief ontwerp. De risicogrenzen van principe 5 en beslissing 1 gelden in elk niveau.
+- Architectuurpunten om nu te beschermen (per account, niet per lid of huishouden; geen herinneringen op de gedeelde afspraak; privacy in de melding). Roadmap: nieuwe fase F11. Niets gebouwd, geen migratie.
+
+## Thuisplanner Agenda stap 2: het dagblok en afgerond ingeklapt (26 oktober 2026, lokaal)
+- **Dag (A4):** één kaart met eerst de afspraken, een stippellijn en dan de open taken (rondje in de lidkleur); geen zichtbare kopjes meer, voor schermlezers de lijsten "Afspraken", "Taken" en "Afgerond". Een lege dag is één zin: "Niets gepland." Nieuw: `components/DagBlok.tsx`.
+- **Afgerond (A7):** in de Dag ingeklapt onderaan ("n afgerond · tonen / verbergen", zoals op Vandaag), in de Week per dag "n afgerond". Afvinken verplaatst de taak naar die groep; de melding blijft.
+- **Contrast in de Dag:** voorbije afspraken, plek en eindtijd met `--inkt-2` in plaats van doorzichtigheid of `--inkt-3` (alleen in de Agenda).
+- Ongewijzigd: toevoegen, datum, gezinsfilter, "Bezet", detailvensters, gegevens, sync-module, de indeling van week en maand.
+- Tests: drie nieuwe e2e-tests en een uitgebreide contrasttest in `e2e/agenda.spec.ts`; `week.spec.ts` (afvinken en terug) aangepast aan het inklappen. Typecheck, 468 unittests en 315 demo-e2e-tests groen (320–1280 px, licht en donker); tegenproeven gevangen. Geen migratie.
+
+## Thuisplanner Agenda stap 3: taken zonder datum ingeklapt (26 oktober 2026, lokaal)
+- **A8:** onder de dag en de week één kopje met knop "Zonder datum · n open" (of "· niets open"), standaard ingeklapt, met een altijd zichtbare telling; op de laptop-Dag een zijkolom rechts, daar altijd uitgeklapt. Afgeronde taken zonder datum zijn apart in te klappen. Nieuw: `components/ZonderDatum.tsx`; `Afgerond` herbruikbaar in `components/DagBlok.tsx`.
+- Open of dicht blijft staan tijdens het navigeren (optioneel veld `zonderDatumOpen` in `AgendaStand`), niet na herladen. `App.tsx` ongewijzigd.
+- Ongewijzigd: gezinsfilter, afvinken, privacy, gegevens, sync-module; de Maand en Vandaag tonen geen taken zonder datum.
+- Productrichting (niet gebouwd): een taak zonder datum moet later via Vandaag of de actieve assistent alsnog aandacht kunnen krijgen. Productbeslissing O7 (later bouwen): een taak zonder toegewezen gezinslid blijft bij ieder gezinsfilter zichtbaar, binnen de leesrechten van het account.
+- Tests: drie nieuwe e2e-tests in `e2e/agenda.spec.ts` (ook contrast, tikvlak van 44 px, 320 px en donker); `kg3.spec.ts` klapt eerst open. Typecheck, 468 unittests en 336 demo-e2e-tests groen; tegenproef gevangen. Geen migratie.
+
+## Thuisplanner Agenda stap 4: weekstrip en filterknop op iPhone en tablet (26 oktober 2026, lokaal)
+- **4a (A2/A3, vervangt D5):** onder 960 px een weekstrip met zeven dagen (nummer en één drukte-streepje; vandaag een ring, de gekozen dag gevuld; blijft bovenaan staan), daaronder de gekozen dag (dezelfde dagsectie als een laptopkolom) en de rest van de week, één regel per dag; een tik kiest de dag. De gekozen dag is `agenda.datum`. De laptop houdt de zeven kolommen tot stap 5.
+- **4b (A6):** op iPhone en tablet het gezinsfilter achter één knop naast de titel, met een paneel waarin alle leden passen; kiezen sluit het paneel.
+- Nieuw: `lib/breedte.ts`, `components/Weekstrip.tsx`, `beschrijfDag()` in `lib/kalender.ts` (ook voor de Maand). Weg: de mobiele groep met lege dagen (D5). Geen wijziging aan `App.tsx`, gegevens of de sync-module; geen migratie.
+- Tests: drie nieuwe e2e-tests in `e2e/agenda.spec.ts` en een unittest; `week.spec.ts` aangepast; `kg3.spec.ts` en `kg4.spec.ts` kiezen op mobiel eerst de dag of openen het filterpaneel via `e2e/hulp-agenda.ts` (geen test overgeslagen of verwijderd). Typecheck, 470 unittests en 357 demo-e2e-tests groen (320, 360, 390, 768 en 1280 px, licht en donker); tegenproef gevangen.
