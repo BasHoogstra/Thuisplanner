@@ -151,13 +151,38 @@ export function leegFouten(s) {
   return f;
 }
 
-// Het schema na de 16 migraties (relaties, functies en policies in public en private), gemeten op een lege lokale
-// Supabase-stack na precies deze migraties (18 oktober 2026, met deel 2: toegangspoort, K1, de uitnodigingsmail en de automatische verzending).
-// Wijkt staging hiervan af, dan kreeg het niet hetzelfde schema.
-export const VERWACHT_SCHEMA = [
-  { schema: 'private', relaties: 9, functies: 95, policies: 0 },
-  { schema: 'public', relaties: 11, functies: 34, policies: 18 },
-];
+// Het verwachte schema (relaties, functies en policies in public en private) per stand van de migraties: de laatste
+// migratie bepaalt welke referentie geldt. Elke referentie is exact; een stand zonder referentie is een fout, nooit een
+// stille goedkeuring. Een nieuwe stand krijgt een eigen regel, de bestaande blijven ongewijzigd.
+export const SCHEMA_PER_STAND = Object.freeze({
+  // De 16 migraties van staging (deel 2: toegangspoort, K1, de uitnodigingsmail en de automatische verzending), gemeten op
+  // een lege lokale Supabase-stack (18 oktober 2026; sinds herstel R1 95 functies in private). Dit is de huidige
+  // stagingdatabase, die nog de oude app ondersteunt. Wijkt staging hiervan af, dan kreeg het niet hetzelfde schema.
+  '20261024120000': Object.freeze([
+    Object.freeze({ schema: 'private', relaties: 9, functies: 95, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 11, functies: 34, policies: 18 }),
+  ]),
+  // Plus de Vakanties-migraties 25–27 (nog niet online): de lokale geïntegreerde database waarin Vakanties wordt
+  // voorbereid. Precies +4 relaties (trips, trip_packing_items, trip_packing_lists, trip_shopping_links), +12 policies
+  // (drie per tabel) en +12 functies (private: afgeleide_id, copy_packing_items, delete_packing_list, restore_packing_list,
+  // set_packed en drie guards; public: copy_packing_items, delete_packing_list, restore_packing_list, set_packed).
+  // Gemeten op de lokale geïntegreerde stack (26 oktober 2026) en per object herleid tot deze migraties.
+  '20261027120000': Object.freeze([
+    Object.freeze({ schema: 'private', relaties: 9, functies: 103, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 15, functies: 38, policies: 30 }),
+  ]),
+});
+
+/** De referentie voor een migratiegeschiedenis (de laatste versie telt). Geen referentie voor die stand: een fout. */
+export function verwachtSchemaVoor(versies) {
+  const laatste = versies[versies.length - 1];
+  const s = SCHEMA_PER_STAND[laatste];
+  if (!s) throw new Error(`geen schemareferentie voor de migratiestand tot ${laatste}: voeg een gemeten referentie toe aan SCHEMA_PER_STAND`);
+  return s;
+}
+
+// De huidige stagingdatabase (16 migraties). Blijft voor wie de staging-referentie expliciet wil.
+export const VERWACHT_SCHEMA = SCHEMA_PER_STAND['20261024120000'];
 
 // De dagelijkse taken (pg_cron): naam, tijdstip en opdracht.
 export const VERWACHTE_TAKEN = [
@@ -351,7 +376,7 @@ async function hoofd() {
     if (n.adressen) console.log(`e-mailadressen bij uitnodigingen: ${n.adressen.gesloten} bij gesloten, ${n.adressen.verlopen} bij lang verlopen (beide horen 0 te zijn)`);
     if (n.wachtrij) console.log(`uitnodigingsmails: ${Object.entries(n.wachtrij).map(([k, v]) => `${k} ${v}`).join(', ')}; Vault: ${(n.vaultNamen ?? []).join(', ') || 'leeg'}; pg_net ${n.pgNet ? 'aan' : 'uit'}`);
     if (n.instellingen) console.log(`schakelaars: ${Object.entries(n.instellingen).map(([k, v]) => `${k} ${v}`).join(', ')}`);
-    const { fouten: f, verwacht } = splitsVerwacht(naFouten(n, repoVersies(), VERWACHT_SCHEMA), process.env.KG_NA_TOT_STAP6 === '1');
+    const { fouten: f, verwacht } = splitsVerwacht(naFouten(n, repoVersies(), verwachtSchemaVoor(repoVersies())), process.env.KG_NA_TOT_STAP6 === '1');
     for (const v of verwacht) console.log('VERWACHT tot stap 6: ' + v);
     // De Auth-instellingen (openbaar met de anon-sleutel; geen geheim). Zonder KG_ANON_KEY: overgeslagen en gemeld.
     const anon = process.env.KG_ANON_KEY;
