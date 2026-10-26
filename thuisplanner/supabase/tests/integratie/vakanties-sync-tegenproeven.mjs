@@ -15,12 +15,12 @@ const BRON = readFileSync(path.resolve(HIER, '../../../sync/thuisplanner-sync.js
 // [test (naampatroon), omschrijving, [[zoek, vervang], ...]]
 const PROEVEN = [
   ['^V1', 'een bekende versie van een vakantietabel wordt niet overgeslagen', [
-    ["const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events', 'trips', 'trip_packing_items', 'trip_shopping_links']);",
+    ["const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events', 'trips', 'trip_packing_items', 'trip_shopping_links', 'trip_packing_lists']);",
       "const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events']);"]]],
   ['^V3', 'een unieke-sleutelfout (HTTP 409) gemeld als versieconflict', [
     ["  if (code === '23505') return { soort: 'dubbel', tekst: MELDINGEN.dubbel };\n  if (code === 'PT409'", "  if (code === 'PT409'"]]],
   ['^V3', 'een zekere weigering na een onzekere poging blijft eeuwig "niet bevestigd"', [
-    ["      if (o.soort === 'pakitem') return { uitkomst: 'mislukt', fout, zeker: true };\n", '']]],
+    ["      if (o.soort === 'pakitem' || o.soort === 'paklijst') return { uitkomst: 'mislukt', fout, zeker: true };\n", '']]],
   ['^V4', 'ongedaan maken van een overname verwijdert ook intussen aangepaste items', [
     [".in('id', ids).eq('version', 1)", ".in('id', ids)"]]],
   ['^V5', 'vinkjes terugzetten zonder het oorspronkelijke moment', [
@@ -33,6 +33,21 @@ const PROEVEN = [
     ['    const inhoud = prive(o) || !bewaarInhoud || o.inhoudNietBewaard\n', '    const inhoud = prive(o) || o.inhoudNietBewaard\n']]],
   ['^V8', 'overnemen opnieuw proberen met een nieuwe opdracht-ID', [
     ['      const opdr = opdracht || nieuweId();', '      const opdr = nieuweId();']]],
+  // Extra inpaklijsten (§20, stap 2).
+  ['^V12', 'list_id van pakitems niet opgehaald (een lijst-item lijkt Gezamenlijk)', [
+    ["const VELDEN_PAKITEM = 'id,household_id,trip_id,member_id,list_id,name,", "const VELDEN_PAKITEM = 'id,household_id,trip_id,member_id,name,"]]],
+  ['^V12', 'extra lijsten niet opgehaald', [
+    ["      actief.length ? allePaginas(() => supabase.from('trip_packing_lists').select(VELDEN_PAKLIJST)", "      false ? allePaginas(() => supabase.from('trip_packing_lists').select(VELDEN_PAKLIJST)"]]],
+  ['^V12', 'vinkjes opnieuw voor Gezamenlijk raakt ook items van extra lijsten', [
+    [' && (groep !== null || !x.list_id)', '']]],
+  ['^V13', 'toevoegen aan een verwijderde lijst gemeld als "geen toegang"', [
+    ["        : lijstWeg ? { soort: 'weg', tekst: MELDINGEN.paklijstWeg } : meldingVoor(u.fout) };", '        : meldingVoor(u.fout) };']]],
+  ['^V14', 'ongedaan maken van een overname laat een nieuwe, lege lijst staan', [
+    ['      if (nieuweLijsten?.length) {', '      if (false) {']]],
+  ['^V14', 'overnemen zonder de gekozen lijsten', [
+    ['...(lijsten?.length ? { p_lists: lijsten } : {})', '']]],
+  ['^V15', 'naam van een onbevestigde lijst duurzaam op het toestel (P1)', [
+    ['    const inhoud = prive(o) || !bewaarInhoud || o.inhoudNietBewaard\n', '    const inhoud = prive(o) || o.inhoudNietBewaard\n']]],
 ];
 
 const map = mkdtempSync(path.join(tmpdir(), 'kg-vakanties-tegenproef-'));

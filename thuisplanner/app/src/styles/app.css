@@ -654,6 +654,13 @@ a { color: var(--accent); }
   box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 35%, transparent); }
 .pak-persoon.aan .pak-persoon-tel, .pak-persoon.aan svg { color: color-mix(in srgb, var(--accent-inkt) 85%, transparent); }
 .pak-persoon.aan .stip { box-shadow: 0 0 0 2px var(--accent-inkt); }
+/* Extra lijsten (§20) staan in dezelfde rij, met een label-icoon; "+ Inpaklijst" is subtiel (stippellijn, geen vlak). */
+.pak-persoon.extra:not(.aan) svg { color: var(--accent); }
+.pak-nieuw { border-style: dashed; border-color: var(--lijn-sterk); background: transparent; color: var(--inkt-2); font-weight: 600; }
+.pak-nieuw svg { color: var(--inkt-2); }
+@media (hover: hover) { .pak-nieuw:hover { border-color: var(--accent); color: var(--accent); } }
+.pak-blok .vak-blok-kop { flex-wrap: nowrap; align-items: center; }
+.pak-lijst-meer { flex: 0 0 auto; width: 44px; height: 44px; margin: -8px -8px -8px 0; }
 .pak-blok { margin-top: 10px; }
 .pak-kop { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; }
 .vak-blok-kop .pak-kop .pak-kop-naam { font-family: var(--font-kop); font-size: 22px; font-weight: 750; }
@@ -681,6 +688,12 @@ a { color: var(--accent); }
 .keuze-lijst .rij-knop { align-items: center; }
 .keuze-rondje { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; border: 1.8px solid var(--lijn-sterk); }
 .keuze-rondje.aan { border: 6px solid var(--accent); }
+/* Extra inpaklijsten (§20): een afvinkvakje bij overnemen. */
+.keuze-vinkje { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 6px; border: 1.8px solid var(--lijn-sterk); }
+.keuze-vinkje { display: inline-flex; align-items: center; justify-content: center; }
+.keuze-vinkje.aan { border-color: var(--accent); background: var(--accent); color: var(--accent-inkt); }
+.pak-uitleg { margin: 8px 2px 12px; font-size: 14px; }
+.paklijst-form .veld { margin-bottom: 12px; }
 .rij-knop.gekozen { background: var(--accent-zacht); }
 
 /* Boodschappen "Later nodig" (§18): een ingeklapte lijst onder Nu te kopen; één tik (Nu kopen) zet een boodschap op de

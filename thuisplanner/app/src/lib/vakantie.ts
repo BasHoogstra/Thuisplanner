@@ -2,7 +2,7 @@
 // (tests/vakantie.test.ts). Dezelfde regel voor "voorbij" als de sync-module (laatsteDag/vakantieVoorbij), zodat het
 // scherm en het ophalen van paklijsten het altijd eens zijn.
 import { plusDagen, vanDatum, verschilInDagen } from './datum';
-import type { Datum, Huishouden, LidId, Pakitem, Vakantie, VakantieKoppeling } from './types';
+import type { Datum, Huishouden, LidId, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from './types';
 
 const KORTE_MAANDEN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
 
@@ -96,20 +96,50 @@ export function vakantiesOp(vakanties: Vakantie[], datum: Datum): { v: Vakantie;
 /** Zelfde sleutel als de server (name_key): zonder hoofdletters en overbodige spaties. */
 export const pakSleutel = (naam: string) => naam.trim().replace(/\s+/g, ' ').toLocaleLowerCase('nl');
 
-/** Staat deze tekst al bij die persoon (of Gezamenlijk) in deze vakantie? */
-export function alOpPaklijst(pakitems: Pakitem[], vakantieId: string, lid: LidId | null, naam: string, behalve?: string): boolean {
+// ---- Waar een pakitem hoort (PakDoel): een lid, Gezamenlijk (null) of een extra lijst ({ lijst }) ----
+/** Het doel van een pakitem. Gezamenlijk = geen lid én geen lijst. */
+export const doelVan = (p: Pick<Pakitem, 'lid' | 'lijst'>): PakDoel => (p.lijst ? { lijst: p.lijst } : p.lid ?? null);
+/** Een vaste tekst per doel: voor sleutels, de bewaarde keuze en vergelijken. */
+export const doelSleutel = (d: PakDoel): string => (d === null ? 'gezamenlijk' : typeof d === 'object' ? `lijst:${d.lijst}` : d);
+export const zelfdeDoel = (a: PakDoel, b: PakDoel) => doelSleutel(a) === doelSleutel(b);
+export const inDoel = (p: Pick<Pakitem, 'lid' | 'lijst'>, d: PakDoel) => zelfdeDoel(doelVan(p), d);
+/** lid en lijst van een pakitem bij dit doel (nooit allebei). */
+export const doelVelden = (d: PakDoel): { lid: LidId | null; lijst: string | null } =>
+  (d && typeof d === 'object' ? { lid: null, lijst: d.lijst } : { lid: d ?? null, lijst: null });
+
+/** Staat deze tekst al in deze lijst (bij die persoon, Gezamenlijk of die extra lijst) in deze vakantie? */
+export function alOpPaklijst(pakitems: Pakitem[], vakantieId: string, doel: PakDoel, naam: string, behalve?: string): boolean {
   const k = pakSleutel(naam);
-  return pakitems.some(p => p.id !== behalve && p.vakantieId === vakantieId && (p.lid ?? null) === (lid ?? null) && pakSleutel(p.naam) === k);
+  return pakitems.some(p => p.id !== behalve && p.vakantieId === vakantieId && inDoel(p, doel) && pakSleutel(p.naam) === k);
 }
 
-/** De groepen van de paklijst: elk lid, dan Gezamenlijk. */
-export function pakGroepen(huishouden: Huishouden): { id: LidId | null; naam: string; kleur?: string }[] {
-  return [...huishouden.leden.map(l => ({ id: l.id as LidId | null, naam: l.naam, kleur: l.kleur })), { id: null, naam: 'Gezamenlijk' }];
+export interface PakGroep { doel: PakDoel; sleutel: string; naam: string; kleur?: string; lijst?: Paklijst }
+/** De groepen van de paklijst: elk lid, dan Gezamenlijk, dan de extra lijsten van deze vakantie (zoals aangemaakt). */
+export function pakGroepen(huishouden: Huishouden, paklijsten: Paklijst[] = [], vakantieId?: string): PakGroep[] {
+  return [
+    ...huishouden.leden.map(l => ({ doel: l.id as PakDoel, sleutel: l.id, naam: l.naam, kleur: l.kleur })),
+    { doel: null, sleutel: 'gezamenlijk', naam: 'Gezamenlijk' },
+    ...paklijsten.filter(l => l.vakantieId === vakantieId).map(l => ({ doel: { lijst: l.id }, sleutel: `lijst:${l.id}`, naam: l.naam, lijst: l })),
+  ];
 }
 
-/** Voor wie: de naam van een lid of "Gezamenlijk". */
-export function groepNaam(huishouden: Huishouden, lid: LidId | null): string {
-  return lid ? huishouden.leden.find(l => l.id === lid)?.naam ?? 'iemand' : 'Gezamenlijk';
+/** Voor wie of wat: de naam van een lid, "Gezamenlijk" of de naam van een extra lijst. */
+export function groepNaam(huishouden: Huishouden, doel: PakDoel, paklijsten: Paklijst[] = []): string {
+  if (doel && typeof doel === 'object') return paklijsten.find(l => l.id === doel.lijst)?.naam ?? 'een lijst';
+  return doel ? huishouden.leden.find(l => l.id === doel)?.naam ?? 'iemand' : 'Gezamenlijk';
+}
+
+/**
+ * Mag dit de naam van een extra lijst worden? Niet leeg, niet de naam van een lid of "Gezamenlijk" (besluit 22 oktober
+ * 2026) en niet al een lijst bij deze vakantie. Geeft een melding of null. Dezelfde regels als de server.
+ */
+export function paklijstNaamFout(naam: string, huishouden: Huishouden, paklijsten: Paklijst[], vakantieId: string, behalve?: string): string | null {
+  const k = pakSleutel(naam);
+  if (!k) return 'Geef de lijst een naam.';
+  if (k.length > 40) return 'Hoogstens 40 tekens.';
+  if (k === 'gezamenlijk' || huishouden.leden.some(l => pakSleutel(l.naam) === k)) return 'Die naam hoort al bij iemand uit het huishouden of bij Gezamenlijk.';
+  const al = paklijsten.find(l => l.vakantieId === vakantieId && l.id !== behalve && pakSleutel(l.naam) === k);
+  return al ? `Er is al een lijst "${al.naam}".` : null;
 }
 
 /**

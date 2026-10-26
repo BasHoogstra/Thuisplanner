@@ -118,6 +118,13 @@ describe('omzetten van serverrijen (lokale modus)', () => {
     expect(naarKoppeling({ id: 'k', household_id: 'h', trip_id: 'v', shopping_item_id: 'b', settled_at: '2026-10-20T10:00:00Z', version: 1, created_at: '', updated_at: '' }))
       .toMatchObject({ afgehandeld: true });
   });
+  it('een pakitem van een extra lijst (§20) hoort bij die lijst, nooit bij Gezamenlijk; zonder bekende lijst verschijnt het niet', () => {
+    expect(naarPakitem({ id: 'p', trip_id: 'v', member_id: null, list_id: 'l', name: 'Zadel', packed_at: null, version: 1 })).toMatchObject({ lid: null, lijst: 'l' });
+    const g = naarVakantieGegevens({ vakanties: [], vakantieKoppelingen: [], paklijsten: [],
+      pakitems: [{ id: 'p', trip_id: 'v', member_id: null, list_id: 'onbekend', name: 'Zadel', packed_at: null, version: 1 }] });
+    expect(g.pakitems).toHaveLength(0);
+    expect(naarPakitem({ id: 'q', trip_id: 'v', member_id: null, list_id: null, name: 'Tent', packed_at: null, version: 1 })?.lid).toBeNull();
+  });
   it('een pakitem zonder inhoud op dit toestel (P1) hoort bij geen paklijst', () => {
     expect(naarPakitem({ id: 'p', trip_id: null, member_id: null, name: null, packed_at: null, version: 0, inhoudNietBewaard: true })).toBeNull();
     const g = naarVakantieGegevens({ vakanties: [{ id: 'x', name: null, start_date: null, end_date: null, destination: null, notes: null, version: 0, inhoudNietBewaard: true }], pakitems: [], vakantieKoppelingen: [] });

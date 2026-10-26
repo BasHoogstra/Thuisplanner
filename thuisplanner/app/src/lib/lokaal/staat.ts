@@ -8,12 +8,12 @@
 // - Niet in deze modus: de demo-scenario's. "Ongedaan maken" alleen bij vakanties (verwijderen, overnemen, vinkjes opnieuw,
 //   ontkoppelen): de sync-module geeft daarvoor terug wat nodig is (versie, ID's, vorige vinkjes).
 import { useCallback, useMemo, useRef, useState } from 'react';
-import type { BoodschapRij, PakitemRij, Resultaat, TaakRij, VakantieKoppelingRij, VakantieRij } from '../../../../sync/thuisplanner-sync.js';
+import type { BoodschapRij, PakitemRij, PaklijstRij, Resultaat, TaakRij, VakantieKoppelingRij, VakantieRij } from '../../../../sync/thuisplanner-sync.js';
 import { boodschappenMelding } from '../boodschappen';
 import type { Groep, Melding, Staat } from '../store';
-import type { Afspraak, Boodschap, Datum, Huishouden, Item, LidId, Pakitem, Vakantie, VakantieKoppeling } from '../types';
-import { groepNaam } from '../vakantie';
-import { naarItems, naarNieuweAfspraak, naarTaakVelden, naarVakantieGegevens } from './omzetten';
+import type { Afspraak, Boodschap, Datum, Huishouden, Item, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from '../types';
+import { doelVan, doelVelden, groepNaam, paklijstNaamFout, zelfdeDoel } from '../vakantie';
+import { naarItems, naarNieuweAfspraak, naarPaklijst, naarTaakVelden, naarVakantieGegevens } from './omzetten';
 import type { Momentopname, Sessie } from './sessie';
 
 /** Een keuze die de gebruiker moet maken (mogelijk dubbele toevoeging, zie de sync-module). */
@@ -28,7 +28,7 @@ let meldingTeller = 0;
 export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datum, huishouden?: Huishouden) {
   const toestand = snap.toestand;
   const items = useMemo<Item[]>(() => (toestand ? naarItems(toestand) : []), [toestand]);
-  const vak = useMemo(() => (toestand ? naarVakantieGegevens(toestand) : { vakanties: [], pakitems: [], koppelingen: [] }), [toestand]);
+  const vak = useMemo(() => (toestand ? naarVakantieGegevens(toestand) : { vakanties: [], pakitems: [], paklijsten: [], koppelingen: [] }), [toestand]);
   // Wat "Ongedaan maken" bij de huidige melding terugdraait (alleen vakantiehandelingen).
   const terug = useRef<(() => void) | null>(null);
   const hhRef = useRef(huishouden);
@@ -64,6 +64,7 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
     const a = () => sessie.acties;
     const t = () => sessie.syncObject?.toestand;
     const hh = (): Huishouden => hhRef.current ?? { naam: '', ik: '', leden: [] };
+    const lijsten = (): Paklijst[] => (t()?.paklijsten ?? []).map(naarPaklijst).filter((l): l is Paklijst => l !== null);
 
     const voegToe = (item: Item, melding?: string, bewustNieuw = false) => {
       if (item.soort === 'afspraak') {
@@ -188,27 +189,30 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
           if (u?.ok && versie != null) meldMetTerug(`${v.naam} verwijderd`, () => { void na(a()?.vakantieHerstellen(r, versie), `${v.naam} teruggezet`); });
         })();
       },
-      pakitemToevoegen: (vakantieId: string, lid: LidId | null, naam: string) => {
+      pakitemToevoegen: (vakantieId: string, doel: PakDoel, naam: string) => {
         void (async () => {
           const schoon = naam.trim().replace(/\s+/g, ' ');
-          const r = await a()?.pakitemToevoegen(vakantieId, lid, schoon);
-          if (r && !r.ok && r.melding?.soort === 'dubbel') { a()?.meldingWeg(); meld(`Staat al op de lijst van ${groepNaam(hh(), lid)}`); }
-          else if (r && !r.ok && r.mogelijkDubbel) void na(Promise.resolve(r), undefined, () => void a()?.pakitemToevoegen(vakantieId, lid, schoon, { bewustNieuw: true }));
+          const { lid, lijst } = doelVelden(doel);
+          const opties = lijst ? { lijst } : undefined;
+          const r = await a()?.pakitemToevoegen(vakantieId, lid, schoon, opties);
+          if (r && !r.ok && r.melding?.soort === 'dubbel') { a()?.meldingWeg(); meld(`Staat al op de lijst van ${groepNaam(hh(), doel, lijsten())}`); }
+          else if (r && !r.ok && r.mogelijkDubbel) void na(Promise.resolve(r), undefined, () => void a()?.pakitemToevoegen(vakantieId, lid, schoon, { ...opties, bewustNieuw: true }));
         })();
       },
       pakitemWissel: (p: Pakitem) => {
         const r = rij<PakitemRij>(t()?.pakitems, p.id);
         if (r) void na(a()?.pakitemAfvinken(r));
       },
-      pakitemBijwerken: (p: Pakitem, w: { naam?: string; lid?: LidId | null }) => {
+      pakitemBijwerken: (p: Pakitem, w: { naam?: string; doel?: PakDoel }) => {
         const r = rij<PakitemRij>(t()?.pakitems, p.id);
         if (!r) return;
         void (async () => {
           const naam = w.naam !== undefined ? w.naam.trim().replace(/\s+/g, ' ') : undefined;
-          const u = await a()?.pakitemBijwerken(r, { ...(naam !== undefined ? { name: naam } : {}), ...(w.lid !== undefined ? { member_id: w.lid } : {}) }, p.versie);
-          const doel = w.lid !== undefined ? w.lid : p.lid;
-          if (u?.ok) meld(w.lid !== undefined && w.lid !== p.lid ? `${naam ?? p.naam} staat nu bij ${groepNaam(hh(), doel)}` : `${naam ?? p.naam} aangepast`);
-          else if (u?.melding?.soort === 'dubbel') { a()?.meldingWeg(); meld(`Staat al op de lijst van ${groepNaam(hh(), doel)}`); }
+          const v = w.doel !== undefined ? doelVelden(w.doel) : undefined;
+          const u = await a()?.pakitemBijwerken(r, { ...(naam !== undefined ? { name: naam } : {}), ...(v ? { member_id: v.lid, list_id: v.lijst } : {}) }, p.versie);
+          const doel = w.doel !== undefined ? w.doel : doelVan(p);
+          if (u?.ok) meld(w.doel !== undefined && !zelfdeDoel(w.doel, doelVan(p)) ? `${naam ?? p.naam} staat nu bij ${groepNaam(hh(), doel, lijsten())}` : `${naam ?? p.naam} aangepast`);
+          else if (u?.melding?.soort === 'dubbel') { a()?.meldingWeg(); meld(`Staat al op de lijst van ${groepNaam(hh(), doel, lijsten())}`); }
         })();
       },
       pakitemVerwijderen: (p: Pakitem) => {
@@ -221,15 +225,18 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
             void (async () => {
               const h = await a()?.pakitemHerstellen(r, versie);
               // U1: intussen staat er al een gelijk item.
-              if (h && !h.ok && h.melding?.soort === 'dubbel') { a()?.meldingWeg(); meld(`Staat al op de lijst van ${groepNaam(hh(), p.lid)}`); }
+              if (h && !h.ok && h.melding?.soort === 'dubbel') { a()?.meldingWeg(); meld(`Staat al op de lijst van ${groepNaam(hh(), doelVan(p), lijsten())}`); }
               else if (h?.ok) meld(`${p.naam} teruggezet`);
             })();
           });
         })();
       },
-      paklijstOvernemen: (van: string, naar: string, groep: Groep) => {
+      paklijstOvernemen: (van: string, naar: string, groep: Groep, gekozen?: string[]) => {
         void (async () => {
-          const o = { van, naar, lid: groep === 'iedereen' || groep === null ? null : groep, gezamenlijk: groep === null };
+          // Eén lid, Gezamenlijk of iedereen (met de gekozen extra lijsten); één extra lijst = iedereen zonder leden kan
+          // de server niet, dus die keuze biedt het scherm niet aan.
+          const lid = groep === 'iedereen' || groep === null || typeof groep === 'object' ? null : groep;
+          const o = { van, naar, lid, gezamenlijk: groep === null, lijsten: groep === 'iedereen' ? gekozen ?? [] : [] };
           let r = await a()?.paklijstOvernemen(o);
           // Onzeker (antwoord verloren): één keer dezelfde opdracht opnieuw; die geeft dezelfde items (U2).
           if (r && !r.ok && r.melding?.soort === 'onzeker') r = await a()?.paklijstOvernemen({ ...o, opdracht: r.opdracht });
@@ -238,7 +245,7 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
           if (!ids.length) { meld('Alles stond er al'); return; }
           meldMetTerug(`${ids.length} ${ids.length === 1 ? 'item' : 'items'} overgenomen`, () => {
             void (async () => {
-              const u = await a()?.overnemenOngedaanMaken(ids);
+              const u = await a()?.overnemenOngedaanMaken(ids, r.nieuweLijsten ?? []);
               if (u?.ok && !u.gebleven) meld('Teruggezet');
             })();
           });
@@ -252,6 +259,46 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
           if (!lijst.length) { meld('Er stond nog niets afgevinkt'); return; }
           meldMetTerug(`${lijst.length} ${lijst.length === 1 ? 'vinkje' : 'vinkjes'} weggehaald`, () => {
             void (async () => { const u = await a()?.vinkjesTerugzetten(vakantieId, lijst); if (u?.ok && !u.overgeslagen) meld('Teruggezet'); })();
+          });
+        })();
+      },
+      // ---- Extra inpaklijsten (§20) ----
+      paklijstToevoegen: async (vakantieId: string, naam: string): Promise<string | null> => {
+        const schoon = naam.trim().replace(/\s+/g, ' ');
+        const fout = hh() ? paklijstNaamFout(schoon, hh()!, lijsten(), vakantieId) : null;
+        if (fout) { meld(fout); return null; }
+        const r = await a()?.paklijstToevoegen(vakantieId, schoon);
+        if (r?.ok || r?.onzeker) return r.id ?? null;
+        if (r?.mogelijkDubbel) { void na(Promise.resolve(r), undefined, () => void a()?.paklijstToevoegen(vakantieId, schoon, { bewustNieuw: true })); return null; }
+        if (r?.melding?.soort === 'dubbel') { a()?.meldingWeg(); meld(`Er is al een lijst "${schoon}".`); }
+        else if (r?.melding?.soort === 'ongeldig') { a()?.meldingWeg(); meld('Die naam hoort al bij iemand uit het huishouden of bij Gezamenlijk.'); }
+        return null;
+      },
+      paklijstHernoemen: (l: Paklijst, naam: string) => {
+        const r = rij<PaklijstRij>(t()?.paklijsten, l.id);
+        if (!r) return;
+        const schoon = naam.trim().replace(/\s+/g, ' ');
+        const fout = hh() ? paklijstNaamFout(schoon, hh()!, lijsten(), l.vakantieId, l.id) : null;
+        if (fout) { meld(fout); return; }
+        void (async () => {
+          const u = await a()?.paklijstHernoemen(r, schoon, l.versie);
+          if (u?.ok) meld(`Lijst heet nu ${schoon}`);
+          else if (u?.melding?.soort === 'dubbel') { a()?.meldingWeg(); meld(`Er is al een lijst "${schoon}".`); }
+          else if (u?.melding?.soort === 'ongeldig') { a()?.meldingWeg(); meld('Die naam hoort al bij iemand uit het huishouden of bij Gezamenlijk.'); }
+        })();
+      },
+      paklijstVerwijderen: (l: Paklijst) => {
+        const r = rij<PaklijstRij>(t()?.paklijsten, l.id);
+        if (!r) return;
+        void (async () => {
+          const u = await a()?.paklijstVerwijderen(r);
+          const versie = (u?.data as { version: number }[] | undefined)?.[0]?.version;
+          if (u?.ok && versie != null) meldMetTerug(`${l.naam} verwijderd`, () => {
+            void (async () => {
+              const h = await a()?.paklijstHerstellen(r, versie);
+              if (h?.ok) meld(`${l.naam} teruggezet`);
+              else if (h?.melding?.soort === 'dubbel') { a()?.meldingWeg(); meld(`Er is intussen al een lijst "${l.naam}".`); }
+            })();
           });
         })();
       },

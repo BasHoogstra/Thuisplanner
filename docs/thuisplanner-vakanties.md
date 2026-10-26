@@ -419,6 +419,8 @@ Bewust niet speculatief: geen lege kolommen "voor later" en geen generieke `link
 | V1.3 | Schermen, demodata, unit- en e2e-tests, met vormgeving ronde 2 en de compactheidsronde (§15–17) | **Gebouwd, op de telefoon goedgekeurd**, gecommit (074bbe3) |
 | Later nodig | Boodschappen "Nu te kopen" en "Later nodig", migratie `20261026120000_boodschappen_later.sql` (§18) | **Goedgekeurd**, gecommit (047ab32); migratie alleen lokaal |
 | Slimme + | "… voor <vakantie>" (§19) en het herontwerp van de + (`docs/thuisplanner-snelinvoer.md` §10) | **Lokaal gebouwd en getest**; vastgelegd in een eigen lokale commit (stap I0, 26 oktober 2026); telefoonproef van het herontwerp loopt |
+| Extra inpaklijsten | Database en RLS (§20, migratie `20261027120000_paklijsten.sql`), sync (§21), schermen (§22) | **Lokaal gebouwd en getest**; vastgelegd in een eigen lokale commit (stap I0), los terug te draaien; migratie alleen lokaal |
+| Veilig uitrollen | Oudere app-versies en `list_id` (§22.1) | **Open**: voorwaarde vóór staging of online; nog niet gebouwd |
 | — | Staging | Apart besluit, los van het lopende stagingtraject |
 | V2 | Afspraken koppelen (eigen gate 9-bewijs), tijdens de reis | Na V1 en gebruik |
 
@@ -916,3 +918,137 @@ Enter/Gereed werkt dan wel.
 integratie V11 (eigen keuze Nu/Later, verwijderde vakantie, afspraak blijft neutraal), en e2e (320, 360, 390 px, desktop
 en donker).
 
+## 20. Extra inpaklijsten — stap 1: database, RLS en tests (akkoord 22 oktober 2026; lokaal, eigen commit in stap I0)
+Doel: naast de lijsten van de leden en Gezamenlijk zelf lijsten kunnen maken per vakantie ("Oma", "Paard",
+"Kampeerspullen"), zonder account of lid. Besluiten van de producteigenaar: bij overnemen staan alle extra lijsten
+standaard aangevinkt (afzonderlijk uit te zetten); een extra lijst mag niet heten als een gezinslid of "Gezamenlijk";
+volgorde zoals aangemaakt. Deze stap raakt alleen de database; sync (stap 2) en app (stap 3) volgen na akkoord.
+
+### 20.1 Onderzoek: hoe de paklijsten waren opgeslagen
+Een paklijst was geen eigen object, alleen een filter op `trip_packing_items.member_id` (een lid, of leeg = Gezamenlijk),
+met een verwijzing naar `household_members`, een bewaking die een actief lid eist, en een unieke sleutel per
+(vakantie, lid of Gezamenlijk, tekst). `copy_packing_items` kende iedereen, één persoon of alleen Gezamenlijk.
+
+### 20.2 Datamodel (migratie `20261027120000_paklijsten.sql`)
+- Nieuwe tabel `trip_packing_lists` (id, household_id, trip_id, name, name_key, version, tijden, deleted_at). Een lijst
+  kan leeg zijn; naam 1–40 tekens; dezelfde naam hoogstens één keer per vakantie (zolang niet verwijderd); niet de naam
+  van een actief lid of "Gezamenlijk" (bewaking `guard_trip_packing_list`, code 23514); de vakantie ligt vast en mag
+  niet verwijderd zijn.
+- `trip_packing_items.list_id`, met de verwijzing **(household_id, trip_id, list_id)** naar de lijst: een item kan nooit
+  in een lijst van een andere vakantie of een ander huishouden komen. Een item hoort bij een lid óf een lijst, nooit
+  beide (check). De unieke sleutel is nu per (vakantie, lid, lijst, tekst).
+- De bewaking van items controleert bij toevoegen, verplaatsen en terugzetten dat de lijst bestaat en niet verwijderd
+  is, en vergrendelt die lijst gedeeld: een gelijktijdig verwijderen is eerst klaar, daarna volgt de controle opnieuw.
+- Bestaande lijsten van leden en Gezamenlijk: ongewijzigd (list_id leeg).
+
+### 20.3 Verwijderen, herstellen en overnemen
+- `delete_packing_list(huishouden, lijst, versie)`: lijst en items krijgen hetzelfde verwijderd-moment; verkeerde
+  versie → PT409; al verwijderd → "al_verwijderd" zonder bijwerking.
+- `restore_packing_list(huishouden, lijst, versie)`: precies de items van dat moment terug (een eerder los verwijderd
+  item blijft weg); een intussen gemaakte lijst met dezelfde naam → 23505 zonder bijwerking; niet verwijderd →
+  "al_hersteld".
+- `copy_packing_items` krijgt `p_lists` (de extra lijsten die mee moeten, alleen bij iedereen). Gezamenlijk betekent
+  nu "geen lid én geen lijst". Bestaat in de nieuwe vakantie al een lijst met die naam, dan wordt die aangevuld (niets
+  overschreven); anders een nieuwe lijst met een afgeleide ID. Herhalen of gelijktijdig overnemen maakt niets dubbel;
+  een lijst met de naam van een (intussen) actief lid wordt overgeslagen. Zonder `p_lists` (oude aanroep): geen extra
+  lijsten, ook niet als Gezamenlijk.
+
+### 20.4 RLS en rechten
+Zoals `trips`: ieder actief lid leest, maakt en hernoemt (kolomrechten insert id/household_id/trip_id/name, update
+name); `deleted_at` en `trip_id` zijn niet via de API te wijzigen; geen delete-recht; `guard_content` (versie,
+vergrendeling, lidmaatschap); seintjes `{t, id, v, op}` zonder inhoud. Items: insert en update van `list_id` erbij. De
+nieuwe functies vergrendelen het huishouden vóór de lidmaatschapscontrole en lopen via de toegangspoort.
+
+### 20.5 Tests (lokaal, stack `thuisplanner`)
+- RLS-matrix: KG-T85 (lijsten: maken, namen, hernoemen, rechten, buitenstaander, gearchiveerd lid), KG-T86 (items:
+  alleen dezelfde vakantie en hetzelfde huishouden, niet lid én lijst, dubbele tekst, verplaatsen), KG-T87 (verwijderen
+  en herstellen, versies, herhalen, geen item in een verwijderde lijst, naamconflict), KG-T88 (overnemen met lijsten,
+  herhalen, catalogus: seintjes, vergrendeling, rechten).
+- Tegenproeven: elf nieuwe sabotages, elk gevangen door het bedoelde scenario.
+- Gelijktijdigheid (aparte verbindingen): verwijderen tijdens toevoegen (met tegenproef zonder de gedeelde
+  vergrendeling), twee keer dezelfde naam, herstellen tegen een nieuwe lijst met dezelfde naam, hernoemen tegen
+  verwijderen (PT409), twee keer tegelijk overnemen met lijsten.
+- API (`integratie/vakanties.test.mjs`): alles via PostgREST zoals de app, plus het oude-app-risico hieronder.
+
+### 20.6 Verplichte voorwaarde voor een latere uitrol (staging en verder)
+Een app-versie die `list_id` niet kent, toont een item van een extra lijst als **Gezamenlijk** (member_id is leeg) en kan
+het daar afvinken of verplaatsen. Daarom:
+1. De migratie gaat **alleen samen** met een app die `list_id` ophaalt en gebruikt (stap 2 en 3) naar staging of verder;
+   nooit de migratie alleen.
+2. Vóór de uitrol: geen oudere app meer in gebruik bij dat huishouden (bijvoorbeeld via `meta.minAppVersion` of een
+   vergelijkbare blokkade), of de oude versie wordt bewust uitgefaseerd.
+3. De sync-module filtert Gezamenlijk dan op "geen lid én geen lijst" (stap 2), ook bij "vinkjes opnieuw".
+Lokaal speelt dit niet: hier draait alleen de huidige app.
+
+### 20.7 Risico's
+- Tot stap 2 kent de app geen extra lijsten: in de lokale modus verschijnen ze nog nergens (in deze stap zijn ze alleen
+  via de database of tests gemaakt).
+- De naamcontrole kijkt naar actieve leden op het moment van aanmaken of hernoemen; krijgt een lid later dezelfde naam
+  als een bestaande lijst, dan blijft die lijst bestaan (bij overnemen wordt hij wel overgeslagen).
+- Lijsten van een andere vakantie dan de bron worden bij overnemen geweigerd (P0002): de app moet alleen lijsten van
+  de gekozen bronvakantie aanbieden.
+
+## 21. Extra inpaklijsten — stap 2: synchronisatie (akkoord 24 oktober 2026; lokaal, eigen commit in stap I0)
+De sync-module (`thuisplanner/sync/thuisplanner-sync.js`) kent nu extra lijsten. Geen databasewijziging.
+
+- **Ophalen:** `paklijsten` (velden id, trip_id, name, version, tijden) van dezelfde vakanties als de pakitems: lopend en
+  komend, plus geopende afgelopen vakanties (`vakantieOpenen`). Pakitems komen met `list_id`. Seintjes van
+  `trip_packing_lists` met een al bekende versie worden overgeslagen; verlies van toegang leegt ook de lijsten.
+- **Lijst toevoegen** (`paklijstToevoegen`): een opdracht met vaste UUID, zoals pakitems: opnieuw proberen maakt er nooit
+  twee; een tweede poging met dezelfde naam vraagt eerst een keuze (mogelijk dubbel); P1: de naam komt niet in de
+  duurzame opslag. Dezelfde naam bij de vakantie: melding "dubbel"; de naam van een lid of "Gezamenlijk": "ongeldig".
+- **Hernoemen** met versiecontrole (conflict bij een verouderde versie). **Verwijderen** en **herstellen** via de
+  functies van stap 1, met optimistische weergave en terugdraaien bij een fout; verwijderen geeft de versie voor het
+  ongedaan maken. Is de lijst intussen door iemand anders verwijderd, dan de melding "Deze inpaklijst bestaat niet meer"
+  (niet het neutrale "geen toegang"; dat blijft voor afspraken).
+- **Pakitems:** `pakitemToevoegen(vakantie, null, naam, { lijst })`; verplaatsen met `{ member_id, list_id }`.
+- **Vinkjes opnieuw:** per groep: iedereen, een lid, Gezamenlijk (nu: geen lid én geen lijst) of een lijst (`{ lijst }`).
+- **Overnemen** met `lijsten` (alleen bij iedereen); het resultaat noemt `nieuweLijsten`. Ongedaan maken verwijdert de
+  items van die overname en daarna de nieuwe lijsten die leeg zijn gebleven.
+- **App (tijdelijk, tot stap 3):** items van een extra lijst worden in de lokale modus niet getoond, zodat ze nooit als
+  Gezamenlijk verschijnen (§20.6). Gezamenlijk "vinkjes opnieuw" raakt ze ook niet.
+
+**Tests:** integratie `vakanties-sync.test.mjs` V12–V15 (lijsten en items bij de ander, dubbel/ongeldig, hernoemen met
+conflict, vinkjes per lijst, verplaatsen; verwijderen en herstellen bij de ander, toevoegen aan een verwijderde lijst,
+naamconflict bij herstellen; overnemen met lijsten, herhalen, ongedaan maken; onzeker antwoord en P1) en V9 uitgebreid
+met lijsten. Zeven nieuwe sync-tegenproeven, elk gevangen door de bedoelde test. App: een item van een extra lijst
+verschijnt niet (en niet als Gezamenlijk).
+
+## 22. Extra inpaklijsten — stap 3: schermen en bediening (akkoord 24 oktober 2026; lokaal, eigen commit in stap I0)
+- **Inpakken:** de extra lijsten staan in dezelfde rij als de leden en Gezamenlijk, daarachter, in de volgorde van
+  aanmaken, met een klein label-icoon en hun eigen telling ("Oma 0/3"). Daarna de subtiele knop **+ Inpaklijst**
+  (stippellijn, geen vlak, minstens 44 px). De gekozen lijst onthoudt de app per vakantie; bestaat die lijst niet meer,
+  dan valt de keuze terug op jezelf.
+- **Nieuwe lijst:** een klein venster met alleen een naamveld en de knop bovenaan (op een kleine iPhone niet onder het
+  toetsenbord). De naam wordt vooraf gecontroleerd (niet de naam van een lid of "Gezamenlijk", niet dubbel). De nieuwe
+  lijst is meteen gekozen; items toevoegen werkt daarna zoals altijd.
+- **Hernoemen en verwijderen:** bij een gekozen extra lijst een ⋯-knop naast de kop. Verwijderen van een lijst met items
+  vraagt eerst bevestiging ("Oma met 3 items verwijderen?"); daarna "Ongedaan maken" in de melding.
+- **Items:** toevoegen, afvinken, vegen en verwijderen ongewijzigd. Verplaatsen in het pakitemvenster: ook naar een
+  extra lijst (en terug).
+- **Overnemen:** bij Iedereen staat onder "Ook meenemen" per extra lijst van de bron een afvinkvakje, standaard aan;
+  "Begin met de paklijst van …" neemt ze ook mee. "Afvinken opnieuw beginnen" werkt ook per extra lijst.
+- **Bestaande lijsten:** de lijsten van de leden en Gezamenlijk werken ongewijzigd; Gezamenlijk bevat nooit items van een
+  extra lijst (ook niet bij overnemen of vinkjes opnieuw).
+- **Demo:** Frankrijk heeft de lijst "Oma" (3 items), Italië had "Strandspullen" (3 items, om over te nemen).
+
+**Tests:** demo-store (namen, dubbel, verwijderen en ongedaan maken, overnemen met en zonder lijsten), lokale modus
+(omzetting, acties naar de sync-module, verplaatsen), e2e op 360 en 390 px en desktop, plus 320 × 568 px en donker
+(toevoegen, items, verplaatsen, hernoemen, verwijderen met bevestiging, ongedaan maken, knop binnen beeld, melding
+bedekt geen knoppen). Tussen twee toestellen: de syncsuites V12–V15 (§21).
+
+### 22.1 Oudere app-versies en list_id: veilig uitrollen (voorwaarde, nog niet gebouwd)
+Probleem (§20.6): een app zonder kennis van `list_id` ziet een item van een extra lijst als Gezamenlijk en kan het daar
+afvinken of verplaatsen. Thuisplanner heeft nog geen manier om oude versies te weren. Voorstel, in deze volgorde:
+1. **Samen uitrollen:** de migraties (`…_paklijsten.sql`) en een app die `list_id` kent, gaan in één stap naar staging;
+   nooit de migratie alleen. Op staging zijn de gebruikers bekend: alle toestellen eerst bijwerken (herladen).
+2. **Verdediging in de database (aanbevolen vóór online):** een aanvullende migratie die items van extra lijsten alleen
+   teruggeeft aan een app die zegt dat hij ze kent, via een vaste kop (bijvoorbeeld `x-thuisplanner-lijsten: 1`) in de
+   RLS-select van `trip_packing_items` (`list_id is null or <kop aanwezig>`). Een oude app ziet die items dan niet en kan
+   ze dus ook niet als Gezamenlijk tonen, afvinken of verplaatsen; de nieuwe sync-module stuurt de kop mee. Geen
+   beveiliging (de kop is vrij te zetten), wel een veilige terugval voor oude versies. Vraagt een RLS-scenario en
+   tegenproef.
+3. **Minimale app-versie (blijvend):** een instelling met de minimale versie die de app bij het starten leest; een oudere
+   app toont dan "Werk de app bij" en schrijft niets (zoals `meta.minAppVersion` bij Huisplan). Daarna zijn
+   modelwijzigingen als deze zonder risico uit te rollen.
+Tot die keuze is gemaakt, blijft dit alles lokaal.

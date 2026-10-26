@@ -17,10 +17,10 @@ async function naarVakantie(p: Page, naam: string) {
   await expect(p.getByRole('heading', { level: 1, name: naam })).toBeVisible();
 }
 /** De persoonskeuze: alle groepen zichtbaar binnen het scherm (geen schuiven), elke knop minstens 44 px hoog. */
-async function persoonskeuzeGoed(p: Page) {
+async function persoonskeuzeGoed(p: Page, aantal = 6) {
   const groep = p.getByRole('radiogroup', { name: 'Paklijst van' });
   const knoppen = groep.getByRole('radio');
-  await expect(knoppen).toHaveCount(5);
+  await expect(knoppen).toHaveCount(aantal);   // vier leden, Gezamenlijk en de extra lijst Oma (demo)
   const breedte = p.viewportSize()!.width;
   for (const b of await knoppen.all()) {
     await expect(b).toBeVisible();
@@ -124,10 +124,83 @@ test('een nieuwe vakantie: de paklijst van de vorige vakantie overnemen, en onge
   await page.getByRole('tab', { name: 'Inpakken' }).click();
   await expect(page.getByText('Begin met de paklijst van Italië?')).toBeVisible();
   await page.getByRole('button', { name: 'Overnemen', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('24 items overgenomen');
+  // Met de extra lijst Strandspullen van Italië (standaard mee): 24 + 3.
+  await expect(page.getByRole('status')).toContainText('27 items overgenomen');
   await expect(page.getByRole('radio', { name: /^Eva, 0 van 6 ingepakt/ })).toBeVisible();
+  await expect(page.getByRole('radio', { name: /^Strandspullen, 0 van 3 ingepakt/ })).toBeVisible();
   await page.getByRole('button', { name: 'Ongedaan maken' }).click();
   await expect(page.getByRole('radio', { name: /^Eva, 0 van 0 ingepakt/ })).toBeVisible();
+  await expect(page.getByRole('radio', { name: /^Strandspullen/ })).toHaveCount(0);
+});
+
+test('extra inpaklijsten: toevoegen, items, hernoemen, verwijderen met bevestiging en ongedaan maken (ook 320 px en donker)', async ({ page }) => {
+  // Twee rondes (normaal, 320 px donker) en meldingen van 6 s waar Playwright op wacht: onder belasting meer tijd.
+  test.slow();
+  const breedtes = isDesktop(page) ? [null] : [null, 320];
+  for (const breed of breedtes) {
+    if (breed) { await page.setViewportSize({ width: breed, height: 568 }); await page.emulateMedia({ colorScheme: 'dark' }); }
+    await page.goto(START + '#/vakanties/v-frankrijk');
+    await page.reload();   // verse demo, geen bewaarde keuzes
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.getByRole('tab', { name: 'Inpakken' }).click();
+    // Oma (demo) staat na Gezamenlijk; "+ Inpaklijst" is een gewone knop, geen persoon.
+    await expect(page.getByRole('radio', { name: /^Oma, 0 van 3 ingepakt/ })).toBeVisible();
+    await persoonskeuzeGoed(page, 6);
+    const plus = page.getByRole('button', { name: 'Inpaklijst toevoegen' });
+    expect((await plus.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await plus.click();
+    const v = page.getByRole('dialog', { name: 'Nieuwe inpaklijst' });
+    const knop = v.getByRole('button', { name: 'Lijst toevoegen' });
+    // Op een kleine iPhone: naamveld en knop bovenaan, binnen beeld.
+    const box = (await knop.boundingBox())!;
+    expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+    await v.getByLabel('Naam').fill('eva');
+    await knop.click();
+    await expect(v.getByText('Die naam hoort al bij iemand uit het huishouden of bij Gezamenlijk.')).toBeVisible();
+    await v.getByLabel('Naam').fill('Paard');
+    await knop.click();
+    // De nieuwe lijst is meteen gekozen.
+    await expect(page.getByRole('radio', { name: /^Paard, 0 van 0 ingepakt/ })).toHaveAttribute('aria-checked', 'true');
+    const invoer = page.getByRole('textbox', { name: 'Toevoegen voor Paard' });
+    for (const n of ['Zadel', 'Hoefkrabber']) { await invoer.fill(n); await invoer.press('Enter'); }
+    await page.getByRole('checkbox', { name: 'Zadel' }).click();
+    await expect(page.getByRole('radio', { name: 'Paard, 1 van 2 ingepakt' })).toBeVisible();
+    await geenHorizontaleScroll(page, `extra lijst ${breed ?? ''}`);
+    // Verplaatsen naar Gezamenlijk en terug.
+    await page.getByRole('button', { name: 'Hoefkrabber aanpassen' }).click();
+    const pv = page.getByRole('dialog', { name: 'Pakitem' });
+    await pv.getByRole('button', { name: 'Gezamenlijk' }).click();
+    await pv.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.getByRole('status')).toContainText('Hoefkrabber staat nu bij Gezamenlijk');
+    await expect(page.getByRole('radio', { name: 'Paard, 1 van 1 ingepakt' })).toBeVisible();
+    // Hernoemen en verwijderen (met items: eerst bevestigen), daarna ongedaan maken.
+    await page.getByRole('button', { name: 'Lijst Paard aanpassen' }).click();
+    const lv = page.getByRole('dialog', { name: 'Inpaklijst' });
+    await lv.getByLabel('Naam').fill('Pony');
+    await lv.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.getByRole('radio', { name: /^Pony, 1 van 1 ingepakt/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Lijst Pony aanpassen' }).click();
+    // De melding ("Lijst heet nu Pony") verdwijnt bij het openen, zodat hij geen knop van het venster bedekt.
+    await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toHaveCount(0);
+    await page.getByRole('dialog', { name: 'Inpaklijst' }).getByRole('button', { name: 'Lijst verwijderen' }).click();
+    await expect(page.getByText('Pony met 1 item verwijderen?')).toBeVisible();
+    await page.getByRole('button', { name: 'Ja, verwijderen' }).click();
+    await expect(page.getByRole('radio', { name: /^Pony/ })).toHaveCount(0);
+    // Na verwijderen terug naar jezelf (Eva), zichtbaar gekozen.
+    await expect(page.getByRole('radio', { name: /^Eva,/ })).toHaveAttribute('aria-checked', 'true');
+    const ongedaan = page.getByRole('button', { name: 'Ongedaan maken' });
+    // De melding staat helemaal in beeld en bedekt de persoonsknoppen en "+ Inpaklijst" niet.
+    await page.getByRole('radiogroup', { name: 'Paklijst van' }).scrollIntoViewIfNeeded();
+    const m = (await ongedaan.boundingBox())!;
+    expect(m.y + m.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+    for (const k of [page.getByRole('button', { name: 'Inpaklijst toevoegen' }), page.getByRole('radio', { name: /^Eva,/ })]) {
+      const b = (await k.boundingBox())!;
+      expect(b.y + b.height <= m.y || b.y >= m.y + m.height, 'melding bedekt een knop').toBe(true);
+    }
+    await ongedaan.click();
+    await expect(page.getByRole('radio', { name: /^Pony, 1 van 1 ingepakt/ })).toBeVisible();
+  }
 });
 
 test('koppelingen: de kaart op Vandaag, de vakantie in de Agenda, en het label bij Boodschappen', async ({ page }) => {
@@ -188,6 +261,8 @@ test('Later nodig: ingeklapt, één tik naar Nu te kopen, gelijk bij de vakantie
 });
 
 test('compact: uitklappen, afvinken, terugzetten, persoon wisselen en navigeren (ook 320 px en donker)', async ({ page }) => {
+  // Twee rondes (normaal, 320 px donker) en meldingen van 6 s waar Playwright op wacht: onder belasting meer tijd.
+  test.slow();
   const breedtes = isDesktop(page) ? [null] : [null, 320];
   for (const breed of breedtes) {
     if (breed) { await page.setViewportSize({ width: breed, height: 700 }); await page.emulateMedia({ colorScheme: 'dark' }); }

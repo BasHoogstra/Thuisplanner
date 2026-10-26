@@ -5,9 +5,9 @@
 // komt als `is_busy` zonder titel, plek, notities en voorbereiding binnen (RLS, gate 9); de app maakt
 // daar een afspraak zonder die velden van, die elk scherm als "Bezet" toont.
 import type {
-  AfspraakRij, BoodschapRij, LidRij, NieuweAfspraak, PakitemRij, TaakRij, Toestand, Uitzondering, VakantieKoppelingRij, VakantieRij,
+  AfspraakRij, BoodschapRij, LidRij, NieuweAfspraak, PakitemRij, PaklijstRij, TaakRij, Toestand, Uitzondering, VakantieKoppelingRij, VakantieRij,
 } from '../../../../sync/thuisplanner-sync.js';
-import type { Afspraak, Boodschap, Frequentie, Huishouden, Item, Lid, Pakitem, SyncVelden, Taak, Vakantie, VakantieKoppeling } from '../types';
+import type { Afspraak, Boodschap, Frequentie, Huishouden, Item, Lid, Pakitem, Paklijst, SyncVelden, Taak, Vakantie, VakantieKoppeling } from '../types';
 
 const NAAR_FREQ: Record<string, Frequentie> = { daily: 'dagelijks', weekly: 'wekelijks', monthly: 'maandelijks', yearly: 'jaarlijks' };
 const VAN_FREQ: Record<Frequentie, string> = { dagelijks: 'daily', wekelijks: 'weekly', maandelijks: 'monthly', jaarlijks: 'yearly' };
@@ -141,8 +141,15 @@ export function naarVakantie(r: VakantieRij): Vakantie {
 /** Zonder vakantie (inhoud niet op dit toestel, P1) hoort een pakitem bij geen paklijst: dan staat het alleen in Meer. */
 export function naarPakitem(r: PakitemRij): Pakitem | null {
   if (!r.trip_id || r.name == null) return null;
-  return { id: r.id, vakantieId: r.trip_id, lid: r.member_id ?? null, naam: r.name, ingepakt: !!r.packed_at,
+  // Een item van een extra lijst (§20) hoort bij die lijst, nooit bij Gezamenlijk.
+  return { id: r.id, vakantieId: r.trip_id, lid: r.list_id ? null : r.member_id ?? null, lijst: r.list_id ?? null, naam: r.name, ingepakt: !!r.packed_at,
     ingepaktOp: r.packed_at ?? null, ingepaktDoor: r.packed_by_member_id ?? null, versie: r.version, sync: syncStaat(r) };
+}
+
+/** Een extra inpaklijst; zonder inhoud op dit toestel (P1) of zonder vakantie: niet tonen. */
+export function naarPaklijst(r: PaklijstRij): Paklijst | null {
+  if (!r.trip_id || r.name == null) return null;
+  return { id: r.id, vakantieId: r.trip_id, naam: r.name, versie: r.version, sync: syncStaat(r) };
 }
 
 export function naarKoppeling(r: VakantieKoppelingRij): VakantieKoppeling {
@@ -150,10 +157,15 @@ export function naarKoppeling(r: VakantieKoppelingRij): VakantieKoppeling {
 }
 
 /** Vakanties, paklijsten en koppelingen uit de toestand van de sync-module. */
-export function naarVakantieGegevens(t: Pick<Toestand, 'vakanties' | 'pakitems' | 'vakantieKoppelingen'>): { vakanties: Vakantie[]; pakitems: Pakitem[]; koppelingen: VakantieKoppeling[] } {
+export function naarVakantieGegevens(t: Pick<Toestand, 'vakanties' | 'pakitems' | 'vakantieKoppelingen'> & Partial<Pick<Toestand, 'paklijsten'>>):
+  { vakanties: Vakantie[]; pakitems: Pakitem[]; paklijsten: Paklijst[]; koppelingen: VakantieKoppeling[] } {
+  const paklijsten = (t.paklijsten ?? []).map(naarPaklijst).filter((l): l is Paklijst => l !== null);
+  const bekend = new Set(paklijsten.map(l => l.id));
   return {
     vakanties: (t.vakanties ?? []).filter(v => !v.inhoudNietBewaard).map(naarVakantie),
-    pakitems: (t.pakitems ?? []).map(naarPakitem).filter((p): p is Pakitem => p !== null),
+    // Een item van een lijst die (nog) niet bekend is, verschijnt niet: nooit als Gezamenlijk.
+    pakitems: (t.pakitems ?? []).map(naarPakitem).filter((p): p is Pakitem => p !== null && (!p.lijst || bekend.has(p.lijst))),
+    paklijsten,
     koppelingen: (t.vakantieKoppelingen ?? []).map(naarKoppeling),
   };
 }

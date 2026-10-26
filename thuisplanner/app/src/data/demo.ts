@@ -1,7 +1,7 @@
 // Fictieve voorbeeldgegevens. Er bestaat geen echt gezin De Boer; alle namen, tijden en plekken zijn
 // verzonnen. Datums zijn relatief aan "vandaag", zodat de demo altijd actueel oogt.
 import { plusDagen } from '../lib/datum';
-import type { Datum, Huishouden, Item, Pakitem, Vakantie, VakantieKoppeling } from '../lib/types';
+import type { Datum, Huishouden, Item, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from '../lib/types';
 
 export const huishouden: Huishouden = {
   naam: 'Familie De Boer',
@@ -82,6 +82,8 @@ export interface DemoVakanties {
   vakanties: Vakantie[];
   pakitems: Pakitem[];
   koppelingen: VakantieKoppeling[];
+  /** Extra inpaklijsten (§20): Oma gaat mee naar Frankrijk; in Italië was er een lijst Strandspullen. */
+  paklijsten: Paklijst[];
   /** Voorbereidingen (taken) en boodschappen voor de vakanties. */
   items: Item[];
 }
@@ -132,5 +134,16 @@ export function demoVakanties(vandaag: Datum): DemoVakanties {
     koppel('v-frankrijk', 'b-zonnebrand-50'), koppel('v-frankrijk', 'b-muggenspray'), koppel('v-frankrijk', 'b-reisziekte'),
     koppel('v-texel', 'b-reisziekte'), koppel('v-texel', 'b-kerstkransjes'),
   ];
-  return { vakanties, pakitems, koppelingen, items };
+  const paklijsten: Paklijst[] = [
+    { id: 'l-frankrijk-oma', vakantieId: 'v-frankrijk', naam: 'Oma' },
+    { id: 'l-italie-strand', vakantieId: 'v-italie', naam: 'Strandspullen' },
+  ];
+  const inLijst = (lijst: string, vakantieId: string, namen: string[], ingepakt = 0): Pakitem[] =>
+    namen.map((naam, i) => ({ id: `p-${lijst.slice(2)}-${i + 1}`, vakantieId, lid: null, lijst, naam, ingepakt: i < ingepakt,
+      ingepaktOp: i < ingepakt ? `${d(-1)}T20:00:00.000Z` : null, ingepaktDoor: i < ingepakt ? 'm-eva' : null }));
+  pakitems.push(
+    ...inLijst('l-frankrijk-oma', 'v-frankrijk', ['Medicijnen', 'Leesbril', 'Vest']),
+    ...inLijst('l-italie-strand', 'v-italie', ['Parasol', 'Schepjes', 'Strandstoel'], 3),
+  );
+  return { vakanties, pakitems, paklijsten, koppelingen, items };
 }

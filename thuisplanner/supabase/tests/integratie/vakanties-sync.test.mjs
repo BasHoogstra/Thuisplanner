@@ -345,6 +345,131 @@ test('V7 een afgelopen vakantie: paklijst pas na openen, blijft dan actueel, en 
   void b;
 });
 
+test('V12 extra inpaklijsten: lijst en items bij de ander; hernoemen met versie; vinkjes opnieuw per lijst raakt Gezamenlijk niet', { timeout: 90000 }, async () => {
+  const { a, b } = await beide();
+  const v = await nieuweVakantie(a, 'Ardennen');
+  const rl = await a.acties.paklijstToevoegen(v, 'Paard');
+  assert.ok(rl.ok, JSON.stringify(rl.melding));
+  const lijst = rl.id;
+  assert.ok((await a.acties.pakitemToevoegen(v, null, 'Zadel', { lijst })).ok);
+  assert.ok((await a.acties.pakitemToevoegen(v, null, 'Zadel')).ok);   // Gezamenlijk: dezelfde tekst mag
+  await totdat(() => b.toestand.paklijsten.some(x => x.id === lijst) && b.toestand.pakitems.filter(x => x.trip_id === v).length === 2, 10000, 'Bram ziet lijst en items');
+  assert.equal(b.toestand.pakitems.find(x => x.list_id === lijst)?.member_id, null);
+  assert.equal(b.toestand.pakitems.find(x => x.trip_id === v && !x.list_id)?.name, 'Zadel');
+  // Dubbel en ongeldig: duidelijke meldingen, niets dubbel.
+  assert.equal((await b.acties.paklijstToevoegen(v, ' paard ')).melding?.soort, 'dubbel');
+  assert.equal((await b.acties.paklijstToevoegen(v, 'Bram')).melding?.soort, 'ongeldig');
+  assert.equal((await b.acties.paklijstToevoegen(v, 'gezamenlijk')).melding?.soort, 'ongeldig');
+  assert.equal((await b.acties.pakitemToevoegen(v, null, 'zadel', { lijst })).melding?.soort, 'dubbel');
+  // Hernoemen; een verouderde versie geeft een conflict en de actuele stand.
+  const l1 = b.toestand.paklijsten.find(x => x.id === lijst);
+  assert.ok((await b.acties.paklijstHernoemen(l1, 'Pony')).ok);
+  await totdat(() => a.toestand.paklijsten.find(x => x.id === lijst)?.name === 'Pony', 10000, 'Anna ziet de nieuwe naam');
+  const oud = await a.acties.paklijstHernoemen({ ...l1 }, 'Ezel');
+  assert.equal(oud.melding?.soort, 'conflict');
+  await a.vernieuw();
+  assert.equal(a.toestand.paklijsten.find(x => x.id === lijst).name, 'Pony');
+  // Vinkjes: beide aan; opnieuw voor de lijst haalt alleen het lijst-item weg, opnieuw voor Gezamenlijk alleen dat.
+  await a.vernieuw();
+  for (const x of a.toestand.pakitems.filter(y => y.trip_id === v)) assert.ok((await a.acties.pakitemAfvinken(x)).ok);
+  await a.vernieuw();
+  const r1 = await a.acties.vinkjesOpnieuw(v, { lijst });
+  assert.equal(r1.terug.length, 1);
+  await a.vernieuw();
+  assert.equal(a.toestand.pakitems.find(x => x.list_id === lijst).packed_at, null);
+  assert.ok(a.toestand.pakitems.find(x => x.trip_id === v && !x.list_id).packed_at, 'Gezamenlijk geraakt door vinkjes opnieuw voor de lijst');
+  assert.ok((await a.acties.pakitemAfvinken(a.toestand.pakitems.find(x => x.list_id === lijst))).ok);
+  await a.vernieuw();
+  const r2 = await a.acties.vinkjesOpnieuw(v, null);
+  assert.equal(r2.terug.length, 1, 'Gezamenlijk nam ook het item van de extra lijst mee');
+  await a.vernieuw();
+  assert.ok(a.toestand.pakitems.find(x => x.list_id === lijst).packed_at, 'het item van de extra lijst werd als Gezamenlijk behandeld');
+  // Verplaatsen naar een lid en terug.
+  const item = a.toestand.pakitems.find(x => x.list_id === lijst);
+  assert.ok((await a.acties.pakitemBijwerken(item, { list_id: null, member_id: mAnna })).ok);
+  await a.vernieuw();
+  const bijAnna = a.toestand.pakitems.find(x => x.id === item.id);
+  assert.deepEqual([bijAnna.member_id, bijAnna.list_id], [mAnna, null]);
+  assert.ok((await a.acties.pakitemBijwerken(bijAnna, { member_id: null, list_id: lijst })).ok);
+});
+
+test('V13 extra inpaklijst verwijderen en herstellen: items gaan mee; bij de ander weg en terug; toevoegen aan een verwijderde lijst geeft een duidelijke melding', { timeout: 90000 }, async () => {
+  const { a, b } = await beide();
+  const v = await nieuweVakantie(a, 'Camping');
+  const lijst = (await a.acties.paklijstToevoegen(v, 'Kampeerspullen')).id;
+  for (const n of ['Tent', 'Haringen']) assert.ok((await a.acties.pakitemToevoegen(v, null, n, { lijst })).ok);
+  await totdat(() => b.toestand.pakitems.filter(x => x.list_id === lijst).length === 2, 10000, 'Bram ziet de items');
+  const l = b.toestand.paklijsten.find(x => x.id === lijst);
+  const weg = await b.acties.paklijstVerwijderen(l);
+  assert.ok(weg.ok, JSON.stringify(weg.melding));
+  assert.deepEqual([weg.data[0].outcome, weg.data[0].items], ['verwijderd', 2]);
+  await totdat(() => !a.toestand.paklijsten.some(x => x.id === lijst) && !a.toestand.pakitems.some(x => x.list_id === lijst), 10000, 'bij Anna weg');
+  // Anna had de lijst nog open en voegt toe: geen item, een duidelijke melding.
+  const laat = await a.acties.pakitemToevoegen(v, null, 'Lantaarn', { lijst });
+  assert.equal(laat.ok, false);
+  assert.equal(laat.melding?.soort, 'weg');
+  assert.equal(sql(`select count(*) from public.trip_packing_items where name = 'Lantaarn'`), '0');
+  // Hernoemen van een verwijderde lijst: geen bijwerking.
+  assert.equal((await a.acties.paklijstHernoemen(l, 'Iets')).ok, false);
+  // Herstellen (ongedaan maken) met de versie van het verwijderen.
+  const terug = await b.acties.paklijstHerstellen(l, weg.data[0].version);
+  assert.ok(terug.ok, JSON.stringify(terug.melding));
+  await totdat(() => a.toestand.pakitems.filter(x => x.list_id === lijst).length === 2, 10000, 'bij Anna terug');
+  // Nog eens verwijderen en daarna door de ander een lijst met dezelfde naam: herstellen geeft "dubbel".
+  const l2 = (await b.vernieuw(), b.toestand.paklijsten.find(x => x.id === lijst));
+  const weg2 = await b.acties.paklijstVerwijderen(l2);
+  assert.ok(weg2.ok);
+  assert.ok((await a.acties.paklijstToevoegen(v, 'kampeerspullen')).ok);
+  const botsing = await b.acties.paklijstHerstellen(l2, weg2.data[0].version);
+  assert.equal(botsing.melding?.soort, 'dubbel');
+});
+
+test('V14 overnemen met extra lijsten: aanvullen, nieuwe lijst, herhalen geeft hetzelfde; ongedaan maken ruimt de nieuwe lege lijst op', { timeout: 90000 }, async () => {
+  const { a } = await beide();
+  const bron = await nieuweVakantie(a, 'Bron-lijsten');
+  const doel = await nieuweVakantie(a, 'Doel-lijsten');
+  const paard = (await a.acties.paklijstToevoegen(bron, 'Paard')).id;
+  const oma = (await a.acties.paklijstToevoegen(bron, 'Oma')).id;
+  for (const [n, l] of [['Zadel', paard], ['Hoefkrabber', paard], ['Pillen', oma]]) assert.ok((await a.acties.pakitemToevoegen(bron, null, n, { lijst: l })).ok);
+  assert.ok((await a.acties.pakitemToevoegen(bron, null, 'Paspoorten')).ok);
+  const bestaand = (await a.acties.paklijstToevoegen(doel, 'paard')).id;
+  assert.ok((await a.acties.pakitemToevoegen(doel, null, 'Zadel', { lijst: bestaand })).ok);
+  await a.vernieuw();
+  const r = await a.acties.paklijstOvernemen({ van: bron, naar: doel, lijsten: [paard, oma] });
+  assert.ok(r.ok, JSON.stringify(r.melding));
+  assert.equal(r.nieuweLijsten.length, 1, 'alleen Oma is nieuw');
+  const herhaal = await a.acties.paklijstOvernemen({ van: bron, naar: doel, lijsten: [paard, oma], opdracht: r.opdracht });
+  assert.deepEqual(herhaal.items.map(x => x.id).sort(), r.items.map(x => x.id).sort());
+  await a.vernieuw();
+  assert.equal(a.toestand.paklijsten.filter(x => x.trip_id === doel).length, 2);
+  assert.equal(a.toestand.pakitems.filter(x => x.list_id === bestaand).length, 2, 'Paard niet aangevuld (of overschreven)');
+  assert.equal(a.toestand.pakitems.filter(x => x.trip_id === doel && !x.list_id && !x.member_id).map(x => x.name).join(), 'Paspoorten');
+  // Ongedaan maken: de items van die overname weg, de nieuwe (nu lege) lijst Oma ook; Paard blijft met Zadel.
+  const o = await a.acties.overnemenOngedaanMaken(r.items.map(x => x.id), r.nieuweLijsten);
+  assert.ok(o.ok);
+  await a.vernieuw();
+  assert.deepEqual(a.toestand.paklijsten.filter(x => x.trip_id === doel).map(x => x.id), [bestaand]);
+  assert.deepEqual(a.toestand.pakitems.filter(x => x.trip_id === doel).map(x => x.name), ['Zadel']);
+});
+
+test('V15 extra inpaklijst onzeker (antwoord verloren): opnieuw proberen geeft er één; P1: geen naam in de opslag', { timeout: 60000 }, async () => {
+  const o = opslag();
+  const a = await startSync('anna', h, { opslag: o });
+  await totdat(() => a.toestand.status === STATUS.VERBONDEN, 30000, 'verbonden');
+  const v = await nieuweVakantie(a, 'Onzeker-lijst');
+  personen.anna.verlies.wat = isPost('/rest/v1/trip_packing_lists');
+  const r = await a.acties.paklijstToevoegen(v, 'Geheim-Oma');
+  assert.equal(r.onzeker, true);
+  assert.doesNotMatch([...o.m.values()].join('\n'), /Geheim|trip_id/, 'naam van de lijst in de duurzame opslag');
+  // Een tweede poging met dezelfde naam: eerst een keuze (mogelijk dubbel), niets verstuurd.
+  assert.ok((await a.acties.paklijstToevoegen(v, 'Geheim-Oma')).mogelijkDubbel);
+  const opnieuw = await a.acties.opnieuwProberen(r.id);
+  assert.ok(opnieuw.ok, JSON.stringify(opnieuw.melding));
+  assert.equal(sql(`select count(*) from public.trip_packing_lists where trip_id = '${v}'`), '1');
+  await a.vernieuw();
+  assert.equal(a.openstaand.length, 0);
+});
+
 test('V8 onzeker (antwoord verloren): opnieuw proberen geeft er één; P1: geen inhoud in de opslag; duidelijke meldingen', { timeout: 60000 }, async () => {
   const o = opslag();
   const a = await startSync('anna', h, { opslag: o });
@@ -384,13 +509,14 @@ test('V8 onzeker (antwoord verloren): opnieuw proberen geeft er één; P1: geen 
   assert.equal(sql(`select count(*) from public.trip_packing_items where trip_id = '${v}' and name = 'Kaart'`), '1');
 });
 
-test('V9 toegang kwijt: vakanties, pakitems en koppelingen verdwijnen uit de cache', { timeout: 60000 }, async () => {
+test('V9 toegang kwijt: vakanties, pakitems, extra lijsten en koppelingen verdwijnen uit de cache', { timeout: 60000 }, async () => {
   const { a, b } = await beide();
   const v = await nieuweVakantie(a, 'Laatste');
   assert.ok((await a.acties.pakitemToevoegen(v, null, 'Tent')).ok);
+  assert.ok((await a.acties.paklijstToevoegen(v, 'Hond')).ok);
   assert.ok((await a.acties.boodschapToevoegen('Haringen', { vakantie: v })).ok);
   await totdat(() => pak(b, v, 'Tent') && b.toestand.vakantieKoppelingen.length > 0, 10000, 'Bram heeft alles');
   assert.ifError((await personen.anna.c.rpc('archive_member', { p_household: h, p_member: mBram })).error);
   await totdat(() => b.toestand.status === STATUS.GEEN_TOEGANG, 20000, 'Bram verliest toegang');
-  assert.equal(b.toestand.vakanties.length + b.toestand.pakitems.length + b.toestand.vakantieKoppelingen.length, 0);
+  assert.equal(b.toestand.vakanties.length + b.toestand.pakitems.length + b.toestand.paklijsten.length + b.toestand.vakantieKoppelingen.length, 0);
 });

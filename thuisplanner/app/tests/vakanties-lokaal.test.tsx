@@ -60,12 +60,12 @@ describe('lokale modus: vakanties via de sync-module', () => {
     const { result } = opzet({ paklijstOvernemen, overnemenOngedaanMaken });
     act(() => result.current.paklijstOvernemen('v-oud', 'v1', null));
     await wacht();
-    expect(paklijstOvernemen).toHaveBeenNthCalledWith(1, { van: 'v-oud', naar: 'v1', lid: null, gezamenlijk: true });
-    expect(paklijstOvernemen).toHaveBeenNthCalledWith(2, { van: 'v-oud', naar: 'v1', lid: null, gezamenlijk: true, opdracht: 'o1' });
+    expect(paklijstOvernemen).toHaveBeenNthCalledWith(1, { van: 'v-oud', naar: 'v1', lid: null, gezamenlijk: true, lijsten: [] });
+    expect(paklijstOvernemen).toHaveBeenNthCalledWith(2, { van: 'v-oud', naar: 'v1', lid: null, gezamenlijk: true, lijsten: [], opdracht: 'o1' });
     expect(result.current.staat.melding).toMatchObject({ tekst: '2 items overgenomen', ongedaan: true });
     act(() => result.current.ongedaan());
     await wacht();
-    expect(overnemenOngedaanMaken).toHaveBeenCalledWith(['n1', 'n2']);
+    expect(overnemenOngedaanMaken).toHaveBeenCalledWith(['n1', 'n2'], []);
   });
 
   it('vinkjes opnieuw en terugzetten; boodschap met vakantie; vakantie toevoegen geeft het id', async () => {
@@ -98,5 +98,60 @@ describe('lokale modus: vakanties via de sync-module', () => {
     await act(async () => { id = await result.current.vakantieToevoegen({ naam: 'Zweden', vertrek: null, terug: null }); });
     expect(id).toBe('v-nieuw');
     expect(vakantieToevoegen).toHaveBeenCalledWith({ name: 'Zweden', start_date: null, end_date: null, destination: null, notes: null });
+  });
+});
+
+describe('lokale modus: extra inpaklijsten (§20)', () => {
+  const metLijst = { ...toestand,
+    paklijsten: [{ id: 'l1', trip_id: 'v1', name: 'Oma', version: 3 }],
+    pakitems: [...toestand.pakitems, { id: 'p3', trip_id: 'v1', member_id: null, list_id: 'l1', name: 'Leesbril', packed_at: null, version: 1 },
+      { id: 'p4', trip_id: 'v1', member_id: null, list_id: 'weg', name: 'Spook', packed_at: null, version: 1 }] };
+  const opzetLijst = (acties: Record<string, (...a: unknown[]) => unknown>) => {
+    const sessie = { acties, syncObject: { toestand: metLijst, vergeten: vi.fn() } } as unknown as Sessie;
+    return renderHook(() => useLokaleStaat(sessie, { toestand: metLijst } as unknown as Momentopname, '2026-10-21', HH));
+  };
+  it('een item van een lijst hoort bij die lijst (nooit Gezamenlijk); een item van een onbekende lijst verschijnt niet', () => {
+    const { result } = opzetLijst({});
+    expect(result.current.staat.paklijsten).toEqual([expect.objectContaining({ id: 'l1', naam: 'Oma', vakantieId: 'v1' })]);
+    expect(result.current.staat.pakitems.find(p => p.id === 'p3')).toMatchObject({ lid: null, lijst: 'l1' });
+    expect(result.current.staat.pakitems.some(p => p.id === 'p4')).toBe(false);
+  });
+  it('toevoegen (naam gecontroleerd), item in een lijst, hernoemen en verwijderen met ongedaan maken', async () => {
+    const paklijstToevoegen = vi.fn(async () => ({ ok: true, id: 'l2' }));
+    const pakitemToevoegen = vi.fn(async () => ({ ok: true }));
+    const paklijstHernoemen = vi.fn(async () => ({ ok: true }));
+    const paklijstVerwijderen = vi.fn(async () => ({ ok: true, data: [{ version: 4, items: 1, outcome: 'verwijderd' }] }));
+    const paklijstHerstellen = vi.fn(async () => ({ ok: true }));
+    const { result } = opzetLijst({ paklijstToevoegen, pakitemToevoegen, paklijstHernoemen, paklijstVerwijderen, paklijstHerstellen, meldingWeg: vi.fn() });
+    let id: string | null = null;
+    await act(async () => { id = await result.current.paklijstToevoegen('v1', 'eva'); });
+    expect(id).toBeNull();
+    expect(paklijstToevoegen).not.toHaveBeenCalled();
+    expect(result.current.staat.melding?.tekst).toBe('Die naam hoort al bij iemand uit het huishouden of bij Gezamenlijk.');
+    await act(async () => { id = await result.current.paklijstToevoegen('v1', ' Paard '); });
+    expect(id).toBe('l2');
+    expect(paklijstToevoegen).toHaveBeenCalledWith('v1', 'Paard');
+    act(() => result.current.pakitemToevoegen('v1', { lijst: 'l1' }, 'Pillen'));
+    await wacht();
+    expect(pakitemToevoegen).toHaveBeenCalledWith('v1', null, 'Pillen', { lijst: 'l1' });
+    const oma = result.current.staat.paklijsten[0];
+    act(() => result.current.paklijstHernoemen(oma, 'Opa'));
+    await wacht();
+    expect(paklijstHernoemen).toHaveBeenCalledWith(expect.objectContaining({ id: 'l1' }), 'Opa', 3);
+    act(() => result.current.paklijstVerwijderen(oma));
+    await wacht();
+    expect(result.current.staat.melding).toMatchObject({ tekst: 'Oma verwijderd', ongedaan: true });
+    act(() => result.current.ongedaan());
+    await wacht();
+    expect(paklijstHerstellen).toHaveBeenCalledWith(expect.objectContaining({ id: 'l1' }), 4);
+  });
+  it('verplaatsen naar een lijst en terug naar een lid gaat met member_id én list_id', async () => {
+    const pakitemBijwerken = vi.fn(async () => ({ ok: true }));
+    const { result } = opzetLijst({ pakitemBijwerken });
+    const sokken = result.current.staat.pakitems.find(p => p.id === 'p1')!;
+    act(() => result.current.pakitemBijwerken(sokken, { doel: { lijst: 'l1' } }));
+    await wacht();
+    expect(pakitemBijwerken).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1' }), { member_id: null, list_id: 'l1' }, 1);
+    expect(result.current.staat.melding?.tekst).toBe('Sokken staat nu bij Oma');
   });
 });

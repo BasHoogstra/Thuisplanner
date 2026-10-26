@@ -27,9 +27,9 @@ describe('paklijst', () => {
     s = reducer(s, { type: 'pakitemBijwerken', id: 'b', naam: 'SOKKEN' });
     expect(s.melding?.tekst).toBe('Staat al op de lijst van Eva');
     expect(s.pakitems.find(p => p.id === 'b')?.naam).toBe('Shirts');
-    s = reducer(s, { type: 'pakitemBijwerken', id: 'c', lid: 'm-eva' });
+    s = reducer(s, { type: 'pakitemBijwerken', id: 'c', doel: 'm-eva' });
     expect(s.pakitems.find(p => p.id === 'c')?.lid).toBe('m-thomas');
-    s = reducer(s, { type: 'pakitemBijwerken', id: 'c', lid: null });
+    s = reducer(s, { type: 'pakitemBijwerken', id: 'c', doel: null });
     expect(s.pakitems.find(p => p.id === 'c')?.lid).toBeNull();
     expect(s.melding?.tekst).toBe('Sokken staat nu bij Gezamenlijk');
   });
@@ -46,7 +46,8 @@ describe('paklijst', () => {
     let s = reducer(begin(), { type: 'pakitemToevoegen', item: item('eigen', 'v-texel', 'm-eva', 'Sokken') });
     const voor = s.pakitems.length;
     s = reducer(s, { type: 'overnemen', van: 'v-italie', naar: 'v-texel', groep: 'iedereen' });
-    const italie = begin().pakitems.filter(p => p.vakantieId === 'v-italie');
+    // Iedereen = leden en Gezamenlijk; extra lijsten alleen als ze gekozen zijn.
+    const italie = begin().pakitems.filter(p => p.vakantieId === 'v-italie' && !p.lijst);
     expect(s.pakitems.length).toBe(voor + italie.length - 1);   // Eva's Sokken stonden er al
     expect(s.pakitems.find(p => p.id === 'eigen')).toBeDefined();
     expect(s.pakitems.filter(p => p.vakantieId === 'v-texel' && p.ingepakt)).toHaveLength(0);
@@ -170,5 +171,42 @@ describe('de slimme +: een eigen keuze voor Later nodig of Nu te kopen', () => {
     const s = reducer(begin(), { type: 'boodschappen', namen: ['zonnebrand factor 50'], vakantieId: 'v-texel' });
     expect(s.items.filter(i => i.soort === 'boodschap' && i.naam.toLowerCase() === 'zonnebrand factor 50')).toHaveLength(1);
     expect(s.koppelingen.filter(k => k.boodschapId === 'b-zonnebrand-50').map(k => k.vakantieId).sort()).toEqual(['v-frankrijk', 'v-texel']);
+  });
+});
+
+describe('extra inpaklijsten (§20, zelfde regels als de server)', () => {
+  it('toevoegen: geen naam van een lid, geen Gezamenlijk, geen dubbele naam bij dezelfde vakantie (wel bij een andere)', () => {
+    let s = reducer(begin(), { type: 'paklijstToevoegen', lijst: { id: 'l-a', vakantieId: 'v-texel', naam: 'Paard' } });
+    expect(s.paklijsten.some(l => l.id === 'l-a')).toBe(true);
+    for (const naam of ['eva', 'Gezamenlijk', ' paard ']) {
+      const na = reducer(s, { type: 'paklijstToevoegen', lijst: { id: 'l-x', vakantieId: 'v-texel', naam } });
+      expect(na.paklijsten.some(l => l.id === 'l-x')).toBe(false);
+      expect(na.melding?.tekst).toMatch(/hoort al bij|Er is al een lijst/);
+    }
+    s = reducer(s, { type: 'paklijstToevoegen', lijst: { id: 'l-b', vakantieId: 'v-noorwegen', naam: 'Paard' } });
+    expect(s.paklijsten.some(l => l.id === 'l-b')).toBe(true);
+  });
+  it('items in een lijst: dubbel per lijst, niet als Gezamenlijk; verwijderen neemt items mee en is ongedaan te maken', () => {
+    let s = reducer(begin(), { type: 'paklijstToevoegen', lijst: { id: 'l-a', vakantieId: 'v-texel', naam: 'Paard' } });
+    s = reducer(s, { type: 'pakitemToevoegen', item: { ...item('i1', 'v-texel', null, 'Zadel'), lijst: 'l-a' } });
+    s = reducer(s, { type: 'pakitemToevoegen', item: item('i2', 'v-texel', null, 'Zadel') });   // Gezamenlijk: mag
+    const dubbel = reducer(s, { type: 'pakitemToevoegen', item: { ...item('i3', 'v-texel', null, 'zadel'), lijst: 'l-a' } });
+    expect(dubbel.melding?.tekst).toBe('Staat al op de lijst van Paard');
+    s = reducer(s, { type: 'vinkjesOpnieuw', vakantieId: 'v-texel', groep: null });
+    s = reducer(s, { type: 'paklijstVerwijderen', id: 'l-a', melding: 'Paard verwijderd' });
+    expect(s.pakitems.some(p => p.id === 'i1')).toBe(false);
+    expect(s.pakitems.some(p => p.id === 'i2')).toBe(true);
+    s = reducer(s, { type: 'ongedaan' });
+    expect(s.paklijsten.some(l => l.id === 'l-a')).toBe(true);
+    expect(s.pakitems.find(p => p.id === 'i1')?.lijst).toBe('l-a');
+  });
+  it('overnemen met lijsten: bestaande naam aanvullen, anders een nieuwe lijst; zonder keuze geen lijst-items (ook niet als Gezamenlijk)', () => {
+    let s = reducer(begin(), { type: 'paklijstToevoegen', lijst: { id: 'l-t', vakantieId: 'v-texel', naam: 'strandspullen' } });
+    s = reducer(s, { type: 'pakitemToevoegen', item: { ...item('i1', 'v-texel', null, 'Parasol'), lijst: 'l-t' } });
+    const zonder = reducer(s, { type: 'overnemen', van: 'v-italie', naar: 'v-texel', groep: 'iedereen' });
+    expect(zonder.pakitems.filter(p => p.vakantieId === 'v-texel' && !p.lid && !p.lijst).map(p => p.naam)).not.toContain('Schepjes');
+    const met = reducer(s, { type: 'overnemen', van: 'v-italie', naar: 'v-texel', groep: 'iedereen', lijsten: ['l-italie-strand'] });
+    expect(met.paklijsten.filter(l => l.vakantieId === 'v-texel')).toHaveLength(1);
+    expect(met.pakitems.filter(p => p.lijst === 'l-t').map(p => p.naam).sort()).toEqual(['Parasol', 'Schepjes', 'Strandstoel']);
   });
 });

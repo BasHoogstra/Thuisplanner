@@ -5,8 +5,8 @@ import { demoItems, demoVakanties, huishouden, type Scenario } from '../data/dem
 import { zichtbaarVoor } from './rechten';
 import { boodschappenMelding, voegBoodschappenToe } from './boodschappen';
 import { verwijderReeks, verwijderVoorkomen, wijzigVoorkomen } from './herhaling';
-import { alOpPaklijst, groepNaam } from './vakantie';
-import type { Afspraak, Boodschap, Datum, Item, LidId, Pakitem, Vakantie, VakantieKoppeling } from './types';
+import { alOpPaklijst, doelVan, doelVelden, groepNaam, inDoel, pakSleutel, paklijstNaamFout, zelfdeDoel } from './vakantie';
+import type { Afspraak, Boodschap, Datum, Item, LidId, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from './types';
 
 export interface Melding {
   id: number;
@@ -20,6 +20,8 @@ export interface Gegevens {
   items: Item[];
   vakanties: Vakantie[];
   pakitems: Pakitem[];
+  /** Extra inpaklijsten (§20), in de volgorde van aanmaken. */
+  paklijsten: Paklijst[];
   koppelingen: VakantieKoppeling[];
 }
 
@@ -31,8 +33,8 @@ export interface Staat extends Gegevens {
   melding: Melding | null;
 }
 
-/** Voor wie vinkjes of overnemen gelden: één lid, Gezamenlijk (null) of iedereen. */
-export type Groep = LidId | null | 'iedereen';
+/** Voor wie vinkjes of overnemen gelden: één lid, Gezamenlijk (null), een extra lijst ({ lijst }) of iedereen. */
+export type Groep = PakDoel | 'iedereen';
 
 /**
  * Elke wijziging van de gegevens zet de vorige stand klaar voor "Ongedaan maken" en vervangt de melding.
@@ -62,9 +64,12 @@ type Actie =
   | ({ type: 'vakantieVerwijderen'; id: string } & Wijziging)
   | { type: 'pakitemToevoegen'; item: Pakitem }
   | { type: 'pakitemWissel'; id: string; door: LidId }
-  | { type: 'pakitemBijwerken'; id: string; naam?: string; lid?: LidId | null }
+  | { type: 'pakitemBijwerken'; id: string; naam?: string; doel?: PakDoel }
   | ({ type: 'pakitemVerwijderen'; id: string } & Wijziging)
-  | { type: 'overnemen'; van: string; naar: string; groep: Groep }
+  | { type: 'overnemen'; van: string; naar: string; groep: Groep; lijsten?: string[] }
+  | { type: 'paklijstToevoegen'; lijst: Paklijst }
+  | { type: 'paklijstHernoemen'; id: string; naam: string }
+  | ({ type: 'paklijstVerwijderen'; id: string } & Wijziging)
   | { type: 'vinkjesOpnieuw'; vakantieId: string; groep: Groep }
   | ({ type: 'ontkoppelen'; koppelingId: string } & Wijziging);
 
@@ -72,7 +77,7 @@ let meldingTeller = 0;
 const melding = (tekst: string | undefined, ongedaan: boolean): Melding | null =>
   tekst ? { id: ++meldingTeller, tekst, ongedaan } : null;
 
-const gegevens = (s: Staat): Gegevens => ({ items: s.items, vakanties: s.vakanties, pakitems: s.pakitems, koppelingen: s.koppelingen });
+const gegevens = (s: Staat): Gegevens => ({ items: s.items, vakanties: s.vakanties, pakitems: s.pakitems, paklijsten: s.paklijsten, koppelingen: s.koppelingen });
 
 function wijzigAlles(s: Staat, nieuw: Partial<Gegevens>, tekst?: string): Staat {
   return { ...s, vorige: gegevens(s), ...nieuw, melding: melding(tekst, true) };
@@ -83,7 +88,8 @@ function wijzig(s: Staat, items: Item[], tekst?: string): Staat {
 /** Alleen een melding, zonder iets te wijzigen (en zonder "Ongedaan maken"). */
 const meldAlleen = (s: Staat, tekst: string): Staat => ({ ...s, melding: melding(tekst, false) });
 
-const inGroep = (p: Pakitem, groep: Groep) => groep === 'iedereen' || (p.lid ?? null) === groep;
+// Iedereen = de leden en Gezamenlijk; een extra lijst alleen als die gekozen is (zoals de server).
+const inGroep = (p: Pakitem, groep: Groep) => (groep === 'iedereen' ? !p.lijst : inDoel(p, groep));
 const meervoud = (n: number, een: string, meer: string) => `${n} ${n === 1 ? een : meer}`;
 
 export function reducer(s: Staat, a: Actie): Staat {
@@ -155,7 +161,8 @@ export function reducer(s: Staat, a: Actie): Staat {
       return wijzigAlles(s, { vakanties: s.vakanties.filter(v => v.id !== a.id) }, a.melding);
     case 'pakitemToevoegen': {
       const p = a.item;
-      if (alOpPaklijst(s.pakitems, p.vakantieId, p.lid, p.naam)) return meldAlleen(s, `Staat al op de lijst van ${groepNaam(huishouden, p.lid)}`);
+      if (p.lijst && !s.paklijsten.some(l => l.id === p.lijst)) return meldAlleen(s, 'Deze inpaklijst bestaat niet meer.');
+      if (alOpPaklijst(s.pakitems, p.vakantieId, doelVan(p), p.naam)) return meldAlleen(s, `Staat al op de lijst van ${groepNaam(huishouden, doelVan(p), s.paklijsten)}`);
       return { ...wijzigAlles(s, { pakitems: [...s.pakitems, p] }), melding: null };
     }
     case 'pakitemWissel':
@@ -165,22 +172,35 @@ export function reducer(s: Staat, a: Actie): Staat {
     case 'pakitemBijwerken': {
       const p = s.pakitems.find(x => x.id === a.id);
       if (!p) return s;
-      const nieuw = { ...p, ...(a.naam !== undefined ? { naam: a.naam } : {}), ...(a.lid !== undefined ? { lid: a.lid } : {}) };
-      if (alOpPaklijst(s.pakitems, nieuw.vakantieId, nieuw.lid, nieuw.naam, p.id)) return meldAlleen(s, `Staat al op de lijst van ${groepNaam(huishouden, nieuw.lid)}`);
-      const tekst = a.lid !== undefined && a.lid !== p.lid ? `${nieuw.naam} staat nu bij ${groepNaam(huishouden, nieuw.lid)}` : `${nieuw.naam} aangepast`;
+      const nieuw = { ...p, ...(a.naam !== undefined ? { naam: a.naam } : {}), ...(a.doel !== undefined ? doelVelden(a.doel) : {}) };
+      const doel = doelVan(nieuw);
+      if (alOpPaklijst(s.pakitems, nieuw.vakantieId, doel, nieuw.naam, p.id)) return meldAlleen(s, `Staat al op de lijst van ${groepNaam(huishouden, doel, s.paklijsten)}`);
+      const tekst = a.doel !== undefined && !zelfdeDoel(a.doel, doelVan(p)) ? `${nieuw.naam} staat nu bij ${groepNaam(huishouden, doel, s.paklijsten)}` : `${nieuw.naam} aangepast`;
       return wijzigAlles(s, { pakitems: s.pakitems.map(x => (x.id === a.id ? nieuw : x)) }, tekst);
     }
     case 'pakitemVerwijderen':
       return wijzigAlles(s, { pakitems: s.pakitems.filter(p => p.id !== a.id) }, a.melding);
     case 'overnemen': {
       // Aanvullend: wat er al staat (zelfde persoon en tekst), wordt overgeslagen; overgenomen items zijn niet afgevinkt.
-      const nieuw: Pakitem[] = [];
-      for (const p of s.pakitems.filter(x => x.vakantieId === a.van && inGroep(x, a.groep))) {
-        if (alOpPaklijst([...s.pakitems, ...nieuw], a.naar, p.lid, p.naam)) continue;
-        nieuw.push({ id: nieuwId('p'), vakantieId: a.naar, lid: p.lid, naam: p.naam, ingepakt: false, ingepaktOp: null, ingepaktDoor: null });
+      // Extra lijsten (alleen bij iedereen): een lijst met dezelfde naam aanvullen, anders een nieuwe lijst.
+      let paklijsten = s.paklijsten;
+      const naarLijst = new Map<string, string>();
+      if (a.groep === 'iedereen') {
+        for (const bron of s.paklijsten.filter(l => l.vakantieId === a.van && a.lijsten?.includes(l.id))) {
+          if (pakSleutel(bron.naam) === 'gezamenlijk' || huishouden.leden.some(l => pakSleutel(l.naam) === pakSleutel(bron.naam))) continue;
+          let doel = paklijsten.find(l => l.vakantieId === a.naar && pakSleutel(l.naam) === pakSleutel(bron.naam));
+          if (!doel) { doel = { id: nieuwId('l'), vakantieId: a.naar, naam: bron.naam }; paklijsten = [...paklijsten, doel]; }
+          naarLijst.set(bron.id, doel.id);
+        }
       }
-      if (!nieuw.length) return meldAlleen(s, 'Alles stond er al');
-      return wijzigAlles(s, { pakitems: [...s.pakitems, ...nieuw] }, `${meervoud(nieuw.length, 'item', 'items')} overgenomen`);
+      const nieuw: Pakitem[] = [];
+      for (const p of s.pakitems.filter(x => x.vakantieId === a.van && (inGroep(x, a.groep) || (!!x.lijst && naarLijst.has(x.lijst))))) {
+        const velden = p.lijst ? { lid: null, lijst: naarLijst.get(p.lijst)! } : { lid: p.lid, lijst: null };
+        if (alOpPaklijst([...s.pakitems, ...nieuw], a.naar, doelVan(velden), p.naam)) continue;
+        nieuw.push({ id: nieuwId('p'), vakantieId: a.naar, ...velden, naam: p.naam, ingepakt: false, ingepaktOp: null, ingepaktDoor: null });
+      }
+      if (!nieuw.length) return paklijsten === s.paklijsten ? meldAlleen(s, 'Alles stond er al') : wijzigAlles(s, { paklijsten }, 'Alles stond er al');
+      return wijzigAlles(s, { pakitems: [...s.pakitems, ...nieuw], paklijsten }, `${meervoud(nieuw.length, 'item', 'items')} overgenomen`);
     }
     case 'vinkjesOpnieuw': {
       const weg = s.pakitems.filter(p => p.vakantieId === a.vakantieId && p.ingepakt && inGroep(p, a.groep));
@@ -191,6 +211,22 @@ export function reducer(s: Staat, a: Actie): Staat {
     }
     case 'ontkoppelen':
       return wijzigAlles(s, { koppelingen: s.koppelingen.filter(k => k.id !== a.koppelingId) }, a.melding);
+    // ---- Extra inpaklijsten (§20) ----
+    case 'paklijstToevoegen': {
+      const fout = paklijstNaamFout(a.lijst.naam, huishouden, s.paklijsten, a.lijst.vakantieId);
+      if (fout) return meldAlleen(s, fout);
+      return { ...wijzigAlles(s, { paklijsten: [...s.paklijsten, a.lijst] }), melding: null };
+    }
+    case 'paklijstHernoemen': {
+      const l = s.paklijsten.find(x => x.id === a.id);
+      if (!l || l.naam === a.naam) return s;
+      const fout = paklijstNaamFout(a.naam, huishouden, s.paklijsten, l.vakantieId, l.id);
+      if (fout) return meldAlleen(s, fout);
+      return wijzigAlles(s, { paklijsten: s.paklijsten.map(x => (x.id === a.id ? { ...x, naam: a.naam } : x)) }, `Lijst heet nu ${a.naam}`);
+    }
+    case 'paklijstVerwijderen':
+      // De lijst en haar items samen; "Ongedaan maken" zet beide terug.
+      return wijzigAlles(s, { paklijsten: s.paklijsten.filter(l => l.id !== a.id), pakitems: s.pakitems.filter(p => p.lijst !== a.id) }, a.melding);
   }
 }
 
@@ -211,7 +247,7 @@ export function beginStaat(vandaag: Datum, scenario: Scenario = 'gewoon'): Staat
   const v = demoVakanties(vandaag);
   return {
     scenario, items: zichtbaarVoor([...demoItems(vandaag, scenario), ...v.items], huishouden.ik),
-    vakanties: v.vakanties, pakitems: v.pakitems, koppelingen: v.koppelingen,
+    vakanties: v.vakanties, pakitems: v.pakitems, paklijsten: v.paklijsten, koppelingen: v.koppelingen,
     weggeklikt: new Set(), vorige: null, melding: null,
   };
 }
@@ -253,13 +289,22 @@ export function useDemoStaat(vandaag: Datum) {
     },
     vakantieBijwerken: (v: Vakantie, melding?: string) => dispatch({ type: 'vakantieBijwerken', vakantie: v, melding }),
     vakantieVerwijderen: (v: Vakantie) => dispatch({ type: 'vakantieVerwijderen', id: v.id, melding: `${v.naam} verwijderd` }),
-    pakitemToevoegen: (vakantieId: string, lid: LidId | null, naam: string) => dispatch({ type: 'pakitemToevoegen',
-      item: { id: nieuwId('p'), vakantieId, lid, naam: naam.trim().replace(/\s+/g, ' '), ingepakt: false, ingepaktOp: null, ingepaktDoor: null } }),
+    pakitemToevoegen: (vakantieId: string, doel: PakDoel, naam: string) => dispatch({ type: 'pakitemToevoegen',
+      item: { id: nieuwId('p'), vakantieId, ...doelVelden(doel), naam: naam.trim().replace(/\s+/g, ' '), ingepakt: false, ingepaktOp: null, ingepaktDoor: null } }),
     pakitemWissel: (p: Pakitem) => dispatch({ type: 'pakitemWissel', id: p.id, door: huishouden.ik }),
-    pakitemBijwerken: (p: Pakitem, wijziging: { naam?: string; lid?: LidId | null }) => dispatch({ type: 'pakitemBijwerken', id: p.id,
-      naam: wijziging.naam !== undefined ? wijziging.naam.trim().replace(/\s+/g, ' ') : undefined, lid: wijziging.lid }),
+    pakitemBijwerken: (p: Pakitem, wijziging: { naam?: string; doel?: PakDoel }) => dispatch({ type: 'pakitemBijwerken', id: p.id,
+      naam: wijziging.naam !== undefined ? wijziging.naam.trim().replace(/\s+/g, ' ') : undefined, doel: wijziging.doel }),
     pakitemVerwijderen: (p: Pakitem) => dispatch({ type: 'pakitemVerwijderen', id: p.id, melding: `${p.naam} verwijderd` }),
-    paklijstOvernemen: (van: string, naar: string, groep: Groep) => dispatch({ type: 'overnemen', van, naar, groep }),
+    /** lijsten: extra lijsten van de bron die mee moeten (alleen bij iedereen). */
+    paklijstOvernemen: (van: string, naar: string, groep: Groep, lijsten?: string[]) => dispatch({ type: 'overnemen', van, naar, groep, lijsten }),
+    /** Geeft het id van de nieuwe lijst (om haar meteen te kiezen). Een naam die niet kan, geeft een melding (en geen lijst). */
+    paklijstToevoegen: async (vakantieId: string, naam: string): Promise<string | null> => {
+      const id = nieuwId('l');
+      dispatch({ type: 'paklijstToevoegen', lijst: { id, vakantieId, naam: naam.trim().replace(/\s+/g, ' ') } });
+      return id;
+    },
+    paklijstHernoemen: (l: Paklijst, naam: string) => dispatch({ type: 'paklijstHernoemen', id: l.id, naam: naam.trim().replace(/\s+/g, ' ') }),
+    paklijstVerwijderen: (l: Paklijst) => dispatch({ type: 'paklijstVerwijderen', id: l.id, melding: `${l.naam} verwijderd` }),
     vinkjesOpnieuw: (vakantieId: string, groep: Groep) => dispatch({ type: 'vinkjesOpnieuw', vakantieId, groep }),
     boodschapOntkoppelen: (k: VakantieKoppeling, naam: string) => dispatch({ type: 'ontkoppelen', koppelingId: k.id, melding: `${naam} niet meer voor deze vakantie` }),
     /** Een afgelopen vakantie tonen (lokaal: haar paklijst ophalen). In de demo staat alles al klaar. */

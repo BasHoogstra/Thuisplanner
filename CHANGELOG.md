@@ -932,6 +932,18 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - Vóór opslaan te corrigeren (andere vakantie, Geen vakantie, Terug in de titel, Later nodig of Nu te kopen); Alles invullen neemt het mee. Bij twijfel niets vanzelf; afspraken nog niet.
 - Geen migratie; dezelfde handelingen als de Boodschappen- en vakantiepagina. Duidelijke melding als een vakantie intussen verwijderd is.
 
+## Thuisplanner F8 Vakanties: extra inpaklijsten, stap 1 database en RLS (22 oktober 2026, lokaal)
+- Migratie 20261027120000_paklijsten.sql: trip_packing_lists (per vakantie, unieke naam, geen naam van een lid of Gezamenlijk), trip_packing_items.list_id met verwijzing via vakantie en huishouden; verwijderen en herstellen via functies; copy_packing_items met p_lists. Alleen lokaal toegepast.
+- Tests: RLS-matrix 88 van 88 (KG-T85 t/m KG-T88), elf nieuwe tegenproeven, vijf gelijktijdigheidsscenario's, API-test. Voorwaarde voor uitrol: alleen samen met een app die list_id kent (§20.6).
+
+## Thuisplanner F8 Vakanties: extra inpaklijsten, stap 2 synchronisatie (24 oktober 2026, lokaal)
+- Sync: lijsten ophalen, toevoegen (vaste UUID, P1), hernoemen met versie, verwijderen en herstellen; pakitems in een lijst; vinkjes opnieuw per lijst (Gezamenlijk = geen lid en geen lijst); overnemen met lijsten en ongedaan maken inclusief nieuwe lege lijsten; duidelijke melding bij een verwijderde lijst.
+- App toont lijst-items nog niet (stap 3), dus nooit als Gezamenlijk. Tests: V12-V15, V9 uitgebreid, zeven nieuwe sync-tegenproeven.
+
+## Thuisplanner F8 Vakanties: extra inpaklijsten, stap 3 schermen (24 oktober 2026, lokaal)
+- Inpakken: extra lijsten in de rij na Gezamenlijk, subtiele knop + Inpaklijst, hernoemen en verwijderen (met bevestiging en ongedaan maken) via ⋯; verplaatsen naar een lijst; overnemen met afvinkvakjes per lijst (standaard aan); vinkjes opnieuw per lijst.
+- Demo: Oma (Frankrijk), Strandspullen (Italië). Voorwaarde voor online uitrol beschreven in §22.1 (samen uitrollen, databasefilter voor oude apps, minimale app-versie).
+
 ## Thuisplanner: de + opnieuw ontworpen (24 oktober 2026, lokaal)
 - Invoerbalk vlak boven het toetsenbord met de verzendknop in de balk; het veld groeit mee tot drie regels.
 - Eén kaart in gewone taal ("Morgen om 15:00 · met Lotte"), privé/gedeeld altijd zichtbaar bij een afspraak, één vraag bij twijfel, Aanpassen op verzoek; "Alles invullen" heet Formulier.

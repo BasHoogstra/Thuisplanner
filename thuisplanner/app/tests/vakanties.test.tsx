@@ -72,7 +72,9 @@ it('inpakken: per persoon, snel achter elkaar, geen dubbele, en overnemen met on
   const venster = screen.getByRole('dialog', { name: 'Paklijst overnemen' });
   expect(within(venster).getByRole('radio', { name: /Italië/ })).toHaveAttribute('aria-checked', 'true');
   await user.click(within(venster).getByRole('button', { name: 'Overnemen' }));
-  expect(screen.getByRole('status')).toHaveTextContent('23 items overgenomen');
+  // Met de extra lijst Strandspullen (standaard aangevinkt, 3 items).
+  expect(screen.getByRole('status')).toHaveTextContent('26 items overgenomen');
+  expect(within(personen).getByRole('radio', { name: 'Strandspullen, 0 van 3 ingepakt' })).toBeInTheDocument();
   expect(within(personen).getByRole('radio', { name: 'Daan, 0 van 4 ingepakt' })).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Ongedaan maken' }));
   expect(within(personen).getByRole('radio', { name: 'Daan, 0 van 0 ingepakt' })).toBeInTheDocument();
@@ -160,7 +162,7 @@ it('Vandaag toont de vakantiekaart (de regels voor 14 dagen vooraf staan in vaka
   naar('#/vandaag');
   const user = userEvent.setup();
   render(<App />);
-  await user.click(screen.getByRole('button', { name: 'Frankrijk, over 9 dagen, 3 voorbereidingen open · ingepakt 7/37. Openen' }));
+  await user.click(screen.getByRole('button', { name: 'Frankrijk, over 9 dagen, 3 voorbereidingen open · ingepakt 7/40. Openen' }));
   expect(screen.getByRole('heading', { level: 1, name: 'Frankrijk' })).toBeInTheDocument();
 });
 

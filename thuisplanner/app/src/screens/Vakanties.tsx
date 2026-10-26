@@ -7,15 +7,15 @@ import { dagLabel, verschilInDagen } from '../lib/datum';
 import { splitsBoodschappen } from '../lib/boodschappen';
 import { nieuwId } from '../lib/store';
 import { isBoodschap, isTaak } from '../lib/vandaag';
-import type { Boodschap, LidId, Pakitem, Taak, Vakantie, VakantieKoppeling } from '../lib/types';
+import type { Boodschap, PakDoel, Pakitem, Taak, Vakantie, VakantieKoppeling } from '../lib/types';
 import {
-  aftelling, fase, groepNaam, groepen, isVoorbij, leesVoorkeur, overneemBronnen, pakGroepen, periode, zetVoorkeur,
+  aftelling, doelSleutel, fase, groepen, inDoel, isVoorbij, leesVoorkeur, overneemBronnen, pakGroepen, periode, zelfdeDoel, zetVoorkeur,
 } from '../lib/vakantie';
 import { NuKopenKnop, TaakRij, Vinkje } from '../components/Rijen';
 import { SyncLabel } from '../components/Lokaal';
-import { IcKoffer, IcLinks, IcPijl, IcPlus, IcPunten } from '../components/Iconen';
+import { IcKoffer, IcLabel, IcLinks, IcPijl, IcPlus, IcPunten } from '../components/Iconen';
 import {
-  OpnieuwVenster, OvernemenVenster, PakitemVenster, VakantieBoodschapVenster, VakantieVenster,
+  OpnieuwVenster, OvernemenVenster, PakitemVenster, PaklijstVenster, VakantieBoodschapVenster, VakantieVenster,
 } from '../components/VakantieVensters';
 
 export function Vakanties() {
@@ -366,24 +366,26 @@ function Regelen({ v }: { v: Vakantie }) {
 function Inpakken({ v }: { v: Vakantie }) {
   const app = useApp();
   const { staat, huishouden, vandaag } = app;
-  const lijstGroepen = pakGroepen(huishouden);
-  const [groep, zetGroep] = useState<LidId | null>(() => {
-    const g = leesVoorkeur(`persoon:${v.id}`);
-    if (g === 'gezamenlijk') return null;
-    return g && huishouden.leden.some(l => l.id === g) ? g : huishouden.leden.some(l => l.id === huishouden.ik) ? huishouden.ik : null;
-  });
-  const kiesGroep = (g: LidId | null) => { zetGroep(g); zetVoorkeur(`persoon:${v.id}`, g ?? 'gezamenlijk'); };
+  // Leden, Gezamenlijk en daarna de extra lijsten van deze vakantie (§20), in de volgorde van aanmaken.
+  const lijstGroepen = pakGroepen(huishouden, staat.paklijsten, v.id);
+  const standaard = (): PakDoel => (huishouden.leden.some(l => l.id === huishouden.ik) ? huishouden.ik : null);
+  const [gekozen, zetGekozen] = useState<string>(() => leesVoorkeur(`persoon:${v.id}`) ?? doelSleutel(standaard()));
+  // De bewaarde keuze bestaat niet (meer), bijvoorbeeld een verwijderde lijst: terug naar jezelf.
+  const groepInfo = lijstGroepen.find(g => g.sleutel === gekozen) ?? lijstGroepen.find(g => zelfdeDoel(g.doel, standaard()))!;
+  const groep = groepInfo.doel;
+  const kiesGroep = (d: PakDoel) => { zetGekozen(doelSleutel(d)); zetVoorkeur(`persoon:${v.id}`, doelSleutel(d)); };
   const [tekst, zetTekst] = useState('');
   const [open, zetOpen] = useState<Pakitem | null>(null);
-  const [venster, zetVenster] = useState<'overnemen' | 'opnieuw' | null>(null);
+  const [venster, zetVenster] = useState<'overnemen' | 'opnieuw' | 'nieuweLijst' | 'lijst' | null>(null);
   const invoer = useRef<HTMLInputElement>(null);
 
   const alle = staat.pakitems.filter(p => p.vakantieId === v.id);
-  const van = (g: LidId | null) => alle.filter(p => (p.lid ?? null) === g);
+  const van = (d: PakDoel) => alle.filter(p => inDoel(p, d));
   const hier = van(groep);
   const nogTe = hier.filter(p => !p.ingepakt);
   const ingepakt = hier.filter(p => p.ingepakt);
-  const naam = groepNaam(huishouden, groep);
+  const naam = groepInfo.naam;
+  const extra = groepInfo.lijst;
   // Een rustige suggestie bij een lege paklijst: de laatste vakantie waar je geweest bent.
   const bron = !alle.length ? overneemBronnen(staat.vakanties, v.id, vandaag, id => staat.pakitems.some(p => p.vakantieId === id))[0] : undefined;
 
@@ -400,18 +402,23 @@ function Inpakken({ v }: { v: Vakantie }) {
     <>
       <div className="pak-personen" role="radiogroup" aria-label="Paklijst van">
         {lijstGroepen.map(g => {
-          const lijst = van(g.id);
+          const lijst = van(g.doel);
           const klaar = lijst.filter(p => p.ingepakt).length;
-          const aan = groep === g.id;
+          const aan = g.sleutel === groepInfo.sleutel;
           return (
-            <button key={g.id ?? 'gezamenlijk'} type="button" role="radio" aria-checked={aan} className={'pak-persoon' + (aan ? ' aan' : '')}
-              onClick={() => kiesGroep(g.id)} aria-label={`${g.naam}, ${klaar} van ${lijst.length} ingepakt`}>
-              {g.kleur ? <span className="stip" style={{ background: g.kleur }} aria-hidden="true" /> : <IcKoffer width={14} height={14} />}
+            <button key={g.sleutel} type="button" role="radio" aria-checked={aan} className={'pak-persoon' + (aan ? ' aan' : '') + (g.lijst ? ' extra' : '')}
+              onClick={() => kiesGroep(g.doel)} aria-label={`${g.naam}, ${klaar} van ${lijst.length} ingepakt`}>
+              {g.kleur ? <span className="stip" style={{ background: g.kleur }} aria-hidden="true" />
+                : g.lijst ? <IcLabel width={14} height={14} /> : <IcKoffer width={14} height={14} />}
               <span className="pak-persoon-naam">{g.naam}</span>
               <span className="pak-persoon-tel" aria-hidden="true">{klaar}/{lijst.length}</span>
             </button>
           );
         })}
+        {/* Subtiel: zelf een lijst toevoegen ("Oma", "Paard", "Strandspullen"). Geen radio: het opent een klein venster. */}
+        <button type="button" className="pak-persoon pak-nieuw" aria-label="Inpaklijst toevoegen" onClick={() => zetVenster('nieuweLijst')}>
+          <IcPlus width={14} height={14} /> Inpaklijst
+        </button>
       </div>
 
       <section className="vak-blok pak-blok" aria-label={`Paklijst van ${naam}`}>
@@ -419,13 +426,18 @@ function Inpakken({ v }: { v: Vakantie }) {
           <h2 className="pak-kop" aria-label={`${naam} · ${ingepakt.length} van ${hier.length} ingepakt`}>
             <span className="pak-kop-naam">{naam}</span><span className="pak-kop-tel">{ingepakt.length} van {hier.length} ingepakt</span>
           </h2>
+          {extra && (
+            <button type="button" className="icoonknop pak-lijst-meer" aria-label={`Lijst ${naam} aanpassen`} onClick={() => zetVenster('lijst')}><IcPunten /></button>
+          )}
         </div>
         <Voortgang klaar={ingepakt.length} totaal={hier.length} label={`Ingepakt voor ${naam}`} />
 
         {bron && (
           <div className="pak-voorstel">
             <p>Begin met de paklijst van {bron.naam}?</p>
-            <button type="button" className="knop klein" onClick={() => app.paklijstOvernemen(bron.id, v.id, 'iedereen')}>Overnemen</button>
+            {/* Alles, ook de extra lijsten van toen (besluit: standaard aan); kiezen kan via "Overnemen van een eerdere vakantie". */}
+            <button type="button" className="knop klein" onClick={() => app.paklijstOvernemen(bron.id, v.id, 'iedereen',
+              staat.paklijsten.filter(l => l.vakantieId === bron.id).map(l => l.id))}>Overnemen</button>
           </div>
         )}
 
@@ -440,7 +452,7 @@ function Inpakken({ v }: { v: Vakantie }) {
           ? <ul className="lijst vak-lijst" aria-label={`Nog in te pakken voor ${naam}`}>{nogTe.map(p => <PakRij key={p.id} p={p} openen={() => zetOpen(p)} />)}</ul>
           : <p className="stil-tekst vak-leeg">{hier.length ? `Alles van ${naam} is ingepakt.` : `Nog niets voor ${naam}.`}</p>}
 
-        <Afgerond key={groep ?? 'gezamenlijk'} aantal={ingepakt.length} woord="ingepakt" lijstNaam={`Ingepakt voor ${naam}`}>
+        <Afgerond key={groepInfo.sleutel} aantal={ingepakt.length} woord="ingepakt" lijstNaam={`Ingepakt voor ${naam}`}>
           {ingepakt.map(p => <PakRij key={p.id} p={p} openen={() => zetOpen(p)} />)}
         </Afgerond>
       </section>
@@ -453,6 +465,10 @@ function Inpakken({ v }: { v: Vakantie }) {
       {open && <PakitemVenster p={open} sluit={() => zetOpen(null)} />}
       {venster === 'overnemen' && <OvernemenVenster naar={v} sluit={() => zetVenster(null)} />}
       {venster === 'opnieuw' && <OpnieuwVenster vakantie={v} groep={groep} sluit={() => zetVenster(null)} />}
+      {venster === 'nieuweLijst' && <PaklijstVenster vakantie={v} gemaakt={id => kiesGroep({ lijst: id })} sluit={() => zetVenster(null)} />}
+      {venster === 'lijst' && extra && (
+        <PaklijstVenster vakantie={v} bestaand={extra} aantal={hier.length} sluit={() => zetVenster(null)} />
+      )}
     </>
   );
 }

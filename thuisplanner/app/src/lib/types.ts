@@ -115,11 +115,23 @@ export interface Vakantie extends SyncVelden {
   notities?: string;
 }
 
+/** Een extra inpaklijst bij één vakantie ("Oma", "Paard", "Kampeerspullen"); geen lid, geen account (§20). */
+export interface Paklijst extends SyncVelden {
+  id: string;
+  vakantieId: string;
+  naam: string;
+}
+
+/** Waar een pakitem hoort: een lid, Gezamenlijk (null) of een extra lijst. */
+export type PakDoel = LidId | null | { lijst: string };
+
 export interface Pakitem extends SyncVelden {
   id: string;
   vakantieId: string;
-  /** Leeg: Gezamenlijk. */
+  /** Leeg (en geen lijst): Gezamenlijk. */
   lid: LidId | null;
+  /** Een extra lijst (dan geen lid). */
+  lijst?: string | null;
   naam: string;
   ingepakt: boolean;
   ingepaktOp?: string | null;

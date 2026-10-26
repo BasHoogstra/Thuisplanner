@@ -51,6 +51,10 @@ export const IcLinks = (p: SVGProps<SVGSVGElement>) => (
 export const IcKoffer = (p: SVGProps<SVGSVGElement>) => (
   <svg {...basis(p)}><rect x="4" y="7" width="16" height="13" rx="2.5" /><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M9 11v5M15 11v5" /></svg>
 );
+// Extra inpaklijst (§20): een label.
+export const IcLabel = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis(p)}><path d="M4 12.6V5.5A1.5 1.5 0 0 1 5.5 4h7.1a1.5 1.5 0 0 1 1.06.44l6.4 6.4a1.5 1.5 0 0 1 0 2.12l-7.1 7.1a1.5 1.5 0 0 1-2.12 0l-6.4-6.4A1.5 1.5 0 0 1 4 12.6Z" /><circle cx="8.5" cy="8.5" r="1.3" /></svg>
+);
 export const IcPunten = (p: SVGProps<SVGSVGElement>) => (
   <svg {...basis(p)}><circle cx="6" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="18" cy="12" r="1.2" /></svg>
 );
