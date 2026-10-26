@@ -34,6 +34,8 @@ afwijking dan eerst.
 - **Bijgewerkt op 9 oktober 2026:** de voorlopige ontwikkelrichting Thuisplanner (zie de sectie
   "Ontwikkelrichting Thuisplanner" hieronder en besluit 11). Waar die sectie afwijkt van fase 1, gaat
   die sectie voor; de overige tekst van fase 1 is bewust niet herschreven.
+- **Bijgewerkt op 26 oktober 2026:** de releasegerichte streefplanning voor Thuisplanner (optie A), zie
+  "Releaseplanning Thuisplanner" hieronder. De besluiten 13–16 staan in `docs/productkompas-beslissingen.md`.
 - **Status:** volgens `CHANGELOG.md`.
 
 **Legenda**
@@ -145,6 +147,43 @@ verschijnen alleen als "Bezet"; taken en boodschappen zijn voorlopig alleen gede
 | B4 | Inlogmethode. Advies: e-mailcode; Apple/Google later. | F2 |
 | Import | Of Huisplan nog stap 1.5 doet, of de import naar Thuisplanner namen zelf naar leden vertaalt; welke delen van 1.4.2 dan vóór de import af moeten; wat er met PR #16–#18 gebeurt. | Import (1.12–1.15) |
 | Merknaam | Besloten op 18 oktober 2026: **Thuisplanner** is de enige productnaam; de oude werknaam is uit het project gehaald (behalve in de al uitgevoerde migraties 1–11 en de git-geschiedenis). | Afgerond |
+
+### Releaseplanning Thuisplanner (26 oktober 2026, optie A)
+
+Besluit van de producteigenaar op 26 oktober 2026: de ontwikkeling richt zich op een eerste echte lancering, in drie
+mijlpalen. De producteigenaar koos **optie A**: een kleinere eerste bèta op het oorspronkelijke streefmoment, met daarna
+direct Maaltijden & Recepten.
+
+**Alle weken zijn streefperiodes**, geen harde deadlines. Ze hangen af van de integratie en de testresultaten. Kwaliteit,
+privacy en veiligheid gaan voor de datum: liever iets minder functies dan half werk. Week 1 is de week van 26 oktober
+2026.
+
+**Uitgangspunten:**
+- **De centrale slimme + blijft het uitgangspunt voor nieuwe invoer**, ook voor receptenlinks en later voor projecten.
+- Eén samenhangend datamodel: Agenda, Vandaag, Taken, Boodschappen, Vakanties en Maaltijden zijn weergaven van dezelfde
+  onderliggende gegevens, geen losse datasilo's.
+- Slimme projecten, huishoudkennis en herinneringen (besluiten 13, 14 en 16) blijven essentieel voor de commerciële
+  richting, en volgen na de eerste test van Sanne.
+- Supabase Pro wordt voorbereid, niet aangeschaft zonder apart akkoord. V1 werkt **online eerst**, met duidelijke
+  foutafhandeling bij verbindingsverlies.
+- KG-5E licht (één datapad, de AI-aansluitpunten) komt vóór nieuwe domeinen, zodat niets twee keer wordt gebouwd.
+
+**Mijlpalen:**
+
+| Mijlpaal | Streefperiode | Inhoud |
+| --- | --- | --- |
+| 1. Sanne gebruikt een eerste versie | **Eind week 3 tot week 4** | De integratie van Agenda (stap 1–4), Vakanties V1, Later nodig en het herontwerp van de +; KG-5E licht; herhalende taken (besluit 15); de afwerking (ErrorBoundary, naam van een lid wijzigen, teksten, beginscherm); één gebundelde uitrol naar staging; daarna stap 10 en 11 van de staging-overstap |
+| 2. Bèta 1 met een kleine groep externe gezinnen (3–5) | **Rond week 6** | Een **stabiele en veilige basis**: alles uit mijlpaal 1, op een eigen bèta-omgeving, met back-ups en een hersteloefening, een gepubliceerde privacyverklaring, gate 9 voor alle domeinen, een minimale app-versie, bewaking, een feedbackkanaal en de acceptatiepoort (mobiele UX, privacy, onboarding) |
+| 2b. Maaltijden & Recepten (R1–R3) | **Week 7–9** | R1: het weekmenu via de + en op Vandaag en in de Agenda. R2: het receptenboek, omrekenen en ingrediënten naar Boodschappen. R3: een link of tekst plakken in de +, met de import van ondersteunde receptensites. Eerst bij Sanne op staging, daarna als update voor de bèta. |
+| 2c. Bèta 2 | **Vanaf week 10**, gefaseerd | Minimale herinneringen (na de pushproef), huishoudkennis en contacten met verjaardagen, slimme projecten (sjablonen, en AI na de kwaliteitsproef), Instagram-tekst plakken, Agenda-stap 5–7, Vandaag versie 2 |
+| 3. Publieke lancering | **Zodra de eisen zijn gehaald**, voorlopige inschatting week 12–16 | Een productieproject met back-ups, export en account verwijderen in de app, quota, een externe review van het inloggen, privacyverklaring en voorwaarden, monitoring, een eigen domein zonder Access, en een privé-repository of licentie |
+
+**Bewust later:** offline werken, abonnementen (F10), co-ouderschap (besluit 12), de import vanuit Huisplan, en
+Instagram-video of -beeldherkenning (pas na een proef die laat zien dat het mag en werkt).
+
+📝 De uitwerking staat in `docs/thuisplanner-beta-voorbereiding.md` en `docs/thuisplanner-ai-kwaliteitsproef.md`
+(concepten). Voor de bèta-omgeving zijn nog besluiten nodig: Pro in een eigen organisatie (T2), en of het bètaproject
+later het productieproject wordt (T3).
 
 ## Productkompas-toets (werkwijze vanaf nu)
 
