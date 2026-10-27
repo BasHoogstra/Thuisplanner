@@ -8,6 +8,7 @@ import { appConfig, sessieVoor, useSessie, type LokaleConfig, type Momentopname,
 import { useLokaleStaat } from './lib/lokaal/staat';
 import { naarHuishouden } from './lib/lokaal/omzetten';
 import { Navigatie } from './components/Navigatie';
+import { Foutgrens } from './components/Foutgrens';
 import { ItemVenster, type VensterOpdracht } from './components/ItemVenster';
 import { DemoBalk } from './components/DemoBalk';
 import { Inloggen, KeuzeVenster, LokaleBalk, Wachten } from './components/Lokaal';
@@ -230,13 +231,20 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
         {balk}
         <Navigatie actief={scherm} />
         <main ref={hoofd} tabIndex={-1} className="hoofd" aria-label={TITELS[scherm]}>
-          {scherm === 'vandaag' && <Vandaag />}
-          {scherm === 'agenda' && <Agenda />}
-          {scherm === 'boodschappen' && <Boodschappen />}
-          {scherm === 'meer' && <Meer />}
-          {scherm === 'vakanties' && <Vakanties />}
+          {/* N2: loopt een scherm vast, dan een rustige melding; de navigatie blijft werken en een ander scherm begint opnieuw. */}
+          <Foutgrens key={scherm} plek={TITELS[scherm]} omgeving={lokaal?.omgeving ?? 'demo'}>
+            {scherm === 'vandaag' && <Vandaag />}
+            {scherm === 'agenda' && <Agenda />}
+            {scherm === 'boodschappen' && <Boodschappen />}
+            {scherm === 'meer' && <Meer />}
+            {scherm === 'vakanties' && <Vakanties />}
+          </Foutgrens>
         </main>
-        {venster && <ItemVenster opdracht={venster} sluit={sluitVenster} />}
+        {venster && (
+          <Foutgrens plek="Toevoegen of aanpassen" omgeving={lokaal?.omgeving ?? 'demo'} sluit={sluitVenster}>
+            <ItemVenster opdracht={venster} sluit={sluitVenster} />
+          </Foutgrens>
+        )}
         {children}
         <div className="melding-plek" aria-live="polite">
           {melding && (

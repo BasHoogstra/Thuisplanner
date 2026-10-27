@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { Foutgrens } from './components/Foutgrens';
 import './styles/app.css';
 import { vangUitnodiging } from './lib/uitnodiging';
 
@@ -9,6 +10,9 @@ vangUitnodiging();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {/* N2: het laatste vangnet (inloggen, uitnodigingen, de schil); de schermen hebben elk hun eigen grens in App.tsx. */}
+    <Foutgrens plek="De app">
+      <App />
+    </Foutgrens>
   </StrictMode>,
 );

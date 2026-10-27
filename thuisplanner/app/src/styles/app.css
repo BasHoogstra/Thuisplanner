@@ -841,3 +841,11 @@ a { color: var(--accent); }
 @media (min-width: 960px) {
   .week-vakantie { font-size: 12px; padding: 2px 6px; }
 }
+
+/* N2: de foutgrens (components/Foutgrens.tsx): een rustige melding, de acties onder elkaar en goed te raken. */
+.foutgrens { padding-top: 32px; }
+.foutgrens h1 { font-size: 26px; margin: 0 0 8px; }
+.foutgrens-tekst { margin: 0 0 20px; }
+.foutgrens-acties { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.foutgrens-acties .knop { min-height: 48px; justify-content: center; text-decoration: none; }
+.venster .foutgrens { padding: 20px; }
