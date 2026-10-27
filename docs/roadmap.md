@@ -36,6 +36,8 @@ afwijking dan eerst.
   die sectie voor; de overige tekst van fase 1 is bewust niet herschreven.
 - **Bijgewerkt op 26 oktober 2026:** de releasegerichte streefplanning voor Thuisplanner (optie A), zie
   "Releaseplanning Thuisplanner" hieronder. De besluiten 13–16 staan in `docs/productkompas-beslissingen.md`.
+  Op 27 oktober 2026 is mijlpaal 1 aangepast: Sanne start op de huidige geteste stand; KG-5E licht en herhalende taken
+  volgen als update (mijlpaal 1b).
 - **Status:** volgens `CHANGELOG.md`.
 
 **Legenda**
@@ -172,8 +174,9 @@ privacy en veiligheid gaan voor de datum: liever iets minder functies dan half w
 
 | Mijlpaal | Streefperiode | Inhoud |
 | --- | --- | --- |
-| 1. Sanne gebruikt een eerste versie | **Eind week 3 tot week 4** | De integratie van Agenda (stap 1–4), Vakanties V1, Later nodig en het herontwerp van de +; KG-5E licht; herhalende taken (besluit 15); de afwerking (ErrorBoundary, naam van een lid wijzigen, teksten, beginscherm); één gebundelde uitrol naar staging; daarna stap 10 en 11 van de staging-overstap |
-| 2. Bèta 1 met een kleine groep externe gezinnen (3–5) | **Rond week 6** | Een **stabiele en veilige basis**: alles uit mijlpaal 1, op een eigen bèta-omgeving, met back-ups en een hersteloefening, een gepubliceerde privacyverklaring, gate 9 voor alle domeinen, een minimale app-versie, bewaking, een feedbackkanaal en de acceptatiepoort (mobiele UX, privacy, onboarding) |
+| 1. Sanne gebruikt een eerste versie | **Zodra de gebundelde uitrol en stap 10–11 klaar zijn** (streven week 1–2) | ✏️ Aangepast op 27 oktober 2026: Sanne start op de **geteste stand** van de hoofdlijn `thuisplanner-vakanties` (echte iPhone-test geslaagd op 27 oktober). Daarin: Agenda (stap 0–4), Vakanties V1 met extra inpaklijsten, Later nodig, de slimme + met het herontwerp, en de foutgrens (ErrorBoundary). Eén gebundelde uitrol naar staging (stap 9b), daarna stap 10 en 11 van de staging-overstap. Geen nieuwe functies; alleen stabiliteit, veiligheid en gebruiksgemak. |
+| 1b. Update voor Sanne | **Streven week 3–5**, vóór bèta 1 | KG-5E licht (één datapad, de AI-aansluitpunten) en daarna herhalende taken (besluit 15), plus de kleine afwerking (naam van een lid wijzigen, teksten, beginscherm). Als update op staging, met de evaluatie van Sanne als input. |
+| 2. Bèta 1 met een kleine groep externe gezinnen (3–5) | **Rond week 6** | Een **stabiele en veilige basis**: alles uit mijlpaal 1 en 1b, op een eigen bèta-omgeving, met back-ups en een hersteloefening, een gepubliceerde privacyverklaring, gate 9 voor alle domeinen, een minimale app-versie, bewaking, een feedbackkanaal en de acceptatiepoort (mobiele UX, privacy, onboarding) |
 | 2b. Maaltijden & Recepten (R1–R3) | **Week 7–9** | R1: het weekmenu via de + en op Vandaag en in de Agenda. R2: het receptenboek, omrekenen en ingrediënten naar Boodschappen. R3: een link of tekst plakken in de +, met de import van ondersteunde receptensites. Eerst bij Sanne op staging, daarna als update voor de bèta. |
 | 2c. Bèta 2 | **Vanaf week 10**, gefaseerd | Minimale herinneringen (na de pushproef), huishoudkennis en contacten met verjaardagen, slimme projecten (sjablonen, en AI na de kwaliteitsproef), Instagram-tekst plakken, Agenda-stap 5–7, Vandaag versie 2 |
 | 3. Publieke lancering | **Zodra de eisen zijn gehaald**, voorlopige inschatting week 12–16 | Een productieproject met back-ups, export en account verwijderen in de app, quota, een externe review van het inloggen, privacyverklaring en voorwaarden, monitoring, een eigen domein zonder Access, en een privé-repository of licentie |
