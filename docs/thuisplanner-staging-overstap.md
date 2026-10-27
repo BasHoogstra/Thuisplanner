@@ -593,6 +593,29 @@ nodig, de slimme + met het herontwerp, Agenda stap 0–4, de foutgrens) en de mi
 - **Beperking:** de export van 22 oktober is van vóór stap 7 en 9 (geen accounts met een code, geen K1-gegevens).
   Daarom stap 9b.2 en 9b.3 met een nieuwe export, vlak voor de echte uitrol.
 
+**Stap 9b.2, de nieuwe export (27 oktober 2026, online alleen lezend): geslaagd.**
+- `C:\Users\Bas\Thuisplanner-exports\staging-2026-10-27` (buiten Git; toegang alleen het eigen account, SYSTEM en
+  Administrators): 21 tabellen, 22 rijen, migraties tot `20261024120000`, schema `3d20a2c7d6f1`, Postgres 17.11.
+- **Manifest:** SHA-256 `caae37041e29c430bb9d2fb9b248a04fc778de35c4a97cecea0723f4521111b0`. Online niets gewijzigd.
+- Nieuw ten opzichte van 22 oktober: de accounts en codegegevens van stap 7–9. De testerslijst en de wachtrij van de
+  uitnodigingsmails zijn leeg (Sanne is nog niet uitgenodigd).
+
+**Stap 9b.3, hersteltoets en repetitie met die export (27 oktober 2026, alleen lokaal): geslaagd.**
+- **Hersteltoets** (`hersteltoets.sh`, aparte stack): manifest en controlesommen in orde; teruggezet en gelijk aan de
+  export (alle tabellen, alle rijen); geen LET OP-meldingen. Stack daarna verwijderd.
+- **Repetitie** (`generale.sh`, aparte stack): teruggezet en gelijk; foto 21 tabellen, 22 rijen; de controle vooraf: 16
+  migraties, precies 3 nieuw; de migraties 25–27 met `db push` zonder fout; **alle bestaande rijen ongewijzigd** (nieuw
+  alleen `shopping_items.deferred`, `tasks.trip_id` en de vier vakantietabellen); **nacontrole tegen stand 27 in orde**
+  (19 migraties; private 9/103/0, public 15/38/30). Alleen verwacht: de twee Vault-waarden. Stack daarna verwijderd.
+- **Geen berichten naar buiten:** de mail-hook staat in de tijdelijke opzet uit, Edge Functions en Mailpit starten niet,
+  en de verzending van uitnodigingsmails kan alleen met de Vault-waarden, die niet in de export zitten (de nacontrole
+  toonde ze als ontbrekend). De wachtrij was leeg.
+- **Resterende risico's voor 9b.4–9b.6:** staging draait Postgres 17.11, de repetitie 17.6 (gewone SQL; de dry-run en
+  de nacontrole van de echte push zijn de laatste toets). Alleen de database is geoefend, niet de functies, mail of
+  Realtime (die veranderen niet; stap 9b.6 loopt de app na). Tussen 9b.4 en 9b.5 toont de oude app Later nodig tussen de
+  gewone boodschappen: kort en onschuldig, mits 9b.5 direct volgt. De export bevat persoonsgegevens: verwijderen na
+  stap 11.
+
 **De volledige lokale testronde op deze stand (26–27 oktober 2026)** (tot en met `7620ff5`, met het stagingpakket):
 - tsc schoon; Vitest 570/570; e2e 263 geslaagd, 0 mislukt, 13 overgeslagen (360, 390 en desktop; 320 px en donker in
   de tests zelf); `statisch.js` geslaagd.
