@@ -193,7 +193,7 @@ conflict rond de vakantieregel is bewust opgelost, niet door één kant te kieze
 
 | # | Punt | Wanneer |
 | --- | --- | --- |
-| M1 | **Test op een echte iPhone** (toetsenbord, scrollen, tikken) van de samengevoegde versie: nog niet gedaan; alleen een browser op telefoonformaat | Vóór de test met Sanne |
+| M1 | **Test op een echte iPhone** (toetsenbord, scrollen, tikken) van de samengevoegde versie. **Gedaan op 27 oktober 2026, geslaagd** (stand `1d67eb1`, demomodus, Safari via de persoonlijke hotspot van de iPhone). Vandaag, de slimme + (afspraak, boodschappen, taak, "voor Frankrijk", Later nodig, de melding bij een herhalende taak), de Agenda (dag, weekstrip, filter, zonder datum, vakantie, maand), Vakanties, navigatie, het toetsenbord in vensters, scrollen en de donkere modus werkten zoals bedoeld. Het oordeel van de producteigenaar: prettig en logisch. Niet getest: de echte modus met twee accounts (dat is stap 11 op staging). | Afgerond |
 | M2 | **Verbeterpunt weekstrip:** een vakantiedag is in de strip niet zichtbaar gemarkeerd (alleen voor schermlezers); de dag zelf en "Rest van de week" tonen hem wel | Stap 8 (de vakantie als periode) |
 | M3 | **Verbeterpunt 320 px:** in de kop van de Agenda zakt de pijl "Volgende" naar een tweede regel naast "Naar vandaag". Komt uit de bestaande kop, niet uit de merge | Een volgende Agenda-stap, met een eigen akkoord |
 

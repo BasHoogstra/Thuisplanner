@@ -575,8 +575,7 @@ nodig, de slimme + met het herontwerp, Agenda stap 0–4, de foutgrens) en de mi
 - **Controle:** de nacontrole van stap 4 in orde; het bouwlog groen; de korte ronde van stap 6.
 - **Akkoord:** ja, per stap (export, migratie, push en deployment).
 - **Als het misgaat:** zie het herstelplan. De migraties wijzigen geen bestaande rijen; de oude build werkt ermee.
-- **Open punten die blijven:** de echte iPhone-test van de samengevoegde versie (`docs/thuisplanner-agenda.md`, M1);
-  de verdediging in de database en een minimale app-versie (§22.1, punt 2 en 3) vóór de bèta.
+- **Open punten die blijven:** de verdediging in de database en een minimale app-versie (§22.1, punt 2 en 3) vóór de bèta.
 
 **Uitkomst van de lokale repetitie (stap 9b.1, 26 oktober 2026): geslaagd.**
 - `bash thuisplanner/supabase/staging/generale.sh C:/Users/Bas/Thuisplanner-exports/staging-2026-10-22 fda9952a…020975`
@@ -614,7 +613,8 @@ nodig, de slimme + met het herontwerp, Agenda stap 0–4, de foutgrens) en de mi
 - **k1 AC-11/AC-12 en `uitnodigingsmail.test.mjs`** draaien niet in de testcontainer van deze werkmap (geen `docker`
   voor de logboeken; geen `supabase/functions/.env`). Ze moeten in een volledige testopzet slagen **vóór de bèta**
   (`docs/thuisplanner-deel2-bouwverslag.md` §8.4).
-- **De echte iPhone-test** van deze stand is nog niet gedaan (`docs/thuisplanner-agenda.md`, M1).
+- **De echte iPhone-test** van deze stand is gedaan op 27 oktober 2026, en is geslaagd (`docs/thuisplanner-agenda.md`,
+  M1). Dat was de demomodus; de echte modus met twee accounts volgt in stap 11.
 
 ### Stap 10 — Sanne erbij
 
