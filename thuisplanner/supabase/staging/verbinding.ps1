@@ -23,7 +23,7 @@
 param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta', 'productie')][string]$Omgeving = 'staging', [switch]$Push, [switch]$Bijwerken, [switch]$Export, [string]$ExportMap, [switch]$VoorStap6)
 $ErrorActionPreference = 'Stop'
 # Het aantal migraties in de repository dat deze versie van het script verwacht (bij elke nieuwe migratie bijwerken).
-$VerwachtAantal = 16
+$VerwachtAantal = 19
 $hier = Split-Path -Parent $MyInvocation.MyCommand.Path
 $thuisplanner = (Resolve-Path (Join-Path $hier '..\..')).Path
 $controle = Join-Path $hier 'verbinding-controle.mjs'
@@ -36,6 +36,20 @@ function Stop-Hier([string]$reden) {
   throw 'thuisplanner-gestopt'
 }
 $script:uitkomst = 0
+
+# De CLI leest bij elke opdracht de lokale config.toml, en controleert daarin ook het geheim van de mail-hook
+# (env(K1_HOOK_SECRET), lokaal uit de genegeerde supabase/.env). Zonder dat bestand (bijv. in een andere werkmap)
+# weigert hij vóór hij verbindt. db push --db-url praat alleen SQL met de database en raakt de Auth-instellingen van een
+# online project nooit; de lokale waarde wordt dus nergens heen gestuurd. Alleen als er geen waarde is: een willekeurige,
+# eenmalige waarde in het juiste formaat, alleen in dit proces en aan het eind gewist. Een bestaande waarde blijft staan.
+function Zet-TijdelijkHookGeheim {
+  if ($env:K1_HOOK_SECRET) { return $false }
+  $bytes = New-Object byte[] 32
+  [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+  $env:K1_HOOK_SECRET = 'v1,whsec_' + [Convert]::ToBase64String($bytes)
+  return $true
+}
+$script:tijdelijkHookGeheim = $false
 
 try {
   if ($Export) {
@@ -85,6 +99,9 @@ try {
   }
   if ($LASTEXITCODE -ne 0) { Stop-Hier 'de controle vooraf slaagde niet. Er is niets uitgevoerd.' }
 
+  # Voor de CLI (dry-run en push): zie Zet-TijdelijkHookGeheim hierboven.
+  $script:tijdelijkHookGeheim = Zet-TijdelijkHookGeheim
+
   if (-not $Push) {
     Write-Host "`n== 2. Dry-run (toont alleen welke migraties zouden worden uitgevoerd)" -ForegroundColor Cyan
     Push-Location $thuisplanner
@@ -124,6 +141,8 @@ catch {
 }
 finally {
   Remove-Item Env:PGPASSWORD, Env:KG_DB_URL, Env:KG_REF, Env:KG_OMGEVING, Env:KG_NA_TOT_STAP6 -ErrorAction SilentlyContinue
+  # Alleen de eigen, eenmalige hookwaarde wissen; een waarde die er al was, blijft staan.
+  if ($script:tijdelijkHookGeheim) { Remove-Item Env:K1_HOOK_SECRET -ErrorAction SilentlyContinue }
   Remove-Item $stand -ErrorAction SilentlyContinue
   Remove-Variable geheim, bstr -ErrorAction SilentlyContinue
   Write-Host "`nWachtwoord en verbinding gewist uit dit proces." -ForegroundColor Green
