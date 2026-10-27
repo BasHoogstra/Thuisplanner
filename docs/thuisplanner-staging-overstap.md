@@ -529,6 +529,93 @@ Met het eigen adres van de producteigenaar: H1–H7 en H10–H13 uit het bouwver
   - **Niet apart online getest:** dat een sessie met een wachtwoord niets krijgt. Wachtwoordsessies staan uit
     (`private.instellingen`), en die regel is lokaal bewezen (KG-T65 in `rls_tests.sql`).
 
+### Stap 9b — Vakanties, Agenda en de slimme + naar staging (vóór stap 10)
+
+Toegevoegd op 26 oktober 2026, op verzoek van de producteigenaar (roadmap, mijlpaal 1: één gebundelde uitrol, daarna
+stap 10 en 11). Dit is de eerste uitrol met nieuwe functies; de uitgangspunten hierboven gelden verder onverkort.
+
+**Wat er online komt:** de geïntegreerde branch `thuisplanner-vakanties` (Vakanties V1 met extra inpaklijsten, Later
+nodig, de slimme + met het herontwerp, Agenda stap 0–4, de foutgrens) en de migraties 25–27:
+
+| Migratie | Wat verandert er | Bestaande gegevens |
+| --- | --- | --- |
+| 25 `vakanties` | Vakanties, pakitems en de koppeling met boodschappen; `tasks.trip_id`; RLS, functies en seintjes | Niets geraakt; `trip_id` is leeg |
+| 26 `boodschappen_later` | `shopping_items.deferred` (Later nodig); `add_shopping_items` krijgt `p_later` (oude aanroepen werken ongewijzigd) | Niets geraakt; `deferred` is onwaar |
+| 27 `paklijsten` | Extra inpaklijsten (`trip_packing_lists`, `trip_packing_items.list_id`) | Niets geraakt |
+
+**Waarom vóór stap 10, en zo (§22.1 van `docs/thuisplanner-vakanties.md`, keuze 1: samen uitrollen):**
+- Staging heeft nu alleen de toestellen van de producteigenaar. Er is dus geen toestel van een ander met een oude app.
+- De app die nu online staat (`75d167f`) kent geen vakanties, geen pakitems en geen `list_id`. Het risico van §20.6
+  (items van een extra lijst als Gezamenlijk tonen) bestaat alleen voor een app die wel paklijsten kent maar geen
+  `list_id`; die versie heeft nooit online gestaan.
+- Wat de oude app in de korte tussentijd wél anders toont: een boodschap bij Later nodig staat bij de gewone
+  boodschappen, en een voorbereiding van een vakantie staat als gewone taak. Daarom gaat de app direct na de migraties
+  online, en worden alle toestellen daarna herladen. De oude app blijft met de nieuwe migraties werken (alleen
+  toevoegingen); terug naar de vorige build in Pages kan dus.
+
+**Stappen, elk met een eigen akkoord:**
+1. **Lokaal, de repetitie** (`staging/generale.sh`): de laatste export van staging terug in een aparte lokale stack,
+   de migraties tot en met 16 zoals online, een foto van alle gegevens, de controle vooraf van
+   `verbinding.ps1 -Bijwerken`, de migraties 25–27 met `supabase db push`, en daarna de vergelijking (elke bestaande rij
+   ongewijzigd) en de nacontrole tegen de referentie van stand 27. Daarnaast de volledige lokale testreeks op de
+   branch. **Uitgevoerd op 26 oktober 2026 met de export van 22 oktober**; zie de uitkomst hieronder.
+2. **Online, alleen lezend:** een nieuwe export en de hersteltoets, als in stap 2b, naar een nieuwe lege map. Sinds 22
+   oktober staan er accounts en een huishouden uit stap 7 en 9 in.
+3. **Lokaal:** `generale.sh` opnieuw, met die nieuwe export.
+4. **Online, de migraties:** eerst de dry-run, dan de push:
+   `powershell -NoProfile -ExecutionPolicy Bypass -File .\thuisplanner\supabase\staging\verbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl -Bijwerken`
+   en daarna met `-Push` (zonder `-VoorStap6`: Vault staat sinds stap 6). Verwacht vooraf: 16 migraties online, 3 nieuw.
+   De nacontrole toetst tegen stand 27: private 9 relaties, 103 functies, 0 policies; public 15 relaties, 38 functies,
+   30 policies (`SCHEMA_PER_STAND` in `verbinding-controle.mjs`).
+5. **Online, de app:** `thuisplanner-staging` alleen vooruit zetten naar de geteste commit van `thuisplanner-vakanties`
+   (fast-forward: `75d167f` is een voorouder) en pushen; Cloudflare bouwt. Direct na stap 4.
+6. **Toestellen:** de app op elk toestel sluiten en opnieuw openen (vanaf het beginscherm), en kort nalopen: een
+   vakantie maken, een pakitem afvinken op de telefoon en zien op de laptop, iets toevoegen met de +, de Agenda.
+
+- **Controle:** de nacontrole van stap 4 in orde; het bouwlog groen; de korte ronde van stap 6.
+- **Akkoord:** ja, per stap (export, migratie, push en deployment).
+- **Als het misgaat:** zie het herstelplan. De migraties wijzigen geen bestaande rijen; de oude build werkt ermee.
+- **Open punten die blijven:** de echte iPhone-test van de samengevoegde versie (`docs/thuisplanner-agenda.md`, M1);
+  de verdediging in de database en een minimale app-versie (§22.1, punt 2 en 3) vóór de bèta.
+
+**Uitkomst van de lokale repetitie (stap 9b.1, 26 oktober 2026): geslaagd.**
+- `bash thuisplanner/supabase/staging/generale.sh C:/Users/Bas/Thuisplanner-exports/staging-2026-10-22 fda9952a…020975`
+  (de export van stap 4a; manifest en controlesommen in orde, 14 tabellen, 14 rijen, stand 19).
+- Teruggezet en gelijk aan de export; daarna de migraties 12–16 met `db push` (supabase 2.117.0, als
+  `verbinding.ps1`), zonder fout.
+- Foto: 21 tabellen, 16 rijen. De controle vooraf: 16 migraties, precies 3 nieuw (25, 26, 27).
+- De migraties 25–27 met `db push`: zonder fout.
+- Vergelijking: alle bestaande rijen ongewijzigd. Nieuw: de kolommen `shopping_items.deferred` en `tasks.trip_id`
+  (bestaande rijen gelijk) en de tabellen `trips`, `trip_packing_items`, `trip_packing_lists`, `trip_shopping_links`.
+- Nacontrole tegen stand 27: in orde (19 migraties; private 9/103/0, public 15/38/30). Alleen verwacht in deze opzet:
+  de twee Vault-waarden (online gezet in stap 6).
+- Tegenproef: een gewijzigde controlesom en een verdwenen kolom geven een afwijking (code 1); een niet-lokaal adres
+  wordt geweigerd. De aparte stack is na afloop verwijderd.
+- **Beperking:** de export van 22 oktober is van vóór stap 7 en 9 (geen accounts met een code, geen K1-gegevens).
+  Daarom stap 9b.2 en 9b.3 met een nieuwe export, vlak voor de echte uitrol.
+
+**De volledige lokale testronde op deze stand (26–27 oktober 2026)** (tot en met `7620ff5`, met het stagingpakket):
+- tsc schoon; Vitest 570/570; e2e 263 geslaagd, 0 mislukt, 13 overgeslagen (360, 390 en desktop; 320 px en donker in
+  de tests zelf); `statisch.js` geslaagd.
+- RLS-matrix 88/88; integratie- en synctests alle geslaagd (sync 8, vakanties-sync 15, nacontrole 5, export 6 en de
+  rest); sync-, K1- en vakanties-sync-tegenproeven 25/25, 30/30 en 16/16.
+
+**Bekende aandachtspunten (geen fout in de code, wel vastgelegd):**
+- **De 13 overgeslagen e2e-tests** zijn bewust, per groep:
+  - 3: de screenshots (`prototype.spec.ts`), alleen via `npm run screenshots` (één per project);
+  - 6: het losse bestand (`prototype.spec.ts`, twee tests), alleen na `npm run losbestand` (per project);
+  - 4: alleen op de laptop overgeslagen, omdat ze over de telefoon gaan: drie van de slimme + (het toetsenbord en het
+    smalle scherm, `snelinvoer.spec.ts`) en het vegen in de paklijst (`vakanties.spec.ts`).
+- **4 RLS-tegenproeven op de gedeelde lokale database:** op de lokale stack `thuisplanner`, waar tests van meerdere
+  werkmappen gegevens achterlaten (35 huishoudens), vangt de matrix 136 van de 140 sabotages bij het bedoelde scenario.
+  De andere 4 (tegenproef 1, 2, 3 en 7: alles zichtbaar maken) worden wel gevangen, maar al eerder, bij KG-T01, KG-T03
+  of KG-T04, omdat die scenario's rijen tellen. Op een schone, tijdelijke database met dezelfde 19 migraties: 88/88 en
+  140/140. Opruimen of opnieuw opbouwen van de gedeelde lokale stack gebeurt alleen met een akkoord.
+- **k1 AC-11/AC-12 en `uitnodigingsmail.test.mjs`** draaien niet in de testcontainer van deze werkmap (geen `docker`
+  voor de logboeken; geen `supabase/functions/.env`). Ze moeten in een volledige testopzet slagen **vóór de bèta**
+  (`docs/thuisplanner-deel2-bouwverslag.md` §8.4).
+- **De echte iPhone-test** van deze stand is nog niet gedaan (`docs/thuisplanner-agenda.md`, M1).
+
 ### Stap 10 — Sanne erbij
 
 1. De producteigenaar maakt in de app het huishouden aan.
@@ -560,11 +647,27 @@ Claude levert vooraf een afvinklijst.
 | Boodschappen | Categorieën; dezelfde boodschap op beide telefoons geeft er één; afvinken en het mandje |
 | Gelijktijdig wijzigen | Beide passen hetzelfde item aan: de tweede krijgt "Iemand anders heeft dit net aangepast" en er gaat niets stil verloren |
 
+**Erbij na stap 9b (26 oktober 2026): Vakanties, Agenda en de slimme +.** Op beide telefoons; licht en donker.
+
+| Onderwerp | Geslaagd als |
+| --- | --- |
+| De slimme + | Een afspraak ("Etentje bij oma zaterdag om 18:00"), een taak en een paar boodschappen in één zin komen goed binnen en staan binnen een paar seconden bij de ander. De verzendknop staat boven het toetsenbord, ook met een lange zin. Privé of gedeeld is zichtbaar en met één tik te wisselen; een privé-afspraak is bij de ander "Bezet". "Formulier" opent het formulier met wat al herkend is |
+| Vakanties | Een vakantie maken met datums; de kaart staat op Vandaag ("over n dagen") en opent de vakantie, bij allebei |
+| Inpakken | Per persoon, Gezamenlijk en een extra lijst (bijvoorbeeld "Oma"): toevoegen en afvinken op de ene telefoon staat binnen een paar seconden bij de ander. Dezelfde tekst twee keer bij één persoon geeft één item. Overnemen van een vorige vakantie, en ongedaan maken |
+| Voorbereidingen | "Paspoorten controleren voor Frankrijk" met de + wordt een taak bij die vakantie, met het label; zonder datum staat hij in de Agenda onder "Zonder datum" |
+| Later nodig | "Zonnebrand kopen voor Frankrijk" staat bij Later nodig met het label, niet tussen de gewone boodschappen; "Nu kopen" zet hem met één tik op de gewone lijst, bij allebei |
+| Agenda | De weekstrip op de iPhone: een dag kiezen toont die dag, de rest van de week staat eronder; vakantiedagen tonen de vakantie, die opent met één tik. De + van een dag zet de datum. Het gezinsfilter achter de knop; "Zonder datum" ingeklapt met een telling. De maand en de dag kloppen met de week |
+| Navigatie | Tussen Vandaag, Agenda, Boodschappen en Meer (Vakanties) wisselen zonder fouten; terug naar de app na vergrendelen toont de laatste stand |
+| Foutgrens | Wordt niet opzettelijk getest. Loopt toch een scherm vast: een rustige melding met "Opnieuw laden" en "Meld dit" (een mail met alleen tijdstip en scherm), en de navigatie werkt nog. Meld het dan |
+
 **Bekende beperkingen.** We leggen ze vast, maar repareren ze niet:
 - "Ongedaan maken" doet online niets.
 - Er is geen offline-wachtrij.
 - Een taak of afspraak die twee keer wordt toegevoegd, staat er twee keer.
 - Een gratis project pauzeert na ongeveer 7 dagen zonder gebruik.
+- De weekstrip markeert een vakantiedag niet zichtbaar; de dag zelf en "Rest van de week" wel (Agenda M2, stap 8).
+- Op 320 px zakt in de kop van de Agenda de pijl "Volgende" naar een tweede regel (Agenda M3).
+- "Meld dit" opent een mail zonder ontvanger: het adres staat nog niet in de app.
 
 ## Herstelplan
 

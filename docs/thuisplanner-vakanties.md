@@ -1052,3 +1052,9 @@ afvinken of verplaatsen. Thuisplanner heeft nog geen manier om oude versies te w
    app toont dan "Werk de app bij" en schrijft niets (zoals `meta.minAppVersion` bij Huisplan). Daarna zijn
    modelwijzigingen als deze zonder risico uit te rollen.
 Tot die keuze is gemaakt, blijft dit alles lokaal.
+
+**Keuze voor staging (26 oktober 2026, producteigenaar): punt 1, samen uitrollen**, als onderdeel van de gebundelde
+uitrol (`docs/thuisplanner-staging-overstap.md`, stap 9b), vóór Sanne erbij komt. Punt 2 is daar niet nodig: de app die
+nu op staging staat, kent helemaal geen pakitems, en een app die paklijsten kent zonder `list_id` heeft nooit online
+gestaan. Er bestaat dus geen oude app die een item van een extra lijst als Gezamenlijk kan tonen. Punt 2 en 3 blijven
+open vóór de bèta (een eigen omgeving met externe testers en toestellen die we niet zelf bijwerken).
