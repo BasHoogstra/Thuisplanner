@@ -37,7 +37,8 @@ afwijking dan eerst.
 - **Bijgewerkt op 26 oktober 2026:** de releasegerichte streefplanning voor Thuisplanner (optie A), zie
   "Releaseplanning Thuisplanner" hieronder. De besluiten 13–16 staan in `docs/productkompas-beslissingen.md`.
   Op 27 oktober 2026 is mijlpaal 1 aangepast: Sanne start op de huidige geteste stand; KG-5E licht en herhalende taken
-  volgen als update (mijlpaal 1b).
+  volgen als update (mijlpaal 1b). Op 28 oktober 2026 is Mijn spullen & Documenten (besluit 17) toegevoegd als
+  mijlpaal 2d, in ontwikkeling. Stap 2.10 hieronder (Huisplan-spoor) gaat daarin op voor Thuisplanner.
 - **Status:** volgens `CHANGELOG.md`.
 
 **Legenda**
@@ -178,6 +179,7 @@ privacy en veiligheid gaan voor de datum: liever iets minder functies dan half w
 | 1b. Update voor Sanne | **Streven week 3–5**, vóór bèta 1 | KG-5E licht (één datapad, de AI-aansluitpunten) en daarna herhalende taken (besluit 15), plus de kleine afwerking (naam van een lid wijzigen, teksten, beginscherm). Als update op staging, met de evaluatie van Sanne als input. |
 | 2. Bèta 1 met een kleine groep externe gezinnen (3–5) | **Rond week 6** | Een **stabiele en veilige basis**: alles uit mijlpaal 1 en 1b, op een eigen bèta-omgeving, met back-ups en een hersteloefening, een gepubliceerde privacyverklaring, gate 9 voor alle domeinen, een minimale app-versie, bewaking, een feedbackkanaal en de acceptatiepoort (mobiele UX, privacy, onboarding) |
 | 2b. Maaltijden & Recepten (R1–R3) | **Week 7–9** | R1: het weekmenu via de + en op Vandaag en in de Agenda. R2: het receptenboek, omrekenen en ingrediënten naar Boodschappen. R3: een link of tekst plakken in de +, met de import van ondersteunde receptensites. Eerst bij Sanne op staging, daarna als update voor de bèta. |
+| 2d. Mijn spullen & Documenten (besluit 17) | **In ontwikkeling** sinds 28 oktober 2026, met hoge prioriteit; **bedoeld voor bèta 1** (3–5 gezinnen), mits beveiliging, documentopslag, huishoudrechten, verwijderprocedure en tests aantoonbaar in orde zijn. Is de functie dan nog niet veilig of stabiel genoeg, dan start bèta 1 zonder deze functie. | Aankoopdossiers en documenten, gekoppeld zonder duplicaten; PDF- en foto-invoer met handmatige correctie; zoeken en vragen via de + ("Welk modelnummer heeft onze vaatwasser?"); een demoflow met een verzonnen vaatwasser. Wordt lokaal gebouwd in een eigen worktree (`Thuisplanner-spullen`), met de echte opslag direct veilig ontworpen (privé-bucket per huishouden, RLS, bestandscontrole, verwijderen en back-up). Een migratie, bucket of uitrol alleen na een eigen akkoord; de bestaande onderdelen en de bèta-voorbereiding blijven ongemoeid. Uitwerking: `docs/thuisplanner-spullen-documenten.md`. |
 | 2c. Bèta 2 | **Vanaf week 10**, gefaseerd | Minimale herinneringen (na de pushproef), huishoudkennis en contacten met verjaardagen, slimme projecten (sjablonen, en AI na de kwaliteitsproef), Instagram-tekst plakken, Agenda-stap 5–7, Vandaag versie 2 |
 | 3. Publieke lancering | **Zodra de eisen zijn gehaald**, voorlopige inschatting week 12–16 | Een productieproject met back-ups, export en account verwijderen in de app, quota, een externe review van het inloggen, privacyverklaring en voorwaarden, monitoring, een eigen domein zonder Access, en een privé-repository of licentie |
 

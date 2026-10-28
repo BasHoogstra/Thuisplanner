@@ -108,6 +108,18 @@ Nodig (kleine, aparte wijziging met tests en tegenproeven, eigen akkoord):
 **Advies C.** De echte beveiliging is RLS, de poort en G1; Access is alleen een stagingmaatregel (productiegeschiktheid
 §3). Bij C controleren we vóór het uitzetten: H1–H19 op de bèta groen, S1/S2 gemeten, de privacyverklaring gepubliceerd.
 
+**Besluit van de producteigenaar (28 oktober 2026):** C, met een harde voorwaarde. Access staat aan tijdens het inrichten
+en de eigen proeven. Access gaat **pas uit** nadat de controles hieronder **online op de bèta** aantoonbaar groen zijn.
+Daarna volgt een afzonderlijk akkoord van de producteigenaar.
+
+| Controle (Access-poort) | Geslaagd als |
+| --- | --- |
+| Authenticatie | Alleen inloggen met een code. Een wachtwoordsessie krijgt niets (KG-T65 online nagelopen). "Uitloggen op alle toestellen" werkt direct. Logboeken zonder adres, code of token. |
+| Autorisatie | Eigenaar, beheerder en lid doen alleen wat hun rol toestaat (uitnodigen, intrekken, lid toevoegen). Een niet-lid krijgt niets. Wie niet op de testerslijst staat, kan geen huishouden maken. |
+| Huishoudscheiding | Twee testhuishoudens met verzonnen accounts. Gezin A ziet, via de app **en** via directe API-verzoeken met een eigen sessie, niets van gezin B: afspraken, taken, boodschappen, vakanties, leden en uitnodigingen. Een privé-afspraak blijft "Bezet" voor de partner. Realtime-seintjes bevatten geen inhoud. Het script voor de API-verzoeken heeft een tegenproef: met een opzettelijk verkeerde sessie moet het falen. |
+| Gehoste tests | H1–H19 groen; S1/S2 gemeten |
+| Verwijderen | De verwijderprocedure van §5.4 is op de bèta met verzonnen accounts uitgevoerd, en de controle "niets meer aanwezig" is groen |
+
 ### 2.4 De gratis limieten en wat dat betekent
 
 | Feit (26 oktober 2026) | Gevolg |
@@ -242,17 +254,57 @@ diensten.
 | Verzoek | Werkwijze | Nodig |
 | --- | --- | --- |
 | Inzage of kopie | Een alleen-lezende SQL-snippet die per account de eigen gegevens als JSON geeft (huishoudens, eigen afspraken, taken, boodschappen), uitgevoerd door de producteigenaar in de SQL-editor; per mail aan het eigen adres | Nieuw: `staging/avg-export.sql` (bouwen en lokaal testen; eigen akkoord) |
-| Verwijderen | Huishouden verwijderen in de app (eigenaar); account verwijderen in Authentication → Users (de trigger `before_account_delete` ruimt op); daarna de bevestiging per mail | Een korte draaiboekpagina, en de toets dat de eigen exports na 4 weken weg zijn |
+| Verwijderen | Zie **"Verwijderen op verzoek"** hieronder: een gecontroleerd verwijderscript voor de beheerder, geen handwerk in het dashboard | Het script, met een integratietest en een proef op de bèta |
 | Correctie | In de app zelf | – |
 | Logboek | Per verzoek: datum, soort, afgehandeld op (geen inhoud) | Een eenvoudige lijst bij de producteigenaar |
 
 Termijn: binnen een maand; ons doel binnen een week.
 
+**Verwijderen op verzoek (besluit van de producteigenaar, 28 oktober 2026):** vóór het eerste externe gezin moet er een
+**aantoonbaar werkende** procedure zijn om op verzoek een account en een volledig huishouden met alle bijbehorende
+gegevens te verwijderen. Een knop in de app mag later komen; de mogelijkheid zelf niet.
+
+- **Wat de database al kan:**
+  - `delete_household` (alleen de eigenaar). Alle inhoud gaat mee via `on delete cascade`: afspraken en details,
+    taken, boodschappen, vakanties en paklijsten, leden, uitnodigingen en uitnodigingsmails.
+  - De trigger `before_account_delete` bij het verwijderen van een account:
+    - enige eigenaar zonder andere accounts: het huishouden gaat mee;
+    - zijn er wel andere accounts: weigeren, eerst het eigendom over;
+    - privé-afspraken weg, het profiel en de toestellen weg, en het account wordt losgemaakt van het lid.
+- **Verwijderscript** (nieuw, met een eigen akkoord): alleen voor de beheerder, vanaf deze computer, met de verborgen
+  wachtwoordprompt zoals `verbinding.ps1`, nooit in de app.
+  1. Alleen lezend een **overzicht**: de huishoudens, leden, accounts en aantallen per tabel.
+  2. Een **getypte bevestiging**.
+  3. Verwijderen: het huishouden; de account(s); het adres van de testerslijst; en de resten bij dat adres (codes,
+     grenzen, uitnodigingen naar dat adres in andere huishoudens).
+  4. Een **controle dat er niets meer is**, op account-id, huishouden-id en de hash van het adres.
+- **Varianten:**
+  - (a) De eigenaar vraagt om het hele huishouden: alles weg, ook het lidmaatschap van de partner. Het account van de
+    partner blijft alleen bestaan als die dat zelf wil.
+  - (b) Een partner vraagt om alleen het eigen account: het account en de eigen privé-afspraken weg; de gedeelde
+    huishoudgegevens blijven.
+- **Identiteit:** alleen een verzoek vanaf het e-mailadres van het account, met een bevestiging per mail.
+- **Register:** datum, soort verzoek en uitkomst, zonder persoonsgegevens.
+- **Wat niet direct verdwijnt** (zo in de privacyverklaring):
+  - de dagelijkse back-ups van Supabase: 7 dagen;
+  - de eigen exports: hoogstens 4 weken;
+  - de logboeken: 7 dagen;
+  - de berichtgeschiedenis van Lettermint: 28 dagen.
+  Na een herstel uit een back-up voeren we de verwijderingen uit het register opnieuw uit.
+- **Bewijs, vóór het eerste gezin:**
+  1. Een integratietest lokaal voor beide varianten, met een tegenproef: een opzettelijk achtergelaten rij laat de
+     controle falen.
+  2. Een proef op de bèta met verzonnen accounts, als onderdeel van de Access-poort (§2.3).
+  3. Het opruimen van de testaccounts vóór de start, met hetzelfde script.
+
 ### 5.5 Vóór de eerste externe familie
 
 - [ ] Privacyverklaring van de app gepubliceerd, met de bedrijfsgegevens ingevuld (publicatiebouw van de website).
 - [ ] De DPA van Supabase ondertekend; die van Cloudflare en Lettermint vastgelegd.
-- [ ] Het draaiboek voor inzage en verwijderen lokaal getest.
+- [ ] Het draaiboek voor inzage lokaal getest.
+- [ ] **Het verwijderscript aantoonbaar werkend:** de integratietest met tegenproef groen, en de proef op de bèta met
+      verzonnen accounts geslaagd (§5.4).
+- [ ] **De Access-poort groen** (§2.3), en het afzonderlijke akkoord van de producteigenaar om Access uit te zetten.
 - [ ] Back-uplagen 1–3 actief en de eerste hersteloefening geslaagd (§4).
 - [ ] De onafhankelijke review van K1, de poort, de RLS en de uitnodigingsflow (review-staging, lijst van 7 punten) is
       gedaan, of de producteigenaar accepteert schriftelijk het resterende risico voor een besloten bèta.
@@ -348,22 +400,45 @@ Schattingen in werkdagen van Claude (lokaal, met tests); "PO" is werk van de pro
 | | D3 uitleg voor testers, uitnodigingsmail van de PO, beginscherm-uitleg | 0,5 d | 4 | tekst |
 | | D4 onboardingtest met een nieuwe gebruiker (Q3) | PO + 0,5 d | 5 | – |
 | **E. Review** | E1 onafhankelijke review (wie, kosten?) of een geaccepteerd risico | extern | 3–5 | **kosten / extern** |
-| **F. Start** | F1 Access uit; testerslijst; eerste 1–2 gezinnen; na een week de rest | PO | 6 | **start bèta** |
+| | A9 het verwijderscript met integratietest en tegenproef (§5.4) | 1,5–2,5 d | 3–4 | commit |
+| | C7 de Access-poort op de bèta (§2.3): het API-scheidingsscript met tegenproef, en de verwijderproef | 1,5–2 d | 5–6 | per test (online) |
+| **F. Start** | F1 de testaccounts opruimen met het verwijderscript; Access uit **na de Access-poort en een apart akkoord**; testerslijst; eerste 1–2 gezinnen; na een week de rest | PO | 6–7 | **start bèta** |
 
-**Kritiek pad:** A1 → C2/C3 → C5 → C6 → F1, met D1/D2 en Q9 ernaast. Spoor A en B lopen parallel; spoor C begint pas na
+**Gevolg van de besluiten van 28 oktober 2026:** ongeveer 3–4 werkdagen extra (A9 en C7). De start van de bèta schuift
+van rond week 6–7 naar **rond week 7–8** (een streefperiode; weeknummers zoals in de roadmap, waar week 1 de week van 26
+oktober is). Er komen geen extra kosten bij.
+
+**Kritiek pad:** A1 → A9 → C2/C3 → C5 → C7 → C6 → F1, met D1/D2 en Q9 ernaast. Spoor A en B lopen parallel; spoor C begint pas na
 het Pro-besluit. Valt A3 of A5 uit, dan schuift mijlpaal 2, niet de kwaliteitspoort.
 
 **Altijd een apart akkoord:** kosten (Pro, Lettermint Starter, een externe review of opslagdienst), elke nieuwe externe
 dienst, DNS-wijzigingen, het aanmaken van organisaties en projecten, migraties en deployments, het uitzetten van Access,
 het publiceren van de privacyverklaring, het ondertekenen van overeenkomsten, en het toelaten van elk gezin.
 
+## 9a. Van bèta naar productie (besluit van 28 oktober 2026)
+
+- **De bèta-omgeving wordt later de productieomgeving.** Hetzelfde Supabase-project (in de eigen Pro-organisatie),
+  hetzelfde Pages-project en hetzelfde adres `app.mijnthuisplanner.nl`.
+- **De gezinnen behouden hun gegevens** bij de overgang, **tenzij zij om verwijdering vragen** (§5.4). Dat staat in de
+  uitnodiging, in de bètavoorwaarden en in de privacyverklaring.
+- **Staging blijft de testomgeving.** Staging levert alleen geteste code en migraties. Er gaan nooit accounts of
+  gegevens van staging naar de bèta of productie.
+- **De overgang zelf**, elk onderdeel met een eigen akkoord:
+  1. In `omgevingen.json` verhuist het kenmerk van `beta` naar `productie`, met de buildmodus `productie`.
+  2. Registratie open: `huishouden_open` aan, de testpoort G1 uit.
+  3. De privacyverklaring en de voorwaarden definitief.
+  4. De onderdelen die vóór de lancering moeten: account en huishouden verwijderen in de app, een eigen export, quota,
+     de externe review van K1, en monitoring (productiegeschiktheid §5).
+  5. Rekenkracht en eventueel PITR afstemmen op het gebruik.
+  6. Een export en een hersteltoets vlak vóór de overgang.
+
 ## 10. Open beslissingen
 
 | # | Beslissing | Opties | Advies |
 | --- | --- | --- | --- |
 | O1 | Waar draait de bèta? | I gratis bij staging; II nieuwe organisatie op Pro ($25); III Thuisplanner-organisatie naar Pro ($35) | **II**, aangemaakt op het moment van het besluit (week 4) |
-| O2 | Wordt het bètaproject later productie? | a. ja: hetzelfde project, de gezinnen houden hun gegevens; b. nee: een nieuw productieproject en een overstap of een schone start | **a**, met toestemming van de testers aan het eind van de bèta; dan `omgevingen.json` vereenvoudigen (eigen wijziging) |
-| O3 | Access op de bèta | A geen; B blijvend; C tijdelijk | **C** |
+| O2 | Wordt het bètaproject later productie? | a. ja: hetzelfde project, de gezinnen houden hun gegevens; b. nee: een nieuw productieproject en een overstap of een schone start | **Besloten op 28 oktober 2026: a** (zie "Van bèta naar productie") |
+| O3 | Access op de bèta | A geen; B blijvend; C tijdelijk | **Besloten op 28 oktober 2026: C**, Access uit pas na de Access-poort (§2.3) |
 | O4 | Tweede kopie van de back-up | a. USB met BitLocker; b. versleutelde export naar EU-opslag | **a** voor de bèta |
 | O5 | Hoe vaak de eigen export | wekelijks; dagelijks (vraagt een opgeslagen wachtwoord: botst met "geen geheimen") | **wekelijks** en vóór elke migratie |
 | O6 | Onafhankelijke review vóór de bèta | extern (kosten); intern met geaccepteerd risico | Extern vóór de lancering is vast; voor de besloten bèta beslist de PO |

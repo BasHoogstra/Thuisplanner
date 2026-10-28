@@ -18,6 +18,8 @@ wordt hier niet gewijzigd of aangevuld.
   twee nieuwe gates. De beslissingen 1–11 zijn daarbij niet herschreven.
 - Op 26 oktober 2026 zijn de besluiten 13–16 toegevoegd (slimme projecten, huishoudkennis en contacten, herhalende
   taken, minimale herinneringen), met vijf nieuwe gates. De beslissingen 1–12 zijn daarbij niet herschreven.
+- Op 28 oktober 2026 is besluit 17 toegevoegd (Mijn spullen & Documenten), met één nieuwe gate. De beslissingen 1–16
+  zijn daarbij niet herschreven.
 - De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
@@ -36,6 +38,7 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 | Huishoudkennis en contacten: de server dwingt persoonlijk en gedeeld af bij lezen, zoeken, koppelen aan taken en projecten, signalen, meldingen en de data-export; wie iets niet mag zien, krijgt geen aanwijzing dat het bestaat. Bewezen met testmatrix en tegenproeven per toegangsniveau en per pad (gate 9 voor het domein "kennis en contacten"). | De eerste migratie met een contact- of kennistabel | Beslissing 14 |
 | Herhalende taken: gate 9 voor het takendomein (herhaling, afvinken per keer, uitzonderingen). | De eerste migratie voor herhalende taken | Beslissing 15 |
 | Herinneringen: een pushproef op de testtelefoons; gate 9 voor het domein "meldingen" (voorkeuren, toestellen, verzendlog); de inhoud van een melding bevat nooit privé-details, "Bezet"-inhoud of huishoudkennis. | De eerste migratie voor meldingen | Beslissing 16 |
+| Spullen en documenten: gate 9 voor het domein "spullen en documenten", met negatieve tests op bestanden van andere huishoudens (ook via een bekende URL, bestands-id of pad, en een verlopen link); Storage alleen na een eigen akkoord, met een vaste lijst van verwachte buckets en policies in plaats van de controle "geen opslag"; een aantoonbare verwijderprocedure inclusief bestanden, en een eigen export die de bestanden meeneemt. | De eerste migratie of bucket voor spullen en documenten | Beslissing 17 |
 
 ## Beslissingen
 
@@ -307,3 +310,36 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 - **Voorwaarden vóór implementatie:** een pushproef op de testtelefoons; gate 9 voor het domein "meldingen"; geen
   nieuwe migratie zonder uitleg en afzonderlijk akkoord (zie de tabel met gates).
 - **Wat niet verandert:** het Productkompas en de beslissingen 1–12.
+
+### 17. Mijn spullen & Documenten (28 oktober 2026)
+
+- **Besluit van de producteigenaar:** Thuisplanner krijgt, met hoge prioriteit, "Mijn spullen & Documenten":
+  aankoopdossiers van belangrijke spullen en huishoudelijke documenten (facturen, kassabonnen, garantiebewijzen,
+  handleidingen, polissen, contracten), gekoppeld aan de rest van Thuisplanner. Het beheer staat onder Meer; er komt
+  **geen extra hoofdmodule**. De centrale + is de belangrijkste ingang, ook voor bestanden en foto's, en kan straks ook
+  **vragen beantwoorden** over wat het huishouden heeft vastgelegd (bijvoorbeeld "Welk modelnummer heeft onze
+  vaatwasser?").
+- **Productkompas:** principes 1, 2, 3 en 6; de regel "Privacy volgt de situatie"; beslissingen 5, 13, 14, 15 en 16.
+  Dit besluit herprioriteert beslissing 5 voor documenten en foto's.
+- **Uitgangspunten:**
+  - **Eén onderliggend item, meerdere contexten.** Een document is één rij met één bestand, en kan aan meerdere spullen
+    gekoppeld zijn. Documenten en Mijn spullen zijn weergaven van dezelfde gegevens; er wordt niet gekopieerd.
+  - **Persoonlijk of gedeeld**, zoals besluit 14, door de server afgedwongen bij lezen, downloaden, zoeken, koppelen,
+    signalen, meldingen en export. Wie iets niet mag zien, krijgt geen aanwijzing dat het bestaat.
+  - **Privé-opslag:** geen publieke bestands-URL's; alleen kort geldige ondertekende links; de bestandstypen worden op
+    de server gecontroleerd. Echte facturen staan nooit in de browsercache of in publieke opslag.
+  - **De gebruiker bevestigt.** Herkende gegevens zijn een voorstel; er wordt niets stil opgeslagen. Alles werkt ook
+    zonder herkenning.
+  - **Vragen via de +** worden beantwoord uit de eigen, vastgelegde gegevens, binnen de rechten van de vrager, zonder
+    externe AI. Is er geen antwoord, dan zegt Thuisplanner dat.
+  - **Geen juridische einddatum.** De app berekent geen einde van de wettelijke garantie. Alleen ingevoerde
+    commerciële of aanvullende garanties krijgen een datum en eventueel een herinnering.
+  - **Minimale gegevens:** alleen bevestigde velden; geen volledige OCR-tekst als standaard; geen IBAN, BSN of
+    betaalgegevens.
+  - **Herkenning in stappen:** eerst handmatig en de tekstlaag van PDF's (zonder externe dienst); AI voor foto's alleen
+    na een kwaliteitsproef, een AVG-beoordeling, een opt-in en een kostenplafond (besluit 13).
+  - **Demo en echt gescheiden:** de demo laat nagespeelde herkenning en opslag duidelijk zien als nagespeeld.
+- **Voorwaarden vóór implementatie:** gate 9 voor het domein "spullen en documenten" (zie de tabel met gates); Storage
+  alleen na een eigen akkoord; geen nieuwe migratie, bucket, dienst of kostenpost zonder uitleg en afzonderlijk
+  akkoord. De uitwerking staat in `docs/thuisplanner-spullen-documenten.md`.
+- **Wat niet verandert:** het Productkompas en de beslissingen 1–16.
