@@ -654,3 +654,26 @@ ingelicht.
 - de RLS-matrix op de kale Postgres (`run.sh` zonder `--db`; op deze machine staat geen PostgreSQL);
 - de suites die `psql` nodig hebben;
 - de migratie heet nu `20261029120000` (29). Nummer 28 is gepland voor de reviewpunten van Vakanties (`docs/projectstatus.md`). Het definitieve nummer volgt bij de integratie in de hoofdlijn, en dan wordt ook het schema opnieuw gemeten.
+
+### 16.1 Migratienummers en volgorde (vastgelegd 28 oktober 2026)
+
+- **28 = Vakanties** (de reviewpunten): gereserveerd als `20261028120000`, nog niet geschreven.
+- **29 = Mijn spullen & Documenten:** `20261029120000_spullen_documenten.sql`.
+- **Op staging: 28 vóór 29.** `supabase db push` wil de migraties in tijdvolgorde. Gaat Mijn spullen toch eerder naar staging, dan krijgt de Vakanties-migratie een tijdstempel ná 29, en wordt `SCHEMA_PER_STAND` opnieuw gemeten.
+- **De nacontrole** (`staging/verbinding-controle.mjs`) kent stand 29 en de opslag per stand: tot en met 27 geen opslag, vanaf 29 precies de bucket `documenten` en twee policies.
+
+### 16.2 Stap 1 naar staging: alleen lokaal (28 oktober 2026, niet gecommit)
+
+- **Bijgewerkt op de hoofdlijn `d03fa8d`:** als merge zonder commit. Daarbij komt alleen `docs/projectstatus.md` mee, zonder conflict.
+- **Stagingscripts aangepast:**
+  - `verbinding-controle.mjs`: stand 29 in `SCHEMA_PER_STAND`, en de opslag als vaste lijst per stand;
+  - `verbinding.ps1`: 20 migraties;
+  - `functies.mjs` en `functies.ps1`: zes functies;
+  - `generale.sh` en `hersteltoets.sh`: Storage niet meer uitgesloten.
+- **`config.toml`:** `bevestig-upload` met `verify_jwt = false`, zoals de andere functies (ze controleren zelf; het deployscript zet het voor alle functies uit).
+- **Uitslagen:**
+  - **Generale repetitie:** op de stagingexport van 27 oktober (manifest `caae3704…`): teruggezet, de migraties 25–27 met `db push`, daarna migratie 29 met `db push`: zonder fout. Alle bestaande gegevens gelijk (25 tabellen, 22 rijen); alleen de kolom `tasks.possession_id` en de drie nieuwe tabellen zijn erbij. Nacontrole in orde (schema en opslag).
+  - **Hersteltoets:** geslaagd.
+  - **Eigen stack:** RLS 94/94, `nacontrole.test.mjs` 5/5, `spullen.test.mjs` 8/8.
+  - **Scripttests:** `tests/functies` 21/21, statische controles geslaagd.
+- **Nog niet aangepast:** de CI-workflow en `README.md` (daar staat nog `-x storage-api`).

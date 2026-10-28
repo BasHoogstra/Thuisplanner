@@ -1,6 +1,6 @@
-# Voorstel (niet toegepast): `staging/verbinding-controle.mjs` en Storage
+# Voorstel, lokaal toegepast in stap 1: `staging/verbinding-controle.mjs` en Storage
 
-**Status:** alleen een voorstel, ter goedkeuring. De stagingscripts zijn in deze stap bewust **niet** gewijzigd
+**Status:** op 28 oktober 2026 in stap 1 lokaal toegepast (niet gecommit; zie §16.2 van het ontwerpdocument). Oorspronkelijk: een voorstel. De stagingscripts waren in de vorige stap bewust **niet** gewijzigd
 (akkoord van 28 oktober 2026: "geen CI- of stagingscripts wijzigen"). Daarom faalt de lokale `nacontrole.test.mjs` nu op
 de nieuwe migratie. Dat is verwacht; het gedrag van de app en de database verandert er niet door.
 

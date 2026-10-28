@@ -45,7 +45,7 @@ done
 if [ "$GEKOPIEERD" != "$VERWACHT" ]; then
   echo "GESTOPT: de migraties in de repository ($GEKOPIEERD) zijn niet die van de export ($VERWACHT)."; exit 1
 fi
-(cd "$WERK" && $SUPA start --workdir . -x realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >/dev/null)
+(cd "$WERK" && $SUPA start --workdir . -x realtime,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >/dev/null)
 
 echo "== 3. Terugzetten en vergelijken"
 DB_URL="postgresql://postgres:postgres@127.0.0.1:${POORT_BASIS}2/postgres" node "$HIER/export.mjs" herstel "$MAP"
