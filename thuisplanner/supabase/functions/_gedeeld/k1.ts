@@ -123,3 +123,27 @@ export function json(status: number, body: unknown, extra: Record<string, string
 export function log(functie: string, gegevens: Record<string, string | number | boolean | null>): void {
   console.log(JSON.stringify({ functie, ...gegevens }));
 }
+
+/**
+ * Mijn spullen & Documenten: een object in een privé-bucket lezen of wissen met de service-rol (bevestig-upload en
+ * opruimen-documenten). Alleen hier, zoals rpc: de service-rolsleutel staat nergens anders.
+ */
+export async function opslagObject(bucket: string, pad: string, methode: 'GET' | 'DELETE'): Promise<Response> {
+  const sleutel = instelling('SUPABASE_SERVICE_ROLE_KEY');
+  const veilig = pad.split('/').map(encodeURIComponent).join('/');
+  return fetch(`${instelling('SUPABASE_URL')}/storage/v1/object/${bucket}/${veilig}`, {
+    method: methode, headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}` },
+  });
+}
+
+/** Objecten in één keer wissen (opruimen); geeft het aantal gewiste objecten. */
+export async function opslagWissen(bucket: string, paden: string[]): Promise<number> {
+  if (!paden.length) return 0;
+  const sleutel = instelling('SUPABASE_SERVICE_ROLE_KEY');
+  const antwoord = await fetch(`${instelling('SUPABASE_URL')}/storage/v1/object/${bucket}`, {
+    method: 'DELETE', headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prefixes: paden }),
+  });
+  if (!antwoord.ok) throw new Error(`opslag wissen: ${antwoord.status}`);
+  return ((await antwoord.json()) as unknown[]).length;
+}
