@@ -1035,3 +1035,10 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - **§22.1, keuze voor staging:** samen uitrollen (punt 1), vóór Sanne erbij komt; punt 2 en 3 blijven open vóór de bèta (`docs/thuisplanner-vakanties.md` §22.1).
 - **Stap 9b** in `docs/thuisplanner-staging-overstap.md`: de gebundelde uitrol (migraties 25–27 en de app), met per stap een akkoord; de afvinklijst van stap 11 aangevuld met de slimme +, Vakanties, inpakken, Later nodig, de Agenda en de foutgrens.
 - **De generale repetitie** (`staging/generale.sh` en `generale.mjs`): de export van staging in een aparte lokale stack, de migraties zoals online, een foto van alle gegevens, de controle vooraf, de nieuwe migraties met `db push`, de vergelijking en de nacontrole. Uitgevoerd met de export van 22 oktober: geslaagd, alle bestaande rijen ongewijzigd, nacontrole stand 27 in orde. Niets online gewijzigd.
+
+## Thuisplanner-staging: Vakanties, Agenda en de slimme + online (stap 9b, 27–28 oktober 2026)
+- **9b.2–9b.3:** een nieuwe export van staging (alleen lezend) en, lokaal, de hersteltoets en de generale repetitie daarmee: geslaagd.
+- **9b.4:** de migraties 25–27 online met `verbinding.ps1 -Bijwerken -Push` (na een dry-run en de reparatie `488f347` voor de hookcontrole van de CLI); nacontrole in orde, precies stand 27.
+- **9b.5:** `thuisplanner-staging` als fast-forward naar `488f347` (23 commits); de Pages-build Success; nog steeds achter Cloudflare Access.
+- **9b.6:** de app op telefoon en laptop nagelopen door de producteigenaar: alles werkte.
+- Niet gedaan: Sanne uitnodigen (stap 10, eigen akkoord). Huisplan, de website en DNS ongemoeid.

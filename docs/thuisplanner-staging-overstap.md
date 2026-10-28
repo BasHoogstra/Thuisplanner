@@ -616,6 +616,43 @@ nodig, de slimme + met het herontwerp, Agenda stap 0–4, de foutgrens) en de mi
   gewone boodschappen: kort en onschuldig, mits 9b.5 direct volgt. De export bevat persoonsgegevens: verwijderen na
   stap 11.
 
+**Stap 9b.4, de migraties 25–27 online (27 oktober 2026): geslaagd.**
+- **De eerste dry-run** stopte vóór er verbinding was: de CLI controleert de lokale `config.toml`, ook het geheim van de
+  mail-hook (`env(K1_HOOK_SECRET)` uit de genegeerde `supabase/.env`), en dat bestand staat niet in de Vakanties-werkmap.
+  Staging bleef ongewijzigd (`3d20a2c7d6f1`). Reparatie `488f347`: `verbinding.ps1` zet alleen als er geen waarde is een
+  willekeurige, eenmalige waarde in het juiste formaat, alleen in dat proces, en wist die aan het eind;
+  `$VerwachtAantal` 16 → 19. Lokaal bewezen op een tijdelijke kopie van staging: zonder waarde dezelfde fout, met de
+  waarde een geslaagde dry-run met alleen 2 SELECT (schrijven verboden, geen fout, niets veranderd).
+- **De dry-run opnieuw** (alleen lezend, `-Bijwerken` zonder `-Push`): 16 migraties, precies 3 nieuw; de CLI zou alleen
+  `20261025120000_vakanties`, `20261026120000_boodschappen_later` en `20261027120000_paklijsten` uitvoeren; daarna
+  ONGEWIJZIGD (`3d20a2c7d6f1`).
+- **De push** (`-Bijwerken -Push`, commit `488f347`): de repository-controle (19 migraties, gecommit); twee keer de
+  controle vooraf (stand ongewijzigd); de getypte bevestiging; de 3 migraties zonder fout.
+- **Nacontrole: IN ORDE.** 19 migraties (`20261009120000` … `20261027120000`); private 9 relaties, 103 functies, 0
+  policies; public 15 relaties, 38 functies, 30 policies (precies stand 27); de Realtime-policy; de 5 geplande taken
+  actief; geen adressen bij gesloten of lang verlopen uitnodigingen; de wachtrij van de uitnodigingsmails leeg, Vault en
+  pg_net in orde; de schakelaars van de poort zoals bedoeld. Niet gecontroleerd: de Auth-instellingen en de
+  blootgestelde schema's (vraagt `KG_ANON_KEY`); die veranderen in deze uitrol niet.
+
+**Stap 9b.5, de app online (27–28 oktober 2026): geslaagd.**
+- Vooraf gecontroleerd: alleen het Pages-project `thuisplanner-staging` bouwt uit Git (productiebranch
+  `thuisplanner-staging`, geen previews); de website (`thuisplanner-website`) is een directe upload zonder Git; geen
+  GitHub-workflow reageert op deze branch. De sprong `75d167f` → `488f347` is een fast-forward van 23 commits, alleen in
+  `thuisplanner/app`, `thuisplanner/supabase`, `thuisplanner/sync` en de documentatie; de bouwinstellingen,
+  `omgevingen.json`, `_headers`, de website en de workflows zijn ongewijzigd. Een lokale `build:staging` slaagde (met
+  plaatsvervangende waarden, daarna verwijderd); de CSP noemt alleen het stagingproject en Turnstile.
+- `git push origin 488f347:refs/heads/thuisplanner-staging` (zonder force): `75d167f..488f347`. De Pages-build staat op
+  **Success** (gezien door de producteigenaar). Het app-adres geeft zonder inlog nog steeds 302 naar Cloudflare Access.
+- **Terugval:** in Pages terug naar de deployment van `75d167f`; die werkt met de nieuwe migraties (alleen toevoegingen).
+
+**Stap 9b.6, de toestellen (28 oktober 2026): geslaagd.** De producteigenaar heeft op telefoon en laptop de app opnieuw
+geopend en alle punten nagelopen: Vandaag, een vakantie maken, inpakken (ook een extra lijst) met synchronisatie tussen
+de toestellen, de slimme + (afspraak, voorbereiding, Later nodig en Nu kopen), de Agenda (weekstrip, vakantiedag, de +
+met datum, filter, zonder datum), synchronisatie beide kanten op, donker en het toetsenbord. Alles werkte.
+
+**Stand na stap 9b:** staging draait de geïntegreerde versie (`488f347`, 19 migraties). Sanne is nog niet uitgenodigd;
+dat is stap 10, met een eigen akkoord. De export van 27 oktober blijft bewaard tot na stap 11.
+
 **De volledige lokale testronde op deze stand (26–27 oktober 2026)** (tot en met `7620ff5`, met het stagingpakket):
 - tsc schoon; Vitest 570/570; e2e 263 geslaagd, 0 mislukt, 13 overgeslagen (360, 390 en desktop; 320 px en donker in
   de tests zelf); `statisch.js` geslaagd.
