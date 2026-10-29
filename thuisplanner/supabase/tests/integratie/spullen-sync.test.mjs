@@ -152,6 +152,33 @@ test('prullenbak: verwijderen en terugzetten, ook zichtbaar bij de ander', async
   assert.equal(sTim.toestand.spullen.find(x => x.id === id).deleted_at, null);
 });
 
+test('realtime bewijst de sync: Tim ziet een gedeeld spul en document zonder zelf op te halen; persoonlijk geeft hem geen seintje', async () => {
+  // Het vangnet staat op 60 s: wat Tim binnen 15 s ziet, kwam via een seintje en de ophaalronde die daarop volgt.
+  const rondes = sTim.statistiek.rondes;
+  const gedeeld = randomUUID(), doc = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(gedeeld, { name: 'Wasmachine ' + run, owner_member_id: mSara })).ok);
+  await totdat(() => sTim.toestand.spullen.some(x => x.id === gedeeld), 15000, 'Tim ziet het gedeelde spul via een seintje');
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  assert.ok((await o.bewaarDocument({ documentId: doc, velden: docVelden(mSara), bytes: PDF, spullen: [gedeeld] })).ok);
+  await totdat(() => sTim.toestand.documenten.some(x => x.id === doc && x.upload_status === 'klaar')
+    && sTim.toestand.documentKoppelingen.some(k => k.document_id === doc), 15000, 'Tim ziet het document en de koppeling');
+  assert.ok(sTim.statistiek.rondes > rondes, 'Tim haalde opnieuw op (door seintjes)');
+  // Persoonlijk: geen seintje naar het huishouden, dus Tim hoort er niets van (en ziet het niet).
+  await wacht(1500);
+  const seintjes = sTim.statistiek.seintjes;
+  const prive = randomUUID(), priveDoc = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(prive, { name: 'Dagboek ' + run, owner_member_id: mSara, visibility: 'private' })).ok);
+  assert.ok((await o.bewaarDocument({ documentId: priveDoc, velden: docVelden(mSara, PDF, { visibility: 'private' }), bytes: PDF })).ok);
+  await wacht(3000);
+  assert.equal(sTim.statistiek.seintjes, seintjes, 'Tim kreeg een seintje over een persoonlijk item van Sara');
+  await sTim.vernieuw();
+  assert.ok(!sTim.toestand.spullen.some(x => x.id === prive) && !sTim.toestand.documenten.some(x => x.id === priveDoc));
+  // Tegenproef in dezelfde test: een gedeelde wijziging geeft Tim wél een seintje.
+  await sSara.vernieuw();
+  assert.ok((await sSara.acties.spulBijwerken(sSara.toestand.spullen.find(x => x.id === gedeeld), { shop: 'Winkel ' + run })).ok);
+  await totdat(() => sTim.statistiek.seintjes > seintjes, 15000, 'een seintje bij een gedeelde wijziging');
+});
+
 test('uploaden in twee fasen: bewaard, bij beide telefoons te openen, als bijlage; koppeling bij het spul', async () => {
   const spul = randomUUID(); const doc = randomUUID();
   assert.ok((await sSara.acties.spulToevoegen(spul, { name: 'Oven ' + run, owner_member_id: mSara })).ok);

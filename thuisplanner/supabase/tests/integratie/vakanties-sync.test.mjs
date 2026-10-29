@@ -3,9 +3,9 @@
 //   thuisplanner/supabase/tests/integratie/run.sh
 //   KG_SYNC_MODULE=/pad/naar/gesaboteerde/thuisplanner-sync.js node --test vakanties-sync.test.mjs   (moet falen;
 //   zie vakanties-sync-tegenproeven.mjs)
+import { psql } from './psql.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -18,7 +18,7 @@ const { API_URL, ANON_KEY, SERVICE_ROLE_KEY, DB_URL } = process.env;
 for (const u of [API_URL, DB_URL]) {
   if (!u || !/\/\/([^@/]*@)?(127\.0\.0\.1|localhost)[:/]/.test(u)) throw new Error('Weigering: alleen een lokale Supabase');
 }
-const sql = q => execFileSync(process.env.PSQL || 'psql', ['-X', '-q', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-d', DB_URL, '-c', q]).toString().trim();
+const sql = q => psql(DB_URL, q);
 const wacht = ms => new Promise(r => setTimeout(r, ms));
 async function totdat(f, ms = 10000, wat = 'voorwaarde') {
   const eind = Date.now() + ms;
