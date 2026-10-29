@@ -19,8 +19,15 @@
 //   node export.mjs controleer <map>     controlesommen en tellingen van een export (zonder database)
 //   DB_URL=postgresql://postgres:postgres@127.0.0.1:<poort>/postgres node export.mjs herstel <map>
 //   DB_URL=... node export.mjs vergelijk <map>   alleen vergelijken, niets terugzetten
+//   OPSLAG_URL=http://127.0.0.1:<poort> OPSLAG_SLEUTEL=<lokale service-rolsleutel> node export.mjs herstel-bestanden <map>
+//
+// Bestanden (Mijn spullen & Documenten, migratie 29): de Supabase-back-ups bevatten geen Storage-bestanden, dus de export
+// neemt ze zelf mee. De lijst komt uit dezelfde momentopname (storage.objects in de bucket "documenten"); de bestanden
+// zelf haalt de export daarna op met de service-rol (alleen als omgevingsvariabele, nooit in een bestand), naar
+// <map>/bestanden/<pad>, met grootte en SHA-256 in het manifest. Zijn er bestanden en geen sleutel, dan weigert de
+// export: een export zonder de bestanden is geen volledige export.
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,6 +36,10 @@ const HIER = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HIER, '../../..');
 export const SOORT = 'thuisplanner-export';
 export const AUTH_TABELLEN = ['auth.users', 'auth.identities'];
+export const BUCKET = 'documenten';
+export const BESTANDEN_MAP = 'bestanden';
+/** Een pad zoals in de bucket: <uuid>/<uuid>/origineel. Iets anders wordt nooit gelezen of geschreven. */
+const VEILIG_PAD = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/origineel$/;
 
 const sha256 = s => createHash('sha256').update(s).digest('hex');
 const ident = s => '"' + String(s).replace(/"/g, '""') + '"';
@@ -108,10 +119,32 @@ export async function leesExport(client) {
       if (telling !== aantal) throw new Error(`telling van ${schema}.${tabel} wijkt af binnen één momentopname`);
       uit.push({ naam: `${schema}.${tabel}`, kolommen: kols, rijenTekst: tekst, aantal });
     }
-    return { versie: wie.versie, moment: new Date(wie.moment).toISOString(), versies, schema: await schemaVorm(client), tabellen: uit };
+    return { versie: wie.versie, moment: new Date(wie.moment).toISOString(), versies, schema: await schemaVorm(client), tabellen: uit,
+      bestanden: await bestandenLijst(client) };
   } finally {
     await client.query('rollback');
   }
+}
+
+/** De bestanden in de bucket "documenten" (pad, grootte, type), in dezelfde momentopname. Zonder Storage: geen. */
+export async function bestandenLijst(client) {
+  if (!(await client.query(`select to_regclass('storage.objects') is not null as er`)).rows[0].er) return [];
+  return (await client.query(`select name as pad, (metadata->>'size')::bigint as grootte, metadata->>'mimetype' as type
+    from storage.objects where bucket_id = $1 order by name`, [BUCKET])).rows.map(x => ({ pad: x.pad, grootte: Number(x.grootte), type: x.type }));
+}
+
+/** De bestanden ophalen met de service-rol (url en sleutel alleen in het geheugen). Geeft een Map pad -> bytes. */
+export async function haalBestanden(lijst, { url, sleutel, haal = fetch }) {
+  const uit = new Map();
+  for (const b of lijst) {
+    if (!VEILIG_PAD.test(b.pad)) throw new Error('onverwacht pad in de bucket (niet <uuid>/<uuid>/origineel)');
+    const r = await haal(`${url}/storage/v1/object/${BUCKET}/${b.pad}`, { headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}` }, cache: 'no-store' });
+    if (!r.ok) throw new Error(`een bestand kon niet worden opgehaald (status ${r.status}); er is niets geschreven`);
+    const bytes = Buffer.from(await r.arrayBuffer());
+    if (bytes.length !== b.grootte) throw new Error('een bestand heeft niet de grootte uit de momentopname; maak de export opnieuw');
+    uit.set(b.pad, bytes);
+  }
+  return uit;
 }
 
 /** Schrijf de export en het manifest, en controleer direct wat er staat. */
@@ -126,7 +159,18 @@ export function schrijfExport(map, exp, meta = {}) {
     writeFileSync(path.join(map, bestand), inhoud);
     lijst.push({ naam: t.naam, bestand, rijen: t.aantal, sha256: sha256(inhoud) });
   }
-  const manifest = { soort: SOORT, ...meta, gemaakt: exp.moment, postgres: exp.versie, migraties: exp.versies, schema: exp.schema, tabellen: lijst };
+  // Bestanden: alle bestanden uit de momentopname, of geen export.
+  const bestanden = [];
+  for (const b of exp.bestanden ?? []) {
+    const bytes = exp.bestandenInhoud?.get(b.pad);
+    if (!bytes) throw new Error('de export mist de bestanden van Mijn spullen & Documenten (geen service-rolsleutel meegegeven?)');
+    const doel = path.join(map, BESTANDEN_MAP, ...b.pad.split('/'));
+    mkdirSync(path.dirname(doel), { recursive: true });
+    writeFileSync(doel, bytes);
+    bestanden.push({ pad: b.pad, grootte: bytes.length, type: b.type, sha256: sha256(bytes) });
+  }
+  const manifest = { soort: SOORT, ...meta, gemaakt: exp.moment, postgres: exp.versie, migraties: exp.versies, schema: exp.schema, tabellen: lijst,
+    ...(bestanden.length ? { bestanden } : {}) };
   writeFileSync(path.join(map, 'manifest.json'), JSON.stringify(manifest, null, 1) + '\n');
   const c = controleerExport(map);
   if (c.fouten.length) throw new Error('De export klopt na het schrijven niet: ' + c.fouten.join('; '));
@@ -146,9 +190,45 @@ export function controleerExport(map) {
     const j = JSON.parse(inhoud.toString('utf8'));
     if (j.tabel !== t.naam || !Array.isArray(j.rijen) || j.rijen.length !== t.rijen) fouten.push(`${t.bestand}: telling of tabel wijkt af`);
   }
-  const extra = readdirSync(map).filter(f => f !== 'manifest.json' && !(manifest.tabellen ?? []).some(t => t.bestand === f));
-  if (extra.length) fouten.push('onbekende bestanden in de map: ' + extra.join(', '));
+  for (const b of manifest.bestanden ?? []) {
+    if (!VEILIG_PAD.test(b.pad)) { fouten.push('onverwacht pad in het manifest'); continue; }
+    let bytes;
+    try { bytes = readFileSync(path.join(map, BESTANDEN_MAP, ...b.pad.split('/'))); } catch { fouten.push(`bestand ${b.pad} ontbreekt`); continue; }
+    if (bytes.length !== b.grootte || sha256(bytes) !== b.sha256) fouten.push(`bestand ${b.pad}: controlesom of grootte wijkt af`);
+  }
+  // Geen bestanden die niet in het manifest staan (ook niet in de bestandenmap).
+  const bekend = new Set((manifest.bestanden ?? []).map(b => path.join(BESTANDEN_MAP, ...b.pad.split('/'))));
+  const loop = (rel) => readdirSync(path.join(map, rel)).flatMap(f => { const p = path.join(rel, f); return statSync(path.join(map, p)).isDirectory() ? loop(p) : [p]; });
+  const losse = existsSync(path.join(map, BESTANDEN_MAP)) ? loop(BESTANDEN_MAP).filter(p => !bekend.has(p)) : [];
+  const extra = readdirSync(map).filter(f => f !== 'manifest.json' && f !== BESTANDEN_MAP && !(manifest.tabellen ?? []).some(t => t.bestand === f));
+  if (extra.length || losse.length) fouten.push('onbekende bestanden in de map: ' + [...extra, ...losse].join(', '));
   return { fouten, manifest };
+}
+
+/**
+ * De bestanden terugzetten in een LOKALE Storage (na herstel van de rijen), met de lokale service-rol. Nooit overschrijven:
+ * staat er al een object op dat pad, dan moet het precies hetzelfde zijn (dan overgeslagen), anders stopt het.
+ */
+export async function herstelBestanden(map, { url, sleutel, haal = fetch }) {
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(url || '')) throw new Error('OPSLAG_URL moet een Supabase op deze computer zijn');
+  const { fouten, manifest } = controleerExport(map);
+  if (fouten.length) throw new Error('de export klopt niet: ' + fouten.join('; '));
+  let n = 0;
+  const basis = url.replace(/\/$/, '');
+  const kop = { apikey: sleutel, Authorization: `Bearer ${sleutel}` };
+  for (const b of manifest.bestanden ?? []) {
+    const bytes = readFileSync(path.join(map, BESTANDEN_MAP, ...b.pad.split('/')));
+    const er = await haal(`${basis}/storage/v1/object/${BUCKET}/${b.pad}`, { headers: kop, cache: 'no-store' });
+    if (er.ok) {
+      if (sha256(Buffer.from(await er.arrayBuffer())) !== b.sha256) throw new Error('op een pad staat al een ander bestand; er is niets overschreven');
+      continue;
+    }
+    const r = await haal(`${url.replace(/\/$/, '')}/storage/v1/object/${BUCKET}/${b.pad}`, { method: 'POST', body: bytes,
+      headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}`, 'Content-Type': b.type || 'application/octet-stream', 'x-upsert': 'false' } });
+    if (!r.ok) throw new Error(`een bestand kon niet worden teruggezet (status ${r.status})`);
+    n++;
+  }
+  return n;
 }
 
 /** Alleen een database op deze computer. */
@@ -244,6 +324,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       if (fouten.length) { console.log('NIET IN ORDE:\n- ' + fouten.join('\n- ')); process.exit(1); }
       console.log(`IN ORDE: ${manifest.tabellen.length} tabellen, ${manifest.tabellen.reduce((a, t) => a + t.rijen, 0)} rijen, migraties tot ${manifest.migraties.at(-1)}`);
       for (const t of manifest.tabellen) console.log(`  ${t.naam}: ${t.rijen}`);
+      return;
+    }
+    if (opdracht === 'herstel-bestanden' && map) {
+      const n = await herstelBestanden(map, { url: process.env.OPSLAG_URL, sleutel: process.env.OPSLAG_SLEUTEL });
+      console.log(`BESTANDEN TERUGGEZET: ${n}`);
       return;
     }
     if (!['herstel', 'vergelijk'].includes(opdracht) || !map) { console.log('gebruik: controleer <map> | herstel <map> | vergelijk <map>  (herstel en vergelijk met DB_URL naar een lokale database)'); process.exit(2); }

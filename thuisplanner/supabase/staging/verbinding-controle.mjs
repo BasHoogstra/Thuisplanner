@@ -18,7 +18,7 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { exportMapFouten, leesExport, schrijfExport } from './export.mjs';
+import { exportMapFouten, haalBestanden, leesExport, schrijfExport } from './export.mjs';
 
 // Zelfde lijst als thuisplanner/app/scripts/staging-build.ts: de Huisplan-projecten als SHA-256 van het kenmerk.
 const HUISPLAN_HASHES = new Set([
@@ -410,9 +410,18 @@ async function hoofd() {
     try { voor = await leesStand(client); exp = await leesExport(client); na = await leesStand(client); } finally { await client.end(); }
     const afdruk = s => createHash('sha256').update(JSON.stringify({ migraties: s.migraties, extensies: s.extensies, vingerafdruk: s.vingerafdruk })).digest('hex');
     if (afdruk(voor) !== afdruk(na)) { console.log('GESTOPT: het schema veranderde tijdens de export. Er is niets geschreven.'); process.exit(1); }
+    // Mijn spullen & Documenten: de bestanden mee (met de service-rol, alleen uit de omgeving; verbinding.ps1 -MetBestanden).
+    if (exp.bestanden.length) {
+      if (!process.env.KG_OPSLAG_URL || !process.env.KG_OPSLAG_SLEUTEL) {
+        console.log(`GESTOPT: er staan ${exp.bestanden.length} bestanden in de bucket documenten. Exporteer met -MetBestanden (service-rolsleutel). Er is niets geschreven.`);
+        process.exit(1);
+      }
+      exp.bestandenInhoud = await haalBestanden(exp.bestanden, { url: process.env.KG_OPSLAG_URL, sleutel: process.env.KG_OPSLAG_SLEUTEL });
+    }
     const { manifest, sha256Manifest } = schrijfExport(bestand, exp, { omgeving: process.env.KG_OMGEVING, ref: process.env.KG_REF, schemaAfdruk: afdruk(voor) });
     console.log(`EXPORT geschreven en gecontroleerd: ${manifest.tabellen.length} tabellen, ${manifest.tabellen.reduce((a, t) => a + t.rijen, 0)} rijen, migraties tot ${manifest.migraties.at(-1)}, schema ${afdruk(voor).slice(0, 12)}`);
     for (const t of manifest.tabellen) console.log(`  ${t.naam}: ${t.rijen}`);
+    if (manifest.bestanden) console.log(`  bestanden: ${manifest.bestanden.length} (${manifest.bestanden.reduce((a, b) => a + b.grootte, 0)} bytes)`);
     console.log('manifest.json SHA-256: ' + sha256Manifest);
     return;
   }

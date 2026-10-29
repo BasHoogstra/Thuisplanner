@@ -677,3 +677,105 @@ ingelicht.
   - **Eigen stack:** RLS 94/94, `nacontrole.test.mjs` 5/5, `spullen.test.mjs` 8/8.
   - **Scripttests:** `tests/functies` 21/21, statische controles geslaagd.
 - **Nog niet aangepast:** de CI-workflow en `README.md` (daar staat nog `-x storage-api`).
+
+## 17. Het echte pad in de app (29 oktober 2026, lokaal gebouwd en getest)
+
+### 17.1 Architectuur: hergebruik, geen nieuwe silo
+
+- **Eén schakelaar:** `VITE_SPULLEN=aan` in de build zet `LokaleConfig.spullen` aan, en daarmee de sync-optie `spullen`.
+  Staat hij uit, dan zijn de zoekopdrachten van de app precies die van daarvoor: geen spullentabellen en geen
+  `tasks.possession_id`. Dat is de terugvalknop zonder databasewijziging, en het voorkomt dat een app zonder migratie 29
+  vastloopt.
+- **Sync:** `sync/thuisplanner-sync.js` haalt `possessions`, `documents` (niet verwijderd of nog in de prullenbak) en
+  `document_links` op.
+  - Dezelfde regels als de rest: seintjes zonder inhoud, versiecontrole bij wijzigen, en vaste UUID's van de app.
+  - Toevoegen is idempotent: `23505` betekent "er al".
+  - Geen wachtrij voor later; offline wordt niets verstuurd.
+- **Bestanden:** `sync/spullen-opslag.js` (framework-vrij, getest in node) bewaart in vier stappen:
+  1. de rij op `wacht`;
+  2. het bestand uploaden (`upsert: false`, `cacheControl: 0`);
+  3. `bevestig-upload` controleert het bestand;
+  4. de koppelingen.
+  - Mislukt een stap, dan noemt het resultaat de fase en of opnieuw proberen zin heeft. Opnieuw proberen gebruikt
+    dezelfde UUID. Staat het bestand er al, dan wordt het niet overschreven, maar wel bevestigd.
+  - Openen gaat met een ondertekende link (60 s, als bijlage), opgehaald met `cache: 'no-store'`. Het bestand komt niet
+    in de browsercache; de app maakt er een blob-adres in het geheugen van.
+- **App:** `lib/spullen/opslag-supabase.ts` implementeert dezelfde `SpullenOpslag` als de demo. De schermen en de + zijn
+  ongewijzigd.
+  - Alleen documenten op `klaar` staan in de lijst.
+  - Een upload die wacht of mislukte, staat onder "Niet afgerond", met de knop "Weghalen".
+- **Taken bij een spul:** gewone taken met `tasks.possession_id` (de kolom uit migratie 29). Ze staan ook in de Agenda en
+  op Vandaag, zoals elke taak.
+  - Het dossier toont de taken van dat spul en heeft een invoerveld.
+  - De garantietaak uit de + krijgt het spul mee.
+  - Een formulier zonder spulveld laat de koppeling staan.
+- **CSP:** alleen `img-src … blob:` erbij, voor een foto van een document als blob-adres. `connect-src` dekt Storage en de
+  functies al (hetzelfde Supabase-adres).
+- **Rollen:**
+  - **Gedeelde items** zijn er, zoals taken en boodschappen, voor ieder actief lid (eigenaar, beheerder of lid).
+  - **Persoonlijke items** zijn alleen voor de eigenaar ervan, en alleen die maakt iets persoonlijk of gedeeld.
+  - **Een gearchiveerd lid** ziet niets.
+  - **Beheer van het huishouden** blijft per rol, zoals het was.
+- **De leesregel op de rij zelf** (bij het testen gevonden): `possessions` en `documents` toetsen de zichtbaarheid nu
+  rechtstreeks (`visibility = 'household'` of `owner_member_id = private.my_member_id(…)`), niet via een opzoekfunctie.
+  - De reden: `insert … returning` (zo voegt PostgREST toe) toetst de leesregel op de nieuwe rij, en een opzoekfunctie
+    ziet die rij nog niet.
+  - Dit is even streng als `is_my_event`, omdat persoonlijke items bij het ontkoppelen van een account verdwijnen.
+
+### 17.2 Export en verwijderen met bestanden
+
+- **Export:** `staging/export.mjs` neemt nu de bestanden mee.
+  - De lijst komt uit dezelfde momentopname (`storage.objects`). De bestanden zelf komen via de service-rol, alleen uit
+    de omgeving, naar `<map>/bestanden/<pad>`, met de grootte en de SHA-256 in het manifest.
+  - `controleer` toetst ze, en `herstel-bestanden` zet ze terug in een lokale Storage zonder te overschrijven.
+  - Zijn er bestanden en is er geen sleutel, dan weigert de export.
+  - `verbinding.ps1 -Export -MetBestanden` vraagt de sleutel bij een verborgen prompt en wist hem aan het eind.
+- **Verwijderen:** `delete_household` en het verwijderen van een account wissen de rijen. De bestanden blijven als wezen
+  achter. `documenten_op_te_ruimen()` noemt ze, en `opruimen-documenten` wist ze.
+  - De integratietest toont daarna "niets meer onder het huishouden".
+  - Het verwijderscript uit de bèta-voorbereiding bestaat nog niet. Als het er komt, gebruikt het dezelfde controle:
+    geen rij in `documents` en geen object onder `<household_id>/`.
+
+### 17.3 Tests van deze fase
+
+| Ronde | Uitslag |
+| --- | --- |
+| `integratie/spullen-sync.test.mjs` (twee telefoons, echte Storage en Edge Function) | 13 van 13 |
+| `integratie/spullen.test.mjs` (scheidingstests) | 8 van 8 |
+| `spullen-tegenproeven.mjs` (nu over beide bestanden) | 10 van 10 |
+| RLS-matrix en tegenproeven | 94 van 94, 164 van 164 |
+| `nacontrole.test.mjs`, statische controles | 5 van 5, geslaagd |
+| App: tsc, Vitest, invoer-tegenproeven, e2e (demo, 360/390/desktop, plus 320 en donker) | tsc in orde; Vitest 654 + 8 (`tests/spullen-opslag.test.ts`); 39 van 39; e2e 290 + 3: de 3 hingen af van de datum van vandaag (gerepareerd, daarna `spullen.spec.ts` 30 van 30) |
+| `export.test.mjs` (de bestaande exporttest, nu met de bestanden erbij) | 6 van 6 |
+| Sync-, K1- en Vakanties-sync-tegenproeven | 25/25, 30/30, 16/16 (de Vakanties-tegenproef op de uitgebreide regel `MET_VERSIE`) |
+| In de browser (lokaal, eigen stack, `VITE_SPULLEN=aan`) | Eva: een PDF bewaard met een nieuw spul (pas na de bevestiging zichtbaar), een taak bij het spul, de PDF geopend als blob (`%PDF-`). Thomas (tweede tabblad): ziet het spul; de + beantwoordt de garantievraag met bron |
+
+`spullen-sync.test.mjs` dekt:
+- de schakelaar uit (precies de oude zoekopdrachten);
+- twee telefoons, en een persoonlijk spul dat onzichtbaar blijft;
+- een conflict bij gelijktijdig bewerken;
+- dat alleen de eigenaar iets persoonlijk maakt;
+- de prullenbak;
+- uploaden in twee fasen;
+- een onderbroken upload, een verloren antwoord en een onderbroken bevestiging;
+- een vermomd bestand, en offline;
+- taken (niet aan het persoonlijke spul van de partner, en niet aan een spul van een ander huishouden);
+- de export met bestanden (met tegenproef en herstel);
+- het verwijderen van een huishouden, met de wezen.
+
+### 17.4 De bestaande integratieronde in deze fase
+
+| Wanneer | Geslaagd | Gefaald | Oorzaak van de fouten |
+| --- | --- | --- | --- |
+| Na het bouwen | 100 | 70 | 59 × geen `psql`, 2 × time-out, 3 × gevolg (de grens van 10 huishoudens), 4 × `export.test.mjs` (de export weigerde terecht zonder bestanden; de test is bijgewerkt), 2 × een time-out van Auth |
+| Laatste ronde (vierde ronde achter elkaar op dezelfde stack) | 88 | 82 | Naast de `psql`-gevallen vooral time-outs van Auth en de database ("Processing this request timed out", "statement timeout"). De stack raakte overbelast; daarna kwam ook de Storage-container niet meer gezond op |
+
+- **Wat aantoonbaar door de app of de migratie komt:** niets. Elke inhoudelijke fout is hersteld:
+  - de leesregel bij `insert … returning`;
+  - de exporttest zonder bestanden;
+  - de Vakanties-tegenproef;
+  - de datum in de e2e-test.
+- **De gedeelde stack `thuisplanner`:** in deze fase niet aangeraakt, want `KG_PROJECT_ID=thuisplanner_spullen` was gezet (de containers stonden onafgebroken 19 uur aan).
+- **Nodig voor een volledig groene ronde:**
+  - `psql` op deze machine;
+  - een frisse stack per ronde (of de CI, die elke keer een nieuwe stack start).

@@ -29,8 +29,8 @@ De nieuwe gezinsapp **Thuisplanner**, technisch gescheiden van Huisplan.
 
 ```sh
 node thuisplanner/supabase/tests/statisch.js                 # zonder database
-thuisplanner/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "56 van 56"
-thuisplanner/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven: verwacht "66 van 66"
+thuisplanner/supabase/tests/run.sh                           # matrix op een nabootsing: verwacht "94 van 94"
+thuisplanner/supabase/tests/run.sh --tegenproef              # matrix + tegenproeven (zie tegenproeven.txt)
 thuisplanner/supabase/tests/run.sh --tegenproef --gelijktijdig  # + gelijktijdigheidstests (node, aparte verbindingen)
 node tests/run.js thuisplanner                               # via de bestaande testrunner
 ```
@@ -41,7 +41,7 @@ anders `PGBIN=...`). Het script maakt een tijdelijke database in een tijdelijke 
 Op een echte lokale Supabase (Docker nodig; nooit tegen een online project):
 
 ```sh
-cd thuisplanner && npx supabase@2.117.0 start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,postgres-meta
+cd thuisplanner && npx supabase@2.117.0 start -x studio,imgproxy,logflare,vector,supavisor,postgres-meta   # met Storage en Edge Runtime (Mijn spullen)
 thuisplanner/supabase/tests/run.sh --db postgresql://postgres:postgres@127.0.0.1:55322/postgres --tegenproef
 (cd thuisplanner/supabase/tests/integratie && npm ci) && SUPABASE="npx supabase@2.117.0" thuisplanner/supabase/tests/integratie/run.sh
 cd thuisplanner && npx supabase@2.117.0 stop --no-backup
