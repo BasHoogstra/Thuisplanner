@@ -30,7 +30,7 @@ const SERVICE_ROL_TOEGESTAAN = {
     reden: 'alleen met het wachtrijgeheim van de database (Vault), in constante tijd vergeleken' },
   'mail-bezorging': { bewijs: /aanbieder\.bezorging\(req, body\)[\s\S]*if \(!melding\) return json\(401/,
     reden: 'alleen een melding met een geldige handtekening van de aanbieder' },
-  'bevestig-upload': { bewijs: /const rij = await eigenRij\(req, id\);\s*if \(!rij\) return json\(404[\s\S]*if \(rij\.upload_status !== 'wacht'\) return json\(409/,
+  'bevestig-upload': { bewijs: /const rij = await eigenRij\(req, id\);\s*if \(!rij\) return antwoord\(404[\s\S]*if \(rij\.upload_status !== 'wacht'\) return antwoord\(409/,
     reden: 'eerst het document als de gebruiker zelf (RLS) ophalen, en alleen een eigen wachtend document' },
   'opruimen-documenten': { bewijs: /instelling\('WACHTRIJ_GEHEIM'\)[\s\S]*geheimGelijk\(geheim, verwacht\)[\s\S]*return json\(401/,
     reden: 'alleen met het wachtrijgeheim van de database (Vault), in constante tijd vergeleken' },

@@ -275,24 +275,32 @@ grant select (id, household_id, title, kind, document_date, visibility, owner_me
 grant select, insert (id, household_id, document_id, possession_id), update (deleted_at) on public.document_links to authenticated;
 grant insert (possession_id), update (possession_id) on public.tasks to authenticated;
 
--- Lezen: een persoonlijke rij alleen voor de eigenaar; een gearchiveerd lid ziet niets (my_household_ids).
+-- Lezen: een persoonlijke rij alleen voor de eigenaar (zijn eigen, actieve lidprofiel); een gearchiveerd lid ziet niets
+-- (my_household_ids). Rechtstreeks op de rij en niet via possession_visible(id): bij insert ... returning (zo voegt
+-- PostgREST toe) toetst Postgres deze regel op de nieuwe rij, die een opzoekfunctie nog niet ziet. Even streng als
+-- is_my_event: wordt een account van een lid losgemaakt, dan verdwijnen de persoonlijke items van dat lid
+-- (spullen_drop_private_on_unlink), dus een volgend account op hetzelfde lid ziet ze nooit.
 create policy possessions_select on public.possessions for select to authenticated
-  using (household_id in (select private.my_household_ids()) and private.possession_visible(id));
+  using (household_id in (select private.my_household_ids())
+         and (visibility = 'household' or owner_member_id = private.my_member_id(household_id)));
 create policy possessions_insert on public.possessions for insert to authenticated
   with check (household_id in (select private.my_household_ids())
               and (visibility = 'household' or owner_member_id = private.my_member_id(household_id)));
 create policy possessions_update on public.possessions for update to authenticated
-  using (household_id in (select private.my_household_ids()) and private.possession_visible(id))
+  using (household_id in (select private.my_household_ids())
+         and (visibility = 'household' or owner_member_id = private.my_member_id(household_id)))
   with check (household_id in (select private.my_household_ids())
               and (visibility = 'household' or owner_member_id = private.my_member_id(household_id)));
 
 create policy documents_select on public.documents for select to authenticated
-  using (household_id in (select private.my_household_ids()) and private.document_visible(id));
+  using (household_id in (select private.my_household_ids())
+         and (visibility = 'household' or owner_member_id = private.my_member_id(household_id)));
 create policy documents_insert on public.documents for insert to authenticated
   with check (household_id in (select private.my_household_ids())
               and (visibility = 'household' or owner_member_id = private.my_member_id(household_id)));
 create policy documents_update on public.documents for update to authenticated
-  using (household_id in (select private.my_household_ids()) and private.document_visible(id))
+  using (household_id in (select private.my_household_ids())
+         and (visibility = 'household' or owner_member_id = private.my_member_id(household_id)))
   with check (household_id in (select private.my_household_ids())
               and (visibility = 'household' or owner_member_id = private.my_member_id(household_id)));
 

@@ -141,8 +141,8 @@ KG-T88|create or replace function private.delete_packing_list(p_household uuid, 
 KG-T71|create policy kg_lek on storage.objects for select to authenticated using (bucket_id = 'documenten' and private.documentobject_lezen(name));
 KG-T71|update storage.buckets set public = true where id = 'documenten';
 KG-T71|insert into storage.buckets (id, name, public) values ('kg_extra', 'kg_extra', false);
-KG-T89|create or replace function private.possession_visible(p_id uuid) returns boolean language sql stable security definer set search_path = '' as $$ select exists (select 1 from public.possessions p where p.id = p_id and p.household_id in (select private.my_household_ids())) $$;
-KG-T89|create or replace function private.document_visible(p_id uuid) returns boolean language sql stable security definer set search_path = '' as $$ select exists (select 1 from public.documents d where d.id = p_id and d.household_id in (select private.my_household_ids())) $$;
+KG-T90|create or replace function private.possession_visible(p_id uuid) returns boolean language sql stable security definer set search_path = '' as $$ select exists (select 1 from public.possessions p where p.id = p_id and p.household_id in (select private.my_household_ids())) $$;
+KG-T89|alter policy documents_select on public.documents using (household_id in (select private.my_household_ids()));
 KG-T89|alter policy possessions_select on public.possessions using (true);
 KG-T89|create or replace function private.guard_spul_of_document() returns trigger language plpgsql set search_path = '' as $$ begin if tg_op = 'INSERT' then new.owner_user_id := private.uid(); end if; return new; end $$;
 KG-T90|create or replace function private.guard_document_link() returns trigger language plpgsql set search_path = '' as $$ begin return new; end $$;
