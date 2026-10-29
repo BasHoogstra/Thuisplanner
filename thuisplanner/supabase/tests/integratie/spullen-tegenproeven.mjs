@@ -1,4 +1,4 @@
-// Tegenproeven voor spullen.test.mjs (gate 9, Mijn spullen & Documenten): zet telkens één regel te ruim neer in de
+// Tegenproeven voor spullen.test.mjs en spullen-sync.test.mjs (gate 9, Mijn spullen & Documenten): zet telkens één regel te ruim neer in de
 // LOKALE database (een functie of de bucket), draai de scheidingstests, en controleer dat minstens één test faalt. De
 // oorspronkelijke definitie wordt altijd teruggezet, ook na een fout. Alleen tegen 127.0.0.1/localhost.
 //   API_URL=... ANON_KEY=... SERVICE_ROLE_KEY=... DB_URL=... node spullen-tegenproeven.mjs
@@ -40,6 +40,12 @@ const PROEVEN = [
   ['documenten zonder persoonlijk/gedeeld', 'private.document_visible(uuid)',
     `create or replace function private.document_visible(p_id uuid) returns boolean language sql stable security definer set search_path = '' as $$
        select exists (select 1 from public.documents d where d.id = p_id and d.household_id in (select private.my_household_ids())) $$`],
+  ['lezen van spullen zonder persoonlijk/gedeeld (de partner ziet een persoonlijk spul)', null,
+    `alter policy possessions_select on public.possessions using (household_id in (select private.my_household_ids()))`,
+    `alter policy possessions_select on public.possessions using (household_id in (select private.my_household_ids())
+       and (visibility = 'household' or owner_member_id = private.my_member_id(household_id)))`],
+  ['een taak aan het persoonlijke spul van de partner', 'private.guard_task_possession()',
+    `create or replace function private.guard_task_possession() returns trigger language plpgsql set search_path = '' as $$ begin return new; end $$`],
   ['koppelen zonder controle op beide kanten', 'private.guard_document_link()',
     `create or replace function private.guard_document_link() returns trigger language plpgsql set search_path = '' as $$ begin return new; end $$`],
 ];
@@ -51,7 +57,7 @@ try {
     await db.query(sabotage);
     let r;
     try {
-      r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-force-exit', 'spullen.test.mjs'],
+      r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-force-exit', 'spullen.test.mjs', 'spullen-sync.test.mjs'],
         { cwd: new URL('.', import.meta.url), encoding: 'utf8', env: process.env });
     } finally {
       await db.query(terug);
