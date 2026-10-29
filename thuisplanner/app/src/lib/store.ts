@@ -232,8 +232,12 @@ export function reducer(s: Staat, a: Actie): Staat {
 
 /** Een taak uit een formulier zonder vakantieveld houdt haar vakantie (het veld ontbreekt = niet gewijzigd). */
 function behoudVakantie(oud: Item, nieuw: Item): Item {
-  if (oud.soort === 'taak' && nieuw.soort === 'taak' && nieuw.vakantieId === undefined && oud.vakantieId !== undefined) {
-    return { ...nieuw, vakantieId: oud.vakantieId };
+  if (oud.soort === 'taak' && nieuw.soort === 'taak') {
+    // Vakantie en spul: een formulier zonder dat veld laat de koppeling staan.
+    let t = nieuw;
+    if (t.vakantieId === undefined && oud.vakantieId !== undefined) t = { ...t, vakantieId: oud.vakantieId };
+    if (t.spulId === undefined && oud.spulId !== undefined) t = { ...t, spulId: oud.spulId };
+    return t;
   }
   // Een boodschap aanpassen (naam) laat "Later nodig" staan.
   if (oud.soort === 'boodschap' && nieuw.soort === 'boodschap' && nieuw.later === undefined && oud.later) {

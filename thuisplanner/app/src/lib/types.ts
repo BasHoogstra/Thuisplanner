@@ -89,6 +89,8 @@ export interface Taak extends SyncVelden {
   klaarOp?: Datum | null;
   /** F8: de vakantie waarvoor dit een voorbereiding is. Ontbreekt het veld, dan blijft een bestaande koppeling staan. */
   vakantieId?: string | null;
+  /** Mijn spullen: het spul waar deze taak bij hoort (onderhoud, garantie). Ontbreekt het veld, dan blijft de koppeling staan. */
+  spulId?: string | null;
 }
 
 export interface Boodschap extends SyncVelden {

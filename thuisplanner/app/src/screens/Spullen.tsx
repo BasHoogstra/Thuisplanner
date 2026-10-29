@@ -11,6 +11,10 @@ import { useSpullen, type SpullenContext } from '../lib/spullen/opslag';
 import type { Document, Spul, SpulVeld } from '../lib/spullen/types';
 import { IcDocument, IcLinks, IcMap, IcPijl, IcPlus } from '../components/Iconen';
 import { DocumentVenster, KoppelVenster, SpulVenster } from '../components/SpullenVensters';
+import { TaakRij } from '../components/Rijen';
+import { nieuwId } from '../lib/store';
+import { isTaak } from '../lib/vandaag';
+import type { Taak } from '../lib/types';
 
 export function Spullen() {
   const sp = useSpullen();
@@ -150,6 +154,23 @@ function Overzicht({ sp, tab, kiesTab }: { sp: SpullenContext; tab: 'spullen' | 
         )}
       </div>
 
+      {tab === 'documenten' && (sp.onvoltooid?.length ?? 0) > 0 && (
+        <section className="sp-prullenbak" aria-labelledby="h-onvoltooid">
+          <h2 id="h-onvoltooid" className="sectie-kop">Niet afgerond</h2>
+          <ul className="lijst">
+            {sp.onvoltooid!.map(d => (
+              <li key={d.id} className="rij sp-weg">
+                <span className="rij-inhoud">
+                  <span className="rij-titel">{d.titel}</span>
+                  <span className="rij-sub"><span className="plek">{d.upload === 'mislukt' ? 'Geweigerd: dit bestand kon niet worden bewaard' : 'Het bestand is nog niet (goed) aangekomen'}. Kies het bestand opnieuw.</span></span>
+                </span>
+                <button type="button" className="knop klein stil" onClick={() => sp.documentVerwijderen(d.id)}>Weghalen</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {prullenbak.length > 0 && (
         <section className="sp-prullenbak" aria-labelledby="h-prullenbak">
           <h2 id="h-prullenbak" className="sectie-kop">
@@ -273,6 +294,8 @@ function SpulPagina({ sp, id }: { sp: SpullenContext; id: string }) {
         </div>
       </section>
 
+      <SpulTaken spulId={s.id} naam={s.naam} />
+
       <div className="detail-acties sp-onder">
         <button type="button" className="knop breed stil" onClick={() => zetBewerk(true)}>Aanpassen</button>
         {!weg ? <button type="button" className="knop breed gevaar" onClick={() => zetWeg(true)}>Verwijderen</button> : (
@@ -289,6 +312,38 @@ function SpulPagina({ sp, id }: { sp: SpullenContext; id: string }) {
       {bewerk && <SpulVenster bestaand={s} sluit={() => zetBewerk(false)} />}
       {koppel && <KoppelVenster spulId={s.id} sluit={() => zetKoppel(false)} />}
     </div>
+  );
+}
+
+/**
+ * Taken bij een spul (onderhoud, garantie): gewone taken met een verwijzing naar het spul (tasks.possession_id). Ze staan
+ * ook in de Agenda en op Vandaag, zoals elke taak; hier alleen de taken van dit spul.
+ */
+function SpulTaken({ spulId, naam }: { spulId: string; naam: string }) {
+  const app = useApp();
+  const [titel, zetTitel] = useState('');
+  const taken = app.staat.items.filter(isTaak).filter(t => t.spulId === spulId);
+  const open = taken.filter(t => !t.klaar), klaar = taken.filter(t => t.klaar);
+  const voegToe = (e: React.FormEvent) => {
+    e.preventDefault();
+    const tekst = titel.trim().replace(/\s+/g, ' ');
+    if (!tekst) return;
+    const t: Taak = { id: nieuwId('t'), soort: 'taak', titel: tekst, datum: null, voor: null, klaar: false, klaarOp: null, spulId };
+    app.toevoegen([t], `${tekst} staat bij de taken van ${naam}`);
+    zetTitel('');
+  };
+  return (
+    <section className="vak-blok" aria-labelledby="h-taken">
+      <h2 id="h-taken" className="sp-blok-kop">Taken</h2>
+      {taken.length ? (
+        <ul className="lijst sp-docs">{[...open, ...klaar].map(t => <TaakRij key={t.id} t={t} />)}</ul>
+      ) : <p className="stil-tekst">Nog geen taken bij dit spul, zoals onderhoud.</p>}
+      <form className="sp-taak-nieuw" onSubmit={voegToe} noValidate>
+        <label className="sr-only" htmlFor="sp-taak">Nieuwe taak bij {naam}</label>
+        <input id="sp-taak" value={titel} onChange={e => zetTitel(e.target.value)} placeholder="Bijvoorbeeld: filter schoonmaken" maxLength={200} autoComplete="off" />
+        <button type="submit" className="knop klein stil" disabled={!titel.trim()}>Toevoegen</button>
+      </form>
+    </section>
   );
 }
 

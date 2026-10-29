@@ -39,6 +39,8 @@ export interface SpullenOpslag {
   documentTerugzetten: (id: string) => void;
   koppel: (documentId: string, spulId: string) => void;
   ontkoppel: (documentId: string, spulId: string) => void;
+  /** Echte opslag: documenten waarvan de upload nog wacht of mislukte (niet in de gewone lijst). */
+  onvoltooid?: Document[];
   /** Het bestand om buiten de app te openen; 'niet-bewaard' in de demo voor een eigen bestand. */
   openBestand: (d: Document) => Promise<Blob | 'niet-bewaard' | null>;
 }

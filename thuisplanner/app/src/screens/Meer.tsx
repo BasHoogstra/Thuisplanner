@@ -94,6 +94,7 @@ function MeerLokaal() {
       </header>
 
       <VakantiesRij />
+      <SpullenRij />
 
       <HuishoudenBeheer />
 

@@ -175,7 +175,10 @@ test('verwijderen gaat naar de prullenbak en is terug te zetten', async ({ page 
   await page.getByRole('button', { name: 'Alleen het spul' }).click();
   await expect(page.getByRole('button', { name: /Stadsfiets/ })).toHaveCount(0);
   await page.getByRole('button', { name: /Prullenbak/ }).click();
-  await expect(page.getByText('Terug te zetten tot 27 november 2026')).toBeVisible();
+  // 30 dagen na het verwijderen (met de echte klok van het toestel; de demo-klok ?nu= geldt alleen voor de agenda).
+  const tot = new Date(Date.now() + 30 * 86400000);
+  const maand = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+  await expect(page.getByText(`Terug te zetten tot ${tot.getUTCDate()} ${maand[tot.getUTCMonth()]} ${tot.getUTCFullYear()}`)).toBeVisible();
   await page.getByRole('button', { name: 'Terugzetten' }).click();
   await expect(page.getByRole('button', { name: /Stadsfiets/ })).toBeVisible();
 });

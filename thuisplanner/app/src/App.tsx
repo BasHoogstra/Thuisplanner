@@ -22,6 +22,8 @@ import { Vakanties } from './screens/Vakanties';
 import { Spullen } from './screens/Spullen';
 import { SpullenCtx, useDemoSpullen } from './lib/spullen/opslag';
 import { SpullenLaag, useSpullenInvoer } from './components/SpullenVensters';
+import { useSupabaseSpullen } from './lib/spullen/opslag-supabase';
+import type { Toestand } from '../../sync/thuisplanner-sync.js';
 
 const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties', 'spullen'];
 const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', spullen: 'Spullen & documenten' };
@@ -166,11 +168,24 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
     nakijken: () => sessie.nakijken(),
     uitloggen: (o?: { wissen?: boolean }) => { void sessie.uitloggen(o); },
   };
-  return (
+  const schil = (extra?: ReactNode) => (
     <Schil klok={klok} data={data} huishouden={hh} lokaal={lokaal} balk={<LokaleBalk />} titelSoort={sessie.config.omgeving === 'staging' ? 'testomgeving' : 'lokaal'}>
       {keuze && <KeuzeVenster keuze={keuze} sluit={sluitKeuze} />}
+      {extra}
     </Schil>
   );
+  // Mijn spullen & Documenten alleen met VITE_SPULLEN=aan (en migratie 29): anders precies de app van daarvoor.
+  if (!sessie.config.spullen) return schil();
+  return <EchteSpullen sessie={sessie} toestand={t} meld={data.meld}>{schil}</EchteSpullen>;
+}
+
+/** De echte spullen-opslag als context, met de invoerlaag (dezelfde schermen als de demo). */
+function EchteSpullen({ sessie, toestand, meld, children }: { sessie: Sessie; toestand: Toestand; meld: (tekst: string) => void;
+  children: (extra: ReactNode) => ReactNode }) {
+  const opslag = useSupabaseSpullen(sessie, toestand, meld);
+  const { invoer, startInvoer, sluitInvoer } = useSpullenInvoer();
+  const spullen = useMemo(() => ({ ...opslag, startInvoer }), [opslag, startInvoer]);
+  return <SpullenCtx.Provider value={spullen}>{children(<SpullenLaag invoer={invoer} sluit={sluitInvoer} />)}</SpullenCtx.Provider>;
 }
 
 function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children }: {

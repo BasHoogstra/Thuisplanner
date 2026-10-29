@@ -63,7 +63,7 @@ export function AntwoordKaart({ antwoord, vervolgvraag, kiesSpul, tochToevoegen,
   const v = antwoord.vervolg;
   const voegTaakToe = () => {
     if (v?.soort !== 'taak' || v.bestaat) return;
-    const t: Taak = { id: nieuwId('t'), soort: 'taak', titel: v.titel, datum: v.datum, voor: null, klaar: false, klaarOp: null };
+    const t: Taak = { id: nieuwId('t'), soort: 'taak', titel: v.titel, datum: v.datum, voor: null, klaar: false, klaarOp: null, spulId: v.spulId };
     app.toevoegen([t], `${v.titel} staat op de takenlijst`);
     sluit();
   };

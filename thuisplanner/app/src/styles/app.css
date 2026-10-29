@@ -895,3 +895,6 @@ a { color: var(--accent); }
 .antwoord-vervolg p { margin: 0; font-size: 15px; color: var(--inkt); }
 .kaart-icoon.antwoord { background: var(--accent-zacht); color: var(--accent); }
 .sp-veld-kop { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.sp-taak-nieuw { display: flex; gap: 8px; margin-top: 12px; }
+.sp-taak-nieuw input { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: var(--radius-klein);
+  border: 1.5px solid var(--lijn-sterk); background: var(--bg); color: var(--inkt); font-size: 16px; }

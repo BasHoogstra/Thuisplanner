@@ -342,10 +342,10 @@ function DocumentInvoer({ invoer, sluit }: { invoer: Invoer; sluit: () => void }
       sluit();
       const spul = r.spulId ?? (doel === 'bestaand' ? gekozen : undefined);
       openSpullen(spul ? `spul/${encodeURIComponent(spul)}` : `document/${encodeURIComponent(r.documentId)}`);
-    } catch {
-      // "Bewaard" verschijnt alleen als het echt gelukt is.
+    } catch (e) {
+      // "Bewaard" verschijnt alleen als het echt gelukt is; de melding zegt wat er misging (een vaste tekst).
       zetBezig(false);
-      zetFout('Niet gelukt. Probeer het opnieuw.');
+      zetFout(e instanceof Error && e.message ? e.message : 'Niet gelukt. Probeer het opnieuw.');
     }
   };
   const p = { velden: velden.velden, status: velden.status, zet: velden.zet, bevestig: velden.bevestig };
