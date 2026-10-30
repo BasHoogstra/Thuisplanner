@@ -1,6 +1,7 @@
-// Tegenproeven voor spullen.test.mjs en spullen-sync.test.mjs (gate 9, Mijn spullen & Documenten): zet telkens één regel te ruim neer in de
-// LOKALE database (een functie of de bucket), draai de scheidingstests, en controleer dat minstens één test faalt. De
-// oorspronkelijke definitie wordt altijd teruggezet, ook na een fout. Alleen tegen 127.0.0.1/localhost.
+// Tegenproeven voor spullen.test.mjs, spullen-sync.test.mjs en verwijderen-spullen.test.mjs (gate 9, Mijn spullen &
+// Documenten): zet telkens één regel te ruim neer in de LOKALE database (een functie of de bucket), draai de tests, en
+// controleer dat minstens één test faalt. De oorspronkelijke definitie wordt altijd teruggezet, ook na een fout. Alleen
+// tegen 127.0.0.1/localhost.
 //   API_URL=... ANON_KEY=... SERVICE_ROLE_KEY=... DB_URL=... node spullen-tegenproeven.mjs
 import { spawnSync } from 'node:child_process';
 import pg from 'pg';
@@ -60,7 +61,7 @@ try {
     await db.query(sabotage);
     let r;
     try {
-      r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-force-exit', 'spullen.test.mjs', 'spullen-sync.test.mjs'],
+      r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-force-exit', 'spullen.test.mjs', 'spullen-sync.test.mjs', 'verwijderen-spullen.test.mjs'],
         { cwd: new URL('.', import.meta.url), encoding: 'utf8', env: process.env });
     } finally {
       await db.query(terug);
