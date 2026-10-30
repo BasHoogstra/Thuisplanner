@@ -172,10 +172,11 @@ export const SCHEMA_PER_STAND = Object.freeze({
     Object.freeze({ schema: 'public', relaties: 15, functies: 38, policies: 30 }),
   ]),
   // Plus Mijn spullen & Documenten (migratie 29, besluit 17; nog niet online): +3 relaties (possessions, documents,
-  // document_links), +9 policies (drie per tabel), +15 functies in private en +3 in public (documenten_klaar,
-  // documenten_mislukt, documenten_op_te_ruimen). Gemeten op de lokale stack thuisplanner_spullen (28 oktober 2026).
+  // document_links), +9 policies (drie per tabel), +16 functies in private en +3 in public (documenten_klaar,
+  // documenten_mislukt, documenten_op_te_ruimen); daarvan 1 voor het inplannen van de opruimronde
+  // (documenten_opruimen_ronde). Gemeten op de lokale stack thuisplanner_spullen (28 en 30 oktober 2026).
   '20261029120000': Object.freeze([
-    Object.freeze({ schema: 'private', relaties: 9, functies: 118, policies: 0 }),
+    Object.freeze({ schema: 'private', relaties: 9, functies: 119, policies: 0 }),
     Object.freeze({ schema: 'public', relaties: 18, functies: 41, policies: 39 }),
   ]),
 });
@@ -236,6 +237,14 @@ export const VERWACHTE_TAKEN = [
   { jobname: 'thuisplanner-uitnodigingsmails-opruimen', schedule: '53 3 * * *', command: 'select private.uitnodigingsmails_opruimen()' },
   { jobname: 'thuisplanner-uitnodigingsmails-versturen', schedule: '* * * * *', command: 'select private.uitnodigingsmail_ronde()' },
 ];
+// Vanaf migratie 29 (Mijn spullen & Documenten) komt de dagelijkse opruimronde van de documenten erbij.
+export const SPULLEN_TAKEN = Object.freeze([
+  Object.freeze({ jobname: 'thuisplanner-documenten-opruimen', schedule: '7 4 * * *', command: 'select private.documenten_opruimen_ronde()' }),
+]);
+/** De verwachte geplande taken voor een migratiegeschiedenis. */
+export function verwachteTakenVoor(versies) {
+  return (versies ?? []).includes(SPULLEN_STAND) ? [...VERWACHTE_TAKEN, ...SPULLEN_TAKEN] : VERWACHTE_TAKEN;
+}
 
 /**
  * Welke schema's de API (PostgREST) blootstelt (bouwverslag deel 2, §7.2 P-6). `private` heeft functies die alleen veilig
@@ -339,11 +348,12 @@ export function naFouten(n, verwachteVersies, verwachtSchema) {
   const rt = n.realtime.find(p => p.polname === 'thuisplanner_household_luisteren');
   if (!rt || rt.polcmd !== 'r' || JSON.stringify(rt.rollen) !== '["authenticated"]') f.push('Realtime-policy thuisplanner_household_luisteren ontbreekt of is niet alleen-lezen voor authenticated');
   if (n.realtime.some(p => p.polname !== 'thuisplanner_household_luisteren')) f.push('onverwachte Realtime-policies: ' + n.realtime.map(p => p.polname).join(', '));
-  for (const t of VERWACHTE_TAKEN) {
+  const taken = verwachteTakenVoor(n.versies);
+  for (const t of taken) {
     const job = n.cron.find(j => j.jobname === t.jobname);
     if (!job || job.schedule !== t.schedule || job.command !== t.command || !job.active) f.push(`geplande taak ${t.jobname} ontbreekt of wijkt af`);
   }
-  const onverwacht = n.cron.filter(j => !VERWACHTE_TAKEN.some(t => t.jobname === j.jobname));
+  const onverwacht = n.cron.filter(j => !taken.some(t => t.jobname === j.jobname));
   if (onverwacht.length) f.push('onverwachte geplande taken: ' + onverwacht.map(j => j.jobname).join(', '));
   if (!n.adressen) f.push('household_invites heeft geen kolom invited_email');
   else {

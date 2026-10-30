@@ -48,6 +48,9 @@ const PROEVEN = [
     `create or replace function private.guard_task_possession() returns trigger language plpgsql set search_path = '' as $$ begin return new; end $$`],
   ['koppelen zonder controle op beide kanten', 'private.guard_document_link()',
     `create or replace function private.guard_document_link() returns trigger language plpgsql set search_path = '' as $$ begin return new; end $$`],
+  ['de geplande opruimronde roept de functie niet aan', 'private.documenten_opruimen_ronde()',
+    `create or replace function private.documenten_opruimen_ronde() returns boolean language plpgsql security definer set search_path = '' as $$
+       begin return true; end $$`],
 ];
 
 let fouten = 0;

@@ -14,6 +14,7 @@
 --     service-rol) → 'klaar'. Lezen (ondertekende link) alleen bij 'klaar', niet verwijderd en zichtbaar voor dit lid.
 --  6. Verwijderen = de prullenbak (deleted_at), 30 dagen terug te zetten; daarna wist de opruimfunctie rij en bestand.
 --     Een SQL-cascade wist geen bestanden: de opruimfunctie vindt ook wezen (na delete_household of een verwijderd account).
+--     pg_cron roept haar dagelijks om 04:07 aan (thuisplanner-documenten-opruimen).
 --
 -- Schrijven via de API (kolomrechten + RLS + guard_content), zoals Vakanties. Geen delete-recht.
 
@@ -438,6 +439,42 @@ revoke all on function public.documenten_klaar(uuid, text), public.documenten_mi
   from public, anon, authenticated;
 grant execute on function public.documenten_klaar(uuid, text), public.documenten_mislukt(uuid), public.documenten_op_te_ruimen()
   to service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- De opruimronde inplannen (§6.4): dagelijks
+-- ---------------------------------------------------------------------------------------------
+-- Roept opruimen-documenten aan via pg_net, met hetzelfde geheim als de wachtrij van de uitnodigingsmail. Het adres is
+-- dat van stuur-uitnodiging uit Vault, met de functienaam vervangen: geen extra geheim per omgeving. Geeft false (en
+-- roept niets aan) zonder pg_net of Vault, of als het adres niet de verwachte vorm heeft. Eén aanroep per dag, ook
+-- zonder werk: de functie zelf bepaalt wat er weg moet (documenten_op_te_ruimen), dus de voorwaarden staan op één plek.
+-- Mislukt de aanroep, dan probeert de ronde van morgen het opnieuw; wat al uit de tabel is, vindt ze terug als wees.
+create function private.documenten_opruimen_ronde()
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare
+  url text;
+  geheim text;
+begin
+  if to_regnamespace('net') is null or to_regclass('vault.decrypted_secrets') is null then return false; end if;
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1' into url using 'thuisplanner_wachtrij_url';
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1' into geheim using 'thuisplanner_wachtrij_geheim';
+  if url is null or geheim is null or url !~ '^https?://[^/]+/functions/v1/stuur-uitnodiging$' then return false; end if;
+  execute 'select net.http_post(url := $1, body := $2, headers := $3, timeout_milliseconds := 60000)'
+    using regexp_replace(url, '/stuur-uitnodiging$', '/opruimen-documenten'), '{}'::jsonb,
+          jsonb_build_object('Content-Type', 'application/json', 'X-Thuisplanner-Wachtrij', geheim);
+  return true;
+exception when others then
+  raise warning 'Thuisplanner opruimen-documenten: niet aangeroepen (%)', sqlstate;
+  return false;
+end $$;
+revoke all on function private.documenten_opruimen_ronde() from public, anon, authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_cron') then
+    create extension if not exists pg_cron;
+    execute $s$ select cron.schedule('thuisplanner-documenten-opruimen', '7 4 * * *', 'select private.documenten_opruimen_ronde()') $s$;
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------------------------
 -- Persoonlijke spullen en documenten volgen het account (zoals privé-afspraken)

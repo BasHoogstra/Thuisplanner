@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import pg from 'pg';
-import { leesNa, naFouten, repoVersies, SCHEMA_PER_STAND, splitsVerwacht, VERWACHT_SCHEMA, VERWACHTE_TAKEN, verwachtSchemaVoor } from '../../staging/verbinding-controle.mjs';
+import { leesNa, naFouten, repoVersies, SCHEMA_PER_STAND, splitsVerwacht, VERWACHT_SCHEMA, VERWACHTE_TAKEN, verwachteTakenVoor, verwachtSchemaVoor } from '../../staging/verbinding-controle.mjs';
 
 const DB_URL = process.env.DB_URL || '';
 if (!/^postgres(ql)?:\/\/[^@/]*@(127\.0\.0\.1|localhost):\d+\//.test(DB_URL)) throw new Error('Weigering: alleen een lokale database (DB_URL naar 127.0.0.1/localhost)');
@@ -44,7 +44,10 @@ test('de referenties per stand: staging (16 migraties) ongewijzigd; Vakanties pr
 
 test('de migratiegeschiedenis is die van de repository, en de geplande taken zijn precies de verwachte', () => {
   assert.deepEqual(n.versies, repoVersies());
-  assert.deepEqual(n.cron.map(j => j.jobname).sort(), VERWACHTE_TAKEN.map(t => t.jobname).sort());
+  assert.deepEqual(n.cron.map(j => j.jobname).sort(), verwachteTakenVoor(n.versies).map(t => t.jobname).sort());
+  // Per stand: tot en met migratie 27 de vijf bestaande taken; vanaf 29 de opruimronde van de documenten erbij.
+  assert.equal(verwachteTakenVoor(['20261027120000']), VERWACHTE_TAKEN);
+  assert.deepEqual(verwachteTakenVoor(['20261027120000', '20261029120000']).map(t => t.jobname).slice(-1), ['thuisplanner-documenten-opruimen']);
 });
 
 test('de nacontrole vindt lokaal alleen de bekende, lokale afwijkingen', () => {

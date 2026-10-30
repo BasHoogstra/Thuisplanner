@@ -3020,8 +3020,9 @@ set local role authenticated;
 
 -- KG-T93 Twee fasen en opruimen: alleen de service-rol bevestigt; zonder object of met een andere grootte of een ander
 -- type wordt het 'mislukt'; de opruimronde geeft wezen, verlopen prullenbak en oude wachtende uploads, en wist die rijen.
+-- De geplande ronde is niet via de API aan te roepen, en staat gepland waar pg_cron bestaat.
 do $$ declare ha uuid := current_setting('test.ha')::uuid; ms uuid := current_setting('test.m_sara')::uuid;
-  a uuid := gen_random_uuid(); b uuid := gen_random_uuid(); c uuid := gen_random_uuid(); e uuid := gen_random_uuid(); wees text; paden text[]; begin
+  a uuid := gen_random_uuid(); b uuid := gen_random_uuid(); c uuid := gen_random_uuid(); e uuid := gen_random_uuid(); wees text; paden text[]; n integer; begin
   perform pg_temp.als('sara');
   if not pg_temp.faalt(format('select public.documenten_klaar(%L, %L)', current_setting('test.d1'), 'application/pdf')) then raise exception 'KG-T93: authenticated bevestigt een upload'; end if;
   if not pg_temp.faalt('select * from public.documenten_op_te_ruimen()') then raise exception 'KG-T93: authenticated start de opruimronde'; end if;
@@ -3046,6 +3047,13 @@ do $$ declare ha uuid := current_setting('test.ha')::uuid; ms uuid := current_se
   if exists (select 1 from public.documents where id in (c, e)) then raise exception 'KG-T93: verlopen rijen niet gewist'; end if;
   if not exists (select 1 from public.documents where id = current_setting('test.d1')::uuid) then raise exception 'KG-T93: actief document gewist'; end if;
   if has_function_privilege('authenticated', 'private.documenten_klaar(uuid, text)', 'execute') or has_function_privilege('anon', 'public.documenten_op_te_ruimen()', 'execute') then raise exception 'KG-T93: serverfuncties via de API'; end if;
+  if has_function_privilege('authenticated', 'private.documenten_opruimen_ronde()', 'execute') or has_function_privilege('anon', 'private.documenten_opruimen_ronde()', 'execute') then
+    raise exception 'KG-T93: de geplande opruimronde via de API'; end if;
+  if to_regnamespace('cron') is not null then
+    execute $q$ select count(*) from cron.job where jobname = 'thuisplanner-documenten-opruimen' and schedule = '7 4 * * *'
+      and command = 'select private.documenten_opruimen_ronde()' and active $q$ into n;
+    if n <> 1 then raise exception 'KG-T93: de opruimronde staat niet gepland'; end if;
+  end if;
   perform pg_temp.ok('KG-T93');
 end $$;
 set local role authenticated;

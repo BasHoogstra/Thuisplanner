@@ -6,13 +6,14 @@
 // moet een test hier laten falen).
 //
 //   API_URL=... ANON_KEY=... SERVICE_ROLE_KEY=... DB_URL=... node --test spullen.test.mjs
-//   Optioneel WACHTRIJ_GEHEIM (uit supabase/functions/.env van de stack) voor de opruimronde.
+//   Optioneel WACHTRIJ_GEHEIM (uit supabase/functions/.env van de stack) voor de opruimronde, en DB_URL voor de geplande ronde.
+import { psql } from './psql.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
-const { API_URL, ANON_KEY, SERVICE_ROLE_KEY, WACHTRIJ_GEHEIM } = process.env;
+const { API_URL, ANON_KEY, SERVICE_ROLE_KEY, WACHTRIJ_GEHEIM, DB_URL } = process.env;
 for (const [k, v] of Object.entries({ API_URL, ANON_KEY, SERVICE_ROLE_KEY })) {
   if (!v) throw new Error(k + ' ontbreekt: start via run.sh (leest supabase status -o env)');
 }
@@ -192,4 +193,52 @@ test('opruimen: een wees na het verwijderen van een huishouden verdwijnt; zonder
   const r = await roep(WACHTRIJ_GEHEIM);
   assert.equal(r.status, 200);
   assert.ok((await admin.storage.from(BUCKET).download(d.pad)).error, 'de wees staat er nog');
+});
+
+test('de geplande ronde (pg_cron → pg_net → opruimen-documenten): ontbrekende configuratie, een mislukte aanroep, herhalen en een lege ronde',
+  { skip: !(WACHTRIJ_GEHEIM && DB_URL) && 'WACHTRIJ_GEHEIM of DB_URL niet gezet' }, async () => {
+  const sql = q => psql(DB_URL, q);
+  const VAULT = "from vault.decrypted_secrets where name = ";
+  const hernoem = (oud, nieuw) => sql(`select vault.update_secret(id, decrypted_secret, '${nieuw}') ${VAULT}'${oud}'`);
+  assert.equal(sql(`select count(*) from cron.job where jobname = 'thuisplanner-documenten-opruimen' and command = 'select private.documenten_opruimen_ronde()' and active`), '1');
+  const c = await account('cor');
+  const hc = ok(await c.rpc('create_household', { p_name: 'Gepland ' + run, p_display_name: 'Cor' }));
+  const mc = ok(await c.rpc('my_memberships')).find(m => m.household_id === hc).member_id;
+  const d = await nieuwDocument(c, hc, mc);
+  assert.equal((await bevestig(c, d.id)).status, 200);
+  ok(await c.rpc('delete_household', { p_household: hc }));
+  const er = async () => !(await admin.storage.from(BUCKET).download(d.pad)).error;
+  assert.ok(await er(), 'de wees hoort er na delete_household nog te zijn');
+  // Ontbrekende configuratie: zonder adres of zonder geheim in Vault roept de ronde niets aan (false, geen fout).
+  for (const naam of ['thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_geheim']) {
+    hernoem(naam, naam + '_weg');
+    try { assert.equal(sql('select private.documenten_opruimen_ronde()'), 'f', naam + ' ontbreekt'); }
+    finally { hernoem(naam + '_weg', naam); }
+  }
+  await wacht(3000);
+  assert.ok(await er(), 'zonder configuratie is er toch opgeruimd');
+  // Een mislukte aanroep (de functie weigert het geheim, 401): geen fout in de database, en de wees blijft voor morgen.
+  const echt = sql(`select decrypted_secret ${VAULT}'thuisplanner_wachtrij_geheim'`);
+  assert.match(echt, /^[0-9a-f]{64}$/);
+  sql(`select vault.update_secret(id, 'fout-${randomUUID()}') ${VAULT}'thuisplanner_wachtrij_geheim'`);
+  try {
+    assert.equal(sql('select private.documenten_opruimen_ronde()'), 't');
+    await wacht(4000);
+    assert.ok(await er(), 'met een geweigerd geheim is er toch opgeruimd');
+  } finally {
+    sql(`select vault.update_secret(id, '${echt}') ${VAULT}'thuisplanner_wachtrij_geheim'`);
+  }
+  // Herhalen: twee rondes direct na elkaar (zoals een dubbele start) ruimen de wees op, zonder fout.
+  assert.equal(sql('select private.documenten_opruimen_ronde()'), 't');
+  assert.equal(sql('select private.documenten_opruimen_ronde()'), 't');
+  const eind = Date.now() + 30000;
+  while (await er() && Date.now() < eind) await wacht(500);
+  assert.ok(!(await er()), 'de wees staat er 30 s na de geplande ronde nog');
+  // Een lege ronde en gelijktijdig: de functie antwoordt beide keren 200, ook als er (voor dit huishouden) niets meer is.
+  const roep = () => fetch(`${API_URL}/functions/v1/opruimen-documenten`, { method: 'POST', headers: { 'x-thuisplanner-wachtrij': WACHTRIJ_GEHEIM } });
+  const [r1, r2] = await Promise.all([roep(), roep()]);
+  assert.deepEqual([r1.status, r2.status], [200, 200]);
+  for (const r of [r1, r2]) { const j = await r.json(); assert.ok(Number.isInteger(j.paden) && j.gewist <= j.paden, JSON.stringify(j)); }
+  const r3 = await roep();
+  assert.deepEqual(await r3.json(), { paden: 0, gewist: 0 }, 'na twee rondes is er niets meer op te ruimen');
 });

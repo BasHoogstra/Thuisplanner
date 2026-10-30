@@ -2,7 +2,7 @@
 // wist rijen, geen bestanden; deze functie wist de bestanden die documenten_op_te_ruimen teruggeeft: de prullenbak na
 // 30 dagen, wachtende of mislukte uploads na 24 uur, en wezen (een object zonder rij, bijvoorbeeld na delete_household
 // of een verwijderd account). Alleen de database roept haar aan (pg_net, met het wachtrijgeheim uit Vault), zoals
-// stuur-uitnodiging. Het inplannen (pg_cron) volgt met een eigen akkoord; tot dan alleen handmatig en in de tests.
+// stuur-uitnodiging. pg_cron plant dat dagelijks in (private.documenten_opruimen_ronde).
 import { geheimGelijk, instelling, json, log, opslagWissen, rpc } from '../_gedeeld/k1.ts';
 
 Deno.serve(async req => {
