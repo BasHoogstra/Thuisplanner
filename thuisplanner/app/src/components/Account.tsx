@@ -2,7 +2,7 @@
 // en je e-mailadres wijzigen. Wijzigen vraagt een code van het oude én van het nieuwe adres (Supabase: secure email
 // change, via de codelaag). Daarna gaan de andere sessies en bekende toestellen uit; huishoudens en gegevens blijven,
 // want het account blijft hetzelfde.
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useApp } from '../lib/context';
 import { geldigAdres, geldigeCode } from '../lib/lokaal/code';
 import { UitlogKnop } from './Lokaal';
@@ -87,6 +87,10 @@ function AdresBevestigen() {
   const [tokens, zetTokens] = useState<Record<Welk, string | null>>({ oud: null, nieuw: null });
   const [rondes, zetRondes] = useState<Record<Welk, number>>({ oud: 0, nieuw: 0 });
   const verbruikt = (welk: Welk) => { zetTokens(t => ({ ...t, [welk]: null })); zetRondes(r => ({ ...r, [welk]: r[welk] + 1 })); };
+  // Stabiele callbacks: Captcha gebruikt opToken als effectafhankelijkheid. Een nieuwe functie bij elke render zou de widget
+  // bij elk token, elke toetsaanslag en elke wijziging aan het andere adres verwijderen en opnieuw maken.
+  const tokenOud = useCallback((t: string | null) => zetTokens(x => ({ ...x, oud: t })), []);
+  const tokenNieuw = useCallback((t: string | null) => zetTokens(x => ({ ...x, nieuw: t })), []);
   const bevestig = async (welk: Welk) => {
     const code = codes[welk];
     if (!geldigeCode(code)) { zetFout('Vul de zes cijfers in.'); return; }
@@ -114,7 +118,7 @@ function AdresBevestigen() {
       </label>
       {!klaar[welk] && captchaNodig[welk] && a.captchaSitekey && (
         <Captcha key={`${welk}-${rondes[welk]}`} sitekey={a.captchaSitekey} heeftToken={!!tokens[welk]} opnieuwTonen
-          opToken={t => zetTokens(x => ({ ...x, [welk]: t }))} />
+          opToken={welk === 'oud' ? tokenOud : tokenNieuw} />
       )}
       {klaar[welk]
         ? <p className="stil-tekst">Bevestigd.</p>

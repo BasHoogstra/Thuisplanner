@@ -97,4 +97,39 @@ describe('adreswijziging na TPK06', () => {
     expect(bevestig).toHaveBeenCalledTimes(2);
     expect(bevestig).toHaveBeenLastCalledWith('nieuw@example.com', '555555', null);
   });
+
+  it('de widget blijft dezelfde bij een ontvangen token, typen in het codeveld en wijzigingen aan het andere adres; alleen een verbruikte poging geeft een nieuwe', async () => {
+    const bevestig = vi.fn()
+      .mockResolvedValueOnce(TPK06)                                  // oud: captcha nodig
+      .mockResolvedValueOnce(TPK06)                                  // nieuw: captcha nodig
+      .mockResolvedValueOnce(TPK01);                                 // oud, met token: verbruikt
+    toon(bevestig);
+    await act(async () => {});
+    vul('oud', '111111'); await klik('oud');
+    vul('nieuw', '222222'); await klik('nieuw');
+    const oud = widgetIn('oud'), nieuw = widgetIn('nieuw');
+    expect(oud).toHaveLength(1);
+    expect(nieuw).toHaveLength(1);
+    const gemaakt = widgets.length;
+    // 1. Een ontvangen token: geen nieuwe widget, de oude blijft staan.
+    await geefToken('oud', 'token-oud');
+    // 2. Typen in het codeveld van hetzelfde adres.
+    vul('oud', '333333');
+    // 3. Wijzigingen aan het andere adres (typen, en daar een token).
+    vul('nieuw', '444444');
+    await geefToken('nieuw', 'token-nieuw');
+    expect(widgets.length).toBe(gemaakt);                            // niets verwijderd en opnieuw gemaakt
+    expect(widgetIn('oud')).toEqual(oud);
+    expect(widgetIn('nieuw')).toEqual(nieuw);
+    expect(oud[0].weg).toBe(false);
+    expect(nieuw[0].weg).toBe(false);
+    // 4. Een werkelijk verbruikte poging (oud, met token): precies één nieuwe widget bij dat adres; het andere blijft.
+    await klik('oud');
+    expect(bevestig).toHaveBeenLastCalledWith('oud@example.com', '333333', 'token-oud');
+    expect(oud[0].weg).toBe(true);
+    expect(widgets.length).toBe(gemaakt + 1);
+    expect(widgetIn('oud')).toHaveLength(1);
+    expect(widgetIn('nieuw')).toEqual(nieuw);
+    expect(nieuw[0].weg).toBe(false);
+  });
 });
