@@ -69,8 +69,11 @@ export interface LokaalContext {
     /** wissen: na de waarschuwing gekozen om onbevestigde opdrachten van dit toestel te wissen (P2). */
     uitloggenOveral: (opties?: { wissen?: boolean }) => Promise<void>;
     wijzigAdres: (nieuw: string) => Promise<Uitkomst>;
-    bevestigAdres: (email: string, code: string) => Promise<Uitkomst<'gewijzigd' | 'nog-een'>>;
+    /** captchaToken: een vers Turnstile-token, na TPK06 (eerst een captcha). */
+    bevestigAdres: (email: string, code: string, captchaToken?: string | null) => Promise<Uitkomst<'gewijzigd' | 'nog-een'>>;
     wijziging: { nieuw: string } | null;
+    /** De Turnstile-sitekey van deze omgeving (null: geen captcha, bijvoorbeeld lokaal). */
+    captchaSitekey: string | null;
   };
   status: SyncStatus;
   /** false: deze browser bewaart niets; onbevestigde opdrachten gaan verloren bij sluiten. */

@@ -138,8 +138,9 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
     accountBeheer: {
       uitloggenOveral: (o?: { wissen?: boolean }) => sessie.uitloggenOveral(o),
       wijzigAdres: (n: string) => sessie.wijzigAdres(n),
-      bevestigAdres: (e: string, c: string) => sessie.bevestigAdres(e, c),
+      bevestigAdres: (e: string, c: string, t?: string | null) => sessie.bevestigAdres(e, c, t),
       wijziging: snap.adreswijziging,
+      captchaSitekey: sessie.config.turnstile ?? null,
     },
     status: t.status,
     opslagDuurzaam: t.opslagDuurzaam,
