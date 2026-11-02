@@ -28,11 +28,16 @@ async function afspraak(titel: string) {
   return r.data as Record<string, unknown>[];
 }
 
-async function openInAgenda(p: Page, naam: RegExp) {
+// Agenda stap 4 (A3): op de telefoon staan alleen de afspraken van de gekozen dag als rijen; een andere dag kies je in
+// "Rest van de week". De afspraak ligt hoogstens een week verder (in het weekend valt vandaag + 2 in de volgende week).
+async function openInAgenda(p: Page, titel: string, naam: RegExp) {
   await nav(p, 'Agenda');
-  const rij = p.getByRole('button', { name: naam });
-  for (let i = 0; i < 2 && !(await rij.count()); i++) await p.getByRole('button', { name: 'Volgende week' }).click();
-  await rij.first().click();
+  const rest = p.getByRole('region', { name: 'Rest van de week' });
+  await expect(rest).toBeVisible();
+  const dag = rest.getByRole('button', { name: titel });
+  if (!(await dag.count())) await p.getByRole('button', { name: 'Volgende week' }).click();
+  await dag.first().click();
+  await p.getByRole('button', { name: naam }).first().click();
 }
 
 test('bevinding 1: alleen de titel van een meerdaagse afspraak met notities aanpassen behoudt alle andere velden op de server', async () => {
@@ -40,7 +45,7 @@ test('bevinding 1: alleen de titel van een meerdaagse afspraak met notities aanp
   expect(voor).toMatchObject({ notes: 'Slaapzak en zaklamp mee. Ophalen bij de achteringang.', start_time: '18:00:00', end_time: '11:00:00' });
   expect(voor.end_date).not.toBe(voor.start_date);
 
-  await openInAgenda(eva, /^Kamp Daan, 18:00/);
+  await openInAgenda(eva, 'Kamp Daan', /^Kamp Daan, 18:00/);
   // W1: via het detailvenster (de titel is direct te wijzigen); de server moet alle andere velden behouden.
   await venster(eva).getByLabel('Wat?').fill('Kamp Daan (welpen)');
   await venster(eva).getByRole('button', { name: 'Opslaan' }).click();
@@ -76,7 +81,7 @@ async function priveToevoegenZonderAntwoord(p: Page, titel: string, { bereikt }:
     await route.abort('connectionreset');
   });
   await p.getByRole('button', { name: 'Toevoegen' }).first().click();
-  await venster(p).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit gebruikt het formulier
+  await venster(p).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; de knop Formulier opent het formulier
   await venster(p).getByRole('tab', { name: 'Afspraak' }).click();
   await venster(p).locator('#item-titel').fill(titel);
   await venster(p).getByRole('button', { name: /^Meer opties/ }).click();
@@ -174,6 +179,6 @@ test('screenshots herstelronde 1 @screenshot', async () => {
   await eva.screenshot({ path: pad('11-eva-prive-opnieuw-invoeren') });
   await venster(eva).getByRole('button', { name: 'Opslaan' }).click();
   await expect(eva.getByText('Alles is door de server bevestigd.')).toBeVisible(SYNC);
-  await openInAgenda(eva, /^Kamp Daan, 18:00/);
+  await openInAgenda(eva, 'Kamp Daan', /^Kamp Daan, 18:00/);
   await eva.screenshot({ path: pad('12-eva-meerdaagse-afspraak-bewerken') });
 });
