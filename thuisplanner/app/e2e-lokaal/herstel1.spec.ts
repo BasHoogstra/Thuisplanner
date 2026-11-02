@@ -76,7 +76,7 @@ async function priveToevoegenZonderAntwoord(p: Page, titel: string, { bereikt }:
     await route.abort('connectionreset');
   });
   await p.getByRole('button', { name: 'Toevoegen' }).first().click();
-  await venster(p).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit gebruikt het formulier
+  await venster(p).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; de knop Formulier opent het formulier
   await venster(p).getByRole('tab', { name: 'Afspraak' }).click();
   await venster(p).locator('#item-titel').fill(titel);
   await venster(p).getByRole('button', { name: /^Meer opties/ }).click();
