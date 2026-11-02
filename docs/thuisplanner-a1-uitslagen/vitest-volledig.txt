@@ -1,0 +1,152 @@
+# Volledige Vitest-suite — 2026-11-02 10:23
+ ✓ tests/staging-kenmerk.test.ts (3 tests) 8108ms
+   ✓ stagingbuild: alleen het vastgelegde stagingproject > bouwt met het vastgelegde project  1324ms
+   ✓ stagingbuild: alleen het vastgelegde stagingproject > weigert een ander project, een Huisplan-project, een andere schrijfwijze of geen adres  6740ms
+ ✓ tests/p1p2.test.tsx (6 tests) 8621ms
+   ✓ P1: opnieuw invoeren zonder bewaarde inhoud > een taak opnieuw invoeren: dezelfde opdracht-ID, geen nieuwe toevoeging  4605ms
+   ✓ P1: opnieuw invoeren zonder bewaarde inhoud > een boodschap opnieuw invoeren: één boodschap met dezelfde ID, niet gesplitst  1740ms
+   ✓ P2: uitloggen met onbevestigde opdrachten > niets onbevestigd: meteen uitloggen, zonder wissen en zonder vraag  352ms
+   ✓ P2: uitloggen met onbevestigde opdrachten > wel onbevestigd: eerst een waarschuwing met het aantal; "Eerst laten nakijken" logt niet uit en wist niets  793ms
+   ✓ P2: uitloggen met onbevestigde opdrachten > wel onbevestigd: "Van dit toestel wissen en uitloggen" logt uit met wissen  1068ms
+ ✓ tests/onboarding.test.tsx (26 tests) 13226ms
+   ✓ S1 en S2 > S1: aanmaken met twee namen; een ongeldige link geeft een melding, een geldige gaat naar de uitnodiging  2988ms
+   ✓ S1 en S2 > S2: nooit vanzelf accepteren; na accepteren is het token weg; "Niet accepteren" wist het ook  1295ms
+   ✓ S1 en S2 > S2: een fout van de database wordt getoond en het scherm blijft staan  759ms
+   ✓ S1 en S2 > S1: "Uitnodigingen voor jou" bovenaan; Bekijken opent de uitnodiging (accepteren gebeurt daar, nooit vanzelf)  1486ms
+   ✓ S1 en S2 > S2 uit de lijst: wie, welk huishouden en welke rol; accepteren met het id; Later doet niets; weigeren na bevestigen  1886ms
+   ✓ S1 en S2 > S2 uit de lijst voor een bestaand profiel: geen naamveld, de koppeling staat erbij  521ms
+   ✓ S1 en S2 > S2 met een link voor een ander adres (TPU06): uitleg en uitloggen; de link blijft in dit tabblad  731ms
+   ✓ S1 en S2 > Vandaag: één rustige melding; Bekijken opent die ene, bij meer naar de lijst; Later  337ms
+   ✓ S3: Meer → Huishouden, per rol > een beheerder kan toevoegen en uitnodigen, maar alleen als lid  772ms
+   ✓ S3: Meer → Huishouden, per rol > de eigenaar nodigt standaard uit als beheerder, voor een bestaand profiel; de link staat klaar om te delen  1019ms
+   ✓ S3: Meer → Huishouden, per rol > uitnodigen op e-mailadres: het adres gaat mee en de uitleg noemt het en zegt dat we mailen; daarna is het veld leeg  663ms
+   ✓ S3: Meer → Huishouden, per rol > uitnodigingen voor jou staan ook in Meer, voor elke rol  362ms
+ ✓ tests/afspraakbehoud.test.tsx (5 tests) 14911ms
+   ✓ alleen de titel van een meerdaagse afspraak met notities aanpassen: notities, einddatum en de rest blijven exact  4775ms
+   ✓ één voorkomen van een meerdaagse reeks met notities aanpassen: notities en duur gaan mee naar het losse voorkomen  3059ms
+   ✓ detailvenster: de hele reeks aanpassen vanaf een later voorkomen; de einddatum blijft die van de eerste keer  2255ms
+   ✓ formulier (Alles bewerken): de hele reeks aanpassen vanaf een later voorkomen; de einddatum blijft die van de eerste keer  4790ms
+ ✓ tests/vakanties-lokaal.test.tsx (8 tests) 188ms
+ ✓ tests/app.test.tsx (3 tests) 16403ms
+   ✓ toont Vandaag met begroeting en demo-markering  3612ms
+   ✓ toevoegen via het centrale venster, met ongedaan maken  7865ms
+   ✓ lege invoer wordt niet toegevoegd  4904ms
+ ✓ tests/captcha.test.tsx (5 tests) 4877ms
+   ✓ Turnstile op het codescherm > het token gaat mee met "Stuur code"; na een geweigerd token komt er een nieuwe widget en kan de gebruiker opnieuw  2031ms
+   ✓ Turnstile op het codescherm > "Opnieuw controleren" start een nieuwe, zichtbare widget, ook als de widget zichzelf verborg  1210ms
+   ✓ Turnstile op het codescherm > een fout van Turnstile: de widget wordt zichtbaar, met uitleg en de knop  460ms
+   ✓ Turnstile op het codescherm > een verlopen token telt niet: "Stuur code" vraagt dan eerst een nieuwe controle  416ms
+   ✓ Turnstile op het codescherm > na een gelukte aanvraag: een nieuwe widget voor het codescherm, zonder knop; na een foute code weer een nieuwe  741ms
+ ✓ tests/uitnodigingsmail.test.ts (4 tests) 118ms
+ ✓ tests/kg3.test.ts (14 tests) 41ms
+ ✓ tests/inloggen-code.test.tsx (20 tests) 8904ms
+   ✓ het codescherm > adres → "Stuur code" → het codescherm met het adres; zes cijfers gaan vanzelf verder  3860ms
+   ✓ het codescherm > een ongeldig adres: een melding, geen aanvraag; een foute code: de melding en het veld is weer leeg  1133ms
+   ✓ het codescherm > M1: een openstaande aanvraag opent direct het codescherm; "Ander adres gebruiken" gaat terug  341ms
+   ✓ het codescherm > na twee nieuwe codes: hulp als er niets komt, met het adres letterlijk  2063ms
+   ✓ testpoort op het welkomstscherm > mag geen eigen huishouden: uitleg in plaats van het formulier, en het adres waarmee je bent ingelogd  495ms
+   ✓ testpoort op het welkomstscherm > mag wel: het formulier, met de naam uit het profiel voorgesteld  559ms
+ ✓ tests/foutgrens.test.tsx (4 tests) 10293ms
+   ✓ een vastgelopen onderdeel: rustige melding, Opnieuw laden en Meld dit; de melding bevat geen inhoud  3273ms
+   ✓ in de app: de Agenda loopt vast, de navigatie blijft werken en een ander scherm begint opnieuw  4632ms
+   ✓ in de app: het venster loopt vast; Sluiten brengt je terug en de app werkt verder  2320ms
+ ✓ tests/sessie.test.tsx (25 tests) 601ms
+ ✓ tests/kg4.test.ts (22 tests) 94ms
+ ✓ tests/lokaal.test.tsx (11 tests) 66ms
+ ✓ tests/agenda-vakanties.test.tsx (4 tests) 22909ms
+   ✓ laptopweek: de vakantie staat op de vertrekdag als eigen regel, en die dag is niet "niets gepland"  10084ms
+   ✓ dagoverzicht: de vakantieregel staat boven het dagblok  7124ms
+   ✓ een voorbereiding met datum staat in het dagblok met het vakantielabel  3189ms
+   ✓ iPhone: in "Rest van de week" staat de vakantie bij de vertrekdag in plaats van "niets gepland"  2489ms
+ ✓ tests/zin.test.ts (78 tests) 43ms
+ ✓ tests/afvinken-datum.test.tsx (2 tests) 29ms
+ ✓ tests/uuid.test.ts (3 tests) 53ms
+ ✓ tests/vakanties-store.test.ts (19 tests) 43ms
+ ✓ tests/vandaag.test.ts (15 tests) 51ms
+ ✓ tests/categorie.test.ts (167 tests) 372ms
+ ✓ tests/vakantie.test.ts (16 tests) 250ms
+ ✓ tests/ontwerp.test.ts (3 tests) 10ms
+ ✓ tests/betekenis.test.ts (4 tests) 9ms
+ ✓ tests/detail.test.tsx (13 tests) 31108ms
+   ✓ eerst overzicht: titel, dag, tijd en wie; geen dag- of persoonsknoppen, geen Opslaan of Verwijderen in beeld  4496ms
+   ✓ één onderdeel wijzigen: de dag; al het andere blijft precies behouden, met de versie van het openen  3534ms
+   ✓ de tijd: een andere begintijd neemt de duur mee; laat in de avond vervalt het eind  2361ms
+   ✓ de tijd: "Hele dag" haalt begin en eind weg  2592ms
+   ✓ een taak: één persoon, "Geen datum" kan, en de rest blijft behouden  3338ms
+   ✓ een taak afronden kan direct vanuit het overzicht  816ms
+   ✓ wijzigingen weggooien: alles terug, en Opslaan verdwijnt weer  3666ms
+   ✓ een lege titel wordt niet opgeslagen  979ms
+   ✓ verwijderen staat onder Meer…, met bevestiging; "Nee, terug" verwijdert niets  3396ms
+   ✓ een voorkomen van een reeks: pas bij opslaan "alleen deze of de hele reeks"; alleen deze maakt een los voorkomen met alle gegevens  1398ms
+   ✓ een reeks verwijderen: kiezen tussen alleen deze en de hele reeks  1306ms
+   ✓ privé kiest alleen de eigenaar; bij een gedeelde afspraak van een ander staat die regel er niet  1190ms
+   ✓ Alles bewerken opent het volledige formulier voor hetzelfde item  2022ms
+ ✓ tests/foutcodes.test.ts (2 tests) 6ms
+ ✓ tests/omgeving.test.ts (9 tests) 176ms
+ ✓ tests/agenda.test.ts (8 tests) 10ms
+ ✓ tests/lokaal-script.test.ts (16 tests) 1470ms
+   ✓ het script draait echt (op elk platform, ook Windows) > onbekende opdracht: gebruiksmelding en code 2, niet stil stoppen  303ms
+   ✓ Vite-proxy naar de lokale Supabase (telefoonproef) > env-bestand > zonder proxy: de browser praat direct met Supabase op dit toestel, geen proxy-doel  352ms
+ ✓ tests/toevoegen-rustig.test.tsx (12 tests) 33552ms
+   ✓ nieuwe afspraak: alleen de vaste vragen open; waar, herhalen en privé achter Meer opties  4634ms
+   ✓ een snelle tijd is één tik; daarna kan een eindtijd, en "Hele dag" haalt beide weg  9080ms
+   ✓ "Andere tijd" opent de klokkiezer met de cursor erin  4752ms
+   ✓ Meer opties openen zet de cursor in "Waar?" en blijft daarna open  6067ms
+   ✓ bewerken met een plek: Meer opties staat al open, zodat niets ingevuld onzichtbaar is  1387ms
+   ✓ bewerken met privé: Meer opties staat al open, zodat niets ingevuld onzichtbaar is  995ms
+   ✓ bewerken met een herhaling: Meer opties staat al open, zodat niets ingevuld onzichtbaar is  1550ms
+   ✓ bewerken met een tijd die geen snelle tijd is: de klokkiezer en de eindtijd staan open  1342ms
+   ✓ bewerken met een snelle tijd zonder plek, privé of herhaling: rustig dicht  1629ms
+   ✓ één voorkomen van een reeks: de herhaling staat in de reekskop, Meer opties blijft dicht  1188ms
+   ✓ gedeelde afspraak van een ander: Meer opties zonder privé  594ms
+   ✓ een taak heeft geen tijd en geen Meer opties  313ms
+ ✓ tests/snelinvoer.test.tsx (19 tests) 36262ms
+   ✓ rustig: alleen het veld en de verzendknop (uit), geen kaart; Formulier en Sluiten  2293ms
+   ✓ een afspraak uit één zin: de betekenis in gewone taal, en zo bewaard  4957ms
+   ✓ Enter ("Gereed") voegt toe, net als de verzendknop  1381ms
+   ✓ corrigeren via Aanpassen: een andere dag en een andere soort winnen van de zin  6585ms
+   ✓ Aanpassen toont alleen de regels die bij de soort horen; Klaar klapt in  2905ms
+   ✓ een aanname (niet uit de zin) staat er in woorden bij  1496ms
+   ✓ privé staat bij een afspraak altijd in beeld, en is met één tik te kiezen  2020ms
+   ✓ een taak zonder dag: "Zonder datum", zonder privé en zonder tijd  1609ms
+   ✓ meerdere boodschappen in één zin: één regel met de namen, zonder categorieën  1759ms
+   ✓ een toelichting staat er in gewone taal bij: een dag bij een boodschap kan nog niet  889ms
+   ✓ een bijna-naam: één vraag ("Bedoel je Lynn?"), niets vanzelf; Lynn koppelt  1517ms
+   ✓ een bijna-naam: Nee laat de vraag verdwijnen en de zin staan  1908ms
+   ✓ "om 4": de vraag laat 16:00 staan, of zet met één tik 04:00  1606ms
+   ✓ een herkend stuk niet herkennen: het blijft in de titel  1991ms
+   ✓ Formulier opent het formulier met wat er al herkend is  1482ms
+   ✓ Meer in het formulier opent het formulier met wat er al herkend is  1492ms
+ ✓ tests/slimme-plus-vakanties.test.tsx (9 tests) 43649ms
+   ✓ "Zonnebrand kopen voor Frankrijk": één boodschap, gekoppeld, bij Later nodig; geen "Zonnebrand voor Frankrijk"  17331ms
+   ✓ vóór opslaan corrigeren: een andere vakantie, Nu te kopen, of Geen vakantie  11204ms
+   ✓ "Paspoorten controleren voor Frankrijk": een voorbereiding; een gelijknamige geeft een waarschuwing, toevoegen kan toch  4001ms
+   ✓ "Muggenspray kopen" terwijl hij bij Later nodig staat: vooraf en na afloop een duidelijke melding, één item  1374ms
+   ✓ meerdere vakanties: een bestaande boodschap krijgt er een koppeling bij en blijft één item  2125ms
+   ✓ "Formulier" houdt de vakantie en Later nodig vast, en ze zijn daar te wijzigen  3507ms
+   ✓ een gewone boodschap of taak via Formulier: het formulier zoals altijd (geen vakantie- of lijstkeuze)  1491ms
+   ✓ een afspraak met "voor Frankrijk": niet gekoppeld, de tekst blijft in de titel, met uitleg  947ms
+   ✓ twee vakanties met dezelfde naam: niets vanzelf koppelen; eerst kiezen  1650ms
+ ✓ tests/herhaalregel.test.ts (51 tests | 1 skipped) 20808ms
+   ✓ herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > elke dag van 10 jaar gelijk aan private.occurs_on (via de opsomming per jaar)  11104ms
+   ✓ herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > opsomming gelijk aan voorkomenDatums (herhaling.ts), per jaar over 10 jaar  1263ms
+   ✓ herhaalregel: opsomming en dagtoets zijn het eens (willekeurige geldige regels) > 300 regels, elk over twee jaar per dag  7830ms
+ ✓ tests/vakanties.test.tsx (15 tests) 49768ms
+   ✓ via Meer naar het overzicht: komend, en eerder ingeklapt  8052ms
+   ✓ een vakantie met alleen een naam; de terugdatum pas na een vertrekdatum en niet vóór het vertrek  8673ms
+   ✓ inpakken: per persoon, snel achter elkaar, geen dubbele, en overnemen met ongedaan maken  6404ms
+   ✓ afvinken, aanpassen, verplaatsen en verwijderen van een pakitem  4574ms
+   ✓ afvinken opnieuw beginnen voor één persoon, met ongedaan maken  1876ms
+   ✓ een voorbereiding is een gewone taak: in de Agenda (zonder datum) met het vakantielabel  3318ms
+   ✓ te kopen voor de vakantie staat op de gewone boodschappenlijst, met het label  3050ms
+   ✓ Vandaag toont de vakantiekaart (de regels voor 14 dagen vooraf staan in vakantie.test.ts) en die opent de vakantie  462ms
+   ✓ een boodschap bij de vakantie is hetzelfde item als op de gewone lijst: aanpassen en afvinken gelden overal  2813ms
+   ✓ Later nodig: de demo, één tik naar Nu te kopen en weer terug, met ongedaan maken; Vandaag telt alleen Nu  2787ms
+   ✓ Later nodig: gewone boodschappen blijven Nu; toevoegen op de gewone lijst haalt een latere naar Nu; vanuit een vakantie blijft Nu Nu  2668ms
+   ✓ Later nodig bij meerdere vakanties: één boodschap, zichtbaar bij beide, Nu kopen geldt overal  2226ms
+   ✓ Regelen: één blok tegelijk open, de kop met voortgang blijft zichtbaar, en de keuze wordt onthouden  931ms
+   ✓ afgeronde voorbereidingen compact: tonen, terugzetten naar open, en afvinken verbergt weer  907ms
+   ✓ inpakken: ingepakte items compact, terugzetten, en per persoon opnieuw ingeklapt  996ms
+ Test Files  34 passed (34)
+      Tests  620 passed | 1 skipped (621)
+   Duration  66.23s (transform 15.42s, setup 28.33s, collect 101.70s, tests 327.03s, environment 71.45s, prepare 6.98s)

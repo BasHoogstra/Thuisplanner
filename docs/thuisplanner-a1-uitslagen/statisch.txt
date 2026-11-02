@@ -1,0 +1,17 @@
+# node supabase/tests/statisch.js — 2026-11-02 10:23
+  ✓ migraties: geldige namen en oplopende, unieke versies
+  ✓ SQL en scripts: alleen LF-regeleinden
+  ✓ migraties: extensiefuncties altijd met schemanaam extensions.
+  ✓ migraties: elke tabel in public heeft RLS aan
+  ✓ migraties: functies in public zijn security invoker; security definer alleen in private
+  ✓ RLS-tests: één transactie die wordt teruggedraaid
+  ✓ tegenproeven: elke regel noemt een bestaand scenario
+  ✓ configuratie: eigen project, niet gekoppeld aan een bestaand Supabase-project
+  ✓ geen geheime sleutels in thuisplanner/ of de workflow
+  ✓ browsercode (sync en demo) gebruikt nooit de service-role-sleutel
+  ✓ React-app: browsercode noemt nooit de service-role-sleutel; de lokale env krijgt alleen de anon-sleutel
+  ✓ Edge Functions: de service-rol alleen in de toegestane functies, en alleen na de controle vooraf (4 functies op de lijst; 7 tegenproeven gevangen)
+  ✓ website: geen scripts of bronnen van buiten in de bron, geen verzonnen bedrijfsgegevens, de bouw buiten git
+  ✓ bestaande Huisplan-bestanden ongewijzigd door deze branch
+GESLAAGD: alle statische controles
+exit 0

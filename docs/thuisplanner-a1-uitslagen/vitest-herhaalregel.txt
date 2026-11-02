@@ -1,0 +1,61 @@
+# Vitest tests/herhaalregel.test.ts — 2026-11-02 10:23 — werkmap Thuisplanner-afsprakenmodel, basis d03fa8d
+
+ RUN  v3.2.4 <werkmap>/thuisplanner/app
+
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V1 maandelijks op de 31e: maanden zonder 31e overgeslagen 13ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V2 jaarlijks op 29 februari: alleen schrikkeljaren 80ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V3 wekelijks met einddatum (inclusief) 1ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V4 dagelijks, venster begint vóór het anker 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V5 maandelijks op de 30e: februari overgeslagen 7ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V6 wekelijks zonder einde 1ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N1 om de 3 dagen 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N2 om de 2 weken op maandag en woensdag 1ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N3 om de 2 weken, anker op woensdag: de maandag in de ankerweek telt niet 1ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N4 elke week op zaterdag en zondag 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N5 om de 2 weken op za en zo: de week begint op maandag (WKST=MO) 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N6 elke maand op de 2e dinsdag 3ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N7 elke maand op de laatste vrijdag 4ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N8 om de 2 maanden op de 31e: overgeslagen maanden schuiven niet 5ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N9 elk jaar op de laatste maandag van mei 27ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N10 om de 2 jaar 41ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N11 count: 3 keer 2ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N12 count: venster begint na het anker 1ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N13 count: overgeslagen maanden tellen niet 11ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N14 count: een uitzondering telt wel mee (RFC 5545) 2ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N15 until op een dag zonder keer 2ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N16 venster vóór het anker 1ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N17 om de 3 weken 2ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N18 count op, venster daarna: leeg 1ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N19 29 februari met count: alleen schrikkeljaren tellen 124ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N20 de 4e dinsdag die ook de laatste is: '4TU' en '-1TU' allebei geldig 1ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G1 interval 0 1ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G2 interval 100 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G3 dagelijks met weekdagen 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G4 wekelijks, anker (vrijdag) niet in de weekdagen 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G5 maandelijks '2TU', maar het anker is de 3e dinsdag 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G6 de 5e maandag valt buiten het contract 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G7 maandelijks met twee n-de weekdagen 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G8 until en count samen 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G9 count 0 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G10 until vóór het anker 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G11 dubbele weekdag 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G12 onbekende weekdagcode 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G13 jaarlijks '-1MO', maar het anker is niet de laatste maandag van mei 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G14 de 4e dinsdag die ook de laatste is, als '-1TU' 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G15 count 999 en interval 99 zijn de grenzen 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G16 count 1000 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G17 lege weekdagenlijst 0ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > elke dag van 10 jaar gelijk aan private.occurs_on (via de opsomming per jaar) 7778ms
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > dagtoets komtVoorOp gelijk aan private.occurs_on, elke dag van 10 jaar
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > opsomming gelijk aan voorkomenDatums (herhaling.ts), per jaar over 10 jaar 1060ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > uitzonderingen gelijk aan voorkomenDatums 1ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > tekst gelijk aan herhalingTekst 46ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: opsomming en dagtoets zijn het eens (willekeurige geldige regels) > 300 regels, elk over twee jaar per dag 3054ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: grenzen > hoogstens 1000 datums per berekening 33ms
+ ✓ tests/herhaalregel.test.ts > herhaalregel: grenzen > een ongeldige datum of regel geeft niets 0ms
+
+ Test Files  1 passed (1)
+      Tests  50 passed | 1 skipped (51)
+   Start at  10:23:07
+   Duration  13.64s (transform 125ms, setup 453ms, collect 96ms, tests 12.31s, environment 0ms, prepare 338ms)
+

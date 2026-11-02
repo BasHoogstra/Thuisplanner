@@ -1,0 +1,8 @@
+# Kopiecontrole private.occurs_on — 2026-11-02
+$ node thuisplanner/supabase/tests/herhaalregel/controleer-kopie.mjs
+kopiecontrole: private.occurs_on is letterlijk gelijk aan 20261012120000_kg5c_inhoud.sql
+exit 0
+
+# Tegenproef: een tijdelijke kopie met één teken anders ('% 7' wordt '% 8')
+KOPIECONTROLE MISLUKT: private.occurs_on in rule_occurs_on.sql wijkt af van de migratie.
+exit 1

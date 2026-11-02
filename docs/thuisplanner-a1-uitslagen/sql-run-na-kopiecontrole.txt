@@ -1,0 +1,9 @@
+# run.sh --tegenproef --zonder-gelijkwaardigheid — 2026-11-02 10:37 — na toevoegen kopiecontrole
+kopiecontrole: private.occurs_on is letterlijk gelijk aan 20261012120000_kg5c_inhoud.sql
+PostgreSQL 17.6 (eigen tijdelijke container tp-herhaalregel-210, zonder netwerk)
+vectoren: 26 datumvectoren en 17 geldigheidsvectoren geslaagd
+tegenproef 1: vectoren falen zoals verwacht
+tegenproef 2: vectoren falen zoals verwacht
+tegenproef 3: vectoren falen zoals verwacht
+GESLAAGD
+exit 0
