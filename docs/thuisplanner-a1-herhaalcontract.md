@@ -65,6 +65,18 @@ niet opnieuw.
 | Kopiecontrole `occurs_on` (nu automatisch in `run.sh`) | letterlijk gelijk; een tegenproef (één teken anders in een tijdelijke kopie) faalt met code 1 | 2 nov 2026 | `kopiecontrole.txt` |
 | `run.sh --tegenproef --zonder-gelijkwaardigheid`, na het toevoegen van de kopiecontrole | kopiecontrole geslaagd; 26 + 17 vectoren geslaagd; tegenproef 1, 2 en 3 falen zoals verwacht; GESLAAGD | 2 nov 2026 | `sql-run-na-kopiecontrole.txt` |
 
+### 3a. Waar de tests draaien: CI tegenover lokaal (vastgelegd na de review van PR #50)
+
+| Onderdeel | Draait in CI? | Bewijs |
+| --- | --- | --- |
+| **TypeScript-tests** (`app/tests/herhaalregel.test.ts`) | **Ja, automatisch**: in de bestaande workflow `thuisplanner-app.yml`, job `app`, stap "Unit- en componenttests" (`npm test`), bij elke PR die `thuisplanner/**` raakt | De CI-run voor commit `34d5fe9` (PR #50): `tests/herhaalregel.test.ts (51 tests \| 1 skipped)` geslaagd; de hele suite 34 van 34 bestanden, 620 geslaagd, 1 overgeslagen; de job `app` geslaagd, net als `database` (`thuisplanner-db.yml`) |
+| De opt-in (`HERHAAL_VOLLEDIG=1`) | Nee (wordt in CI bewust overgeslagen) | Alleen lokaal, zie hierboven |
+| **De nieuwe A1-SQL-tests** (`supabase/tests/herhaalregel/run.sh`: kopiecontrole, vectoren, gelijkwaardigheid, tegenproeven) | **Nee. Alleen lokaal uitgevoerd**, in een eigen container. Ze draaien **nog niet automatisch in CI**: geen workflow roept `run.sh` aan | De logboeken in `docs/thuisplanner-a1-uitslagen/` |
+| De bestaande SQL-tests (RLS-matrix, tegenproeven) | Ja (`thuisplanner-db.yml`) | Ongewijzigd door A1; de A1-functies zitten niet in een migratie en worden daar dus niet getest |
+
+**Open beperkingen:** C1–C5 en C7–C9 (§5) blijven open voor de vervolgstappen. Ze zijn ingepland in het
+uitvoeringsplan van A2. C6 is opgelost.
+
 **Incidenten tijdens het testen** (transparant):
 1. **De eerste volledige Vitest-run had 8 fouten**, door time-outs onder zware belasting. De SQL-container en de
    oorspronkelijke 10-jaarstest liepen tegelijk. Apart gedraaid: 40 van 40 geslaagd. Daarna is de 10-jaarstest in
