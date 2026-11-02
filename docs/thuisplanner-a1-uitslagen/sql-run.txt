@@ -1,0 +1,10 @@
+# run.sh --tegenproef — uitgevoerd 2026-11-02 (na herstart Docker), PostgreSQL 17.6 in eigen container
+PostgreSQL 17.6 (eigen tijdelijke container tp-herhaalregel-1791, zonder netwerk)
+vectoren: 26 datumvectoren en 17 geldigheidsvectoren geslaagd
+psql:<stdin>:38: NOTICE:  gelijkwaardigheid: 5552560 vergelijkingen over 10 jaar, 0 verschillen
+tegenproef 1: vectoren falen zoals verwacht
+tegenproef 2: vectoren falen zoals verwacht
+tegenproef 3: vectoren falen zoals verwacht
+tegenproef 1: gelijkwaardigheid faalt zoals verwacht
+GESLAAGD
+exit 0

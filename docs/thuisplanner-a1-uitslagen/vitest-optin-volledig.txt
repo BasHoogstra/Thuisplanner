@@ -1,0 +1,76 @@
+# Opt-in: HERHAAL_VOLLEDIG=1 (komtVoorOp per dag, 10 jaar) — 2026-11-02 10:24
+
+ RUN  v3.2.4 <werkmap>/thuisplanner/app
+
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V1 maandelijks op de 31e: maanden zonder 31e overgeslagen
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V2 jaarlijks op 29 februari: alleen schrikkeljaren
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V3 wekelijks met einddatum (inclusief)
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V4 dagelijks, venster begint vóór het anker
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V5 maandelijks op de 30e: februari overgeslagen
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > V6 wekelijks zonder einde
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N1 om de 3 dagen
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N2 om de 2 weken op maandag en woensdag
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N3 om de 2 weken, anker op woensdag: de maandag in de ankerweek telt niet
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N4 elke week op zaterdag en zondag
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N5 om de 2 weken op za en zo: de week begint op maandag (WKST=MO)
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N6 elke maand op de 2e dinsdag
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N7 elke maand op de laatste vrijdag
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N8 om de 2 maanden op de 31e: overgeslagen maanden schuiven niet
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N9 elk jaar op de laatste maandag van mei
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N10 om de 2 jaar
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N11 count: 3 keer
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N12 count: venster begint na het anker
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N13 count: overgeslagen maanden tellen niet
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N14 count: een uitzondering telt wel mee (RFC 5545)
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N15 until op een dag zonder keer
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N16 venster vóór het anker
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N17 om de 3 weken
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N18 count op, venster daarna: leeg
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N19 29 februari met count: alleen schrikkeljaren tellen
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > N20 de 4e dinsdag die ook de laatste is: '4TU' en '-1TU' allebei geldig
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G1 interval 0
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G2 interval 100
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G3 dagelijks met weekdagen
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G4 wekelijks, anker (vrijdag) niet in de weekdagen
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G5 maandelijks '2TU', maar het anker is de 3e dinsdag
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G6 de 5e maandag valt buiten het contract
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G7 maandelijks met twee n-de weekdagen
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G8 until en count samen
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G9 count 0
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G10 until vóór het anker
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G11 dubbele weekdag
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G12 onbekende weekdagcode
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G13 jaarlijks '-1MO', maar het anker is niet de laatste maandag van mei
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G14 de 4e dinsdag die ook de laatste is, als '-1TU'
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G15 count 999 en interval 99 zijn de grenzen
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G16 count 1000
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gedeelde testvectoren > G17 lege weekdagenlijst
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > elke dag van 10 jaar gelijk aan private.occurs_on (via de opsomming per jaar)
+ ✓ tests/herhaalregel.test.ts > herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > dagtoets komtVoorOp gelijk aan private.occurs_on, elke dag van 10 jaar 85189ms
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > opsomming gelijk aan voorkomenDatums (herhaling.ts), per jaar over 10 jaar
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > uitzonderingen gelijk aan voorkomenDatums
+ ↓ tests/herhaalregel.test.ts > herhaalregel: gelijk aan de bestaande herhalingen (10 jaar) > tekst gelijk aan herhalingTekst
+ ↓ tests/herhaalregel.test.ts > herhaalregel: opsomming en dagtoets zijn het eens (willekeurige geldige regels) > 300 regels, elk over twee jaar per dag
+ ↓ tests/herhaalregel.test.ts > herhaalregel: grenzen > hoogstens 1000 datums per berekening
+ ↓ tests/herhaalregel.test.ts > herhaalregel: grenzen > een ongeldige datum of regel geeft niets
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-worker]: Timeout calling "onTaskUpdate"
+ ❯ Object.onTimeoutError ../../../Thuisplanner-pr23/thuisplanner/app/node_modules/vitest/dist/chunks/rpc.-pEldfrD.js:53:10
+ ❯ Timeout._onTimeout ../../../Thuisplanner-pr23/thuisplanner/app/node_modules/vitest/dist/chunks/index.B521nVV-.js:59:62
+ ❯ listOnTimeout node:internal/timers:635:17
+ ❯ processTimers node:internal/timers:571:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 50 skipped (51)
+     Errors  1 error
+   Start at  10:24:55
+   Duration  86.19s (transform 126ms, setup 135ms, collect 181ms, tests 85.19s, environment 0ms, prepare 133ms)
+
