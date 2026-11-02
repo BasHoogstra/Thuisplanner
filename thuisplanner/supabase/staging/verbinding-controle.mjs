@@ -171,6 +171,15 @@ export const SCHEMA_PER_STAND = Object.freeze({
     Object.freeze({ schema: 'private', relaties: 9, functies: 103, policies: 0 }),
     Object.freeze({ schema: 'public', relaties: 15, functies: 38, policies: 30 }),
   ]),
+  // Plus de herstelmigratie 20261027180000 (bezorgmeldingen vóór het verzendantwoord, herstelronde review): precies +1
+  // relatie (private.uitnodigingsmail_vroege_meldingen, RLS aan, geen policies) en +1 functie (private.uitnodigingsmail_slot);
+  // klaar, bezorging en uitnodigingsmails_opruimen zijn vervangen (zelfde aantal). public ongewijzigd. Gemeten op een
+  // lege lokale database met de Supabase-nabootsing en alle 20 migraties (1 november 2026). Volgorde:
+  // docs/thuisplanner-migratievolgorde.md.
+  '20261027180000': Object.freeze([
+    Object.freeze({ schema: 'private', relaties: 10, functies: 104, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 15, functies: 38, policies: 30 }),
+  ]),
 });
 
 /** De referentie voor een migratiegeschiedenis (de laatste versie telt). Geen referentie voor die stand: een fout. */
