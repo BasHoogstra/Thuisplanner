@@ -56,5 +56,12 @@ select pg_temp.moet(exists (select 1 from private.uitnodigingsmail_vroege_meldin
 select pg_temp.moet(not has_table_privilege('authenticated', 'private.uitnodigingsmail_vroege_meldingen', 'select'), 'B6 authenticated leest niet');
 select pg_temp.moet(not has_table_privilege('anon', 'private.uitnodigingsmail_vroege_meldingen', 'select'), 'B6 anon leest niet');
 
-select 'herstel_bezorgmeldingen: 6 van 6 scenario''s geslaagd' as uitslag;
+-- B7: zonder nieuwe webhooks ruimt de dagelijkse taak (uitnodigingsmails_opruimen) oude vroege meldingen toch op.
+insert into private.uitnodigingsmail_vroege_meldingen (bericht_id, uitkomst, ontvangen)
+values ('lm-dagtaak-oud', 'bezorgd', now() - interval '25 hours'), ('lm-dagtaak-recent', 'niet_bezorgd', now() - interval '1 hour');
+select private.uitnodigingsmails_opruimen();
+select pg_temp.moet(not exists (select 1 from private.uitnodigingsmail_vroege_meldingen where bericht_id = 'lm-dagtaak-oud'), 'B7 dagtaak ruimt ouder dan 1 dag op');
+select pg_temp.moet(exists (select 1 from private.uitnodigingsmail_vroege_meldingen where bericht_id = 'lm-dagtaak-recent'), 'B7 dagtaak laat recente staan');
+
+select 'herstel_bezorgmeldingen: 7 van 7 scenario''s geslaagd' as uitslag;
 rollback;

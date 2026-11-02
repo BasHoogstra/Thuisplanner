@@ -1,12 +1,16 @@
 -- Thuisplanner, herstelronde (review): een bezorgmelding van de mailaanbieder die binnenkomt VÓÓRDAT het verzendantwoord
 -- (het bericht-id) is opgeslagen, ging verloren. uitnodigingsmail_bezorging zocht de mail op bericht_id; dat zet
 -- uitnodigingsmail_klaar pas na het antwoord van de aanbieder. Een snelle webhook vond dan geen rij, kreeg toch 200 en
--- de aanbieder herhaalde hem niet. Deze migratie wijzigt geen eerdere migratie; ze vervangt alleen de twee functies.
+-- de aanbieder herhaalde hem niet. Deze migratie wijzigt geen eerdere migratie; ze vervangt alleen drie functies.
+--
+-- Volgorde (docs/thuisplanner-migratievolgorde.md): direct na de laatst toegepaste migratie op staging (20261027120000,
+-- 19 migraties) en vóór de gereserveerde nummers van de andere werksporen (28 Vakanties, 29 Mijn spullen, 30 agenda).
 --
 -- Oplossing:
 -- 1. Een melding zonder bekende mail wordt kort bewaard (private.uitnodigingsmail_vroege_meldingen: alleen het bericht-id
 --    van de aanbieder, de uitkomst en het tijdstip; geen adres of inhoud). Na 1 dag gaat hij weg (er komt dan nooit meer
---    een verzendantwoord, of de melding hoorde bij een andere mail, bijvoorbeeld een code).
+--    een verzendantwoord, of de melding hoorde bij een andere mail, bijvoorbeeld een code): bij een nieuwe melding, én
+--    dagelijks via de bestaande taak thuisplanner-uitnodigingsmails-opruimen, ook als er geen webhooks meer komen.
 -- 2. uitnodigingsmail_klaar past bij "aangenomen" meteen een bewaarde melding toe en ruimt hem op.
 -- 3. Beide functies nemen per bericht-id hetzelfde transactieslot (advisory lock), zodat een melding en het opslaan van
 --    het antwoord elkaar nooit missen, ook niet als ze tegelijk lopen.
@@ -84,5 +88,18 @@ begin
     insert into private.uitnodigingsmail_vroege_meldingen as v (bericht_id, uitkomst) values (p_bericht, p_uitkomst)
       on conflict (bericht_id) do update set uitkomst = case when excluded.uitkomst = 'niet_bezorgd' then 'niet_bezorgd' else v.uitkomst end;
   end if;
+  return n;
+end $$;
+
+-- De dagelijkse opruimtaak (thuisplanner-uitnodigingsmails-opruimen, 53 3 * * *; ongewijzigd) ruimt ook de vroege
+-- meldingen van meer dan 1 dag op, zodat ze ook weggaan als er geen nieuwe webhooks meer komen. De taak zelf en wat de
+-- functie teruggeeft (het aantal weggegooide wachtrijregels) blijven hetzelfde.
+create or replace function private.uitnodigingsmails_opruimen()
+returns integer language plpgsql security definer set search_path = '' as $$
+declare n integer;
+begin
+  delete from private.uitnodigingsmails where gevraagd < now() - interval '30 days';
+  get diagnostics n = row_count;
+  delete from private.uitnodigingsmail_vroege_meldingen where ontvangen < now() - interval '1 day';
   return n;
 end $$;

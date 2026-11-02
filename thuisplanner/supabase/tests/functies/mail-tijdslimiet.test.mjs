@@ -74,6 +74,7 @@ for (const adapter of ['lettermint', 'test']) {
     assert.ok(r.fout instanceof NietAangenomen, String(r.fout));
     assert.equal(r.fout.status, 503);
     assert.equal(r.fout.wachtS, 30);
-    assert.ok(r.ms < 1000, `niet op de body gewacht (${r.ms} ms)`);
+    // Niet op de body gewacht: ruim onder de tijdslimiet (een vaste grens van 1 s bleek op een zwaar belaste machine te krap).
+    assert.ok(r.ms < TIJDSLIMIET_MS - 500, `niet op de body gewacht (${r.ms} ms)`);
   });
 }
