@@ -141,7 +141,7 @@ test('een taak, met een correctie van de dag en de persoon via Aanpassen', async
   await venster(page).getByRole('group', { name: 'Wanneer' }).getByRole('button', { name: 'Vandaag' }).click();
   await venster(page).getByRole('button', { name: /^Wie:/ }).click();
   await venster(page).getByRole('group', { name: 'Wie pakt het op' }).getByRole('button', { name: 'Thomas' }).click();
-  await expect(regel(page)).toHaveText('Vandaag · voor Thomas');
+  await expect(regel(page)).toHaveText('Taak · Vandaag · voor Thomas');
   await geenHorizontaleScroll(page);
   await verstuur(page).click();
   await expect(page.getByRole('checkbox', { name: 'Container aan de weg' })).toBeVisible();

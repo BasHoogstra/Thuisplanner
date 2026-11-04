@@ -26,7 +26,20 @@ export function isVoorbij(a: Afspraak, nu: Tijd): boolean {
 
 /** De eerstvolgende afspraak met een tijd die nog niet voorbij is: die krijgt als enige nadruk. */
 export function straks(items: Item[], vandaag: Datum, nu: Tijd): Afspraak | undefined {
-  return afsprakenOp(items, vandaag).find(a => a.start !== undefined && !isVoorbij(a, nu));
+  return eerstvolgende(afsprakenOp(items, vandaag), nu);
+}
+
+/**
+ * Dezelfde keuze binnen een lijst die het scherm al heeft. Een herhalende afspraak is bij elke berekening een nieuw
+ * voorkomen; kies daarom uit dezelfde lijst, anders herkent het scherm de afspraak niet en staat hij er twee keer.
+ */
+export function eerstvolgende(afspraken: Afspraak[], nu: Tijd): Afspraak | undefined {
+  return afspraken.find(a => a.start !== undefined && !isVoorbij(a, nu));
+}
+
+/** Is deze afspraak nu bezig? */
+export function loopt(a: Afspraak, nu: Tijd): boolean {
+  return a.start !== undefined && a.start <= nu && !isVoorbij(a, nu);
 }
 
 /** Open taken voor vandaag, inclusief blijven liggen van eerder. Taken zonder datum horen niet op Vandaag. */

@@ -533,6 +533,8 @@ a { color: var(--accent); }
 .maand-titels { display: none; }
 
 /* ---------- Melding ---------- */
+/* Een open venster gaat voor: de melding bedekt geen knoppen. Hij wordt nog wel voorgelezen en komt terug als het venster sluit. */
+body.geen-scroll .melding-plek { opacity: 0; clip-path: inset(50%); }
 .melding-plek {
   position: fixed; left: 0; right: 0; bottom: calc(var(--nav-hoogte) + env(safe-area-inset-bottom) + 16px);
   z-index: 40; display: flex; justify-content: center; padding: 0 16px; pointer-events: none;

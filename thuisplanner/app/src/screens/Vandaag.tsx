@@ -3,7 +3,7 @@ import { useApp } from '../lib/context';
 import { plekVoor, titelVoor } from '../lib/rechten';
 import { begroeting, korteDag, dagLabel, langeDatum } from '../lib/datum';
 import {
-  achterstand, afgerondVandaag, afsprakenOp, binnenkort, isVoorbij, meedenker, openBoodschappen, samenvatting, straks, takenVandaag,
+  achterstand, afgerondVandaag, afsprakenOp, binnenkort, eerstvolgende, isVoorbij, loopt, meedenker, openBoodschappen, samenvatting, takenVandaag,
 } from '../lib/vandaag';
 import { AfspraakRij, TaakRij, Wie, tijdTekst } from '../components/Rijen';
 import { IcPijl } from '../components/Iconen';
@@ -18,7 +18,7 @@ export function Vandaag() {
   const { staat, vandaag, nu, uur, huishouden, lid } = app;
   const ik = lid(huishouden.ik);
   const afspraken = afsprakenOp(staat.items, vandaag);
-  const eerst = straks(staat.items, vandaag, nu);
+  const eerst = eerstvolgende(afspraken, nu);
   const overig = afspraken.filter(a => a !== eerst);
   const taken = takenVandaag(staat.items, vandaag);
   const klaar = afgerondVandaag(staat.items, vandaag);
@@ -55,7 +55,7 @@ export function Vandaag() {
             <section className="straks" aria-label="Straks">
               <button type="button" className="straks-knop" onClick={() => app.openItem(eerst.id)}
                 aria-label={`${titelVoor(eerst, huishouden.ik)}, ${tijdTekst(eerst)}. Openen`}>
-                <span className="sectie-label">{afspraken.some(a => isVoorbij(a, nu)) ? 'Hierna' : 'Straks'}</span>
+                <span className="sectie-label">{loopt(eerst, nu) ? 'Nu' : 'Straks'}</span>
                 <span className="straks-tijd">{tijdTekst(eerst)}</span>
                 <span className="straks-titel">{titelVoor(eerst, huishouden.ik)}</span>
                 <span className="straks-sub">

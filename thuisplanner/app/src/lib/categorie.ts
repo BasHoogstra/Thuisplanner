@@ -65,7 +65,7 @@ const WOORDEN: Record<Exclude<CategorieSleutel, 'overig'>, string[]> = {
     'witte wijn', 'prosecco', 'ice tea', 'energiedrank', 'tonic'],
   diepvries: ['ijs', 'ijsjes', 'diepvriespizza', 'pizza', 'friet', 'patat', 'diepvriesgroente', 'spinazie à la crème',
     'vissticks', 'bitterballen', 'kroket', 'frikandel', 'loempia'],
-  huishouden: ['wc-papier', 'toiletpapier', 'keukenpapier', 'keukenrol', 'tissues', 'zakdoekjes', 'afwasmiddel', 'vaatwastablet',
+  huishouden: ['wc-papier', 'wc papier', 'wcpapier', 'wc-rol', 'wc rol', 'wcrol', 'toiletpapier', 'toilet papier', 'toiletrol', 'keukenpapier', 'keukenrol', 'tissues', 'zakdoekjes', 'afwasmiddel', 'vaatwastablet',
     'vaatwastabletten', 'wasmiddel', 'wasverzachter', 'schoonmaakmiddel', 'allesreiniger', 'bleek', 'chloor', 'ontkalker',
     'vuilniszak', 'vuilniszakken', 'afvalzak', 'pedaalemmerzak', 'aluminiumfolie', 'folie', 'huishoudfolie', 'bakpapier',
     'boterhamzakje', 'diepvrieszak', 'spons', 'sponsje', 'theedoek', 'batterij', 'batterijen', 'lamp', 'lampje', 'kaars',

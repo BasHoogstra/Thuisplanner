@@ -230,7 +230,7 @@ export function SnelInvoer({ standaard, sluit, allesInvullen, terugNaar }: {
             ? <p className="kaart-regel">{soort === 'boodschap' ? 'Wat moet er gekocht worden?' : 'Wat moet er gebeuren?'}</p>
             : <>
               <p className="kaart-titel">{b.titel}</p>
-              <p className="kaart-regel">{b.regel}</p>
+              <p className="kaart-regel">{soort === 'taak' && !vakantie ? `Taak · ${b.regel}` : b.regel}</p>
             </>}
           {soort === 'afspraak' && !geenTitel && (
             // Privé of gedeeld: bij een afspraak altijd in beeld en met één tik te wisselen (snelinvoer §4.4).

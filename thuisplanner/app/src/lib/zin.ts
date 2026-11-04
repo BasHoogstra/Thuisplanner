@@ -33,7 +33,8 @@ export interface Opties {
 
 export interface Melding {
   soort: 'middag' | 'tijd-of-datum' | 'herhalende-taak' | 'boodschap-dag' | 'prive-geen-afspraak' | 'taak-meer-personen'
-    | 'plek-geen-afspraak' | 'geen-titel' | 'onbekende-naam' | 'vakantie-afspraak' | 'vakantie-twijfel' | 'onbekende-vakantie';
+    | 'plek-geen-afspraak' | 'geen-titel' | 'onbekende-naam' | 'vakantie-afspraak' | 'vakantie-twijfel' | 'onbekende-vakantie'
+    | 'datum-weekdag';
   tekst: string;
 }
 
@@ -99,6 +100,8 @@ function afstand(a: string, b: string): number {
   return d[a.length][b.length];
 }
 
+const WEEKDAG_NAAM = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+
 /** Eerstvolgende weekdag na vandaag (vandaag telt niet mee). */
 function volgende(vandaag: Datum, dag: number): Datum {
   const nu = vanDatum(vandaag).getDay();
@@ -154,26 +157,44 @@ export function begrijp(tekst: string, ctx: Context, opties: Opties = {}): Voors
   let plekVanaf = -1;
   let soortwoord = false;
 
-  // Een datum op positie i (een of meer woorden); geeft het aantal gebruikte woorden of 0.
-  function datumOp(i: number): { d: Datum; n: number } | null {
+  // Een uitgeschreven datum ("13 november", "13-11") op positie i, alleen als de woorden nog vrij zijn: "9-10" kan al een tijd zijn.
+  function vasteDatum(i: number): { d: Datum; n: number } | null {
     const a = w(i), b = w(i + 1);
-    if (VANDAAG_WOORDEN.has(a)) return { d: ctx.vandaag, n: 1 };
-    if (MORGEN_WOORDEN.has(a)) return { d: plusDagen(ctx.vandaag, 1), n: 1 };
-    if (a === 'overmorgen') return { d: plusDagen(ctx.vandaag, 2), n: 1 };
-    if ((a === 'aanstaande' || a === 'as' || a === 'a.s') && b in WEEKDAGEN) return { d: volgende(ctx.vandaag, WEEKDAGEN[b]), n: 2 };
-    if (a === 'volgende' && b === 'week' && w(i + 2) in WEEKDAGEN) {
-      const dag = WEEKDAGEN[w(i + 2)];
-      return { d: plusDagen(maandagVan(ctx.vandaag), 7 + ((dag + 6) % 7)), n: 3 };
-    }
-    if (a in WEEKDAGEN) return { d: volgende(ctx.vandaag, WEEKDAGEN[a]), n: 1 };
+    if (!vrij(i)) return null;
     const dm = /^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{4}))?$/.exec(a);
     if (dm) { const d = maakDatum(ctx.vandaag, +dm[1], +dm[2], dm[3] ? +dm[3] : undefined); if (d) return { d, n: 1 }; }
-    if (/^\d{1,2}$/.test(a) && b in MAANDEN) {
-      const jaar = /^\d{4}$/.test(w(i + 2)) ? +w(i + 2) : undefined;
+    if (/^\d{1,2}$/.test(a) && b in MAANDEN && vrij(i + 1)) {
+      const jaar = /^\d{4}$/.test(w(i + 2)) && vrij(i + 2) ? +w(i + 2) : undefined;
       const d = maakDatum(ctx.vandaag, +a, MAANDEN[b], jaar);
       if (d) return { d, n: jaar ? 3 : 2 };
     }
     return null;
+  }
+
+  // Een weekdag met een datum erachter ("vrijdag 13 november"): de datum wint van "de eerstvolgende vrijdag". Spreken ze
+  // elkaar tegen, dan zegt de kaart dat.
+  function weekdagMetDatum(i: number, dag: number, n: number): { d: Datum; n: number; botsing?: string } | null {
+    const v = vasteDatum(i + n);
+    if (!v) return null;
+    const echt = vanDatum(v.d).getDay();
+    return { d: v.d, n: n + v.n, botsing: echt === dag ? undefined : `Je schreef ${WEEKDAG_NAAM[dag]}, maar dit is een ${WEEKDAG_NAAM[echt]}.` };
+  }
+
+  // Een datum op positie i (een of meer woorden); geeft het aantal gebruikte woorden of 0.
+  function datumOp(i: number): { d: Datum; n: number; botsing?: string } | null {
+    const a = w(i), b = w(i + 1);
+    if (VANDAAG_WOORDEN.has(a)) return { d: ctx.vandaag, n: 1 };
+    if (MORGEN_WOORDEN.has(a)) return { d: plusDagen(ctx.vandaag, 1), n: 1 };
+    if (a === 'overmorgen') return { d: plusDagen(ctx.vandaag, 2), n: 1 };
+    if ((a === 'aanstaande' || a === 'as' || a === 'a.s') && b in WEEKDAGEN) return weekdagMetDatum(i, WEEKDAGEN[b], 2) ?? { d: volgende(ctx.vandaag, WEEKDAGEN[b]), n: 2 };
+    if (a === 'volgende' && b === 'week' && w(i + 2) in WEEKDAGEN) {
+      const dag = WEEKDAGEN[w(i + 2)];
+      const metDatum = weekdagMetDatum(i, dag, 3);
+      if (metDatum) return metDatum;
+      return { d: plusDagen(maandagVan(ctx.vandaag), 7 + ((dag + 6) % 7)), n: 3 };
+    }
+    if (a in WEEKDAGEN) return weekdagMetDatum(i, WEEKDAGEN[a], 1) ?? { d: volgende(ctx.vandaag, WEEKDAGEN[a]), n: 1 };
+    return vasteDatum(i);
   }
 
   // 0. Vakantie: alleen "voor" gevolgd door de volledige naam van een lopende of komende vakantie (langste naam eerst),
@@ -289,6 +310,7 @@ export function begrijp(tekst: string, ctx: Context, opties: Opties = {}): Voors
       const d = datumOp(i + 1);
       if (!d) continue;
       herhaling.tot = d.d; neem(i); for (let k = 0; k < d.n; k++) neem(i + 1 + k);
+      if (d.botsing) meld({ soort: 'datum-weekdag', tekst: d.botsing });
       break;
     }
   }
@@ -303,6 +325,7 @@ export function begrijp(tekst: string, ctx: Context, opties: Opties = {}): Voors
       for (let k = 0; k < d.n; k++) if (!vrij(i + k)) vrijAlles = false;
       if (!vrijAlles) continue;
       datum = d.d; for (let k = 0; k < d.n; k++) neem(i + k);
+      if (d.botsing) meld({ soort: 'datum-weekdag', tekst: d.botsing });
       if (i > 0 && vrij(i - 1) && w(i - 1) === 'op') neem(i - 1);   // "op 18 oktober"
       herkend.add('datum');
       break;
