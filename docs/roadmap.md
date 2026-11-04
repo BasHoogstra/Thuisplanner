@@ -39,6 +39,7 @@ afwijking dan eerst.
   Op 27 oktober 2026 is mijlpaal 1 aangepast: Sanne start op de huidige geteste stand; KG-5E licht en herhalende taken
   volgen als update (mijlpaal 1b). Op 28 oktober 2026 is Mijn spullen & Documenten (besluit 17) toegevoegd als
   mijlpaal 2d, in ontwikkeling. Stap 2.10 hieronder (Huisplan-spoor) gaat daarin op voor Thuisplanner.
+- **Bijgewerkt op 4 november 2026:** Plannen (besluit 18) als mijlpaal 2e, eerst alleen als demo.
 - **Status:** volgens `CHANGELOG.md`.
 
 **Legenda**
@@ -170,6 +171,7 @@ privacy en veiligheid gaan voor de datum: liever iets minder functies dan half w
 - Supabase Pro wordt voorbereid, niet aangeschaft zonder apart akkoord. V1 werkt **online eerst**, met duidelijke
   foutafhandeling bij verbindingsverlies.
 - KG-5E licht (één datapad, de AI-aansluitpunten) komt vóór nieuwe domeinen, zodat niets twee keer wordt gebouwd.
+  Uitzondering: de demo van Plannen (besluit 18) mag eerder; het echte pad wacht wel op KG-5E licht.
 
 **Mijlpalen:**
 
@@ -180,7 +182,8 @@ privacy en veiligheid gaan voor de datum: liever iets minder functies dan half w
 | 2. Bèta 1 met een kleine groep externe gezinnen (3–5) | **Rond week 6** | Een **stabiele en veilige basis**: alles uit mijlpaal 1 en 1b, op een eigen bèta-omgeving, met back-ups en een hersteloefening, een gepubliceerde privacyverklaring, gate 9 voor alle domeinen, een minimale app-versie, bewaking, een feedbackkanaal en de acceptatiepoort (mobiele UX, privacy, onboarding) |
 | 2b. Maaltijden & Recepten (R1–R3) | **Week 7–9** | R1: het weekmenu via de + en op Vandaag en in de Agenda. R2: het receptenboek, omrekenen en ingrediënten naar Boodschappen. R3: een link of tekst plakken in de +, met de import van ondersteunde receptensites. Eerst bij Sanne op staging, daarna als update voor de bèta. |
 | 2d. Mijn spullen & Documenten (besluit 17) | **In ontwikkeling** sinds 28 oktober 2026, met hoge prioriteit; **bedoeld voor bèta 1** (3–5 gezinnen), mits beveiliging, documentopslag, huishoudrechten, verwijderprocedure en tests aantoonbaar in orde zijn. Is de functie dan nog niet veilig of stabiel genoeg, dan start bèta 1 zonder deze functie. | Aankoopdossiers en documenten, gekoppeld zonder duplicaten; PDF- en foto-invoer met handmatige correctie; zoeken en vragen via de + ("Welk modelnummer heeft onze vaatwasser?"); een demoflow met een verzonnen vaatwasser. Wordt lokaal gebouwd in een eigen worktree (`Thuisplanner-spullen`), met de echte opslag direct veilig ontworpen (privé-bucket per huishouden, RLS, bestandscontrole, verwijderen en back-up). Een migratie, bucket of uitrol alleen na een eigen akkoord; de bestaande onderdelen en de bèta-voorbereiding blijven ongemoeid. Uitwerking: `docs/thuisplanner-spullen-documenten.md`. |
-| 2c. Bèta 2 | **Vanaf week 10**, gefaseerd | Minimale herinneringen (na de pushproef), huishoudkennis en contacten met verjaardagen, slimme projecten (sjablonen, en AI na de kwaliteitsproef), Instagram-tekst plakken, Agenda-stap 5–7, Vandaag versie 2 |
+| 2e. Plannen (besluit 18) | **Demo: na een eigen akkoord**, zonder bèta-belofte en zonder 1b, bèta 1 of Maaltijden te vertragen. **Echte versie: niet vóór bèta 1**, na KG-5E licht, op zijn vroegst bij 2c. | Demo: plannen met taken, voortgang, optionele onderdelen, meer verantwoordelijken en nagespeelde bijlagen; plan-taken zonder datum in een inklapbare groep in de Agenda. Alleen in de demomodus, niet op staging. Plek: **voorlopig onder Meer**, te evalueren na gebruikerstesten. ⛔ De gates "Plannen" en "Meerdere verantwoordelijken". Uitwerking: `docs/thuisplanner-plannen.md`. |
+| 2c. Bèta 2 | **Vanaf week 10**, gefaseerd | Minimale herinneringen (na de pushproef), huishoudkennis en contacten met verjaardagen, slimme projecten (sjablonen, en AI na de kwaliteitsproef; ze komen terecht in Plannen, mijlpaal 2e), Instagram-tekst plakken, Agenda-stap 5–7, Vandaag versie 2 |
 | 3. Publieke lancering | **Zodra de eisen zijn gehaald**, voorlopige inschatting week 12–16 | Een productieproject met back-ups, export en account verwijderen in de app, quota, een externe review van het inloggen, privacyverklaring en voorwaarden, monitoring, een eigen domein zonder Access, en een privé-repository of licentie |
 
 **Bewust later:** offline werken, abonnementen (F10), co-ouderschap (besluit 12), de import vanuit Huisplan, en
@@ -630,7 +633,7 @@ die erachter staat. De kolom "Oorspronkelijk advies" komt uit de roadmap van 2 o
 | --- | --- | --- | --- |
 | Inlogmethoden | 1.7 | Start met een e-mailcode (geen wachtwoord); Apple en Google in fase 4. | Ongewijzigd open. |
 | Bewaartermijn van de oude Firebase-data | 1.15 | 90 dagen na de overstap, daarna kan het huishouden het eigen project opruimen. | Ongewijzigd open. |
-| Navigatie | 3.1, 3.5 | Beslissen na het onderzoek in 3.1, niet vooraf. | 🔁 Vóór 3.1 toetsen aan werkelijk gebruik (beslissing 2). |
+| Navigatie | 3.1, 3.5 | Beslissen na het onderzoek in 3.1, niet vooraf. | 🔁 Vóór 3.1 toetsen aan werkelijk gebruik (beslissing 2). Plannen staat voorlopig onder Meer; dat is geen vaste keuze en wordt na gebruikerstesten geëvalueerd (besluit 18). |
 | Prijsmodel en welke functies betaald zijn | 4.5 | Eén abonnement per huishouden, onbeperkt leden, met proefperiode; eventueel AI-foto's als extra. | ✏️ Vervallen: de hele planner alleen-lezen of onbruikbaar na een proefperiode (beslissing 3). Een Premium-proefperiode blijft mogelijk, bijvoorbeeld met daarna een terugval naar een bruikbare Gratis-versie. Het prijsmodel zelf staat nog open. |
 | AI-dienst voor foto's en de kosten daarvan | 3.8 | Pas kiezen als 3.1–3.7 bewezen zijn; verwerking in de EU en geen opslag bij de dienst. | 🔁 De prioriteit van 3.8 wordt herbeoordeeld bij de eerstvolgende roadmapreview (beslissing 5). |
 | Alleen web-app of ook in de app-winkels | 4.10 | Eerst als web-app; app-winkels pas als pushmeldingen op iPhone een probleem blijken. | Ongewijzigd open. |

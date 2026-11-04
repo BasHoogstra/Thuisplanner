@@ -43,7 +43,7 @@ een tester gegevens verliest of iets ziet wat niet voor hem is.
 
 | In bèta-1 | Later (na de eerste test van de partner, of na mijlpaal 2) |
 | --- | --- |
-| Inloggen met een e-mailcode, huishouden, uitnodigen, rollen | Slimme projecten (besluit 13; gate 9 "projecten", AVG-beoordeling AI-verwerker, kwaliteitsproef) |
+| Inloggen met een e-mailcode, huishouden, uitnodigen, rollen | Plannen en slimme projecten (besluiten 13 en 18; gate 9 "plannen", AVG-beoordeling AI-verwerker, kwaliteitsproef) |
 | Vandaag, Agenda (met "Bezet"), Taken, Boodschappen, zoals op staging | Huishoudkennis en contacten (besluit 14; gate 9 "kennis en contacten") |
 | Herhalende afspraken | Herhalende taken (besluit 15), als ze vóór week 5 niet klaar en door gate 9 zijn |
 | Online eerst, met duidelijke meldingen bij verbindingsverlies | Herinneringen (besluit 16; pushproef en gate 9 "meldingen") |

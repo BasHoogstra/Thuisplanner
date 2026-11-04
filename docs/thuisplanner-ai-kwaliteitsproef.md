@@ -29,10 +29,10 @@ uitslag kiezen we de aanpak (AI, sjablonen of beide) en de dienst.
 | Minimale gegevens naar buiten: alleen de zin en de datum | De proef stuurt alleen synthetische zinnen en een datum; geen persoonsgegevens (sectie 8) |
 | Keuze op kwaliteit, betrouwbaarheid, privacy en kosten; betaald alleen na afzonderlijk akkoord met kostenplafond | Kandidaten en kosten in sectie 5; akkoordmomenten in sectie 9 |
 
-**Gate "Slimme projecten"** (vóór de eerste migratie voor projecten en vóór de eerste echte aanvraag aan een
-AI-dienst): gate 9 voor het domein "projecten", een AVG-beoordeling van de AI-verwerker inclusief verwerkingslocatie,
-en de uitslag van deze proef. De proef levert het derde onderdeel en de feiten voor het tweede (sectie 8); gate 9 valt
-buiten deze proef.
+**Gate "Slimme projecten"** (vóór de eerste echte aanvraag aan een AI-dienst; gesplitst door besluit 18): een
+AVG-beoordeling van de AI-verwerker inclusief verwerkingslocatie, en de uitslag van deze proef. De proef levert het
+tweede onderdeel en de feiten voor het eerste (sectie 8). Gate 9 voor het domein "plannen" hoort bij de gate "Plannen" en
+valt buiten deze proef.
 
 **Productkompas-toets (kort):**
 
@@ -567,7 +567,7 @@ onverwachte. Dat is precies de hybride aanpak uit besluit 13.
 | 6 | *Optioneel:* betaalde meetlat (Claude Haiku en Sonnet), alleen synthetische zinnen | Producteigenaar maakt de API-sleutel en stelt de limiet in; Claude draait | **Ja**, afzonderlijk, met plafond (voorstel € 5) | 1 uur |
 | 7 | Blind scoren (6.2) | Producteigenaar en partner | Nee | 3–6 uur per persoon |
 | 8 | Uitslag: tabellen per model, de beslisregel toegepast, voorbeelden van goede en slechte plannen, advies | Claude, met controle door de producteigenaar | Nee | ½ dag |
-| 9 | Besluit over aanpak en dienst; daarna pas de AVG-beoordeling afronden en gate 9 voor "projecten" | Producteigenaar | **Ja** | — |
+| 9 | Besluit over aanpak en dienst; daarna pas de AVG-beoordeling afronden | Producteigenaar | **Ja** | — |
 
 **Totaal:** ongeveer 2 à 3 werkdagen, verdeeld over ongeveer anderhalve week (vanwege het dagtegoed en het blind scoren).
 
