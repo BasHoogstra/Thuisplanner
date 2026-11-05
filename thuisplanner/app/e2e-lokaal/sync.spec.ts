@@ -148,7 +148,7 @@ test('onbevestigd: niet aangekomen → "niet bevestigd" op de rij, herstelkeuze 
 
   // Nog een keer hetzelfde toevoegen: niet stil dubbel, maar een keuze.
   await eva.getByRole('button', { name: 'Toevoegen' }).first().click();
-  await venster(eva).getByRole('button', { name: 'Alles invullen' }).click();   // B2: de + opent de zin; dit gebruikt het formulier
+  await venster(eva).getByRole('button', { name: 'Formulier', exact: true }).click();   // B2: de + opent de zin; dit gebruikt het formulier
   await venster(eva).getByRole('tab', { name: 'Taak' }).click();
   await venster(eva).locator('#item-titel').fill('Regenjassen opruimen');
   await venster(eva).getByRole('button', { name: 'Toevoegen', exact: true }).click();
