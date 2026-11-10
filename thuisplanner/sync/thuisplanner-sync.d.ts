@@ -29,6 +29,8 @@ export interface TaakRij extends VoorlopigeVelden {
   done_on: string | null; done_by_member_id?: string | null; version: number; created_at?: string; updated_at?: string;
   /** De vakantie waarvoor dit een voorbereiding is (F8), of null. */
   trip_id?: string | null;
+  /** Het spul waar deze taak bij hoort (Mijn spullen, migratie 29), of null. Alleen met de optie spullen. */
+  possession_id?: string | null;
 }
 export interface AfspraakRij extends VoorlopigeVelden {
   id: string; household_id?: string; owner_member_id?: string; visibility: 'household' | 'private';
@@ -63,6 +65,22 @@ export interface VakantieKoppelingRij {
   id: string; household_id: string; trip_id: string; shopping_item_id: string; settled_at: string | null;
   version: number; created_at: string; updated_at: string;
 }
+/** Mijn spullen & Documenten (migratie 29): een spul (aankoopdossier). Een persoonlijk spul van een ander komt nooit binnen. */
+export interface SpulRij extends VoorlopigeVelden {
+  id: string; household_id: string; name: string; category: string | null; brand: string | null; model: string | null; serial: string | null;
+  purchase_date: string | null; shop: string | null; price_cents: number | null; currency: string; order_number: string | null;
+  warranty_commercial_until: string | null; warranty_extra_until: string | null; warranty_extra_provider: string | null; notes: string | null;
+  visibility: 'household' | 'private'; owner_member_id: string; field_status: Record<string, 'voorstel'>;
+  version: number; created_at?: string; updated_at?: string; deleted_at: string | null;
+}
+/** Een document: één rij, één bestand op storage_path. upload_status zet alleen de server ('klaar' na bevestig-upload). */
+export interface DocumentRij extends VoorlopigeVelden {
+  id: string; household_id: string; title: string; kind: string; document_date: string | null; visibility: 'household' | 'private';
+  owner_member_id: string; upload_status: 'wacht' | 'klaar' | 'mislukt'; storage_path?: string; mime: string; size_bytes: number;
+  sha256: string | null; version: number; created_at?: string; updated_at?: string; deleted_at: string | null;
+}
+/** Document ↔ spul (veel-op-veel); alleen de actuele koppelingen. */
+export interface DocumentKoppelingRij { id: string; household_id: string; document_id: string; possession_id: string; version: number; created_at?: string; wachtend?: boolean }
 /** Wat vinkjesTerugzetten nodig heeft om vinkjes precies terug te zetten. */
 export interface VinkjeTerug { id: string; version: number; packed: true; packed_at: string | null; packed_by: string | null }
 /** Eén overname: de doelvakantie en het aanmaakmoment dat de database aan al haar items en nieuwe lijsten gaf. */
@@ -90,6 +108,10 @@ export interface Toestand {
   paklijsten: PaklijstRij[];
   /** Koppelingen vakantie–boodschap van dezelfde vakanties (ook afgehandelde). */
   vakantieKoppelingen: VakantieKoppelingRij[];
+  /** Alleen met de optie spullen: spullen en documenten (niet verwijderd of nog in de prullenbak) en de koppelingen. */
+  spullen: SpulRij[];
+  documenten: DocumentRij[];
+  documentKoppelingen: DocumentKoppelingRij[];
 }
 
 export interface Resultaat {
@@ -181,6 +203,17 @@ export interface Acties {
   vinkjesTerugzetten(vakantieId: string, terug: VinkjeTerug[]): Promise<Resultaat & { overgeslagen?: number }>;
   boodschapOntkoppelen(k: VakantieKoppelingRij): Promise<Resultaat>;
   boodschapKoppelingHerstellen(k: VakantieKoppelingRij, versie: number): Promise<Resultaat>;
+  // Mijn spullen & Documenten (alleen met de optie spullen). Toevoegen met een vaste UUID van de app.
+  spulToevoegen(id: string, velden: Record<string, unknown>): Promise<Resultaat>;
+  spulBijwerken(s: SpulRij, velden: Record<string, unknown>, versie?: number): Promise<Resultaat>;
+  spulVerwijderen(s: SpulRij): Promise<Resultaat>;
+  spulTerugzetten(s: SpulRij, versie?: number): Promise<Resultaat>;
+  documentBegin(id: string, velden: Record<string, unknown>): Promise<Resultaat>;
+  documentBijwerken(d: DocumentRij, velden: Record<string, unknown>, versie?: number): Promise<Resultaat>;
+  documentVerwijderen(d: DocumentRij): Promise<Resultaat>;
+  documentTerugzetten(d: DocumentRij, versie?: number): Promise<Resultaat>;
+  documentKoppelen(documentId: string, spulId: string, id: string): Promise<Resultaat>;
+  documentOntkoppelen(k: DocumentKoppelingRij): Promise<Resultaat>;
   opnieuwProberen(id: string): Promise<Resultaat>;
   vergeten(id: string): boolean;
   meldingWeg(): void;
@@ -213,6 +246,8 @@ export declare function maakSync(o: {
   spoor?: (soort: string, status: string) => void;
   /** De dag die de app als "vandaag" toont (jjjj-mm-dd); bepaalt welke vakanties voorbij zijn. Standaard lokaleDatum(). */
   vandaag?: () => string;
+  /** Ook Mijn spullen & Documenten (migratie 29). Standaard uit: dan precies de zoekopdrachten van daarvoor. */
+  spullen?: boolean;
 }): Sync;
 
 /** De laatste dag van een vakantie: einddatum, of vertrek + 13 dagen; zonder datum null. */

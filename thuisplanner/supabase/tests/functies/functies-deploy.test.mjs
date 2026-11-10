@@ -39,7 +39,7 @@ test('git: niets ongecommit in functions/ of config.toml', () => {
   assert.match(gitFouten(' M thuisplanner/supabase/functions/stuur-code/index.ts\n').join(), /niet-gecommitte/);
 });
 
-test('na het deployen: precies de vier, actief, verify_jwt uit; elke afwijking gemeld', () => {
+test('na het deployen: precies de functies van FUNCTIES, actief, verify_jwt uit; elke afwijking gemeld', () => {
   const goed = FUNCTIES.map((slug, i) => ({ slug, name: slug, status: 'ACTIVE', version: i + 1, verify_jwt: false }));
   assert.deepEqual(lijstFouten(goed), []);
   assert.match(lijstFouten(goed.slice(1)).join(), /functies online/);

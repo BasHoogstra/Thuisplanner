@@ -43,8 +43,10 @@ enabled = true
 port = 55324
 
 [storage]
-# Nog niet nodig in KG-1 (geen bestanden).
-enabled = false
+# Mijn spullen & Documenten (besluit 17): één privé-bucket "documenten" (migratie 20261029120000). De limiet per
+# bestand staat ook op de bucket zelf (10 MiB).
+enabled = true
+file_size_limit = "10MiB"
 
 [auth]
 enabled = true
@@ -84,6 +86,15 @@ verify_jwt = false
 
 # Bezorgmeldingen van de mailaanbieder, ondertekend (zie functions/_gedeeld/aanbieder.ts).
 [functions.mail-bezorging]
+verify_jwt = false
+
+# Mijn spullen & Documenten. bevestig-upload controleert de sessie zelf: het document wordt opgehaald met het token van
+# de gebruiker (PostgREST weigert een ongeldig token, RLS doet de rest), zoals de andere functies zelf controleren.
+[functions.bevestig-upload]
+verify_jwt = false
+
+# Alleen de database roept de opruimronde aan (pg_net, met het wachtrijgeheim uit Vault).
+[functions.opruimen-documenten]
 verify_jwt = false
 
 [analytics]

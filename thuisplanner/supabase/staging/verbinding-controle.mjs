@@ -18,7 +18,7 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { exportMapFouten, leesExport, schrijfExport } from './export.mjs';
+import { exportMapFouten, haalBestanden, leesExport, schrijfExport } from './export.mjs';
 
 // Zelfde lijst als thuisplanner/app/scripts/staging-build.ts: de Huisplan-projecten als SHA-256 van het kenmerk.
 const HUISPLAN_HASHES = new Set([
@@ -180,7 +180,54 @@ export const SCHEMA_PER_STAND = Object.freeze({
     Object.freeze({ schema: 'private', relaties: 10, functies: 104, policies: 0 }),
     Object.freeze({ schema: 'public', relaties: 15, functies: 38, policies: 30 }),
   ]),
+  // Plus Mijn spullen & Documenten (migratie 29, besluit 17; nog niet online): +3 relaties (possessions, documents,
+  // document_links), +9 policies (drie per tabel), +16 functies in private en +3 in public (documenten_klaar,
+  // documenten_mislukt, documenten_op_te_ruimen); daarvan 1 voor het inplannen van de opruimronde
+  // (documenten_opruimen_ronde). Eerst gemeten op de lokale stack thuisplanner_spullen (28 en 30 oktober 2026, zonder
+  // de herstelmigratie 20261027180000); opnieuw gemeten na het samenvoegen in thuisplanner-beta, nu bovenop
+  // 20261027180000, op een lege geïsoleerde lokale database met alle 21 migraties (10 november 2026).
+  '20261029120000': Object.freeze([
+    Object.freeze({ schema: 'private', relaties: 10, functies: 120, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 18, functies: 41, policies: 39 }),
+  ]),
 });
+
+// De opslag (Storage) per stand: tot en met migratie 27 niets; vanaf migratie 29 precies de privé-bucket "documenten" en
+// precies twee policies op storage.objects (lezen en uploaden, alleen voor authenticated, via de poort). Elke andere
+// bucket of policy, een publieke bucket of andere limieten is een fout.
+export const SPULLEN_STAND = '20261029120000';
+export const VERWACHTE_OPSLAG = Object.freeze({
+  buckets: Object.freeze([Object.freeze({ id: 'documenten', public: false, file_size_limit: 10485760,
+    allowed_mime_types: Object.freeze(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']) })]),
+  policies: Object.freeze([
+    Object.freeze({ polname: 'documenten_lezen', polcmd: 'r', rollen: Object.freeze(['authenticated']), poort: 'private.documentobject_lezen(name)' }),
+    Object.freeze({ polname: 'documenten_uploaden', polcmd: 'a', rollen: Object.freeze(['authenticated']), poort: 'private.documentobject_uploaden(name)' }),
+  ]),
+});
+const GEEN_OPSLAG = Object.freeze({ buckets: Object.freeze([]), policies: Object.freeze([]) });
+/** De verwachte opslag voor een migratiegeschiedenis. */
+export function verwachteOpslagVoor(versies) {
+  return versies.includes(SPULLEN_STAND) ? VERWACHTE_OPSLAG : GEEN_OPSLAG;
+}
+/** Fouten in de opslag ten opzichte van de vaste lijst. Leeg = in orde. */
+export function opslagFouten(opslag, verwacht) {
+  const f = [];
+  const b = (opslag?.buckets ?? []).map(x => ({ id: x.id, public: x.public, file_size_limit: x.file_size_limit === null ? null : Number(x.file_size_limit),
+    allowed_mime_types: [...(x.allowed_mime_types ?? [])].sort() }));
+  if (JSON.stringify(b) !== JSON.stringify(verwacht.buckets)) f.push(`opslag: buckets ${JSON.stringify(b)} in plaats van ${JSON.stringify(verwacht.buckets)}`);
+  const p = (opslag?.policies ?? []).map(x => x.polname);
+  const pv = verwacht.policies.map(x => x.polname);
+  if (JSON.stringify([...p].sort()) !== JSON.stringify([...pv].sort())) f.push(`opslag: policies ${JSON.stringify(p)} in plaats van ${JSON.stringify(pv)}`);
+  for (const e of verwacht.policies) {
+    const x = (opslag?.policies ?? []).find(y => y.polname === e.polname);
+    if (!x) continue;
+    const tekst = `${x.qual ?? ''} ${x.with_check ?? ''}`;
+    if (x.polcmd !== e.polcmd || JSON.stringify(x.rollen) !== JSON.stringify(e.rollen) || !tekst.includes("bucket_id = 'documenten'") || !tekst.includes(e.poort)) {
+      f.push(`opslag: policy ${e.polname} wijkt af (bewerking, rollen, bucket of poortfunctie)`);
+    }
+  }
+  return f;
+}
 
 /** De referentie voor een migratiegeschiedenis (de laatste versie telt). Geen referentie voor die stand: een fout. */
 export function verwachtSchemaVoor(versies) {
@@ -201,6 +248,14 @@ export const VERWACHTE_TAKEN = [
   { jobname: 'thuisplanner-uitnodigingsmails-opruimen', schedule: '53 3 * * *', command: 'select private.uitnodigingsmails_opruimen()' },
   { jobname: 'thuisplanner-uitnodigingsmails-versturen', schedule: '* * * * *', command: 'select private.uitnodigingsmail_ronde()' },
 ];
+// Vanaf migratie 29 (Mijn spullen & Documenten) komt de dagelijkse opruimronde van de documenten erbij.
+export const SPULLEN_TAKEN = Object.freeze([
+  Object.freeze({ jobname: 'thuisplanner-documenten-opruimen', schedule: '7 4 * * *', command: 'select private.documenten_opruimen_ronde()' }),
+]);
+/** De verwachte geplande taken voor een migratiegeschiedenis. */
+export function verwachteTakenVoor(versies) {
+  return (versies ?? []).includes(SPULLEN_STAND) ? [...VERWACHTE_TAKEN, ...SPULLEN_TAKEN] : VERWACHTE_TAKEN;
+}
 
 /**
  * Welke schema's de API (PostgREST) blootstelt (bouwverslag deel 2, §7.2 P-6). `private` heeft functies die alleen veilig
@@ -268,8 +323,15 @@ export async function leesNa(client) {
     const instellingen = metInstellingen ? (await alle(`select wachtwoordsessies_toegestaan, sessiecontrole, onderhoud, huishouden_open,
         registratie_open, codes_aan, mail_testaanbieder from private.instellingen`))[0] ?? null : null;
     const metOpslag = (await alle(`select to_regclass('storage.buckets') is not null as er`))[0].er;
-    const opslag = metOpslag ? (await alle(`select (select count(*) from storage.buckets)::int as buckets,
-        (select count(*) from pg_policy where polrelid = 'storage.objects'::regclass)::int as policies`))[0] : { buckets: 0, policies: 0 };
+    // Alleen de inrichting (buckets en policies), nooit bestanden of hun namen.
+    const opslag = metOpslag ? {
+      buckets: await alle(`select id, public, file_size_limit, allowed_mime_types from storage.buckets order by id`),
+      policies: await alle(`select p.polname, p.polcmd::text as polcmd,
+          array(select r.rolname::text from pg_roles r where r.oid = any (p.polroles) order by 1) as rollen,
+          pg_get_expr(p.polqual, p.polrelid) as qual, pg_get_expr(p.polwithcheck, p.polrelid) as with_check
+        from pg_policy p join pg_class c on c.oid = p.polrelid join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'storage' order by 1`),
+    } : { buckets: [], policies: [] };
     // D6, automatische verzending: pg_net aan, de twee namen in Vault (alleen of ze bestaan; de waarden worden nooit
     // gelezen), en de stand van de wachtrij (alleen aantallen).
     const pgNet = (await alle(`select count(*)::int as n from pg_extension where extname = 'pg_net'`))[0].n === 1;
@@ -297,11 +359,12 @@ export function naFouten(n, verwachteVersies, verwachtSchema) {
   const rt = n.realtime.find(p => p.polname === 'thuisplanner_household_luisteren');
   if (!rt || rt.polcmd !== 'r' || JSON.stringify(rt.rollen) !== '["authenticated"]') f.push('Realtime-policy thuisplanner_household_luisteren ontbreekt of is niet alleen-lezen voor authenticated');
   if (n.realtime.some(p => p.polname !== 'thuisplanner_household_luisteren')) f.push('onverwachte Realtime-policies: ' + n.realtime.map(p => p.polname).join(', '));
-  for (const t of VERWACHTE_TAKEN) {
+  const taken = verwachteTakenVoor(n.versies);
+  for (const t of taken) {
     const job = n.cron.find(j => j.jobname === t.jobname);
     if (!job || job.schedule !== t.schedule || job.command !== t.command || !job.active) f.push(`geplande taak ${t.jobname} ontbreekt of wijkt af`);
   }
-  const onverwacht = n.cron.filter(j => !VERWACHTE_TAKEN.some(t => t.jobname === j.jobname));
+  const onverwacht = n.cron.filter(j => !taken.some(t => t.jobname === j.jobname));
   if (onverwacht.length) f.push('onverwachte geplande taken: ' + onverwacht.map(j => j.jobname).join(', '));
   if (!n.adressen) f.push('household_invites heeft geen kolom invited_email');
   else {
@@ -322,7 +385,7 @@ export function naFouten(n, verwachteVersies, verwachtSchema) {
   if (n.wachtrij && (n.wachtrij.wacht_lang || n.wachtrij.bezig_over_termijn)) {
     f.push(`${n.wachtrij.wacht_lang} uitnodigingsmail(s) wachten langer dan 10 minuten en ${n.wachtrij.bezig_over_termijn} hangen: de verzending draait niet`);
   }
-  if (n.opslag && (n.opslag.buckets || n.opslag.policies)) f.push(`Storage is in gebruik (${n.opslag.buckets} buckets, ${n.opslag.policies} policies): niet ontworpen en niet door de poort getoetst`);
+  if (n.opslag) f.push(...opslagFouten(n.opslag, verwachteOpslagVoor(n.versies)));
   if (verwachtSchema && JSON.stringify(n.schema) !== JSON.stringify(verwachtSchema)) f.push(`schema wijkt af van de lokale referentie: ${JSON.stringify(n.schema)} in plaats van ${JSON.stringify(verwachtSchema)}`);
   return f;
 }
@@ -368,9 +431,18 @@ async function hoofd() {
     try { voor = await leesStand(client); exp = await leesExport(client); na = await leesStand(client); } finally { await client.end(); }
     const afdruk = s => createHash('sha256').update(JSON.stringify({ migraties: s.migraties, extensies: s.extensies, vingerafdruk: s.vingerafdruk })).digest('hex');
     if (afdruk(voor) !== afdruk(na)) { console.log('GESTOPT: het schema veranderde tijdens de export. Er is niets geschreven.'); process.exit(1); }
+    // Mijn spullen & Documenten: de bestanden mee (met de service-rol, alleen uit de omgeving; verbinding.ps1 -MetBestanden).
+    if (exp.bestanden.length) {
+      if (!process.env.KG_OPSLAG_URL || !process.env.KG_OPSLAG_SLEUTEL) {
+        console.log(`GESTOPT: er staan ${exp.bestanden.length} bestanden in de bucket documenten. Exporteer met -MetBestanden (service-rolsleutel). Er is niets geschreven.`);
+        process.exit(1);
+      }
+      exp.bestandenInhoud = await haalBestanden(exp.bestanden, { url: process.env.KG_OPSLAG_URL, sleutel: process.env.KG_OPSLAG_SLEUTEL });
+    }
     const { manifest, sha256Manifest } = schrijfExport(bestand, exp, { omgeving: process.env.KG_OMGEVING, ref: process.env.KG_REF, schemaAfdruk: afdruk(voor) });
     console.log(`EXPORT geschreven en gecontroleerd: ${manifest.tabellen.length} tabellen, ${manifest.tabellen.reduce((a, t) => a + t.rijen, 0)} rijen, migraties tot ${manifest.migraties.at(-1)}, schema ${afdruk(voor).slice(0, 12)}`);
     for (const t of manifest.tabellen) console.log(`  ${t.naam}: ${t.rijen}`);
+    if (manifest.bestanden) console.log(`  bestanden: ${manifest.bestanden.length} (${manifest.bestanden.reduce((a, b) => a + b.grootte, 0)} bytes)`);
     console.log('manifest.json SHA-256: ' + sha256Manifest);
     return;
   }

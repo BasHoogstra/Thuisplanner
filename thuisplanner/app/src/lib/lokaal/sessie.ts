@@ -28,6 +28,11 @@ export interface LokaleConfig {
   wachtwoord?: string;
   /** De sitekey van Cloudflare Turnstile (alleen online; lokaal staat de captcha uit). */
   turnstile?: string;
+  /**
+   * Mijn spullen & Documenten aan (VITE_SPULLEN=aan in de build). Alleen met migratie 29 in de database: zonder die
+   * schakelaar vraagt de app precies wat ze daarvoor vroeg. Zo is de functie ook weer uit te zetten zonder de database.
+   */
+  spullen?: boolean;
 }
 
 // Alleen een Supabase op dit toestel of in het eigen netwerk (voor de test met twee telefoons). Nooit een
@@ -51,7 +56,7 @@ export function lokaleConfig(env: Record<string, string | undefined> = import.me
   if (!isLokaalAdres(url)) throw new Error('Weigering: de app praat alleen met een lokale Supabase (dit toestel of het eigen netwerk).');
   let accounts: DemoAccount[] = [];
   try { accounts = JSON.parse(env.VITE_DEMO_ACCOUNTS || '[]'); } catch { accounts = []; }
-  return { omgeving: 'lokaal', url, anonKey, accounts, wachtwoord: env.VITE_DEMO_WACHTWOORD || undefined };
+  return { omgeving: 'lokaal', url, anonKey, accounts, wachtwoord: env.VITE_DEMO_WACHTWOORD || undefined, spullen: env.VITE_SPULLEN === 'aan' };
 }
 
 /**
@@ -65,7 +70,7 @@ export function appConfig(env: Record<string, string | undefined> = import.meta.
     const fouten = stagingFouten(env);
     if (fouten.length) throw new Error('Weigering (testomgeving): ' + fouten[0]);
     return { omgeving: 'staging', url: env.VITE_SUPABASE_URL as string, anonKey: env.VITE_SUPABASE_ANON_KEY as string, accounts: [],
-      turnstile: env.VITE_TURNSTILE_SITEKEY || undefined };
+      turnstile: env.VITE_TURNSTILE_SITEKEY || undefined, spullen: env.VITE_SPULLEN === 'aan' };
   }
   if (omgeving && omgeving !== 'lokaal') throw new Error('Weigering: onbekende omgeving ' + omgeving + '.');
   return lokaleConfig(env);
@@ -363,6 +368,7 @@ export class Sessie {
       huishoudenId: eerste.household_id,
       opslag: veiligeOpslag(),
       opWijziging: toestand => { if (this.sync === sync) this.zet({ toestand }); },
+      spullen: !!this.config.spullen,
     });
     this.sync = sync;
     this.zet({ fase: 'actief', huishouden: { id: eerste.household_id, naam, rol: (eerste.role ?? 'member') as Rol }, huishoudens, uitnodigingen, toestand: sync.toestand });

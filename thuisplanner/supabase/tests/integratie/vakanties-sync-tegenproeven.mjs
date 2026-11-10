@@ -15,8 +15,9 @@ const BRON = readFileSync(path.resolve(HIER, '../../../sync/thuisplanner-sync.js
 // [test (naampatroon), omschrijving, [[zoek, vervang], ...]]
 const PROEVEN = [
   ['^V1', 'een bekende versie van een vakantietabel wordt niet overgeslagen', [
-    ["const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events', 'trips', 'trip_packing_items', 'trip_shopping_links', 'trip_packing_lists']);",
-      "const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events']);"]]],
+    // Sinds Mijn spullen staan er ook spullentabellen in MET_VERSIE (op de volgende regel); alleen de vakantietabellen eruit.
+    ["const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events', 'trips', 'trip_packing_items', 'trip_shopping_links', 'trip_packing_lists',",
+      "const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events',"]]],
   ['^V3', 'een unieke-sleutelfout (HTTP 409) gemeld als versieconflict', [
     ["  if (code === '23505') return { soort: 'dubbel', tekst: MELDINGEN.dubbel };\n  if (code === 'PT409'", "  if (code === 'PT409'"]]],
   ['^V3', 'een zekere weigering na een onzekere poging blijft eeuwig "niet bevestigd"', [

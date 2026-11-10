@@ -8,6 +8,9 @@
 #   export (alleen lezend): ... -Ref <kenmerk> -Export -ExportMap <lege map buiten de repository>
 #                         alle gegevens in één momentopname naar JSON, met manifest en controlesommen (export.mjs);
 #                         de map bevat daarna persoonsgegevens: bewaar hem alleen lokaal en verwijder hem na gebruik
+#   -MetBestanden (bij -Export): ook de bestanden van Mijn spullen & Documenten (bucket documenten), met de
+#                         service-rolsleutel bij een verborgen prompt; zonder die schakelaar weigert de export als er
+#                         bestanden zijn. De sleutel staat alleen tijdens dit script in het geheugen van dit proces.
 #   -VoorStap6 (bij -Push): de twee Vault-waarden mogen in de nacontrole nog ontbreken (die zet de producteigenaar in
 #                         stap 6f); ze worden dan als "verwacht" getoond. Al het andere blijft een afwijking.
 #
@@ -20,7 +23,7 @@
 # - Volgorde: verbinding controleren (vóór verbinden) -> alleen lezend: is dit het lege stagingproject? ->
 #   dry-run, of met -Push: repository-controle, bevestiging en db push -> alleen lezend: nacontrole.
 # - Bij een fout stopt het script meteen. Het voert nooit zelf een herstel of tweede poging uit.
-param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta', 'productie')][string]$Omgeving = 'staging', [switch]$Push, [switch]$Bijwerken, [switch]$Export, [string]$ExportMap, [switch]$VoorStap6)
+param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta', 'productie')][string]$Omgeving = 'staging', [switch]$Push, [switch]$Bijwerken, [switch]$Export, [string]$ExportMap, [switch]$VoorStap6, [switch]$MetBestanden)
 $ErrorActionPreference = 'Stop'
 # Het aantal migraties in de repository dat deze versie van het script verwacht (bij elke nieuwe migratie bijwerken).
 $VerwachtAantal = 20
@@ -84,6 +87,14 @@ try {
   $cliUrl = $env:KG_DB_URL + '?sslmode=verify-full&sslrootcert=' + $root
 
   if ($Export) {
+    if ($MetBestanden) {
+      # De service-rol omzeilt RLS: alleen voor het lezen van de bestanden, alleen in dit proces, en aan het eind gewist.
+      $sleutel = Read-Host 'Service-rolsleutel van dit project (wordt niet getoond)' -AsSecureString
+      $bs = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sleutel)
+      try { $env:KG_OPSLAG_SLEUTEL = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bs) }
+      finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bs) }
+      $env:KG_OPSLAG_URL = "https://$Ref.supabase.co"
+    }
     Write-Host "`n== 1. Alleen lezend: verbinding, export in een momentopname, en controle van de geschreven bestanden" -ForegroundColor Cyan
     node $controle export $ExportMap
     if ($LASTEXITCODE -ne 0) { Stop-Hier 'de export slaagde niet (zie hierboven). Er is online niets gewijzigd.' }
@@ -140,7 +151,7 @@ catch {
   if ("$_" -ne 'thuisplanner-gestopt') { Write-Host ('FOUT: ' + $_) -ForegroundColor Red; $script:uitkomst = 1 }
 }
 finally {
-  Remove-Item Env:PGPASSWORD, Env:KG_DB_URL, Env:KG_REF, Env:KG_OMGEVING, Env:KG_NA_TOT_STAP6 -ErrorAction SilentlyContinue
+  Remove-Item Env:PGPASSWORD, Env:KG_DB_URL, Env:KG_REF, Env:KG_OMGEVING, Env:KG_NA_TOT_STAP6, Env:KG_OPSLAG_SLEUTEL, Env:KG_OPSLAG_URL -ErrorAction SilentlyContinue
   # Alleen de eigen, eenmalige hookwaarde wissen; een waarde die er al was, blijft staan.
   if ($script:tijdelijkHookGeheim) { Remove-Item Env:K1_HOOK_SECRET -ErrorAction SilentlyContinue }
   Remove-Item $stand -ErrorAction SilentlyContinue

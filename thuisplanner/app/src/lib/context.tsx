@@ -35,6 +35,9 @@ export interface AppContext extends DemoActies {
   vakantie: string | null;
   /** Opent een vakantie (of het overzicht met null) op het scherm Vakanties. */
   openVakantie: (id: string | null) => void;
+  /** Spullen & documenten: waar je bent ("", "documenten", "spul/<id>" of "document/<id>"). */
+  spullenPad: string;
+  openSpullen: (pad?: string) => void;
   agenda: AgendaStand;
   zetAgenda: (stand: Partial<AgendaStand>) => void;
   lokaal?: LokaalContext;
@@ -94,7 +97,7 @@ export interface LokaalContext {
   uitloggen: (opties?: { wissen?: boolean }) => void;
 }
 
-export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer' | 'vakanties';
+export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer' | 'vakanties' | 'spullen';
 
 export const Ctx = createContext<AppContext | null>(null);
 

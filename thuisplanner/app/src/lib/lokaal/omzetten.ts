@@ -70,6 +70,8 @@ export function naarTaak(r: TaakRij): Taak {
   return {
     id: r.id, soort: 'taak', titel: r.title ?? ZONDER_INHOUD.taak, datum: r.due_date ?? null, voor: r.assignee_member_id ?? null,
     klaar: !!r.done_on, klaarOp: r.done_on ?? null, versie: r.version, sync: syncStaat(r), vakantieId: r.trip_id ?? null,
+    // Alleen met Mijn spullen (de sync vraagt possession_id dan op): anders ontbreekt het veld, en blijft het zo.
+    ...(r.possession_id !== undefined ? { spulId: r.possession_id } : {}),
   };
 }
 
@@ -126,8 +128,10 @@ export function naarNieuweAfspraak(a: Afspraak, versie: number | null): NieuweAf
  * Velden voor een taak (toevoegen of bijwerken). De vakantie (trip_id) alleen als het veld bestaat: een formulier zonder
  * vakantieveld laat een bestaande koppeling dan staan.
  */
-export function naarTaakVelden(t: Taak): { title: string; due_date: string | null; assignee_member_id: string | null; trip_id?: string | null } {
-  return { title: t.titel, due_date: t.datum, assignee_member_id: t.voor, ...(t.vakantieId !== undefined ? { trip_id: t.vakantieId } : {}) };
+export function naarTaakVelden(t: Taak): { title: string; due_date: string | null; assignee_member_id: string | null; trip_id?: string | null; possession_id?: string | null } {
+  return { title: t.titel, due_date: t.datum, assignee_member_id: t.voor, ...(t.vakantieId !== undefined ? { trip_id: t.vakantieId } : {}),
+    // Het spul (Mijn spullen) ook alleen als het veld bestaat: een formulier zonder spulveld laat de koppeling staan.
+    ...(t.spulId !== undefined ? { possession_id: t.spulId } : {}) };
 }
 
 // ---- F8 Vakanties ----

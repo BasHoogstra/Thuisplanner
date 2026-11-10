@@ -67,9 +67,10 @@ jobs:
         working-directory: thuisplanner
         run: node supabase/k1-lokaal.mjs
       - name: Lokale Supabase starten
-        # Met de Edge Runtime: de Send Email-hook (K1) en controleer-code draaien daarin.
+        # Met de Edge Runtime: de Send Email-hook (K1) en controleer-code draaien daarin. Met Storage: Mijn spullen &
+        # Documenten (migratie 29) maakt de privé-bucket "documenten"; de scheidingstests lopen tegen de echte Storage.
         working-directory: thuisplanner
-        run: $SUPABASE start -x studio,imgproxy,storage-api,logflare,vector,supavisor,postgres-meta
+        run: $SUPABASE start -x studio,imgproxy,logflare,vector,supavisor,postgres-meta
       - name: RLS-matrix en tegenproeven op de echte stack
         run: bash thuisplanner/supabase/tests/run.sh --db "$DB_URL" --tegenproef
       - name: Integratie (API, Auth, Realtime) en gelijktijdigheid

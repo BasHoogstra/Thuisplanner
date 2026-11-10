@@ -58,3 +58,13 @@ export const IcLabel = (p: SVGProps<SVGSVGElement>) => (
 export const IcPunten = (p: SVGProps<SVGSVGElement>) => (
   <svg {...basis(p)}><circle cx="6" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="18" cy="12" r="1.2" /></svg>
 );
+// Mijn spullen & Documenten: een map (de rij in Meer), een document en een paperclip (de bijlageknop in de +).
+export const IcMap = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis(p)}><path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h3.6l2 2.2h7.4a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2Z" /></svg>
+);
+export const IcDocument = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis(p)}><path d="M7 3.5h6.5L18 8v11.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1Z" /><path d="M13.5 3.5V8H18M9 12.5h6M9 16h6" /></svg>
+);
+export const IcBijlage = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis({ width: 22, height: 22, ...p })}><path d="M20 11.5 12.4 19a4.6 4.6 0 0 1-6.5-6.5l7.8-7.8a3.1 3.1 0 0 1 4.4 4.4l-7.8 7.7a1.5 1.5 0 0 1-2.2-2.1l7.2-7.2" /></svg>
+);
