@@ -3,7 +3,7 @@
 // demo en later voor het echte pad (waar de server de zichtbaarheid afdwingt; dit is dan alleen het scherm).
 import { plusDagen } from '../datum';
 import type { Datum, LidId } from '../types';
-import type { Document, DocumentKoppeling, DocumentSoort, Spul, SpulVeld, SpullenGegevens, VeldStatus } from './types';
+import type { Document, DocumentKoppeling, DocumentSoort, Spul, SpulVeld, SpullenGegevens, VeldStatus, Zichtbaarheid } from './types';
 
 /** Eén vaste uitleg bij elke garantie: de app berekent nooit een wettelijke einddatum (§4.4). */
 export const WETTELIJKE_UITLEG = 'Ook na deze datum kun je recht hebben op herstel of vervanging (wettelijke garantie).';
@@ -19,6 +19,42 @@ export const SOORT_NAAM: Record<DocumentSoort, string> = {
 /** Voorlopig advies (beslispunt 3): wat standaard gedeeld is en wat persoonlijk. De gebruiker kan het altijd wijzigen. */
 export function standaardZichtbaarheid(soort: DocumentSoort): 'gedeeld' | 'persoonlijk' {
   return soort === 'polis' || soort === 'contract' || soort === 'overig' ? 'persoonlijk' : 'gedeeld';
+}
+
+/** Woorden die een camera of telefoon in een bestandsnaam zet: die zeggen niets over het document. */
+const CAMERANAAM = new Set(['img', 'image', 'dsc', 'dscn', 'dcim', 'pxl', 'mvimg', 'photo', 'foto', 'scan', 'scanned', 'screenshot',
+  'schermafbeelding', 'whatsapp', 'wa', 'document', 'bestand', 'file', 'untitled', 'naamloos', 'jpeg', 'jpg', 'heic', 'pdf']);
+
+/**
+ * Een leesbare titel uit de bestandsnaam (zonder extensie). Een betekenisvolle naam blijft, met spaties in plaats van
+ * liggende streepjes ("Factuur_26107182" wordt "Factuur 26107182"). Een naam zonder betekenis ("IMG_4821", een code als
+ * "970A712A-0D3D-…", alleen cijfers) wordt een terugvalnaam: de soort met het spul ("Bon Wasmachine"), of anders de soort
+ * met de datum ("Bon van 1 november 2026"). De soort komt altijd uit de keuze in het formulier, nooit uit de bestandsnaam.
+ * Het bestand zelf en zijn naam veranderen niet.
+ */
+export function leesbareTitel(bestandsnaam: string, { soort, spulNaam, datum }: { soort: DocumentSoort; spulNaam?: string; datum: Datum }): string {
+  // Een streepje tussen letters wordt een spatie ("mijn-factuur"); tussen cijfers blijft het staan ("12-09-2026").
+  const kern = bestandsnaam.replace(/_+/g, ' ').replace(/(?<=\p{L})-(?=\p{L})/gu, ' ').replace(/\s+/g, ' ').trim();
+  // Een hoofdletter alleen als het eerste woord helemaal klein is ("iPhone bon" blijft zo).
+  const titel = heeftBetekenis(kern)
+    ? (/^\p{Ll}[^\s\p{Lu}]*(\s|$)/u.test(kern) ? kern.charAt(0).toUpperCase() + kern.slice(1) : kern)
+    : terugvalTitel(soort, spulNaam, datum);
+  // De database staat 1 tot 120 tekens toe.
+  return titel.slice(0, 120).trim();
+}
+
+function terugvalTitel(soort: DocumentSoort, spulNaam: string | undefined, datum: Datum): string {
+  // "Overig" is geen naam voor een document; dan heet het gewoon "Document".
+  const woord = soort === 'overig' ? 'Document' : SOORT_NAAM[soort];
+  const spul = spulNaam?.trim();
+  return spul ? `${woord} ${spul}` : `${woord} van ${datumMetJaar(datum)}`;
+}
+
+/** Heeft een (opgeschoonde) bestandsnaam betekenis? Minstens één woord van drie letters dat geen cameranaam of code is. */
+export function heeftBetekenis(kern: string): boolean {
+  // De letters van een woord tellen ("DSC01234" is "dsc", een cameranaam); een woord van alleen hex met cijfers is een code.
+  // Streepjes scheiden hier ook woorden, zodat een code als "970A712A-0D3D-…" als code herkend wordt.
+  return kern.split(/[\s-]+/).some(w => /[a-zà-ÿ]{3,}/i.test(w) && !CAMERANAAM.has(w.replace(/[^a-zà-ÿ]/gi, '').toLowerCase()) && !/^(?=.*\d)[0-9a-f]+$/i.test(w));
 }
 
 export const VELD_NAAM: Record<SpulVeld, string> = {
@@ -125,6 +161,35 @@ export function documentenVan(g: SpullenGegevens, spulId: string): Document[] {
 export function spullenVan(g: SpullenGegevens, documentId: string): Spul[] {
   const ids = new Set(g.koppelingen.filter(k => k.documentId === documentId).map(k => k.spulId));
   return g.spullen.filter(s => ids.has(s.id) && actief(s));
+}
+
+// ---- Privacy van documenttitels: de titel van een gedeeld document is voor het hele huishouden zichtbaar ----
+
+/**
+ * De naam die in de automatische titel mag: een gedeeld document noemt nooit een persoonlijk spul (besluit 14: geen
+ * aanwijzing dat het bestaat). De server kan dit niet afdwingen, want een titel is gewone tekst; daarom gebeurt het hier.
+ */
+export function spulNaamVoorTitel(spullen: Spul[], zichtbaarheid: Zichtbaarheid): string | undefined {
+  return spullen.find(s => zichtbaarheid === 'persoonlijk' || s.zichtbaarheid === 'gedeeld')?.naam;
+}
+
+/** Noemt de titel dit spul? Eén eigen woord van de naam is genoeg; zonder eigen woord (zoals "TV") de hele naam. */
+function titelNoemt(titel: string, naam: string): boolean {
+  const inTitel = new Set(normaal(titel).split(/[\s-]+/));
+  const woorden = normaal(naam).split(/[\s-]+/).filter(Boolean);
+  const eigen = woorden.filter(w => w.length >= 4 && !/^\d+$/.test(w) && !STOPWOORDEN.has(w));
+  return eigen.length ? eigen.some(w => inTitel.has(w)) : woorden.length > 0 && woorden.every(w => inTitel.has(w));
+}
+
+/** Het persoonlijke spul dat een titel noemt, als het document gedeeld is (een bestandsnaam of eigen tekst kan dat doen). */
+export function verborgenSpulInTitel(titel: string, spullen: Spul[], zichtbaarheid: Zichtbaarheid): Spul | undefined {
+  if (zichtbaarheid !== 'gedeeld') return undefined;
+  return spullen.find(s => s.zichtbaarheid === 'persoonlijk' && titelNoemt(titel, s.naam));
+}
+
+/** De gedeelde documenten van een spul die het in hun titel noemen: die blijven zichtbaar als het spul persoonlijk wordt. */
+export function gedeeldeDocumentenMetNaam(g: SpullenGegevens, spul: Spul): Document[] {
+  return documentenVan(g, spul.id).filter(d => d.zichtbaarheid === 'gedeeld' && titelNoemt(d.titel, spul.naam));
 }
 
 // ---- Prullenbak ----

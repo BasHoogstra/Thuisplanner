@@ -272,6 +272,29 @@ test('taken bij een spul: possession_id via de sync; nooit aan een persoonlijk s
   assert.equal(fout.ok, false);
 });
 
+test('gedeeld document bij een persoonlijk spul: lid en beheerder zien het document, maar niets van het spul', async () => {
+  const spul = randomUUID(), doc = randomUUID(), geheim = 'Trouwring ' + run;
+  assert.ok((await sSara.acties.spulToevoegen(spul, { name: geheim, owner_member_id: mSara, visibility: 'private' })).ok);
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  assert.ok((await o.bewaarDocument({ documentId: doc, spullen: [spul], velden: docVelden(mSara, PDF, { title: 'Bon van 1 november ' + run }), bytes: PDF })).ok);
+  const controleer = async wat => {
+    await sTim.vernieuw();
+    assert.ok(sTim.toestand.documenten.some(d => d.id === doc), wat + ': het gedeelde document ontbreekt');
+    // Via de sync en via een ruwe zoekopdracht op elke tabel: geen naam, geen id, geen koppeling.
+    assert.ok(!JSON.stringify(sTim.toestand).includes(spul) && !JSON.stringify(sTim.toestand).includes(geheim), wat + ': spoor in de toestand');
+    assert.equal(ok(await tim.c.from('possessions').select('id').eq('id', spul)).length, 0, wat);
+    assert.equal(ok(await tim.c.from('document_links').select('id').eq('possession_id', spul)).length, 0, wat);
+    assert.equal(ok(await tim.c.from('document_links').select('id').eq('document_id', doc)).length, 0, wat);
+  };
+  await controleer('lid');
+  // Een beheerder heeft geen uitzondering op persoonlijk.
+  ok(await sara.c.rpc('set_member_role', { p_household: ha, p_member: mTim, p_role: 'admin' }));
+  try { await controleer('beheerder'); } finally { ok(await sara.c.rpc('set_member_role', { p_household: ha, p_member: mTim, p_role: 'member' })); }
+  // De eigenaar ziet de koppeling wel.
+  await sSara.vernieuw();
+  assert.ok(sSara.toestand.documentKoppelingen.some(k => k.document_id === doc && k.possession_id === spul));
+});
+
 test('export met bestanden: in het manifest, met controlesom; een gewijzigd bestand valt op; terugzetten geeft dezelfde bytes', async () => {
   const doc = randomUUID();
   const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });

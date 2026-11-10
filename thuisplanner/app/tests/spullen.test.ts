@@ -4,10 +4,10 @@ import { DEMO_AANKOOP, FACTUUR_REGELS, demoSpullen, maakVoorbeeldPdf } from '../
 import { herkenIntentie } from '../src/lib/intentie';
 import { controleer, nieuweMaat, typeUitBytes } from '../src/lib/spullen/bestand';
 import {
-  WETTELIJKE_UITLEG, aandachtsvelden, bedrag, documentenVan, dubbelDocument, inPrullenbak, koppel, leesBedrag, ontkoppel,
-  spullenVan, terugzettenTot, veldStatus, woordPast, zichtbaarVoorLid, zoekDocumenten, zoekSpullen,
+  SOORT_NAAM, WETTELIJKE_UITLEG, aandachtsvelden, bedrag, documentenVan, dubbelDocument, gedeeldeDocumentenMetNaam, inPrullenbak, koppel, leesBedrag, leesbareTitel,
+  ontkoppel, spulNaamVoorTitel, spullenVan, terugzettenTot, verborgenSpulInTitel, veldStatus, woordPast, zichtbaarVoorLid, zoekDocumenten, zoekSpullen,
 } from '../src/lib/spullen/logica';
-import type { Spul, SpullenGegevens } from '../src/lib/spullen/types';
+import type { Document, Spul, SpullenGegevens } from '../src/lib/spullen/types';
 import { beantwoordSpullen, eerder } from '../src/lib/vraag/spullen';
 
 const VANDAAG = '2026-10-28';
@@ -78,6 +78,123 @@ describe('prullenbak en dubbele uploads', () => {
     expect(dubbelDocument(docs, 'abc')?.id).toBe('d-factuur');
     expect(dubbelDocument([{ ...docs[0], verwijderdOp: '2026-10-01T00:00:00Z' }], 'abc')).toBeUndefined();
     expect(dubbelDocument(docs, undefined)).toBeUndefined();
+  });
+});
+
+describe('leesbare documenttitel', () => {
+  const opties = { soort: 'bon' as const, datum: '2026-11-01' };
+  it('een naam met betekenis blijft, met spaties in plaats van streepjes', () => {
+    expect(leesbareTitel('Factuur_26107182', opties)).toBe('Factuur 26107182');
+    expect(leesbareTitel('mijn-factuur', opties)).toBe('Mijn factuur');
+    expect(leesbareTitel('Garantie laptop 2026', { ...opties, spulNaam: 'Wasmachine' })).toBe('Garantie laptop 2026');
+  });
+  it('een cameranaam of code wordt de soort met het spul', () => {
+    for (const naam of ['IMG_4821', '970A712A-0D3D-4C53-A600-6A38586D060F', 'PXL_20261031_123456789', '20261031_101112', 'WhatsApp Image 2026-10-31 at 12.00.00', 'DSC01234']) {
+      expect(leesbareTitel(naam, { ...opties, spulNaam: 'Wasmachine' })).toBe('Bon Wasmachine');
+    }
+  });
+  it('zonder spul: de soort met de datum; zonder bestandsnaam ook', () => {
+    expect(leesbareTitel('IMG_4821', { soort: 'factuur', datum: '2026-11-01' })).toBe('Factuur van 1 november 2026');
+    expect(leesbareTitel('', { soort: 'garantiebewijs', datum: '2026-03-03' })).toBe('Garantiebewijs van 3 maart 2026');
+    expect(leesbareTitel('IMG_4821', { ...opties, spulNaam: '   ' })).toBe('Bon van 1 november 2026');
+  });
+  it('datums, merknamen en eigen hoofdletters blijven zoals ze zijn', () => {
+    expect(leesbareTitel('bon 12-09-2026', opties)).toBe('Bon 12-09-2026');
+    expect(leesbareTitel('iPhone garantie', opties)).toBe('iPhone garantie');
+    expect(leesbareTitel('IMG-20261102-WA0001', { ...opties, spulNaam: 'Wasmachine' })).toBe('Bon Wasmachine');
+  });
+  it('de soort komt uit de keuze, nooit uit de naam; "overig" heet "Document"', () => {
+    // Een betekenisvolle naam krijgt geen soort erbij, ook niet als de gekozen soort iets anders zegt.
+    expect(leesbareTitel('Polis inboedel', { soort: 'bon', datum: '2026-11-01' })).toBe('Polis inboedel');
+    for (const soort of ['factuur', 'bon', 'garantiebewijs', 'handleiding', 'polis', 'contract', 'onderhoudsrapport'] as const) {
+      expect(leesbareTitel('IMG_1', { soort, spulNaam: 'Fiets', datum: '2026-11-01' })).toBe(`${SOORT_NAAM[soort]} Fiets`);
+    }
+    expect(leesbareTitel('IMG_1', { soort: 'overig', spulNaam: 'Fiets', datum: '2026-11-01' })).toBe('Document Fiets');
+    expect(leesbareTitel('', { soort: 'overig', datum: '2026-11-01' })).toBe('Document van 1 november 2026');
+  });
+  it('nooit langer dan de database toestaat (120 tekens), nooit leeg', () => {
+    const lang = 'Wasmachine '.repeat(20);
+    expect(leesbareTitel('IMG_1', { soort: 'garantiebewijs', spulNaam: lang, datum: '2026-11-01' }).length).toBeLessThanOrEqual(120);
+    expect(leesbareTitel('Handleiding '.repeat(20), opties).length).toBeLessThanOrEqual(120);
+    for (const naam of ['', '___', '-', '  ', '1234']) expect(leesbareTitel(naam, opties).length).toBeGreaterThan(0);
+  });
+});
+
+describe('informatielekken tussen gezinsleden: automatische documenttitels', () => {
+  // Er is geen rol-uitzondering op persoonlijk: eigenaar, beheerder, lid en kind zien hetzelfde.
+  const ROLLEN = [['eigenaar', 'm-eigenaar'], ['beheerder', 'm-beheerder'], ['lid', 'm-lid'], ['kind', 'm-kind']] as const;
+  const opties = { soort: 'bon' as const, datum: '2026-11-01' };
+  const spul = (id: string, naam: string, zichtbaarheid: 'gedeeld' | 'persoonlijk'): Spul => ({ id, naam, zichtbaarheid, eigenaar: 'm-sara' });
+  const ring = spul('s-ring', 'Trouwring', 'persoonlijk');
+  const fiets = spul('s-fiets', 'Fiets', 'gedeeld');
+  const doc = (id: string, titel: string, zichtbaarheid: 'gedeeld' | 'persoonlijk'): Document =>
+    ({ id, titel, soort: 'bon', zichtbaarheid, eigenaar: 'm-sara', upload: 'klaar', type: 'application/pdf', grootte: 1, bestand: { soort: 'niet-bewaard' } });
+
+  it('een gedeeld document noemt nooit een persoonlijk spul in de automatische titel', () => {
+    const naam = spulNaamVoorTitel([ring], 'gedeeld');
+    expect(naam).toBeUndefined();
+    expect(leesbareTitel('IMG_4821', { ...opties, spulNaam: naam })).toBe('Bon van 1 november 2026');
+  });
+  it('een persoonlijk document mag het persoonlijke spul wel noemen: alleen de eigenaar ziet het', () => {
+    expect(leesbareTitel('IMG_4821', { ...opties, spulNaam: spulNaamVoorTitel([ring], 'persoonlijk') })).toBe('Bon Trouwring');
+  });
+  it('gedeeld document met gedeeld spul: de naam blijft, zoals afgesproken', () => {
+    expect(leesbareTitel('IMG_4821', { ...opties, spulNaam: spulNaamVoorTitel([fiets], 'gedeeld') })).toBe('Bon Fiets');
+    // Eerst een persoonlijk en dan een gedeeld spul: alleen het gedeelde mag genoemd worden.
+    expect(spulNaamVoorTitel([ring, fiets], 'gedeeld')).toBe('Fiets');
+  });
+  it('herkent een titel die een persoonlijk spul noemt, ook in andere schrijfwijzen, en alleen bij een gedeeld document', () => {
+    for (const titel of ['Bon Trouwring', 'bon trouwring', 'Trouwring-factuur', 'Trouwring (voorbeeld)']) {
+      expect(verborgenSpulInTitel(titel, [ring], 'gedeeld')?.id, titel).toBe('s-ring');
+    }
+    expect(verborgenSpulInTitel('Bon Trouwring', [ring], 'persoonlijk')).toBeUndefined();
+    expect(verborgenSpulInTitel('Bon Trouwring', [spul('s-r', 'Trouwring', 'gedeeld')], 'gedeeld')).toBeUndefined();
+    // Geen vals alarm: alleen hele woorden tellen, en geen woordjes als "de" of "van".
+    expect(verborgenSpulInTitel('Bon van 1 november 2026', [ring], 'gedeeld')).toBeUndefined();
+    expect(verborgenSpulInTitel('Kerstring', [spul('s-k', 'Ring', 'persoonlijk')], 'gedeeld')).toBeUndefined();
+    expect(verborgenSpulInTitel('Bon van de winkel', [spul('s-3', 'De kluis van opa', 'persoonlijk')], 'gedeeld')).toBeUndefined();
+    // Eén eigen woord van de naam is genoeg om de naam te herkennen.
+    expect(verborgenSpulInTitel('Bon trouwring', [spul('s-2', 'Gouden trouwring', 'persoonlijk')], 'gedeeld')?.id).toBe('s-2');
+    // Een korte naam telt ook, als hele naam.
+    expect(verborgenSpulInTitel('Bon TV', [spul('s-t', 'TV', 'persoonlijk')], 'gedeeld')?.id).toBe('s-t');
+  });
+  it('omzetten naar persoonlijk: noemt de gedeelde documenten die dit spul in hun titel noemen', () => {
+    const g: SpullenGegevens = {
+      spullen: [fiets],
+      documenten: [doc('d-1', 'Bon Fiets', 'gedeeld'), doc('d-2', 'Bon van 1 november 2026', 'gedeeld'), doc('d-3', 'Fiets privé', 'persoonlijk')],
+      koppelingen: [{ documentId: 'd-1', spulId: 's-fiets' }, { documentId: 'd-2', spulId: 's-fiets' }, { documentId: 'd-3', spulId: 's-fiets' }],
+    };
+    expect(gedeeldeDocumentenMetNaam(g, fiets).map(d => d.id)).toEqual(['d-1']);
+  });
+  it.each(ROLLEN)('%s: een persoonlijk spul en persoonlijk document van een ander laten geen spoor na', (_rol, lid) => {
+    const g: SpullenGegevens = {
+      spullen: [ring, fiets],
+      documenten: [
+        doc('d-gedeeld', leesbareTitel('IMG_1', { ...opties, spulNaam: spulNaamVoorTitel([ring], 'gedeeld') }), 'gedeeld'),
+        doc('d-prive', leesbareTitel('IMG_2', { ...opties, spulNaam: spulNaamVoorTitel([ring], 'persoonlijk') }), 'persoonlijk'),
+      ],
+      koppelingen: [{ documentId: 'd-gedeeld', spulId: 's-ring' }, { documentId: 'd-prive', spulId: 's-ring' }],
+    };
+    const ziet = zichtbaarVoorLid(g, lid);
+    // De invariant: nergens in wat dit lid krijgt de naam, of het id van het spul of van het persoonlijke document.
+    expect(JSON.stringify(ziet)).not.toMatch(/Trouwring|s-ring|d-prive/);
+    expect(ziet.documenten.map(d => d.id)).toEqual(['d-gedeeld']);
+    expect(ziet.koppelingen).toEqual([]);
+    expect(spullenVan(ziet, 'd-gedeeld')).toEqual([]);
+    // Zoeken op de naam vindt niets: niet het spul en niet het gedeelde document.
+    expect(zoekSpullen(ziet.spullen, 'trouwring')).toEqual([]);
+    expect(zoekDocumenten(ziet, 'trouwring')).toEqual([]);
+  });
+  it('de eigenaar ziet alles nog: geen functieverlies', () => {
+    const g: SpullenGegevens = { spullen: [ring], documenten: [doc('d-gedeeld', 'Bon van 1 november 2026', 'gedeeld')], koppelingen: [{ documentId: 'd-gedeeld', spulId: 's-ring' }] };
+    const ziet = zichtbaarVoorLid(g, 'm-sara');
+    expect(spullenVan(ziet, 'd-gedeeld').map(s => s.id)).toEqual(['s-ring']);
+    expect(zoekDocumenten(ziet, 'trouwring').map(d => d.id)).toEqual(['d-gedeeld']);
+  });
+  it('een dubbele upload verraadt geen persoonlijk document van een ander', () => {
+    const g: SpullenGegevens = { spullen: [], documenten: [{ ...doc('d-p', 'Geheim', 'persoonlijk'), sha256: 'abc' }], koppelingen: [] };
+    expect(dubbelDocument(zichtbaarVoorLid(g, 'm-lid').documenten, 'abc')).toBeUndefined();
+    expect(dubbelDocument(zichtbaarVoorLid(g, 'm-sara').documenten, 'abc')?.id).toBe('d-p');
   });
 });
 

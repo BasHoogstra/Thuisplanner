@@ -6,11 +6,12 @@ import { useApp } from '../lib/context';
 import { DEMO_AANKOOP, voorbeeldBestand } from '../data/spullen-demo';
 import { controleer, eersteBytes, sha256, typeUitBytes, verkleinFoto } from '../lib/spullen/bestand';
 import {
-  SOORT_NAAM, VELD_NAAM, WETTELIJKE_UITLEG, bedrag, dubbelDocument, isGekoppeld, leesBedrag, standaardZichtbaarheid, zoekSpullen,
+  SOORT_NAAM, VELD_NAAM, WETTELIJKE_UITLEG, bedrag, dubbelDocument, gedeeldeDocumentenMetNaam, isGekoppeld, leesBedrag, leesbareTitel, spulNaamVoorTitel,
+  spullenVan, standaardZichtbaarheid, verborgenSpulInTitel, zoekSpullen,
 } from '../lib/spullen/logica';
 import { useSpullen, type InvoerBron } from '../lib/spullen/opslag';
 import type { BestandType, Document, DocumentSoort, Spul, SpulVeld, VeldStatus, Zichtbaarheid } from '../lib/spullen/types';
-import { IcDocument } from './Iconen';
+import { IcDocument, IcPijl } from './Iconen';
 import { Venster } from './Venster';
 
 // ---------------------------------------------------------------- De invoer openen (vanuit de + of het overzicht)
@@ -67,6 +68,8 @@ function Veld({ veld, velden, status, zet, bevestig, type = 'text', verplicht }:
 
 const ALLE: SpulVeld[] = ['naam', 'categorie', 'merk', 'model', 'serienummer', 'aankoopdatum', 'winkel', 'prijs', 'bestelnummer',
   'garantieTot', 'extraGarantieTot', 'extraGarantieAanbieder'];
+/** Wat in "Nieuw spul" achter "Meer details" staat (alles behalve de naam). */
+const DETAILS = ALLE.filter(k => k !== 'naam' && k !== 'bestelnummer');
 
 function veldenVan(s: Partial<Spul>): Velden {
   return {
@@ -81,7 +84,8 @@ function spulUit(v: Velden, st: Status): { spul: Omit<Spul, 'id' | 'eigenaar' | 
   const t = (x?: string) => (x?.trim() ? x.trim() : undefined);
   const prijs = t(v.prijs);
   const centen = prijs ? leesBedrag(prijs) : null;
-  if (prijs && centen === null) return { spul: { naam: '' }, fout: 'De prijs is geen bedrag (bijvoorbeeld 549,00).' };
+  // De naam gaat mee, zodat een onleesbare prijs niet als "geef een naam" wordt gemeld.
+  if (prijs && centen === null) return { spul: { naam: t(v.naam) ?? '' }, fout:'De prijs is geen bedrag (bijvoorbeeld 549,00).' };
   const status: Status = {};
   for (const k of ALLE) if (t(v[k]) && st[k] === 'voorstel') status[k] = 'voorstel';
   return {
@@ -116,6 +120,19 @@ function Zichtbaarheidskeuze({ waarde, zet, mag }: { waarde: Zichtbaarheid; zet:
   );
 }
 
+/** Een gedeeld document waarvan de titel een persoonlijk spul noemt: eerst kiezen. Een eigen keuze blijft mogelijk. */
+function TitelVraag({ spul, veilig, toch }: { spul: Spul; veilig: () => void; toch: () => void }) {
+  return (
+    <div className="kaart-vraag" role="group" aria-label="De titel noemt een persoonlijk spul">
+      <p>Deze titel noemt {spul.naam}, dat alleen voor jou is. Een gedeeld document is zichtbaar voor iedereen in het huishouden.</p>
+      <div className="keuzes">
+        <button type="button" className="keuze" onClick={veilig}>Veilige titel gebruiken</button>
+        <button type="button" className="keuze" onClick={toch}>Toch zo laten</button>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- Het dossier invullen of aanpassen
 
 export function SpulVenster({ bestaand, sluit, opBewaard }: { bestaand?: Spul; sluit: () => void; opBewaard?: (id: string) => void }) {
@@ -123,34 +140,51 @@ export function SpulVenster({ bestaand, sluit, opBewaard }: { bestaand?: Spul; s
   const v = useVelden(veldenVan(bestaand ?? {}), bestaand?.status);
   const [zicht, zetZicht] = useState<Zichtbaarheid>(bestaand?.zichtbaarheid ?? 'gedeeld');
   const [fout, zetFout] = useState<string | null>(null);
+  // Compact: naam en zichtbaarheid direct, de rest achter "Meer details". Ingeklapt blijven de waarden gewoon bewaard;
+  // bij aanpassen staat het open als er al details zijn, zodat je ziet wat er staat.
+  const ingevuld = DETAILS.filter(k => v.velden[k]?.trim()).length;
+  const [details, zetDetails] = useState(() => ingevuld > 0);
+  const detailsId = useId();
   if (!sp) return null;
   const bewaar = async (e: React.FormEvent) => {
     e.preventDefault();
     const r = spulUit(v.velden, v.status);
     if (!r.spul.naam) { zetFout('Geef het spul een naam.'); return; }
-    if (r.fout) { zetFout(r.fout); return; }
+    // De prijs staat onder "Meer details": klap het open, zodat het veld met de fout te zien is.
+    if (r.fout) { zetFout(r.fout); zetDetails(true); return; }
     const id = await sp.spulBewaren({ ...r.spul, id: bestaand?.id, zichtbaarheid: zicht, notities: bestaand?.notities });
     sluit();
     opBewaard?.(id);
   };
   const p = { velden: v.velden, status: v.status, zet: v.zet, bevestig: v.bevestig };
+  // Wordt een gedeeld spul persoonlijk, dan blijven gedeelde documenten zichtbaar; hun titel kan het spul nog noemen.
+  const blijftZichtbaar = bestaand?.zichtbaarheid === 'gedeeld' && zicht === 'persoonlijk' ? gedeeldeDocumentenMetNaam(sp.gegevens, bestaand) : [];
   return (
     <Venster titel={bestaand ? 'Spul aanpassen' : 'Nieuw spul'} sluit={sluit}>
       <form onSubmit={bewaar} noValidate>
         <Veld veld="naam" verplicht {...p} />
         {fout && <span className="veld-fout" role="alert">{fout}</span>}
-        <Veld veld="categorie" {...p} />
-        <Veld veld="merk" {...p} />
-        <Veld veld="model" {...p} />
-        <Veld veld="serienummer" {...p} />
-        <Veld veld="aankoopdatum" type="date" {...p} />
-        <Veld veld="winkel" {...p} />
-        <Veld veld="prijs" {...p} />
-        <Veld veld="garantieTot" type="date" {...p} />
-        <p className="stil-tekst sp-uitleg">Vul de garantie in zoals de winkel of de fabrikant die geeft. {WETTELIJKE_UITLEG}</p>
-        <Veld veld="extraGarantieTot" type="date" {...p} />
-        <Veld veld="extraGarantieAanbieder" {...p} />
         <Zichtbaarheidskeuze waarde={zicht} zet={zetZicht} mag={!bestaand || bestaand.eigenaar === sp.ik} />
+        {blijftZichtbaar.length > 0 && (
+          <p className="sp-noot" role="note">Deze gedeelde documenten noemen dit spul in de titel en blijven zichtbaar voor het huishouden: {blijftZichtbaar.map(d => d.titel).join(', ')}. Pas de titel aan of maak ze ook persoonlijk.</p>
+        )}
+        <button type="button" className="sp-details-knop" aria-expanded={details} aria-controls={detailsId} onClick={() => zetDetails(x => !x)}>
+          <span>Meer details{!details && ingevuld > 0 ? ` (${ingevuld} ingevuld)` : ''}</span>
+          <IcPijl className={'uitklap-pijl' + (details ? ' open' : '')} width={16} height={16} aria-hidden="true" />
+        </button>
+        <div id={detailsId} className="sp-details" hidden={!details}>
+          <Veld veld="merk" {...p} />
+          <Veld veld="model" {...p} />
+          <Veld veld="serienummer" {...p} />
+          <Veld veld="aankoopdatum" type="date" {...p} />
+          <Veld veld="categorie" {...p} />
+          <Veld veld="winkel" {...p} />
+          <Veld veld="prijs" {...p} />
+          <Veld veld="garantieTot" type="date" {...p} />
+          <p className="stil-tekst sp-uitleg">Vul de garantie in zoals de winkel of de fabrikant die geeft. {WETTELIJKE_UITLEG}</p>
+          <Veld veld="extraGarantieTot" type="date" {...p} />
+          <Veld veld="extraGarantieAanbieder" {...p} />
+        </div>
         <button type="submit" className="knop breed">{bestaand ? 'Opslaan' : 'Bewaren'}</button>
       </form>
     </Venster>
@@ -165,15 +199,23 @@ export function DocumentVenster({ bestaand, sluit, magZichtbaarheid }: { bestaan
   const [soort, zetSoort] = useState<DocumentSoort>(bestaand.soort);
   const [datum, zetDatum] = useState(bestaand.datum ?? '');
   const [zicht, zetZicht] = useState<Zichtbaarheid>(bestaand.zichtbaarheid);
+  const [goedgekeurd, zetGoedgekeurd] = useState<string | null>(null);
+  const { vandaag } = useApp();
   if (!sp) return null;
+  const bij = spullenVan(sp.gegevens, bestaand.id);
+  // Een lege titel wordt een leesbare terugvalnaam (de soort met het spul, of met de datum); nooit een persoonlijk spul in een gedeeld document.
+  const terugval = leesbareTitel('', { soort, spulNaam: spulNaamVoorTitel(bij, zicht), datum: datum || vandaag });
+  const lek = verborgenSpulInTitel(titel, bij, zicht);
+  const vraag = !!lek && goedgekeurd !== titel.trim();
   return (
     <Venster titel="Document aanpassen" sluit={sluit}>
-      <form onSubmit={e => { e.preventDefault(); if (!titel.trim()) return; sp.documentBijwerken({ ...bestaand, titel: titel.trim(), soort, datum: datum || undefined, zichtbaarheid: zicht }); sluit(); }} noValidate>
-        <label className="veld"><span className="veld-label">Titel</span><input value={titel} onChange={e => zetTitel(e.target.value)} maxLength={120} /></label>
+      <form onSubmit={e => { e.preventDefault(); if (vraag) return; sp.documentBijwerken({ ...bestaand, titel: titel.trim() || terugval, soort, datum: datum || undefined, zichtbaarheid: zicht }); sluit(); }} noValidate>
+        <label className="veld"><span className="veld-label">Titel</span><input value={titel} onChange={e => zetTitel(e.target.value)} maxLength={120} placeholder={terugval} /></label>
         <SoortKeuze soort={soort} zet={zetSoort} />
         <label className="veld"><span className="veld-label">Datum <span className="optioneel">(optioneel)</span></span><input type="date" value={datum} onChange={e => zetDatum(e.target.value)} /></label>
         <Zichtbaarheidskeuze waarde={zicht} zet={zetZicht} mag={magZichtbaarheid} />
-        <button type="submit" className="knop breed">Opslaan</button>
+        {vraag && lek && <TitelVraag spul={lek} veilig={() => zetTitel(terugval)} toch={() => zetGoedgekeurd(titel.trim())} />}
+        <button type="submit" className="knop breed" disabled={vraag}>Opslaan</button>
       </form>
     </Venster>
   );
@@ -239,7 +281,7 @@ const NAGESPEELD: Record<'bon-foto' | 'factuur-pdf', Herkenning> = {
 type Voorbereid =
   | { fase: 'bezig' }
   | { fase: 'fout'; reden: string }
-  | { fase: 'klaar'; blob: Blob; type: BestandType; naam: string; sha?: string; herkenning?: Herkenning; voorbeeld?: 'bon-foto' | 'factuur-pdf' };
+  | { fase: 'klaar'; blob: Blob; type: BestandType; naam: string; bestandsnaam?: string; sha?: string; herkenning?: Herkenning; voorbeeld?: 'bon-foto' | 'factuur-pdf' };
 
 /** HEIC/HEIF (iPhone): "ftyp" op plek 4, met een heic-merk. Wordt op het toestel omgezet naar JPEG. */
 const isHeic = (b: Uint8Array) => b.length >= 12 && String.fromCharCode(...b.slice(4, 8)) === 'ftyp' && /^(heic|heix|hevc|mif1|msf1|heif)$/.test(String.fromCharCode(...b.slice(8, 12)));
@@ -263,18 +305,21 @@ async function bereidVoor(bron: InvoerBron): Promise<Voorbereid> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const c = controleer(bytes.slice(0, 16), blob.size);
   if (!c.ok) return { fase: 'fout', reden: c.reden };
-  return { fase: 'klaar', blob, type: c.type, naam: f.name.replace(/\.[a-z0-9]{2,5}$/i, '') || 'Document', sha: await sha256(bytes) };
+  return { fase: 'klaar', blob, type: c.type, naam: f.name.replace(/\.[a-z0-9]{2,5}$/i, ''), bestandsnaam: f.name, sha: await sha256(bytes) };
 }
 
 function DocumentInvoer({ invoer, sluit }: { invoer: Invoer; sluit: () => void }) {
   const sp = useSpullen();
-  const { openSpullen } = useApp();
+  const { openSpullen, vandaag } = useApp();
   const [v, zetV] = useState<Voorbereid>({ fase: 'bezig' });
   const [beeld, zetBeeld] = useState<string | null>(null);
   const [titel, zetTitel] = useState('');
+  // Zolang de titel niet zelf is aangepast, volgt hij de soort en het spul (een leesbare naam, nooit een bestandscode).
+  const [eigenTitel, zetEigenTitel] = useState(false);
   const [soort, zetSoort] = useState<DocumentSoort>('bon');
   const [datum, zetDatum] = useState('');
   const [zicht, zetZicht] = useState<Zichtbaarheid>('gedeeld');
+  const [goedgekeurd, zetGoedgekeurd] = useState<string | null>(null);
   const [doel, zetDoel] = useState<'nieuw' | 'bestaand' | 'alleen'>(invoer.spulId ? 'bestaand' : 'nieuw');
   const [gekozen, zetGekozen] = useState<string | undefined>(invoer.spulId);
   const [toch, zetToch] = useState(false);
@@ -289,7 +334,7 @@ function DocumentInvoer({ invoer, sluit }: { invoer: Invoer; sluit: () => void }
       zetV(r);
       if (r.fase !== 'klaar') return;
       const h = r.herkenning;
-      zetTitel(h?.titel ?? r.naam);
+      if (h) { zetTitel(h.titel); zetEigenTitel(true); }
       const s = h?.soort ?? (r.type === 'application/pdf' ? 'factuur' : 'bon');
       zetSoort(s);
       zetZicht(standaardZichtbaarheid(s));
@@ -317,14 +362,27 @@ function DocumentInvoer({ invoer, sluit }: { invoer: Invoer; sluit: () => void }
     const r = zoekSpullen(sp.gegevens.spullen, v.herkenning.spulNaam);
     return r.length === 1 ? r[0] : undefined;
   }, [sp, v]);
+  const actief = sp ? sp.gegevens.spullen.filter(s => !s.verwijderdOp) : [];
+  const gekozenSpul = doel === 'bestaand' ? actief.filter(s => s.id === gekozen) : [];
+  const bijPersoonlijk = gekozenSpul[0]?.zichtbaarheid === 'persoonlijk';
+  // Een nieuw spul krijgt dezelfde zichtbaarheid als het document; bij een bestaand spul mag de naam niet altijd mee.
+  const spulNaam = doel === 'nieuw' ? velden.velden.naam : spulNaamVoorTitel(gekozenSpul, zicht);
+  const autoTitel = v.fase === 'klaar' ? leesbareTitel(v.naam, { soort, spulNaam, datum: datum || vandaag }) : '';
+  useEffect(() => { if (!eigenTitel && autoTitel) zetTitel(autoTitel); }, [eigenTitel, autoTitel]);
+  // Bij een persoonlijk spul is ook het document standaard persoonlijk; delen blijft een eigen keuze.
+  useEffect(() => {
+    if (v.fase === 'klaar') zetZicht(bijPersoonlijk ? 'persoonlijk' : standaardZichtbaarheid(soort));
+    // Alleen als het gekozen spul verandert (of het bestand klaar is), niet bij elke keuze hieronder.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bijPersoonlijk, v.fase]);
   if (!sp) return null;
+  const lek = verborgenSpulInTitel(titel, gekozenSpul, zicht);
+  const vraag = !!lek && goedgekeurd !== titel.trim();
   const dubbel = v.fase === 'klaar' ? dubbelDocument(sp.gegevens.documenten, v.sha) : undefined;
-  const actief = sp.gegevens.spullen.filter(s => !s.verwijderdOp);
 
   const bewaar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (v.fase !== 'klaar' || bezig) return;
-    if (!titel.trim()) { zetFout('Geef het document een titel.'); return; }
+    if (v.fase !== 'klaar' || bezig || vraag) return;
     let nieuwSpul: Omit<Spul, 'id' | 'eigenaar'> | undefined;
     if (doel === 'nieuw') {
       const r = spulUit(velden.velden, velden.status);
@@ -336,7 +394,7 @@ function DocumentInvoer({ invoer, sluit }: { invoer: Invoer; sluit: () => void }
     zetBezig(true);
     try {
       const r = await sp.documentBewaren({
-        document: { titel: titel.trim(), soort, datum: datum || undefined, zichtbaarheid: zicht, type: v.type, grootte: v.blob.size, sha256: v.sha },
+        document: { titel: titel.trim() || autoTitel, soort, datum: datum || undefined, zichtbaarheid: zicht, type: v.type, grootte: v.blob.size, sha256: v.sha },
         bestand: v.blob, voorbeeld: v.voorbeeld, spullen: doel === 'bestaand' && gekozen ? [gekozen] : [], nieuwSpul,
       });
       sluit();
@@ -362,7 +420,8 @@ function DocumentInvoer({ invoer, sluit }: { invoer: Invoer; sluit: () => void }
         <form onSubmit={bewaar} noValidate>
           <div className="sp-bestand">
             {beeld ? <img src={beeld} alt="Gekozen afbeelding" /> : <span className="lid-avatar vak-icoon" aria-hidden="true"><IcDocument width={20} height={20} /></span>}
-            <span className="stil-tekst">{v.type === 'application/pdf' ? 'PDF' : 'Foto'} · {Math.max(1, Math.round(v.blob.size / 1024))} kB{v.type.startsWith('image/') && !v.voorbeeld ? ' · verkleind, zonder plaatsgegevens' : ''}</span>
+            <span className="stil-tekst">{v.type === 'application/pdf' ? 'PDF' : 'Foto'} · {Math.max(1, Math.round(v.blob.size / 1024))} kB{v.type.startsWith('image/') && !v.voorbeeld ? ' · verkleind, zonder plaatsgegevens' : ''}
+              {v.bestandsnaam && <span className="sp-bestandsnaam">Bestand: {v.bestandsnaam}</span>}</span>
           </div>
           {sp.soort === 'demo' && (
             <p className="sp-noot" role="note"><span className="demo-label">Demo</span> {v.herkenning ? 'Deze herkenning is nagespeeld. ' : 'Herkenning is in deze versie handmatig. '}Er wordt niets echt bewaard{v.voorbeeld ? '' : ', ook je bestand niet'}.</p>
@@ -376,8 +435,9 @@ function DocumentInvoer({ invoer, sluit }: { invoer: Invoer; sluit: () => void }
               </div>
             </div>
           )}
-          <label className="veld"><span className="veld-label">Titel</span><input value={titel} onChange={e => zetTitel(e.target.value)} maxLength={120} /></label>
-          <SoortKeuze soort={soort} zet={s => { zetSoort(s); zetZicht(standaardZichtbaarheid(s)); }} />
+          <label className="veld"><span className="veld-label">Titel</span><input value={titel} onChange={e => { zetTitel(e.target.value); zetEigenTitel(true); }}
+            onBlur={() => { if (!titel.trim()) zetEigenTitel(false); }} maxLength={120} placeholder={autoTitel} /></label>
+          <SoortKeuze soort={soort} zet={s => { zetSoort(s); if (!bijPersoonlijk) zetZicht(standaardZichtbaarheid(s)); }} />
           <label className="veld"><span className="veld-label">Datum <span className="optioneel">(optioneel)</span>{v.herkenning?.datum && datum === v.herkenning.datum && <> <StatusLabel status="voorstel" /></>}</span>
             <input type="date" value={datum} onChange={e => zetDatum(e.target.value)} /></label>
 
@@ -415,8 +475,13 @@ function DocumentInvoer({ invoer, sluit }: { invoer: Invoer; sluit: () => void }
             </div>
           )}
           <Zichtbaarheidskeuze waarde={zicht} zet={zetZicht} mag />
+          {bijPersoonlijk && zicht === 'gedeeld' && <p className="stil-tekst sp-uitleg">Dit spul blijft alleen voor jou. Het huishouden ziet het document, maar niet bij welk spul het hoort.</p>}
+          {vraag && lek && (
+            <TitelVraag spul={lek} toch={() => zetGoedgekeurd(titel.trim())}
+              veilig={() => { zetTitel(leesbareTitel('', { soort, spulNaam: spulNaamVoorTitel(gekozenSpul, zicht), datum: datum || vandaag })); zetEigenTitel(true); }} />
+          )}
           {fout && <p className="veld-fout" role="alert">{fout}</p>}
-          <button type="submit" className="knop breed" disabled={bezig || (!!dubbel && !toch)}>{bezig ? 'Bezig…' : 'Bewaren'}</button>
+          <button type="submit" className="knop breed" disabled={bezig || vraag || (!!dubbel && !toch)}>{bezig ? 'Bezig…' : 'Bewaren'}</button>
         </form>
       )}
     </Venster>

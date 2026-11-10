@@ -898,3 +898,10 @@ a { color: var(--accent); }
 .sp-taak-nieuw { display: flex; gap: 8px; margin-top: 12px; }
 .sp-taak-nieuw input { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: var(--radius-klein);
   border: 1.5px solid var(--lijn-sterk); background: var(--bg); color: var(--inkt); font-size: 16px; }
+/* Nieuw spul compact: "Meer details" klapt de optionele velden uit. */
+.sp-details-knop { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 48px; margin: 4px 0 12px;
+  padding: 0 14px; border: 1.5px dashed var(--lijn-sterk); border-radius: var(--radius-klein); background: transparent; color: var(--accent);
+  font: inherit; font-weight: 600; cursor: pointer; }
+.sp-details-knop .uitklap-pijl { color: var(--inkt-3); flex: 0 0 auto; }
+.sp-details { margin-bottom: 8px; }
+.sp-bestandsnaam { display: block; margin-top: 2px; font-size: 13px; overflow-wrap: anywhere; }

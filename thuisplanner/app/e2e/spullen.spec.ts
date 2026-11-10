@@ -202,3 +202,195 @@ test('op 320 px en in donker: overzicht, dossier en de + met bijlageknop passen'
     await page.keyboard.press('Escape');
   }
 });
+
+// ---------------------------------------------------------------- Nieuw spul compact en de leesbare documenttitel
+// De velden achter "Meer details" en de titel die de soort en het spul volgt tot je hem zelf aanpast.
+
+test('nieuw spul compact: Meer details klapt uit, waarden blijven ingeklapt bewaard, een prijsfout klapt het open', async ({ page }) => {
+  await page.goto(`${START}#/spullen`);
+  await page.getByRole('button', { name: 'Spul toevoegen' }).first().click();
+  const venster = page.getByRole('dialog', { name: 'Nieuw spul' });
+  const meer = venster.getByRole('button', { name: /^Meer details/ });
+  // Direct zichtbaar: de naam en wie het ziet; de rest is ingeklapt en niet bereikbaar.
+  await expect(venster.getByRole('textbox', { name: 'Naam' })).toBeVisible();
+  await expect(venster.getByText('Wie ziet dit?')).toBeVisible();
+  await expect(meer).toHaveAttribute('aria-expanded', 'false');
+  await expect(venster.getByRole('textbox', { name: /^Merk/ })).toBeHidden();
+  const paneel = venster.locator(`#${await meer.getAttribute('aria-controls')}`);
+  await expect(paneel).toBeHidden();
+  // Met het toetsenbord uitklappen.
+  await meer.focus();
+  await page.keyboard.press('Enter');
+  await expect(meer).toHaveAttribute('aria-expanded', 'true');
+  await expect(paneel).toBeVisible();
+  await venster.getByRole('textbox', { name: /^Merk/ }).fill('Voorbeeldmerk');
+  await venster.getByRole('textbox', { name: /^Prijs/ }).fill('veel');
+  await meer.click();
+  await expect(meer).toHaveText('Meer details (2 ingevuld)');
+  // Zonder naam: de fout bij de naam; met een naam maar een onleesbare prijs klapt het paneel open.
+  await venster.getByRole('button', { name: 'Bewaren', exact: true }).click();
+  await expect(venster.getByRole('alert')).toHaveText('Geef het spul een naam.');
+  await venster.getByRole('textbox', { name: 'Naam' }).fill('Koffiezetter (voorbeeld)');
+  await venster.getByRole('button', { name: 'Bewaren', exact: true }).click();
+  await expect(venster.getByRole('alert')).toContainText('De prijs is geen bedrag');
+  await expect(meer).toHaveAttribute('aria-expanded', 'true');
+  await venster.getByRole('textbox', { name: /^Prijs/ }).fill('12,50');
+  await meer.click();
+  await venster.getByRole('button', { name: 'Bewaren', exact: true }).click();
+  // Ingeklapt bewaard: merk en prijs staan in het dossier.
+  await expect(page.getByRole('heading', { name: 'Koffiezetter (voorbeeld)' })).toBeVisible();
+  await expect(page.getByText('Voorbeeldmerk')).toBeVisible();
+  await expect(page.getByText('€12,50')).toBeVisible();
+  await geenHorizontaleScroll(page);
+});
+
+test('spul aanpassen: Meer details staat open met de bestaande gegevens, inklappen verliest niets', async ({ page }) => {
+  await page.goto(`${START}#/spullen/spul/s-afwasser`);
+  await page.getByRole('button', { name: 'Aanpassen' }).click();
+  const venster = page.getByRole('dialog', { name: 'Spul aanpassen' });
+  const meer = venster.getByRole('button', { name: /^Meer details/ });
+  await expect(meer).toHaveAttribute('aria-expanded', 'true');
+  await expect(venster.getByRole('textbox', { name: /^Model/ })).toHaveValue('AW-3000-VB');
+  await meer.click();
+  await expect(meer).toHaveText(/^Meer details \(\d+ ingevuld\)$/);
+  await venster.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Afwasser 3000 (voorbeeld)' })).toBeVisible();
+  await expect(page.getByText('AW-3000-VB')).toBeVisible();
+  await expect(page.getByText('€549,00')).toBeVisible();
+});
+
+test('documenttitel: volgt soort en spul, een eigen titel blijft staan, leeg wordt de terugvalnaam', async ({ page }) => {
+  await page.goto(`${START}#/spullen/spul/s-afwasser`);
+  const pdf = Buffer.from('%PDF-1.4\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n');
+  await page.getByTestId('bestand-kiezen').setInputFiles({ name: '970A712A-0D3D-4C53-A600-6A38586D060F.pdf', mimeType: 'application/pdf', buffer: pdf });
+  const venster = page.getByRole('dialog', { name: 'Document bewaren' });
+  const titel = venster.getByRole('textbox', { name: 'Titel' });
+  const soort = (naam: string) => venster.getByRole('group', { name: 'Soort document' }).getByRole('button', { name: naam, exact: true });
+  // Vooraf gekoppeld aan het spul; een code als bestandsnaam wordt de soort met het spul; de bestandsnaam blijft zichtbaar.
+  await expect(venster.getByRole('button', { name: 'Bestaand spul' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(titel).toHaveValue('Factuur Afwasser 3000 (voorbeeld)');
+  await expect(venster.getByText('Bestand: 970A712A-0D3D-4C53-A600-6A38586D060F.pdf')).toBeVisible();
+  await soort('Garantiebewijs').click();
+  await expect(titel).toHaveValue('Garantiebewijs Afwasser 3000 (voorbeeld)');
+  // Een eigen titel volgt de soort niet meer.
+  await titel.fill('Garantie via de winkel');
+  await soort('Handleiding').click();
+  await expect(titel).toHaveValue('Garantie via de winkel');
+  // Leegmaken en verlaten: weer de automatische naam (met de huidige soort).
+  await titel.fill('');
+  await titel.blur();
+  await expect(titel).toHaveValue('Handleiding Afwasser 3000 (voorbeeld)');
+  // Een eigen titel wordt precies zo bewaard (alleen de spaties eromheen gaan weg).
+  await titel.fill('  Handleiding met schema  ');
+  await venster.getByRole('button', { name: 'Bewaren', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Handleiding met schema/ })).toBeVisible();
+});
+
+test('document aanpassen: de titel blijft ongewijzigd, een lege titel wordt de terugvalnaam', async ({ page }) => {
+  await page.goto(`${START}#/spullen/spul/s-afwasser`);
+  await page.getByRole('button', { name: /Factuur Afwasser 3000/ }).click();
+  await page.getByRole('button', { name: 'Aanpassen' }).click();
+  const venster = page.getByRole('dialog', { name: 'Document aanpassen' });
+  const titel = venster.getByRole('textbox', { name: 'Titel' });
+  const oud = await titel.inputValue();
+  expect(oud).toMatch(/^Factuur Afwasser 3000/);
+  await venster.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.getByRole('heading', { name: oud })).toBeVisible();
+  await page.getByRole('button', { name: 'Aanpassen' }).click();
+  await titel.fill('');
+  await expect(titel).toHaveAttribute('placeholder', 'Factuur Afwasser 3000 (voorbeeld)');
+  await venster.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Factuur Afwasser 3000 (voorbeeld)' })).toBeVisible();
+});
+
+// ---- Privacy: de naam van een persoonlijk spul komt nooit vanzelf in iets wat het huishouden ziet ----
+const PDF = Buffer.from('%PDF-1.4\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n');
+async function persoonlijkSpul(page: Page, naam: string) {
+  await page.goto(`${START}#/spullen`);
+  await page.getByRole('button', { name: 'Spul toevoegen' }).first().click();
+  const v = page.getByRole('dialog', { name: 'Nieuw spul' });
+  await v.getByRole('textbox', { name: 'Naam' }).fill(naam);
+  await v.getByRole('button', { name: 'Alleen ik' }).click();
+  await v.getByRole('button', { name: 'Bewaren', exact: true }).click();
+  await expect(page.getByRole('heading', { name: naam })).toBeVisible();
+}
+const invoer = (page: Page) => page.getByRole('dialog', { name: 'Document bewaren' });
+
+test('privacy: document bij een persoonlijk spul is standaard persoonlijk; delen haalt de spulnaam uit de automatische titel', async ({ page }) => {
+  await persoonlijkSpul(page, 'Trouwring');
+  await page.getByTestId('bestand-kiezen').setInputFiles({ name: 'IMG_4821.pdf', mimeType: 'application/pdf', buffer: PDF });
+  const v = invoer(page);
+  const titel = v.getByRole('textbox', { name: 'Titel' });
+  await expect(v.getByRole('button', { name: 'Alleen ik' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(titel).toHaveValue('Factuur Trouwring');
+  // Een andere soort zet het niet terug naar gedeeld.
+  await v.getByRole('group', { name: 'Soort document' }).getByRole('button', { name: 'Bon', exact: true }).click();
+  await expect(v.getByRole('button', { name: 'Alleen ik' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(titel).toHaveValue('Bon Trouwring');
+  // Bewust delen: de naam verdwijnt uit de titel, en het scherm zegt wat het huishouden ziet.
+  await v.getByRole('button', { name: 'Het huishouden' }).click();
+  await expect(titel).toHaveValue('Bon van 28 oktober 2026');
+  await expect(v.getByText(/ziet het document, maar niet bij welk spul/)).toBeVisible();
+  await v.getByRole('button', { name: 'Bewaren', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Bon van 28 oktober 2026/ })).toBeVisible();
+});
+
+test('privacy: een bestandsnaam of eigen titel die het persoonlijke spul noemt, vraagt eerst om een keuze', async ({ page }) => {
+  await persoonlijkSpul(page, 'Trouwring');
+  await page.getByTestId('bestand-kiezen').setInputFiles({ name: 'Bon Trouwring juwelier.pdf', mimeType: 'application/pdf', buffer: PDF });
+  const v = invoer(page);
+  const titel = v.getByRole('textbox', { name: 'Titel' });
+  const bewaar = v.getByRole('button', { name: 'Bewaren', exact: true });
+  await v.getByRole('button', { name: 'Het huishouden' }).click();
+  await expect(v.getByText(/iedereen in het huishouden/)).toBeVisible();
+  await expect(bewaar).toBeDisabled();
+  // De veilige titel lost het op.
+  await v.getByRole('button', { name: 'Veilige titel gebruiken' }).click();
+  await expect(titel).not.toHaveValue(/Trouwring/);
+  await expect(bewaar).toBeEnabled();
+  // Een eigen, bewuste keuze blijft mogelijk.
+  await titel.fill('Trouwring: bon van de juwelier');
+  await expect(bewaar).toBeDisabled();
+  await v.getByRole('button', { name: 'Toch zo laten' }).click();
+  await expect(bewaar).toBeEnabled();
+  // Een andere titel vraagt opnieuw; terug naar Alleen ik: geen vraag meer.
+  await titel.fill('Bon Trouwring');
+  await expect(bewaar).toBeDisabled();
+  await v.getByRole('button', { name: 'Alleen ik' }).click();
+  await expect(v.getByText(/iedereen in het huishouden/)).toHaveCount(0);
+  await expect(bewaar).toBeEnabled();
+});
+
+test('privacy: een persoonlijk document delen met de spulnaam in de titel vraagt eerst om een keuze', async ({ page }) => {
+  await persoonlijkSpul(page, 'Trouwring');
+  await page.getByTestId('bestand-kiezen').setInputFiles({ name: 'IMG_4821.pdf', mimeType: 'application/pdf', buffer: PDF });
+  await invoer(page).getByRole('button', { name: 'Bewaren', exact: true }).click();
+  await page.getByRole('button', { name: /Factuur Trouwring/ }).click();
+  await page.getByRole('button', { name: 'Aanpassen' }).click();
+  const v = page.getByRole('dialog', { name: 'Document aanpassen' });
+  const titel = v.getByRole('textbox', { name: 'Titel' });
+  const opslaan = v.getByRole('button', { name: 'Opslaan', exact: true });
+  await expect(opslaan).toBeEnabled();
+  await v.getByRole('button', { name: 'Het huishouden' }).click();
+  await expect(opslaan).toBeDisabled();
+  // Ook de terugvalnaam van een leeg veld noemt het persoonlijke spul nu niet.
+  await titel.fill('');
+  await expect(titel).toHaveAttribute('placeholder', 'Factuur van 28 oktober 2026');
+  await titel.fill('Factuur Trouwring');
+  await v.getByRole('button', { name: 'Veilige titel gebruiken' }).click();
+  await expect(titel).toHaveValue('Factuur van 28 oktober 2026');
+  await opslaan.click();
+  await expect(page.getByRole('heading', { name: 'Factuur van 28 oktober 2026' })).toBeVisible();
+});
+
+test('privacy: een gedeeld spul persoonlijk maken meldt welke gedeelde documenten het nog noemen', async ({ page }) => {
+  await page.goto(`${START}#/spullen/spul/s-afwasser`);
+  await page.getByRole('button', { name: 'Aanpassen' }).click();
+  const v = page.getByRole('dialog', { name: 'Spul aanpassen' });
+  await expect(v.getByText(/noemen dit spul in de titel/)).toHaveCount(0);
+  await v.getByRole('button', { name: 'Alleen ik' }).click();
+  await expect(v.getByRole('note').filter({ hasText: /noemen dit spul in de titel/ })).toContainText('Factuur Afwasser 3000');
+  // De melding houdt niets tegen: bewaren kan gewoon.
+  await v.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.getByText('Alleen voor jou')).toBeVisible();
+});
