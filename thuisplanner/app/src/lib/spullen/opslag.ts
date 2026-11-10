@@ -97,7 +97,8 @@ const nieuwId = (p: string) => `${p}-nieuw-${Date.now().toString(36)}-${++teller
  * De demo-opslag. `meld` toont een korte melding (die van de app). Een eigen bestand van de gebruiker wordt nooit bewaard:
  * niet in het geheugen, niet in de browseropslag en niet in de cache. Alleen de meegeleverde voorbeelden zijn te openen.
  */
-export function useDemoSpullen(vandaag: Datum, ik: LidId, meld: (tekst: string) => void): SpullenOpslag {
+export function useDemoSpullen(vandaag: Datum, ik: LidId, meld: (tekst: string) => void,
+  takenLos?: (spulId: string) => void): SpullenOpslag {
   const [alles, dispatch] = useReducer(reducer, vandaag, demoSpullen);
   const gegevens = useMemo(() => zichtbaarVoorLid(alles, ik), [alles, ik]);
   return useMemo<SpullenOpslag>(() => ({
@@ -106,6 +107,8 @@ export function useDemoSpullen(vandaag: Datum, ik: LidId, meld: (tekst: string) 
     ik,
     spulBewaren: async s => {
       const id = s.id ?? nieuwId('s');
+      // Gedeeld → persoonlijk: de taken verliezen hun koppeling, zoals online (trigger possessions_taken_los).
+      if (s.zichtbaarheid === 'persoonlijk' && alles.spullen.find(x => x.id === id)?.zichtbaarheid === 'gedeeld') takenLos?.(id);
       dispatch({ type: 'spul', spul: { ...s, id, eigenaar: alles.spullen.find(x => x.id === id)?.eigenaar ?? ik } });
       meld(s.id ? `${s.naam} aangepast` : `${s.naam} bewaard`);
       return id;
@@ -138,7 +141,7 @@ export function useDemoSpullen(vandaag: Datum, ik: LidId, meld: (tekst: string) 
     koppel: (documentId, spulId) => { dispatch({ type: 'koppel', documentId, spulId }); meld('Gekoppeld'); },
     ontkoppel: (documentId, spulId) => { dispatch({ type: 'ontkoppel', documentId, spulId }); meld('Ontkoppeld; het document blijft bewaard'); },
     openBestand: async d => (d.bestand.soort === 'voorbeeld' ? voorbeeldBestand(d.bestand.sleutel) : d.bestand.soort === 'niet-bewaard' ? 'niet-bewaard' : null),
-  }), [gegevens, alles, ik, meld]);
+  }), [gegevens, alles, ik, meld, takenLos]);
 }
 
 // ---- Context: de schermen en de + vragen de opslag hier op. Zonder opslag (de lokale modus, nog niet gebouwd) is die er

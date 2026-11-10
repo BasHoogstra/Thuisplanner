@@ -29,6 +29,8 @@ const VELD_TEKST: Record<string, string> = {
   aankoopdatum: 'aankoopdatum', winkel: 'winkel', prijs: 'prijs', model: 'modelnummer', merk: 'merk', serienummer: 'serienummer',
 };
 const NIET_BEVESTIGD = ' (nog niet bevestigd)';
+/** Waarom een persoonlijk spul geen taken krijgt (de + en de spulpagina zeggen hetzelfde). */
+export const TAKEN_ALLEEN_GEDEELD = 'Taken zijn voor het hele huishouden zichtbaar, dus die koppelen we niet aan een persoonlijk spul.';
 
 /** De datum N dagen, weken of maanden eerder (een maand eerder dan 31 maart is 28 of 29 februari). */
 export function eerder(datum: Datum, aantal: number, eenheid: Vervolg['eenheid']): Datum {
@@ -53,6 +55,8 @@ const bewijs = (docs: Document[]) => docs.filter(d => d.soort === 'factuur' || d
 
 function vervolgVoor(v: Vervolg | undefined, s: Spul, vandaag: Datum, taken: Taak[]): VervolgVoorstel | undefined {
   if (!v) return undefined;
+  // Taken zijn voor het hele huishouden zichtbaar: bij een persoonlijk spul geen taak (en dus nooit de naam in een titel).
+  if (s.zichtbaarheid === 'persoonlijk') return { soort: 'kan-niet', regel: TAKEN_ALLEEN_GEDEELD };
   const tot = s.garantieTot ?? s.extraGarantieTot;
   if (!tot) return { soort: 'kan-niet', regel: 'Zonder garantiedatum kan ik niets voor je inplannen.' };
   const datum = eerder(tot, v.aantal, v.eenheid);

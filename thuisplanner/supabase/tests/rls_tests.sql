@@ -3094,6 +3094,56 @@ do $$ declare ha uuid := current_setting('test.ha')::uuid; ms uuid := current_se
 end $$;
 set local role authenticated;
 
+-- KG-T97 (privacyherstel tasks.possession_id, optie A) Taken zijn voor het hele huishouden zichtbaar, dus een taak hoort
+-- alleen bij een gedeeld spul: ook de eigenaar koppelt geen taak aan het eigen persoonlijke spul (P1); de partner krijgt
+-- dezelfde fout als bij een onbekend id (P2); gedeeld werkt (P3); persoonlijk maken maakt de koppeling meteen leeg en laat
+-- de taak en andere taken staan (P4); weer delen brengt haar niet terug (P5); niet aan een spul in de prullenbak; ook de
+-- service-rol niet (de regel geldt voor elke rol); geen possession_id die het lid niet kan lezen (P7); de eenmalige
+-- opschoning raakt alleen koppelingen aan niet-gedeelde spullen (P8 opschoning).
+do $$ declare ha uuid := current_setting('test.ha')::uuid; ms uuid := current_setting('test.m_sara')::uuid;
+  p2 uuid := current_setting('test.p2')::uuid; q uuid := gen_random_uuid(); r uuid := gen_random_uuid();
+  t0 uuid := gen_random_uuid(); t1 uuid := gen_random_uuid(); t2 uuid := gen_random_uuid(); t3 uuid := gen_random_uuid();
+  voor bigint; n integer; begin
+  perform pg_temp.als('sara');
+  if pg_temp.fout(format('insert into public.tasks (household_id, title, possession_id) values (%L, %L, %L)', ha, 'Sieraad laten taxeren', p2)) is distinct from '42501' then raise exception 'KG-T97: eigenaar koppelt een taak aan het eigen persoonlijke spul'; end if;
+  insert into public.possessions (id, household_id, name, owner_member_id) values (q, ha, 'Wasmachine', ms);
+  insert into public.tasks (id, household_id, title) values (t0, ha, 'Losse taak');
+  insert into public.tasks (id, household_id, title, possession_id) values (t1, ha, 'Filter wasmachine', q);
+  perform pg_temp.als('tim');
+  if pg_temp.fout(format('insert into public.tasks (household_id, title, possession_id) values (%L, %L, %L)', ha, 'x', p2))
+     is distinct from pg_temp.fout(format('insert into public.tasks (household_id, title, possession_id) values (%L, %L, %L)', ha, 'x', gen_random_uuid())) then raise exception 'KG-T97: andere fout bij een persoonlijk spul dan bij een onbekend id'; end if;
+  if (select possession_id from public.tasks where id = t1) is distinct from q then raise exception 'KG-T97: de partner ziet de koppeling aan een gedeeld spul niet'; end if;
+  perform pg_temp.als('sara');
+  voor := pg_temp.aantal(format('select 1 from public.tasks where household_id = %L', ha));
+  update public.possessions set visibility = 'private' where id = q;
+  perform pg_temp.als('tim');
+  if (select possession_id from public.tasks where id = t1) is not null then raise exception 'KG-T97: koppeling blijft na persoonlijk maken'; end if;
+  if (select title from public.tasks where id = t1) is distinct from 'Filter wasmachine' or not exists (select 1 from public.tasks where id = t0)
+     or pg_temp.aantal(format('select 1 from public.tasks where household_id = %L', ha)) <> voor then raise exception 'KG-T97: persoonlijk maken raakt de taken zelf'; end if;
+  if exists (select 1 from public.tasks t where t.possession_id is not null and not exists (select 1 from public.possessions p where p.id = t.possession_id)) then raise exception 'KG-T97: de partner ziet een possession_id die hij niet kan lezen'; end if;
+  perform pg_temp.als('sara');
+  update public.possessions set visibility = 'household' where id = q;
+  if (select possession_id from public.tasks where id = t1) is not null then raise exception 'KG-T97: koppeling komt terug na weer delen'; end if;
+  update public.possessions set deleted_at = now() where id = q;
+  if pg_temp.fout(format('update public.tasks set possession_id = %L where id = %L', q, t1)) is distinct from '42501' then raise exception 'KG-T97: taak aan een spul in de prullenbak'; end if;
+  update public.possessions set deleted_at = null where id = q;
+  reset role;
+  if pg_temp.fout(format('insert into public.tasks (household_id, title, possession_id) values (%L, %L, %L)', ha, 'Dienst', p2)) is distinct from '42501' then raise exception 'KG-T97: een rol buiten de API koppelt aan een persoonlijk spul'; end if;
+  -- De opschoning: een oude koppeling aan een persoonlijk spul verdwijnt, een gedeelde en een losse taak blijven.
+  insert into public.possessions (id, household_id, name, owner_member_id) values (r, ha, 'Boor', ms);
+  alter table public.tasks disable trigger tasks_possession_refs;
+  insert into public.tasks (id, household_id, title, possession_id) values (t2, ha, 'Oud: sieraad', p2), (t3, ha, 'Oud: boor', r);
+  alter table public.tasks enable trigger tasks_possession_refs;
+  voor := (select count(*) from public.tasks where household_id = ha);
+  n := private.spullen_taakkoppelingen_opschonen();
+  if n <> 1 or (select possession_id from public.tasks where id = t2) is not null then raise exception 'KG-T97: de opschoning laat een koppeling aan een persoonlijk spul staan'; end if;
+  if (select possession_id from public.tasks where id = t3) is distinct from r or (select title from public.tasks where id = t2) <> 'Oud: sieraad'
+     or (select count(*) from public.tasks where household_id = ha) <> voor or not exists (select 1 from public.tasks where id = t0) then raise exception 'KG-T97: de opschoning raakt meer dan de koppelingen aan niet-gedeelde spullen'; end if;
+  set local role authenticated;
+  perform pg_temp.ok('KG-T97');
+end $$;
+set local role authenticated;
+
 -- KG-T94 Persoonlijk volgt het account, en de seintjes verraden niets: geen seintje over een persoonlijke rij; gedeelde
 -- seintjes alleen {t, id, v, op}; een gearchiveerd lid ziet niets; ontkoppelen, de bewaartermijn en een verwijderd
 -- account wissen de persoonlijke spullen en documenten.
@@ -3208,6 +3258,6 @@ do $$ declare r record; begin
 end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 96' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 97' as resultaat;
 
 rollback;

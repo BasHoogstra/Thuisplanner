@@ -21,6 +21,7 @@ die eerder online gaan. Een eenmaal toegepaste migratie wordt nooit herschreven 
 | **`20261027180000`** | **Herstel bezorgmeldingen** (PR #48) | in de repository op `thuisplanner-herstel-server`; nog niet toegepast |
 | `20261028120000` | Vakanties-reviewpunten (V1.1) | gereserveerd; volgens de hoofdlijnsessie niet nodig (herstel in app en sync), nog niet geschreven |
 | `20261029120000` | Mijn spullen & Documenten | op `thuisplanner-spullen` (lokaal), nog niet toegepast |
+| `20261029130000` | Spullen: taken alleen bij gedeelde spullen (privacyherstel `tasks.possession_id`, optie A) | op `thuisplanner-beta` (lokaal), nog niet toegepast; hoort onlosmakelijk bij `20261029120000` |
 | `20261030…` | Afsprakenmodel en agenda-integratie | voorgesteld, nog niet geschreven |
 
 ## Waarom `20261027180000` voor de herstelmigratie

@@ -76,7 +76,14 @@ function DemoApp() {
   const vandaag = naarDatum(klok);
   const demo = useDemoStaat(vandaag);
   // Mijn spullen & Documenten: alleen in de demo. Het echte pad volgt na de migratie, met een eigen akkoord.
-  const opslag = useDemoSpullen(vandaag, huishouden.ik, demo.meld);
+  // Een spul dat persoonlijk wordt, verliest zijn taken (zoals online): de taken blijven, zonder koppeling.
+  const items = useRef(demo.staat.items);
+  items.current = demo.staat.items;
+  const { bijwerken } = demo;
+  const takenLos = useCallback((spulId: string) => {
+    for (const t of items.current) if (t.soort === 'taak' && t.spulId === spulId) bijwerken({ ...t, spulId: null });
+  }, [bijwerken]);
+  const opslag = useDemoSpullen(vandaag, huishouden.ik, demo.meld, takenLos);
   const { invoer, startInvoer, sluitInvoer } = useSpullenInvoer();
   const spullen = useMemo(() => ({ ...opslag, startInvoer }), [opslag, startInvoer]);
   return (

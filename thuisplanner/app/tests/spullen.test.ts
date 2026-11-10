@@ -8,7 +8,7 @@ import {
   ontkoppel, spulNaamVoorTitel, spullenVan, terugzettenTot, verborgenSpulInTitel, veldStatus, woordPast, zichtbaarVoorLid, zoekDocumenten, zoekSpullen,
 } from '../src/lib/spullen/logica';
 import type { Document, Spul, SpullenGegevens } from '../src/lib/spullen/types';
-import { beantwoordSpullen, eerder } from '../src/lib/vraag/spullen';
+import { TAKEN_ALLEEN_GEDEELD, beantwoordSpullen, eerder } from '../src/lib/vraag/spullen';
 
 const VANDAAG = '2026-10-28';
 const eva = () => zichtbaarVoorLid(demoSpullen(VANDAAG), 'm-eva');
@@ -333,4 +333,22 @@ describe('bestanden: type uit de bytes, niet uit de naam', () => {
     expect(nieuweMaat(800, 600)).toEqual({ breedte: 800, hoogte: 600 });
   });
   it('de demodatum', () => expect(DEMO_AANKOOP).toBe('2026-10-28'));
+});
+
+describe('privacy: een persoonlijk spul krijgt geen taak (P10, herstel tasks.possession_id)', () => {
+  const persoonlijk = (): SpullenGegevens => {
+    const g = eva();
+    return { ...g, spullen: g.spullen.map(s => (s.id === 's-afwasser' ? { ...s, zichtbaarheid: 'persoonlijk' as const } : s)) };
+  };
+  it('de herinnering wordt geen taakvoorstel, en de spulnaam komt in geen enkele titel', () => {
+    const r = vraag('Wanneer verloopt de garantie van de vaatwasser? Herinner me een maand van tevoren', persoonlijk());
+    expect(r?.soort).toBe('antwoord');
+    if (r?.soort !== 'antwoord') return;
+    expect(r.vervolg).toEqual({ soort: 'kan-niet', regel: TAKEN_ALLEEN_GEDEELD });
+    expect(JSON.stringify(r.vervolg)).not.toContain('Afwasser');
+  });
+  it('tegenproef: hetzelfde spul gedeeld geeft wel het voorstel', () => {
+    const r = vraag('Wanneer verloopt de garantie van de vaatwasser? Herinner me een maand van tevoren');
+    expect(r?.soort === 'antwoord' && r.vervolg?.soort).toBe('taak');
+  });
 });

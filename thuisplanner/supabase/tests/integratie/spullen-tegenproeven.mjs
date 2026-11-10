@@ -47,6 +47,19 @@ const PROEVEN = [
        and (visibility = 'household' or owner_member_id = private.my_member_id(household_id)))`],
   ['een taak aan het persoonlijke spul van de partner', 'private.guard_task_possession()',
     `create or replace function private.guard_task_possession() returns trigger language plpgsql set search_path = '' as $$ begin return new; end $$`],
+  // Privacyherstel tasks.possession_id (optie A): de oude guard, zonder de trigger bij persoonlijk maken, en zonder vergrendeling.
+  ['een taak aan het eigen persoonlijke spul (de oude guard)', 'private.guard_task_possession()',
+    `create or replace function private.guard_task_possession() returns trigger language plpgsql set search_path = '' as $$ begin
+       if new.possession_id is not null and current_user in ('anon', 'authenticated') and (tg_op = 'INSERT' or new.possession_id is distinct from old.possession_id)
+         and not private.possession_visible(new.possession_id) then raise exception 'Spul niet gevonden' using errcode = '42501'; end if; return new; end $$`],
+  ['persoonlijk maken laat de taakkoppeling staan', null, 'drop trigger possessions_taken_los on public.possessions',
+    `create trigger possessions_taken_los after update of visibility on public.possessions for each row
+       when (old.visibility = 'household' and new.visibility <> 'household') execute function private.spul_taken_los()`],
+  ['koppelen zonder vergrendeling (race met persoonlijk maken)', 'private.spul_gedeeld_vergrendeld(uuid,uuid,boolean)',
+    `create or replace function private.spul_gedeeld_vergrendeld(p_household uuid, p_id uuid, p_via_api boolean) returns boolean
+       language plpgsql security definer set search_path = '' as $$ begin perform 1 from public.possessions p where p.household_id = p_household
+       and p.id = p_id and p.visibility = 'household' and (not p_via_api or (p.deleted_at is null and p.household_id in (select private.my_household_ids())));
+       return found; end $$`],
   ['koppelen zonder controle op beide kanten', 'private.guard_document_link()',
     `create or replace function private.guard_document_link() returns trigger language plpgsql set search_path = '' as $$ begin return new; end $$`],
   ['de geplande opruimronde roept de functie niet aan', 'private.documenten_opruimen_ronde()',
@@ -61,7 +74,7 @@ try {
     await db.query(sabotage);
     let r;
     try {
-      r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-force-exit', 'spullen.test.mjs', 'spullen-sync.test.mjs', 'verwijderen-spullen.test.mjs'],
+      r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-force-exit', 'spullen.test.mjs', 'spullen-sync.test.mjs', 'spullen-taakprivacy.test.mjs', 'verwijderen-spullen.test.mjs'],
         { cwd: new URL('.', import.meta.url), encoding: 'utf8', env: process.env });
     } finally {
       await db.query(terug);

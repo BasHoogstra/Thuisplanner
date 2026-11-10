@@ -137,6 +137,7 @@ function TitelVraag({ spul, veilig, toch }: { spul: Spul; veilig: () => void; to
 
 export function SpulVenster({ bestaand, sluit, opBewaard }: { bestaand?: Spul; sluit: () => void; opBewaard?: (id: string) => void }) {
   const sp = useSpullen();
+  const app = useApp();
   const v = useVelden(veldenVan(bestaand ?? {}), bestaand?.status);
   const [zicht, zetZicht] = useState<Zichtbaarheid>(bestaand?.zichtbaarheid ?? 'gedeeld');
   const [fout, zetFout] = useState<string | null>(null);
@@ -158,13 +159,21 @@ export function SpulVenster({ bestaand, sluit, opBewaard }: { bestaand?: Spul; s
   };
   const p = { velden: v.velden, status: v.status, zet: v.zet, bevestig: v.bevestig };
   // Wordt een gedeeld spul persoonlijk, dan blijven gedeelde documenten zichtbaar; hun titel kan het spul nog noemen.
-  const blijftZichtbaar = bestaand?.zichtbaarheid === 'gedeeld' && zicht === 'persoonlijk' ? gedeeldeDocumentenMetNaam(sp.gegevens, bestaand) : [];
+  const wordtPersoonlijk = bestaand?.zichtbaarheid === 'gedeeld' && zicht === 'persoonlijk';
+  const blijftZichtbaar = wordtPersoonlijk ? gedeeldeDocumentenMetNaam(sp.gegevens, bestaand) : [];
+  // Taken zijn voor iedereen zichtbaar: bij opslaan verliezen ze hun koppeling met dit spul (ook de database doet dat).
+  const losTaken = wordtPersoonlijk ? app.staat.items.filter(t => t.soort === 'taak' && t.spulId === bestaand.id) : [];
   return (
     <Venster titel={bestaand ? 'Spul aanpassen' : 'Nieuw spul'} sluit={sluit}>
       <form onSubmit={bewaar} noValidate>
         <Veld veld="naam" verplicht {...p} />
         {fout && <span className="veld-fout" role="alert">{fout}</span>}
         <Zichtbaarheidskeuze waarde={zicht} zet={zetZicht} mag={!bestaand || bestaand.eigenaar === sp.ik} />
+        {losTaken.length > 0 && (
+          <p className="sp-noot" role="alert">
+            {losTaken.length === 1 ? 'Er hoort 1 taak' : `Er horen ${losTaken.length} taken`} bij dit spul. Taken zijn zichtbaar voor het hele huishouden, dus bij opslaan verdwijnt die koppeling. De {losTaken.length === 1 ? 'taak blijft' : 'taken blijven'} bestaan, maar {losTaken.length === 1 ? 'hoort' : 'horen'} niet meer bij dit spul. Kijk of de titel iets over dit spul zegt: {losTaken.map(t => t.soort === 'taak' ? t.titel : '').join(', ')}.
+          </p>
+        )}
         {blijftZichtbaar.length > 0 && (
           <p className="sp-noot" role="note">Deze gedeelde documenten noemen dit spul in de titel en blijven zichtbaar voor het huishouden: {blijftZichtbaar.map(d => d.titel).join(', ')}. Pas de titel aan of maak ze ook persoonlijk.</p>
         )}

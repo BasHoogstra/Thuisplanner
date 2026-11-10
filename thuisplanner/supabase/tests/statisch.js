@@ -65,6 +65,39 @@ function leesFuncties() {
   return uit;
 }
 
+/**
+ * P13 (privacyherstel tasks.possession_id): taken zijn voor het hele huishouden zichtbaar. Elke kolom op public.tasks die
+ * verwijst naar een tabel met `visibility` (persoonlijk of gedeeld) moet een trigger hebben (before insert or update of die
+ * kolom) met een guard die security invoker is, de kolom controleert en eist dat het doel gedeeld is (visibility =
+ * 'household'), direct of via een functie in private. Geeft de fouten; leeg = in orde. `beschermd` telt de kolommen.
+ */
+function taakVerwijzingFouten(sql) {
+  const fouten = [], beschermd = [];
+  const metZicht = new Set([...sql.matchAll(/create table public\.([a-z_]+) \(([\s\S]*?)\n\);/gi)]
+    .filter(m => /\bvisibility\b/i.test(m[2])).map(m => m[1].toLowerCase()));
+  for (const m of sql.matchAll(/alter table public\.([a-z_]+) add column visibility\b/gi)) metZicht.add(m[1].toLowerCase());
+  const functies = {};   // de laatste definitie telt
+  for (const m of sql.matchAll(/create (?:or replace )?function private\.([a-z_]+)\s*\(([\s\S]*?)\$\$([\s\S]*?)\$\$/gi)) functies[m[1].toLowerCase()] = { kop: m[2], romp: m[3] };
+  // Gedeeld zonder uitzondering voor de eigenaar (possession_visible laat de eigenaar zijn persoonlijke spul zien: te ruim).
+  const alleenGedeeld = romp => /visibility\s*=\s*'household'/i.test(romp) && !/is_my_event|owner_/i.test(romp);
+  const eistGedeeld = romp => alleenGedeeld(romp)
+    || [...romp.matchAll(/private\.([a-z_]+)\s*\(/gi)].some(c => alleenGedeeld(functies[c[1].toLowerCase()]?.romp ?? ''));
+  for (const m of sql.matchAll(/alter table public\.tasks add constraint [a-z_]+ foreign key \(household_id, ([a-z_]+)\)\s+references public\.([a-z_]+)/gi)) {
+    const [kolom, doel] = [m[1].toLowerCase(), m[2].toLowerCase()];
+    if (!metZicht.has(doel)) continue;
+    beschermd.push(kolom);
+    const triggers = [...sql.matchAll(new RegExp('create trigger [a-z_]+ before insert or update of ' + kolom + ' on public\\.tasks\\s+for each row execute function private\\.([a-z_]+)\\(\\)', 'gi'))];
+    if (!triggers.length) { fouten.push(`tasks.${kolom} → ${doel}: geen guard-trigger (before insert or update of ${kolom})`); continue; }
+    for (const t of triggers) {
+      const f = functies[t[1].toLowerCase()];
+      if (!f) fouten.push(`tasks.${kolom}: guard private.${t[1]} niet gevonden`);
+      else if (/security definer/i.test(f.kop)) fouten.push(`tasks.${kolom}: guard private.${t[1]} is security definer (dan is current_user nooit authenticated)`);
+      else if (!new RegExp('new\\.' + kolom + '\\b', 'i').test(f.romp) || !eistGedeeld(f.romp)) fouten.push(`tasks.${kolom}: guard private.${t[1]} eist niet dat ${doel} gedeeld is`);
+    }
+  }
+  return Object.assign(fouten, { beschermd });
+}
+
 const checks = {
   'migraties: geldige namen en oplopende, unieke versies'() {
     const files = migraties();
@@ -118,13 +151,32 @@ const checks = {
     assert(bad.length === 0, bad.join('\n'));
   },
 
+  'taken: een verwijzing naar iets met persoonlijk/gedeeld heeft een guard die gedeeld eist (P13)'() {
+    const sql = migraties().map(f => sqlZonderCommentaar(fs.readFileSync(path.join(MIG, f), 'utf8'))).join('\n');
+    const fouten = taakVerwijzingFouten(sql);
+    assert(fouten.length === 0, fouten.join('\n'));
+    assert(fouten.beschermd.includes('possession_id'), 'tasks.possession_id niet gevonden; klopt de controle nog?');
+    // Tegenproeven: zonder trigger, met de oude guard, als security definer, en een nieuwe kolom zonder guard.
+    const oudeGuard = `create or replace function private.guard_task_possession() returns trigger language plpgsql set search_path = '' as $$ begin
+      if new.possession_id is not null and not private.possession_visible(new.possession_id) then raise exception 'x'; end if; return new; end $$;`;
+    const proeven = [
+      sql.replace(/create trigger tasks_possession_refs[^;]*;/i, ''),
+      sql + '\n' + oudeGuard,
+      sql + '\nalter function private.guard_task_possession() security definer;\n' + oudeGuard.replace("set search_path = ''", "security definer set search_path = ''").replace('possession_visible(new.possession_id)', "spul_gedeeld_vergrendeld(new.household_id, new.possession_id, true)"),
+      sql + `\ncreate table public.plans (\n  id uuid,\n  visibility public.visibility\n);\nalter table public.tasks add constraint tasks_plan_fkey foreign key (household_id, plan_id) references public.plans (household_id, id);`,
+    ];
+    const gevangen = proeven.filter(s => taakVerwijzingFouten(s).length > 0).length;
+    assert(gevangen === proeven.length, `tegenproeven P13: ${gevangen} van ${proeven.length} gevangen`);
+    return `${fouten.beschermd.join(', ')}; ${gevangen} tegenproeven gevangen`;
+  },
+
   'RLS-tests: één transactie die wordt teruggedraaid'() {
     const sql = sqlZonderCommentaar(fs.readFileSync(path.join(TESTS, 'rls_tests.sql'), 'utf8'));
     assert(/^\s*begin;/i.test(sql), 'rls_tests.sql moet met begin; starten');
     assert(/rollback;\s*$/i.test(sql), 'rls_tests.sql moet met rollback; eindigen');
     assert(!/\bcommit\b/i.test(sql), 'rls_tests.sql mag geen commit bevatten');
     const nummers = [...new Set([...sql.matchAll(/pg_temp\.ok\('(KG-T\d\d)'\)/g)].map(m => m[1]))];
-    assert(nummers.length === 96, 'Verwacht 96 genummerde scenario\'s, gevonden ' + nummers.length);
+    assert(nummers.length === 97, 'Verwacht 97 genummerde scenario\'s, gevonden ' + nummers.length);
   },
 
   'tegenproeven: elke regel noemt een bestaand scenario'() {

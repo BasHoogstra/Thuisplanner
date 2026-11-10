@@ -394,3 +394,65 @@ test('privacy: een gedeeld spul persoonlijk maken meldt welke gedeelde documente
   await v.getByRole('button', { name: 'Opslaan', exact: true }).click();
   await expect(page.getByText('Alleen voor jou')).toBeVisible();
 });
+
+// Privacyherstel tasks.possession_id (optie A): taken zijn voor iedereen zichtbaar, dus alleen een gedeeld spul heeft taken.
+async function maakPersoonlijk(page: Page) {
+  await page.getByRole('button', { name: 'Aanpassen' }).click();
+  const v = page.getByRole('dialog', { name: 'Spul aanpassen' });
+  await v.getByRole('button', { name: 'Alleen ik' }).click();
+  return v;
+}
+
+test('privacy P11: een persoonlijk spul heeft geen taakinvoer, maar een uitleg', async ({ page }) => {
+  await page.goto(`${START}#/spullen/spul/s-afwasser`);
+  await expect(page.getByLabel('Nieuwe taak bij Afwasser 3000 (voorbeeld)')).toBeVisible();
+  const v = await maakPersoonlijk(page);
+  await v.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.getByText('Alleen voor jou')).toBeVisible();
+  await expect(page.getByText('Taken zijn voor het hele huishouden zichtbaar, dus die koppelen we niet aan een persoonlijk spul.')).toBeVisible();
+  await expect(page.locator('#sp-taak')).toHaveCount(0);
+});
+
+test('privacy P10: bij een persoonlijk spul biedt de + geen taak, en noemt geen titel met de spulnaam', async ({ page }) => {
+  await page.goto(`${START}#/spullen/spul/s-afwasser`);
+  const v = await maakPersoonlijk(page);
+  await v.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.getByText('Alleen voor jou')).toBeVisible();
+  await vraag(page, 'Wanneer verloopt de garantie van de vaatwasser? Herinner me een maand van tevoren');
+  await expect(plus(page).locator('.kaart-titel')).toHaveText('Garantie tot 28 oktober 2028');
+  await expect(plus(page)).toContainText('dus die koppelen we niet aan een persoonlijk spul');
+  await expect(plus(page)).not.toContainText('loopt af op');
+  await expect(plus(page).getByRole('button', { name: 'Taak toevoegen' })).toHaveCount(0);
+});
+
+test('privacy P12: persoonlijk maken waarschuwt eerst voor de taken; daarna zijn ze los, maar bestaan nog', async ({ page }) => {
+  await page.goto(`${START}#/spullen/spul/s-afwasser`);
+  for (const titel of ['Filter schoonmaken', 'Zout bijvullen']) {
+    await page.getByLabel('Nieuwe taak bij Afwasser 3000 (voorbeeld)').fill(titel);
+    await page.locator('.sp-taak-nieuw').getByRole('button', { name: 'Toevoegen' }).click();
+    await expect(page.locator('.sp-docs').getByText(titel)).toBeVisible();
+  }
+  const v = await maakPersoonlijk(page);
+  // Eerst de waarschuwing, met het aantal en de titels; nog niets veranderd.
+  const w = v.getByRole('alert').filter({ hasText: 'Er horen 2 taken bij dit spul' });
+  await expect(w).toContainText('bij opslaan verdwijnt die koppeling');
+  await expect(w).toContainText('Filter schoonmaken, Zout bijvullen');
+  // Terug naar Het huishouden: de waarschuwing verdwijnt.
+  await v.getByRole('button', { name: 'Het huishouden' }).click();
+  await expect(v.getByRole('alert')).toHaveCount(0);
+  await v.getByRole('button', { name: 'Alleen ik' }).click();
+  await v.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.locator('.sp-docs').getByText('Filter schoonmaken')).toHaveCount(0);
+  // Weer gedeeld: de koppeling komt niet vanzelf terug (P5), maar de taken bestaan nog.
+  await page.getByRole('button', { name: 'Aanpassen' }).click();
+  const v2 = page.getByRole('dialog', { name: 'Spul aanpassen' });
+  await v2.getByRole('button', { name: 'Het huishouden' }).click();
+  await v2.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.getByText('Nog geen taken bij dit spul, zoals onderhoud.')).toBeVisible();
+  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Agenda' }).click();
+  await page.getByRole('tab', { name: 'Week', exact: true }).click();
+  await page.getByRole('button', { name: /^Zonder datum · / }).click();
+  const lijst = page.getByRole('list', { name: 'Taken zonder datum' });
+  await expect(lijst).toContainText('Filter schoonmaken');
+  await expect(lijst).toContainText('Zout bijvullen');
+});

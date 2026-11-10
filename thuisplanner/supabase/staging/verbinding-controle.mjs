@@ -190,6 +190,14 @@ export const SCHEMA_PER_STAND = Object.freeze({
     Object.freeze({ schema: 'private', relaties: 10, functies: 120, policies: 0 }),
     Object.freeze({ schema: 'public', relaties: 18, functies: 41, policies: 39 }),
   ]),
+  // Plus het privacyherstel tasks.possession_id (migratie 20261029130000, optie A): precies +3 functies in private
+  // (spul_gedeeld_vergrendeld, spul_taken_los, spullen_taakkoppelingen_opschonen); guard_task_possession is vervangen
+  // (zelfde aantal); één trigger erbij (telt hier niet). public ongewijzigd. Gemeten op een lege geïsoleerde lokale database
+  // met alle 22 migraties (10 november 2026).
+  '20261029130000': Object.freeze([
+    Object.freeze({ schema: 'private', relaties: 10, functies: 123, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 18, functies: 41, policies: 39 }),
+  ]),
 });
 
 // De opslag (Storage) per stand: tot en met migratie 27 niets; vanaf migratie 29 precies de privé-bucket "documenten" en

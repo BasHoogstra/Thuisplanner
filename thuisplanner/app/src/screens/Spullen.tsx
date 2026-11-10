@@ -15,6 +15,7 @@ import { TaakRij } from '../components/Rijen';
 import { nieuwId } from '../lib/store';
 import { isTaak } from '../lib/vandaag';
 import type { Taak } from '../lib/types';
+import { TAKEN_ALLEEN_GEDEELD } from '../lib/vraag/spullen';
 
 export function Spullen() {
   const sp = useSpullen();
@@ -294,7 +295,7 @@ function SpulPagina({ sp, id }: { sp: SpullenContext; id: string }) {
         </div>
       </section>
 
-      <SpulTaken spulId={s.id} naam={s.naam} />
+      <SpulTaken spulId={s.id} naam={s.naam} persoonlijk={s.zichtbaarheid === 'persoonlijk'} />
 
       <div className="detail-acties sp-onder">
         <button type="button" className="knop breed stil" onClick={() => zetBewerk(true)}>Aanpassen</button>
@@ -319,7 +320,7 @@ function SpulPagina({ sp, id }: { sp: SpullenContext; id: string }) {
  * Taken bij een spul (onderhoud, garantie): gewone taken met een verwijzing naar het spul (tasks.possession_id). Ze staan
  * ook in de Agenda en op Vandaag, zoals elke taak; hier alleen de taken van dit spul.
  */
-function SpulTaken({ spulId, naam }: { spulId: string; naam: string }) {
+function SpulTaken({ spulId, naam, persoonlijk }: { spulId: string; naam: string; persoonlijk: boolean }) {
   const app = useApp();
   const [titel, zetTitel] = useState('');
   const taken = app.staat.items.filter(isTaak).filter(t => t.spulId === spulId);
@@ -332,6 +333,15 @@ function SpulTaken({ spulId, naam }: { spulId: string; naam: string }) {
     app.toevoegen([t], `${tekst} staat bij de taken van ${naam}`);
     zetTitel('');
   };
+  // Taken zijn voor iedereen zichtbaar: een persoonlijk spul krijgt er geen (ook de database weigert dat).
+  if (persoonlijk) {
+    return (
+      <section className="vak-blok" aria-labelledby="h-taken">
+        <h2 id="h-taken" className="sp-blok-kop">Taken</h2>
+        <p className="stil-tekst">{TAKEN_ALLEEN_GEDEELD}</p>
+      </section>
+    );
+  }
   return (
     <section className="vak-blok" aria-labelledby="h-taken">
       <h2 id="h-taken" className="sp-blok-kop">Taken</h2>
