@@ -241,11 +241,16 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
           // Onzeker (antwoord verloren): één keer dezelfde opdracht opnieuw; die geeft dezelfde items (U2).
           if (r && !r.ok && r.melding?.soort === 'onzeker') r = await a()?.paklijstOvernemen({ ...o, opdracht: r.opdracht });
           if (!r?.ok) return;
-          const ids = (r.items ?? []).map(x => x.id);
-          if (!ids.length) { meld('Alles stond er al'); return; }
-          meldMetTerug(`${ids.length} ${ids.length === 1 ? 'item' : 'items'} overgenomen`, () => {
+          if (!r.items?.length) { meld('Alles stond er al'); return; }
+          // Het aantal van de server (de API geeft hoogstens 1000 items terug; review V-04).
+          const n = r.aantal ?? r.items.length;
+          const tekst = `${n} ${n === 1 ? 'item' : 'items'} overgenomen`;
+          const overname = r.overname;
+          // Zonder overname (het aanmaakmoment was niet op te vragen) kan ongedaan maken niet veilig: alleen de melding.
+          if (!overname) { meld(tekst); return; }
+          meldMetTerug(tekst, () => {
             void (async () => {
-              const u = await a()?.overnemenOngedaanMaken(ids, r.nieuweLijsten ?? []);
+              const u = await a()?.overnemenOngedaanMaken(overname, r.nieuweLijsten ?? []);
               if (u?.ok && !u.gebleven) meld('Teruggezet');
             })();
           });
@@ -324,7 +329,7 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
           }
         })();
       },
-      vakantieOpenen: (id: string) => { void a()?.vakantieOpenen(id); },
+      vakantieOpenen: (id: string) => a()?.vakantieOpenen(id) ?? Promise.resolve(),
       vakantieSluiten: (id: string) => { a()?.vakantieSluiten(id); },
     };
   }, [sessie, na, meld, meldMetTerug, rij]);
