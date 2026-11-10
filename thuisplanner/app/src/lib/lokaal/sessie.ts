@@ -400,10 +400,13 @@ export class Sessie {
   /** De zes cijfers controleren (codelaag K1) en inloggen; Supabase geeft de sessie uit. */
   async controleerCode(email: string, code: string, captchaToken?: string | null): Promise<Uitkomst> {
     const adres = email.trim().toLowerCase();
+    // De generatie begint vóór de controle bij de server (herstelronde review): een antwoord dat pas binnenkomt na
+    // uitloggen of na een nieuwere inlogactie, verandert niets meer (geen verifyOtp, geen sessie, geen toestel-token).
+    const g = ++this.generatie;
     const c = await controleerBijServer(this.config.url, this.config.anonKey, { email: adres, code, toestel: leesToestel(adres), captchaToken });
+    if (!this.actueel(g)) return { ok: true, waarde: undefined };
     if (!c.ok) return { ok: false, fout: c.fout, code: c.code };
     bewaarToestel(adres, c.toestel);
-    const g = ++this.generatie;
     void this.stopSync();
     const v = await this.inRij(() => this.client.auth.verifyOtp({ token_hash: c.tokenHash, type: c.type }));
     if (!this.actueel(g)) return { ok: true, waarde: undefined };
@@ -444,8 +447,9 @@ export class Sessie {
    * Eén van de twee codes van een adreswijziging bevestigen. Zijn beide bevestigd, dan is het adres gewijzigd: de andere
    * sessies en alle bekende toestellen gaan uit; alleen dit toestel blijft ingelogd.
    */
-  async bevestigAdres(email: string, code: string): Promise<Uitkomst<'gewijzigd' | 'nog-een'>> {
-    const c = await controleerBijServer(this.config.url, this.config.anonKey, { email, code });
+  async bevestigAdres(email: string, code: string, captchaToken?: string | null): Promise<Uitkomst<'gewijzigd' | 'nog-een'>> {
+    // Na TPK06 (eerst een captcha) stuurt het scherm bij de volgende poging een vers Turnstile-token mee.
+    const c = await controleerBijServer(this.config.url, this.config.anonKey, { email, code, captchaToken });
     if (!c.ok) return { ok: false, fout: c.fout, code: c.code };
     if (c.type !== 'email_change') return { ok: false, fout: 'Deze code hoort niet bij een adreswijziging.', code: 'TPK01' };
     const v = await this.inRij(() => this.client.auth.verifyOtp({ token_hash: c.tokenHash, type: 'email_change' }));
