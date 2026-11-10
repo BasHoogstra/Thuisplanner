@@ -270,7 +270,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
   let duurzaam = false;      // werkt de opslag?
   const bekend = new Map();  // `${t}:${id}` -> versie die we al hebben (dubbele seintjes negeren)
   let openstaand = new Map();     // id -> opdracht die (nog) niet bevestigd is (gedeeld via het paginageheugen)
-  const geopend = new Set();      // afgelopen vakanties die de app nu toont: hun paklijst gaat mee in elke ronde
+  const geopend = new Map();      // afgelopen vakanties die de app nu toont (met een teller): hun paklijst gaat mee in elke ronde
   const verwerkt = { seintjes: 0, genegeerd: 0, rondes: 0 };
 
   // Hoort een antwoord nog bij de huidige generatie? Zo niet, dan negeren: niets in de cache, niets melden.
@@ -685,7 +685,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     }
     zet({ melding: null });
     vernieuw();
-    return { ok: true, data: r.data };
+    return { ok: true, data: r.data, count: r.count };
   }
 
   // Een toevoeging versturen (eerste keer of opnieuw, altijd met dezelfde UUID).
@@ -1035,8 +1035,9 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
       });
     },
     // Een afgelopen vakantie tonen: haar paklijst gaat mee in elke ophaalronde tot vakantieSluiten.
-    vakantieOpenen(id) { geopend.add(id); return vernieuw(); },
-    vakantieSluiten(id) { geopend.delete(id); },
+    // Geteld (review V-01): het scherm van die vakantie en het overnamevenster kunnen dezelfde vakantie tegelijk openen.
+    vakantieOpenen(id) { geopend.set(id, (geopend.get(id) || 0) + 1); return vernieuw(); },
+    vakantieSluiten(id) { const n = (geopend.get(id) || 0) - 1; if (n > 0) geopend.set(id, n); else geopend.delete(id); },
 
     // Een pakitem toevoegen voor een lid (lidId) of Gezamenlijk (null): een opdracht met vaste UUID. Staat dezelfde tekst
     // al bij die persoon, dan melding "dubbel" en niets toegevoegd.
@@ -1092,17 +1093,39 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
         return { ...r, opdracht: opdr, melding };
       }
       const items = r.ok ? (r.data || []) : undefined;
-      const nieuweLijsten = items ? [...new Set(items.map(x => x.list_id).filter(x => x && !voor.has(x)))] : undefined;
-      return { ...r, opdracht: opdr, items, nieuweLijsten };
+      let nieuweLijsten = items ? [...new Set(items.map(x => x.list_id).filter(x => x && !voor.has(x)))] : undefined;
+      // Review V-04: de functie geeft via de API hoogstens 1000 rijen terug (max_rows), en een lijst ID's in de adresregel
+      // loopt rond 200 vast. Daarom: een overname is "deze vakantie + dit aanmaakmoment". De database zet created_at zelf
+      // (guard_content: now(), de tijd van de transactie), dus alle items en nieuwe lijsten van één overname delen dat
+      // moment, en een app kan het niet zetten. Eén ID is genoeg om het moment te vinden; het aantal komt van de server.
+      let overname, aantal = items?.length ?? 0;
+      if (items?.length) {
+        const m = await supabase.from('trip_packing_items').select('created_at').eq('household_id', huishoudenId).eq('id', items[0].id).maybeSingle();
+        if (!m.error && m.data?.created_at) {
+          overname = { vakantie: naar, moment: m.data.created_at };
+          const bij = q => q.eq('household_id', huishoudenId).eq('trip_id', naar).eq('created_at', overname.moment).is('deleted_at', null);
+          const [t, l] = await Promise.all([
+            bij(supabase.from('trip_packing_items').select('id', { count: 'exact', head: true })),
+            bij(supabase.from('trip_packing_lists').select('id')),
+          ]);
+          if (!t.error && typeof t.count === 'number') aantal = t.count;
+          if (!l.error) nieuweLijsten = [...new Set([...nieuweLijsten, ...(l.data || []).map(x => x.id)])];
+        }
+      }
+      return { ...r, opdracht: opdr, items, aantal, overname, nieuweLijsten };
     },
-    // Ongedaan maken van één overname: alleen de items van díe overname (ids uit paklijstOvernemen), en alleen zolang
-    // niemand ze aanpaste (versie 1). Wat intussen is aangepast, blijft staan en wordt gemeld.
+    // Ongedaan maken van één overname (overname uit paklijstOvernemen: vakantie + aanmaakmoment): alleen de items van
+    // díe overname, en alleen zolang niemand ze aanpaste (versie 1). Eén opdracht met een korte adresregel, dus alles of
+    // niets en zonder grens van 1000 (review V-04). Wat intussen is aangepast, blijft staan en wordt gemeld.
     // nieuweLijsten: lijsten die die overname maakte; ze verdwijnen alleen als ze daarna leeg zijn (niemand voegde iets toe).
-    async overnemenOngedaanMaken(ids, nieuweLijsten = []) {
-      if (!ids?.length) return { ok: true, verwijderd: 0, gebleven: 0 };
-      const r = await schrijf(() => supabase.from('trip_packing_items').update({ deleted_at: new Date().toISOString() })
-        .eq('household_id', huishoudenId).in('id', ids).eq('version', 1).is('deleted_at', null).select('id'));
+    async overnemenOngedaanMaken(overname, nieuweLijsten = []) {
+      if (!overname?.vakantie || !overname?.moment) return { ok: true, verwijderd: 0, gebleven: 0 };
+      const vanDeze = q => q.eq('household_id', huishoudenId).eq('trip_id', overname.vakantie).eq('created_at', overname.moment);
+      const r = await schrijf(() => vanDeze(supabase.from('trip_packing_items').update({ deleted_at: new Date().toISOString() }, { count: 'exact' }))
+        .eq('version', 1).is('deleted_at', null));
       if (!r.ok) return r;
+      // Wat er van deze overname nog staat, is intussen aangepast (of door een ander teruggezet): dat blijft staan.
+      const rest = await vanDeze(supabase.from('trip_packing_items').select('id', { count: 'exact', head: true })).is('deleted_at', null);
       if (nieuweLijsten?.length) {
         await vernieuw();
         for (const id of nieuweLijsten) {
@@ -1112,8 +1135,8 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
           }
         }
       }
-      const verwijderd = (r.data || []).length;
-      const gebleven = ids.length - verwijderd;
+      const verwijderd = typeof r.count === 'number' ? r.count : 0;
+      const gebleven = !rest.error && typeof rest.count === 'number' ? rest.count : 0;
       if (gebleven) zet({ melding: deels(gebleven) });
       return { ok: true, verwijderd, gebleven, melding: gebleven ? deels(gebleven) : null };
     },

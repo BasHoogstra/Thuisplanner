@@ -386,8 +386,18 @@ function Inpakken({ v }: { v: Vakantie }) {
   const ingepakt = hier.filter(p => p.ingepakt);
   const naam = groepInfo.naam;
   const extra = groepInfo.lijst;
-  // Een rustige suggestie bij een lege paklijst: de laatste vakantie waar je geweest bent.
-  const bron = !alle.length ? overneemBronnen(staat.vakanties, v.id, vandaag, id => staat.pakitems.some(p => p.vakantieId === id))[0] : undefined;
+  // Een rustige suggestie bij een lege paklijst: de laatste vakantie waar je geweest bent. Review V-01: van een afgelopen
+  // vakantie is de paklijst in de lokale modus pas bekend na openen; dus eerst openen, en de suggestie alleen tonen als
+  // die paklijst er echt is (en dan met haar extra lijsten). Is hij leeg, dan blijft alleen "Overnemen van een eerdere vakantie".
+  const kandidaat = !alle.length ? overneemBronnen(staat.vakanties, v.id, vandaag, id => staat.pakitems.some(p => p.vakantieId === id))[0] : undefined;
+  const kandidaatId = kandidaat?.id, kandidaatVoorbij = !!kandidaat && isVoorbij(kandidaat, vandaag);
+  const { vakantieOpenen, vakantieSluiten } = app;
+  useEffect(() => {
+    if (!kandidaatId || !kandidaatVoorbij) return;
+    vakantieOpenen(kandidaatId).catch(() => {});
+    return () => vakantieSluiten(kandidaatId);
+  }, [kandidaatId, kandidaatVoorbij, vakantieOpenen, vakantieSluiten]);
+  const bron = kandidaat && staat.pakitems.some(p => p.vakantieId === kandidaat.id) ? kandidaat : undefined;
 
   function voegToe(e: { preventDefault(): void }) {
     e.preventDefault();

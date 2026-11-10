@@ -65,6 +65,8 @@ export interface VakantieKoppelingRij {
 }
 /** Wat vinkjesTerugzetten nodig heeft om vinkjes precies terug te zetten. */
 export interface VinkjeTerug { id: string; version: number; packed: true; packed_at: string | null; packed_by: string | null }
+/** Eén overname: de doelvakantie en het aanmaakmoment dat de database aan al haar items en nieuwe lijsten gaf. */
+export interface Overname { vakantie: string; moment: string }
 
 export interface Melding { soort: string; tekst: string; id?: string }
 
@@ -160,9 +162,13 @@ export interface Acties {
   /** Onzeker? Dezelfde opdracht opnieuw meegeven: dezelfde items, niets dubbel. */
   /** lijsten: extra lijsten van de bron die mee moeten (alleen bij iedereen). nieuweLijsten: door deze overname gemaakt. */
   paklijstOvernemen(o: { van: string; naar: string; lid?: string | null; gezamenlijk?: boolean; lijsten?: string[] | null; opdracht?: string | null }):
-    Promise<Resultaat & { opdracht: string; items?: { id: string; member_id: string | null; list_id: string | null; name: string }[]; nieuweLijsten?: string[] }>;
-  /** Alleen items van die overname die niemand aanpaste; de rest blijft staan (gebleven). Nieuwe lijsten die daarna leeg zijn, verdwijnen. */
-  overnemenOngedaanMaken(ids: string[], nieuweLijsten?: string[]): Promise<Resultaat & { verwijderd?: number; gebleven?: number }>;
+    Promise<Resultaat & { opdracht: string; items?: { id: string; member_id: string | null; list_id: string | null; name: string }[];
+      /** Het werkelijke aantal overgenomen items (items bevat er via de API hoogstens 1000). */
+      aantal?: number;
+      /** Wat ongedaan maken nodig heeft: de vakantie en het aanmaakmoment van deze overname (leeg als dat niet op te vragen was). */
+      overname?: Overname; nieuweLijsten?: string[] }>;
+  /** Alleen items van die overname die niemand aanpaste, in één opdracht (alles of niets); de rest blijft staan (gebleven). Nieuwe lijsten die daarna leeg zijn, verdwijnen. */
+  overnemenOngedaanMaken(overname: Overname, nieuweLijsten?: string[]): Promise<Resultaat & { verwijderd?: number; gebleven?: number }>;
   /** groep: een lid, null (Gezamenlijk: geen lid én geen lijst), 'iedereen' of een extra lijst ({ lijst }). */
   vinkjesOpnieuw(vakantieId: string, groep: string | null | 'iedereen' | { lijst: string }): Promise<Resultaat & { terug?: VinkjeTerug[]; overgeslagen?: number }>;
   // ---- Extra inpaklijsten (§20) ----

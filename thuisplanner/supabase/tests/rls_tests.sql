@@ -2847,6 +2847,42 @@ do $$ declare h uuid := current_setting('test.hv')::uuid; v2 uuid := current_set
   end if;
   perform pg_temp.ok('KG-T88');
 end $$;
+
+-- KG-T95 (review Vakanties V-10) Een gearchiveerd lid (Xan) als AANROEPER van de pakfuncties: overnemen, vinkjes zetten,
+-- een lijst verwijderen en een lijst herstellen geven 42501, en er verandert niets. (KG-T77 toetst Xan als inpakker en
+-- als lezer; dit is de aanroeper, voor elke functie apart.)
+do $$ declare h uuid := current_setting('test.hv')::uuid; v1 uuid := current_setting('test.v1')::uuid; v2 uuid := current_setting('test.v2')::uuid;
+  lijst uuid := gen_random_uuid(); weg uuid := gen_random_uuid(); item uuid; versie int; voor bigint; begin
+  perform pg_temp.als('vera');
+  insert into public.trip_packing_lists (id, household_id, trip_id, name) values (lijst, h, v1, 'Archieflijst'), (weg, h, v1, 'Archiefweg');
+  insert into public.trip_packing_items (household_id, trip_id, name) values (h, v1, 'Archieftest') returning id, version into item, versie;
+  perform public.delete_packing_list(h, weg, (select version from public.trip_packing_lists where id = weg));
+  voor := (select count(*) from public.trip_packing_items where household_id = h and deleted_at is null);
+  perform pg_temp.als('xan');
+  if pg_temp.fout(format('select public.copy_packing_items(%L, %L, %L, %L)', h, gen_random_uuid(), v1, v2)) is distinct from '42501' then raise exception 'KG-T95: gearchiveerd lid neemt een paklijst over'; end if;
+  if pg_temp.fout(format($q$ select public.set_packed(%L, %L, %L::jsonb) $q$, h, v1, jsonb_build_array(jsonb_build_object('id', item, 'version', versie, 'packed', true)))) is distinct from '42501' then raise exception 'KG-T95: gearchiveerd lid zet vinkjes'; end if;
+  if pg_temp.fout(format('select public.delete_packing_list(%L, %L, 1)', h, lijst)) is distinct from '42501' then raise exception 'KG-T95: gearchiveerd lid verwijdert een lijst'; end if;
+  if pg_temp.fout(format('select public.restore_packing_list(%L, %L, %s)', h, weg, (select version from public.trip_packing_lists where id = weg))) is distinct from '42501' then raise exception 'KG-T95: gearchiveerd lid herstelt een lijst'; end if;
+  perform pg_temp.als('vera');
+  if (select packed_at from public.trip_packing_items where id = item) is not null then raise exception 'KG-T95: vinkje toch gezet'; end if;
+  if (select deleted_at from public.trip_packing_lists where id = lijst) is not null then raise exception 'KG-T95: lijst toch verwijderd'; end if;
+  if (select deleted_at from public.trip_packing_lists where id = weg) is null then raise exception 'KG-T95: lijst toch hersteld'; end if;
+  if (select count(*) from public.trip_packing_items where household_id = h and deleted_at is null) <> voor then raise exception 'KG-T95: toch items overgenomen'; end if;
+  perform pg_temp.ok('KG-T95');
+end $$;
+
+-- KG-T96 (review Vakanties V-10) "Ingepakt door" via de API: alleen een lid van hetzelfde huishouden. Een lid van een ander
+-- huishouden of een onbestaand lid wordt geweigerd (de samengestelde FK trip_packing_items_packed_by_fkey is hier de
+-- enige grens: geen trigger controleert packed_by_member_id bij een directe wijziging), en er verandert niets.
+do $$ declare h uuid := current_setting('test.hv')::uuid; v1 uuid := current_setting('test.v1')::uuid; item uuid; begin
+  perform pg_temp.als('vera');
+  insert into public.trip_packing_items (household_id, trip_id, name) values (h, v1, 'Inpakkertest') returning id into item;
+  if not pg_temp.faalt(format('update public.trip_packing_items set packed_at = now(), packed_by_member_id = %L where id = %L', current_setting('test.m_otto'), item)) then raise exception 'KG-T96: ingepakt door een lid van een ander huishouden'; end if;
+  if not pg_temp.faalt(format('update public.trip_packing_items set packed_at = now(), packed_by_member_id = %L where id = %L', gen_random_uuid(), item)) then raise exception 'KG-T96: ingepakt door een onbestaand lid'; end if;
+  if (select packed_by_member_id from public.trip_packing_items where id = item) is not null then raise exception 'KG-T96: inpakker toch gezet'; end if;
+  if pg_temp.geraakt(format('update public.trip_packing_items set packed_at = now(), packed_by_member_id = %L where id = %L', current_setting('test.m_vera'), item)) <> 1 then raise exception 'KG-T96: ingepakt door een eigen lid lukt niet'; end if;
+  perform pg_temp.ok('KG-T96');
+end $$;
 set local role authenticated;
 
 -- KG-T73 tot en met KG-T75: de poort als positieve eis (bouwverslag deel 2, §7.3). Niet "zoek verboden tekst", maar
@@ -2924,6 +2960,6 @@ do $$ declare r record; begin
 end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 88' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 90' as resultaat;
 
 rollback;

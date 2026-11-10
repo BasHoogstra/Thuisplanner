@@ -308,7 +308,7 @@ export function useDemoStaat(vandaag: Datum) {
     vinkjesOpnieuw: (vakantieId: string, groep: Groep) => dispatch({ type: 'vinkjesOpnieuw', vakantieId, groep }),
     boodschapOntkoppelen: (k: VakantieKoppeling, naam: string) => dispatch({ type: 'ontkoppelen', koppelingId: k.id, melding: `${naam} niet meer voor deze vakantie` }),
     /** Een afgelopen vakantie tonen (lokaal: haar paklijst ophalen). In de demo staat alles al klaar. */
-    vakantieOpenen: (_id: string) => {},
+    vakantieOpenen: (_id: string): Promise<void> => Promise.resolve(),
     vakantieSluiten: (_id: string) => {},
   }), [vandaag]);
   return { staat, ...acties };
