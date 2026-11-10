@@ -68,9 +68,11 @@ const docVelden = (lid, bytes = PDF, extra = {}) => ({ title: 'Factuur ' + run, 
 let ha, hb, sara, tim, bo, mSara, mTim, mBo, sSara, sTim;
 before(async () => {
   sara = await persoon('sara'); tim = await persoon('tim'); bo = await persoon('bo');
+  // Elk huishouden staat meteen op de opruimlijst van after(), zodat het ook verdwijnt als een latere stap faalt.
   ha = ok(await sara.c.rpc('create_household', { p_name: 'Spullen ' + run, p_display_name: 'Sara' }));
+  huishoudens.push(ha);
   hb = ok(await bo.c.rpc('create_household', { p_name: 'Buren ' + run, p_display_name: 'Bo' }));
-  huishoudens.push(ha, hb);
+  huishoudens.push(hb);
   ok(await tim.c.rpc('accept_invite', { p_token: ok(await sara.c.rpc('create_invite', { p_household: ha })), p_display_name: 'Tim' }));
   const lid = async (p, h) => ok(await p.c.rpc('my_memberships')).find(m => m.household_id === h).member_id;
   mSara = await lid(sara, ha); mTim = await lid(tim, ha); mBo = await lid(bo, hb);
@@ -78,13 +80,19 @@ before(async () => {
   sTim = await startSync('tim', ha);
 });
 after(async () => {
-  for (const s of syncs) await s.stop();
+  // Elke stap apart: een fout in één stap mag de rest van het opruimen niet overslaan.
+  const fouten = [];
+  const probeer = async (wat, f) => { try { await f(); } catch (e) { fouten.push(`${wat}: ${e.message}`); } };
+  for (const s of syncs) await probeer('sync stoppen', () => s.stop());
   for (const h of huishoudens) {
-    const { data: mappen } = await admin.storage.from('documenten').list(h);
-    for (const m of mappen ?? []) await admin.storage.from('documenten').remove([`${h}/${m.name}/origineel`]);
+    await probeer('bestanden ' + h, async () => {
+      const { data: mappen } = await admin.storage.from('documenten').list(h);
+      for (const m of mappen ?? []) await admin.storage.from('documenten').remove([`${h}/${m.name}/origineel`]);
+    });
   }
-  await admin.from('households').delete().in('id', huishoudens);
-  for (const { id } of Object.values(personen)) await admin.auth.admin.deleteUser(id);
+  await probeer('huishoudens', async () => ok(await admin.from('households').delete().in('id', huishoudens)));
+  for (const { id } of Object.values(personen)) await probeer('gebruiker', async () => ok(await admin.auth.admin.deleteUser(id)));
+  if (fouten.length) throw new Error('Opruimen niet volledig gelukt: ' + fouten.join('; '));
 });
 
 test('zonder de optie spullen: precies de oude zoekopdrachten (geen spullentabellen, geen possession_id)', async () => {
@@ -300,6 +308,8 @@ test('export met bestanden: in het manifest, met controlesom; een gewijzigd best
 test('verwijderen van een huishouden: rijen weg, bestanden wezen, en de lijst voor de opruimronde noemt ze', async () => {
   const c = await persoon('cas');
   const hc = ok(await c.c.rpc('create_household', { p_name: 'Weg ' + run, p_display_name: 'Cas' }));
+  // Ook dit huishouden (en zijn bestanden) ruimt after() op als de test halverwege faalt.
+  huishoudens.push(hc);
   const mc = ok(await c.c.rpc('my_memberships')).find(m => m.household_id === hc).member_id;
   const sCas = await startSync('cas', hc);
   const doc = randomUUID();
