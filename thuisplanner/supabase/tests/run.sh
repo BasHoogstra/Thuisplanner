@@ -94,6 +94,13 @@ if [ "$TEGENPROEF" = "1" ]; then
   [ "$fouten" -eq 0 ] || exit 1
 fi
 
+# Herstelronde (review): bezorgmeldingen vóór het verzendantwoord, dubbele meldingen en het opruimen (één transactie die
+# wordt teruggedraaid; er blijft niets achter). De races met aparte verbindingen staan in gelijktijdig.test.mjs.
+BEZORG_VERWACHT="herstel_bezorgmeldingen: 7 van 7 scenario's geslaagd"
+uit="$(psqlq -t -A -f "$HERE/herstel_bezorgmeldingen.sql" 2>&1 | grep -E "herstel_bezorgmeldingen|MISLUKT|ERROR" || true)"
+echo "$uit"
+echo "$uit" | grep -qF "$BEZORG_VERWACHT" || { echo "BEZORGMELDINGEN MISLUKT"; exit 1; }
+
 if [ "$GELIJKTIJDIG" = "1" ]; then
   INT="$HERE/integratie"
   [ -d "$INT/node_modules" ] || (cd "$INT" && npm ci --no-audit --no-fund)
