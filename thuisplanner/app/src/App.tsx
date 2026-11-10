@@ -19,15 +19,17 @@ import { Agenda } from './screens/Agenda';
 import { Boodschappen } from './screens/Boodschappen';
 import { Meer } from './screens/Meer';
 import { Vakanties } from './screens/Vakanties';
+import { Plannen } from './screens/Plannen';
+import { schermVoor } from './lib/plan';
 
-const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties'];
-const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties' };
+const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties', 'plannen'];
+const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', plannen: 'Plannen' };
 
-/** "#/agenda" → agenda; "#/vakanties/<id>" → vakanties met die vakantie open (F8). */
-function uitHash(): { scherm: Scherm; vakantie: string | null } {
+/** "#/agenda" → agenda; "#/vakanties/<id>" → vakanties met die vakantie open (F8); "#/plannen/<id>" → dat plan (besluit 18). */
+function uitHash(): { scherm: Scherm; vakantie: string | null; plan: string | null } {
   const [h, id] = window.location.hash.replace('#/', '').replace('#', '').split('/') as [Scherm, string | undefined];
-  if (!SCHERMEN.includes(h)) return { scherm: 'vandaag', vakantie: null };
-  return { scherm: h, vakantie: h === 'vakanties' && id ? decodeURIComponent(id) : null };
+  if (!SCHERMEN.includes(h)) return { scherm: 'vandaag', vakantie: null, plan: null };
+  return { scherm: h, vakantie: h === 'vakanties' && id ? decodeURIComponent(id) : null, plan: h === 'plannen' && id ? decodeURIComponent(id) : null };
 }
 function schermUitHash(): Scherm { return uitHash().scherm; }
 
@@ -165,15 +167,18 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
   lokaal?: LokaalContext; titelSoort: string; children?: ReactNode;
 }) {
   const vandaag = naarDatum(klok);
-  const [scherm, zetScherm] = useState<Scherm>(schermUitHash);
+  const [schermKeuze, zetScherm] = useState<Scherm>(schermUitHash);
+  // Plannen bestaat alleen in de demo (besluit 18): in lokaal en staging is er geen route naartoe.
+  const scherm = schermVoor(schermKeuze, !!lokaal);
   const [vakantie, zetVakantie] = useState<string | null>(() => uitHash().vakantie);
+  const [plan, zetPlan] = useState<string | null>(() => uitHash().plan);
   const [venster, zetVenster] = useState<VensterOpdracht | null>(null);
   const [agenda, zetAgendaStand] = useState<AgendaStand>({ weergave: 'week', datum: vandaag, filter: null });
   const zetAgenda = useCallback((s: Partial<AgendaStand>) => zetAgendaStand(a => ({ ...a, ...s })), []);
   const hoofd = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const opHash = () => { const u = uitHash(); zetScherm(u.scherm); zetVakantie(u.vakantie); };
+    const opHash = () => { const u = uitHash(); zetScherm(u.scherm); zetVakantie(u.vakantie); zetPlan(u.plan); };
     window.addEventListener('hashchange', opHash);
     return () => window.removeEventListener('hashchange', opHash);
   }, []);
@@ -184,6 +189,7 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
     if (window.location.hash !== `#/${s}`) window.location.hash = `#/${s}`;
     zetScherm(s);
     zetVakantie(null);
+    zetPlan(null);
     window.scrollTo({ top: 0 });
     hoofd.current?.focus({ preventScroll: true });
   }, []);
@@ -192,6 +198,14 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
     if (window.location.hash !== doel) window.location.hash = doel;
     zetScherm('vakanties');
     zetVakantie(id);
+    window.scrollTo({ top: 0 });
+    hoofd.current?.focus({ preventScroll: true });
+  }, []);
+  const openPlan = useCallback((id: string | null) => {
+    const doel = id ? `#/plannen/${encodeURIComponent(id)}` : '#/plannen';
+    if (window.location.hash !== doel) window.location.hash = doel;
+    zetScherm('plannen');
+    zetPlan(id);
     window.scrollTo({ top: 0 });
     hoofd.current?.focus({ preventScroll: true });
   }, []);
@@ -220,6 +234,8 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
     gaNaar,
     vakantie,
     openVakantie,
+    plan,
+    openPlan,
     agenda,
     zetAgenda,
     lokaal,
@@ -238,6 +254,7 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
             {scherm === 'boodschappen' && <Boodschappen />}
             {scherm === 'meer' && <Meer />}
             {scherm === 'vakanties' && <Vakanties />}
+            {scherm === 'plannen' && <Plannen />}
           </Foutgrens>
         </main>
         {venster && (

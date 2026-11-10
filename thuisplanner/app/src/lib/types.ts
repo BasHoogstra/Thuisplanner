@@ -84,11 +84,19 @@ export interface Taak extends SyncVelden {
   /** Null betekent: geen datum ("ooit"). */
   datum: Datum | null;
   voor: LidId | null;
+  /** Besluit 18: de andere verantwoordelijken (alleen demo). Leeg: niemand anders. Ontbreekt het veld: niet gewijzigd. Eén gedeeld vinkje. */
+  ookVoor?: LidId[];
   klaar: boolean;
   /** Wanneer de taak is afgevinkt; zo kan Vandaag "afgerond vandaag" tonen en weer openzetten. */
   klaarOp?: Datum | null;
   /** F8: de vakantie waarvoor dit een voorbereiding is. Ontbreekt het veld, dan blijft een bestaande koppeling staan. */
   vakantieId?: string | null;
+  /** Besluit 18: het plan waar deze taak bij hoort (alleen demo). Ontbreekt het veld, dan blijft een bestaande koppeling staan. */
+  planId?: string | null;
+  /** Het onderdeel binnen dat plan (optioneel). Ontbreekt het veld, dan blijft een bestaande keuze staan. */
+  onderdeelId?: string | null;
+  /** "Bezig" (alleen zinvol zolang klaar false is). Afgerond blijft alleen klaar: er is geen los statusveld. */
+  bezig?: boolean;
 }
 
 export interface Boodschap extends SyncVelden {
@@ -101,6 +109,38 @@ export interface Boodschap extends SyncVelden {
 }
 
 export type Item = Afspraak | Taak | Boodschap;
+
+/** Besluit 18: een plan (alleen demo). Voortgang en stand worden berekend (lib/plan.ts), nooit opgeslagen. */
+export interface Plan extends SyncVelden {
+  id: string;
+  titel: string;
+  omschrijving?: string;
+  einddatum: Datum | null;
+  /** Leden die het oppakken. Leeg betekent: het hele huishouden. */
+  wie: LidId[];
+  afgerondOp?: Datum | null;
+}
+
+/** Een optioneel onderdeel van een plan, bijvoorbeeld Voorbereiding. Kleine plannen hebben er geen. */
+export interface PlanOnderdeel extends SyncVelden {
+  id: string;
+  planId: string;
+  naam: string;
+  volgorde: number;
+}
+
+/** Waar een bijlage bij hoort: het plan of één taak, nooit allebei. */
+export type BijlageDoel = { planId: string; taakId?: undefined } | { taakId: string; planId?: undefined };
+
+/**
+ * Voorbereiding (docs/thuisplanner-plannen-bijlagen.md): de koppeling tussen een document (besluit 17) en een plan of taak.
+ * Er is nog geen upload en geen scherm; het document zelf staat hier bewust niet in, zodat er nooit een kopie ontstaat.
+ */
+export interface PlanKoppeling {
+  id: string;
+  documentId: string;
+  doel: BijlageDoel;
+}
 
 // ---- F8 Vakanties (docs/thuisplanner-vakanties.md). Los van Item: een vakantie is geen afspraak, taak of boodschap. ----
 

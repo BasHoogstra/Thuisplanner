@@ -849,3 +849,38 @@ a { color: var(--accent); }
 .foutgrens-acties { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
 .foutgrens-acties .knop { min-height: 48px; justify-content: center; text-decoration: none; }
 .venster .foutgrens { padding: 20px; }
+
+/* Plannen (besluit 18): dezelfde rustige kaarten als Vakanties, zonder beeld; alleen tokens. */
+.plan-kaart { flex-direction: column; align-items: stretch; gap: 6px; padding: 14px; text-align: left; }
+.plan-kaart-stand { font-size: 14px; color: var(--inkt-2); }
+.plan-kaart .rij-sub { margin-top: 2px; }
+.plan-voortgang { display: flex; align-items: center; gap: 10px; }
+.plan-voortgang .voortgang { flex: 1 1 auto; min-width: 0; margin: 0; }
+.plan-tel { flex: 0 0 auto; font-size: 14px; color: var(--inkt-2); font-variant-numeric: tabular-nums; }
+.plan-kop { margin: 2px 2px 12px; }
+.plan-kop h1 { margin: 0; font-family: var(--font-kop); font-size: clamp(28px, 8vw, 38px); font-weight: 750; line-height: 1.1; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.plan-omschrijving { margin: 6px 0 0; color: var(--inkt-2); overflow-wrap: anywhere; }
+.plan-sub { margin: 8px 0 0; }
+.plan-stand { font-weight: 600; color: var(--inkt-2); }
+.plan-kop .plan-voortgang { margin-top: 12px; }
+.plan-af { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; padding: 12px 14px; border-radius: var(--radius); background: var(--accent-zacht); }
+.plan-af p { margin: 0; font-weight: 600; }
+.plan-gedeeld { margin: 12px 0; }
+.plan-heropen { margin-top: 16px; }
+
+/* Plannen, stap B: Bezig, onderdelen en de groep in de Agenda. */
+.vinkje.half { border-color: var(--accent); background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); }
+.plek.taak-bezig { color: var(--accent); font-weight: 600; }
+.plan-onderdeel { margin-top: 12px; }
+.plan-onderdeel-aanpassen { margin-top: 10px; }
+.plan-onderdeel-nieuw { display: inline-flex; align-items: center; gap: 6px; margin: 14px 0 32px; }
+.plan-volgorde { margin-top: 14px; }
+.zd-plannen { margin-top: 10px; }
+.zd-plannen-knop { min-height: 44px; }
+.zd-plan { margin-top: 8px; }
+.zd-plan-kop { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--inkt); font: inherit; font-weight: 600; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.zd-plan-kop svg { flex: 0 0 auto; color: var(--inkt-3); }
+
+/* Plannen, stap C: wie doet wat. */
+.plan-filter { margin: 0 0 12px; }
+.plan-per-persoon { margin-top: 14px; }

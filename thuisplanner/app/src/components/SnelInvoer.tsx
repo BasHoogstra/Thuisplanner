@@ -1,6 +1,7 @@
 // De centrale + (docs/thuisplanner-snelinvoer.md §4 en §10). Een invoerbalk die vlak boven het toetsenbord staat, met de
 // verzendknop in de balk: openen en direct typen. Daarboven, pas na het typen, één rustige kaart met wat Thuisplanner
 // begrijpt; corrigeren op verzoek. Privé staat bij een afspraak altijd in beeld. "Formulier" opent het bestaande formulier.
+import { metMensen } from '../lib/mensen';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useApp, type Soort } from '../lib/context';
 import { dagLabel } from '../lib/datum';
@@ -140,7 +141,7 @@ export function SnelInvoer({ standaard, sluit, allesInvullen, terugNaar }: {
       if (vakantieId || later) app.voegBoodschappenToe(v.boodschappen, vakantieId ?? undefined, later);
       else app.voegBoodschappenToe(v.boodschappen);   // een gewone boodschap: precies zoals altijd
     } else if (soort === 'taak') {
-      const t: Taak = { id: nieuwId('t'), soort: 'taak', titel: v.titel, datum, voor: wie[0] ?? null, klaar: false, klaarOp: null,
+      const t: Taak = { id: nieuwId('t'), soort: 'taak', titel: v.titel, datum, ...metMensen(undefined, wie), klaar: false, klaarOp: null,
         ...(vakantie ? { vakantieId: vakantie.id } : {}) };
       app.toevoegen([t], vakantie ? `${v.titel} staat bij de voorbereidingen van ${vakantie.naam}`
         : datum ? `${v.titel} staat op de takenlijst` : `${v.titel} staat op de lijst voor later`);
@@ -273,8 +274,8 @@ export function SnelInvoer({ standaard, sluit, allesInvullen, terugNaar }: {
             <><TijdKeuze start={start ?? ''} kies={(st, _e, viaVeld) => viaVeld ? zetKeuze(x => ({ ...x, start: st || null })) : kies({ start: st || null })} />{nietHerkennen('tijd')}</>
           ))}
           {soort !== 'boodschap' && rij('wie', soort === 'taak' ? 'Wie' : 'Met wie', wieLabel, (
-            <><WieKeuze leden={huishouden.leden} wie={wie} enkel={soort === 'taak'}
-              kies={w => soort === 'taak' || !w.length ? kies({ wie: w }) : zetKeuze(x => ({ ...x, wie: w }))} />{nietHerkennen('wie')}</>
+            <><WieKeuze leden={huishouden.leden} wie={wie} enkel={soort === 'taak' && !!app.lokaal} taak={soort === 'taak'}
+              kies={w => (soort === 'taak' && app.lokaal) || !w.length ? kies({ wie: w }) : zetKeuze(x => ({ ...x, wie: w }))} />{nietHerkennen('wie')}</>
           ))}
           {soort === 'afspraak' && v.plek && rij('plek', 'Waar', v.plek, nietHerkennen('plek'))}
           {soort === 'afspraak' && v.herhaling && rij('herhaling', 'Herhalen', herhaalLabel, (

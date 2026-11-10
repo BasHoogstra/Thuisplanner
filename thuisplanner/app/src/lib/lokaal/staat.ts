@@ -13,6 +13,7 @@ import { boodschappenMelding } from '../boodschappen';
 import type { Groep, Melding, Staat } from '../store';
 import type { Afspraak, Boodschap, Datum, Huishouden, Item, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from '../types';
 import { doelVan, doelVelden, groepNaam, paklijstNaamFout, zelfdeDoel } from '../vakantie';
+import { GEEN_PLANACTIES } from '../plan';
 import { naarItems, naarNieuweAfspraak, naarPaklijst, naarTaakVelden, naarVakantieGegevens } from './omzetten';
 import type { Momentopname, Sessie } from './sessie';
 
@@ -329,8 +330,8 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
     };
   }, [sessie, na, meld, meldMetTerug, rij]);
 
-  const staat: Staat = { scenario: 'gewoon', items, ...vak, weggeklikt, vorige: null, melding };
-  return { staat, ...acties, keuze, sluitKeuze: () => zetKeuze(null) };
+  const staat: Staat = { scenario: 'gewoon', items, ...vak, plannen: [], onderdelen: [], planKoppelingen: [], weggeklikt, vorige: null, melding };
+  return { staat, ...acties, ...GEEN_PLANACTIES, keuze, sluitKeuze: () => zetKeuze(null) };
 }
 
 export type LokaleActies = Omit<ReturnType<typeof useLokaleStaat>, 'staat'>;

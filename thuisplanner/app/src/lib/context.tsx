@@ -15,6 +15,8 @@ export interface AgendaStand {
   filter: GezinsFilter;
   /** Taken zonder datum uitgeklapt (A8); leeg of false is dicht. Blijft staan tijdens het navigeren, niet na herladen. */
   zonderDatumOpen?: boolean;
+  /** De groep "Taken uit plannen" binnen Zonder datum uitgeklapt (besluit 18); dezelfde regels als hierboven. */
+  planTakenOpen?: boolean;
 }
 
 export type Soort = 'afspraak' | 'taak' | 'boodschap';
@@ -35,6 +37,9 @@ export interface AppContext extends DemoActies {
   vakantie: string | null;
   /** Opent een vakantie (of het overzicht met null) op het scherm Vakanties. */
   openVakantie: (id: string | null) => void;
+  /** Besluit 18: het geopende plan op het scherm Plannen (null: het overzicht). Alleen in de demo. */
+  plan: string | null;
+  openPlan: (id: string | null) => void;
   agenda: AgendaStand;
   zetAgenda: (stand: Partial<AgendaStand>) => void;
   lokaal?: LokaalContext;
@@ -91,7 +96,7 @@ export interface LokaalContext {
   uitloggen: (opties?: { wissen?: boolean }) => void;
 }
 
-export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer' | 'vakanties';
+export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer' | 'vakanties' | 'plannen';
 
 export const Ctx = createContext<AppContext | null>(null);
 

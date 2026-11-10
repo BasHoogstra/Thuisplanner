@@ -2,11 +2,13 @@
 // en niets wordt bewaard. Herladen zet de demo terug.
 import { useMemo, useReducer } from 'react';
 import { demoItems, demoVakanties, huishouden, type Scenario } from '../data/demo';
+import { demoPlannen } from '../data/plannen-demo';
 import { zichtbaarVoor } from './rechten';
 import { boodschappenMelding, voegBoodschappenToe } from './boodschappen';
 import { verwijderReeks, verwijderVoorkomen, wijzigVoorkomen } from './herhaling';
 import { alOpPaklijst, doelVan, doelVelden, groepNaam, inDoel, pakSleutel, paklijstNaamFout, zelfdeDoel } from './vakantie';
-import type { Afspraak, Boodschap, Datum, Item, LidId, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from './types';
+import { zonderPlan, zonderTaken } from './plan-bijlagen';
+import type { Afspraak, Boodschap, Datum, Item, LidId, PakDoel, Pakitem, Paklijst, Plan, PlanKoppeling, PlanOnderdeel, Taak, Vakantie, VakantieKoppeling } from './types';
 
 export interface Melding {
   id: number;
@@ -23,6 +25,11 @@ export interface Gegevens {
   /** Extra inpaklijsten (§20), in de volgorde van aanmaken. */
   paklijsten: Paklijst[];
   koppelingen: VakantieKoppeling[];
+  /** Besluit 18: alleen in de demo; in lokaal en staging altijd leeg. */
+  plannen: Plan[];
+  onderdelen: PlanOnderdeel[];
+  /** Bijlagen: alleen de koppeling met een document. Nog leeg: er is nog geen upload (docs/thuisplanner-plannen-bijlagen.md). */
+  planKoppelingen: PlanKoppeling[];
 }
 
 export interface Staat extends Gegevens {
@@ -71,13 +78,21 @@ type Actie =
   | { type: 'paklijstHernoemen'; id: string; naam: string }
   | ({ type: 'paklijstVerwijderen'; id: string } & Wijziging)
   | { type: 'vinkjesOpnieuw'; vakantieId: string; groep: Groep }
-  | ({ type: 'ontkoppelen'; koppelingId: string } & Wijziging);
+  | ({ type: 'ontkoppelen'; koppelingId: string } & Wijziging)
+  // Besluit 18: Plannen
+  | ({ type: 'planToevoegen'; plan: Plan } & Wijziging)
+  | ({ type: 'planBijwerken'; plan: Plan } & Wijziging)
+  | ({ type: 'planVerwijderen'; id: string; metTaken: boolean } & Wijziging)
+  | ({ type: 'onderdeelToevoegen'; onderdeel: Omit<PlanOnderdeel, 'volgorde'> } & Wijziging)
+  | ({ type: 'onderdeelHernoemen'; id: string; naam: string } & Wijziging)
+  | { type: 'onderdeelVerplaatsen'; id: string; richting: -1 | 1 }
+  | ({ type: 'onderdeelVerwijderen'; id: string } & Wijziging);
 
 let meldingTeller = 0;
 const melding = (tekst: string | undefined, ongedaan: boolean): Melding | null =>
   tekst ? { id: ++meldingTeller, tekst, ongedaan } : null;
 
-const gegevens = (s: Staat): Gegevens => ({ items: s.items, vakanties: s.vakanties, pakitems: s.pakitems, paklijsten: s.paklijsten, koppelingen: s.koppelingen });
+const gegevens = (s: Staat): Gegevens => ({ items: s.items, vakanties: s.vakanties, pakitems: s.pakitems, paklijsten: s.paklijsten, koppelingen: s.koppelingen, plannen: s.plannen, onderdelen: s.onderdelen, planKoppelingen: s.planKoppelingen });
 
 function wijzigAlles(s: Staat, nieuw: Partial<Gegevens>, tekst?: string): Staat {
   return { ...s, vorige: gegevens(s), ...nieuw, melding: melding(tekst, true) };
@@ -98,17 +113,22 @@ export function reducer(s: Staat, a: Actie): Staat {
       return wijzig(s, [...s.items, ...a.items], a.melding);
     case 'vervangAlles':
       return wijzig(s, a.items, a.melding);
-    case 'bijwerken':
-      return wijzig(s, s.items.map(i => (i.id === a.item.id ? behoudVakantie(i, a.item) : i)), a.melding);
-    case 'wissel':
-      return wijzig(s, s.items.map(i => {
+    case 'bijwerken': {
+      const items = s.items.map(i => (i.id === a.item.id ? behoudKoppeling(i, a.item) : i));
+      return wijzigAlles(s, { items, plannen: heropendPlan(s, a.item.id, items) }, a.melding);
+    }
+    case 'wissel': {
+      const items = s.items.map(i => {
         if (i.id !== a.id) return i;
-        if (i.soort === 'taak') return { ...i, klaar: !i.klaar, klaarOp: i.klaar ? null : a.vandaag };
+        // Afvinken is af: een stand "Bezig" blijft niet achter (ook niet bij weer openzetten).
+        if (i.soort === 'taak') return { ...i, klaar: !i.klaar, klaarOp: i.klaar ? null : a.vandaag, ...(i.bezig ? { bezig: false } : {}) };
         if (i.soort === 'boodschap') return { ...i, afgevinkt: !i.afgevinkt };
         return i;
-      }), a.melding);
+      });
+      return wijzigAlles(s, { items, plannen: heropendPlan(s, a.id, items) }, a.melding);
+    }
     case 'verwijder':
-      return wijzig(s, s.items.filter(i => !a.ids.includes(i.id)), a.melding);
+      return wijzigAlles(s, { items: s.items.filter(i => !a.ids.includes(i.id)), planKoppelingen: zonderTaken(s.planKoppelingen, a.ids) }, a.melding);
     case 'boodschappen': {
       // Vanuit een vakantie: standaard bij "Later nodig" (zelfde regels als add_shopping_items met p_later).
       const later = a.later ?? !!a.vakantieId;
@@ -211,6 +231,41 @@ export function reducer(s: Staat, a: Actie): Staat {
     }
     case 'ontkoppelen':
       return wijzigAlles(s, { koppelingen: s.koppelingen.filter(k => k.id !== a.koppelingId) }, a.melding);
+    // ---- Plannen (besluit 18): de taken zijn gewone items; "Ongedaan maken" zet plan en taken samen terug. ----
+    case 'planToevoegen':
+      return wijzigAlles(s, { plannen: [...s.plannen, a.plan] }, a.melding);
+    case 'planBijwerken':
+      return wijzigAlles(s, { plannen: s.plannen.map(p => (p.id === a.plan.id ? a.plan : p)) }, a.melding);
+    case 'planVerwijderen': {
+      const hoortErbij = (i: Item) => i.soort === 'taak' && i.planId === a.id;
+      const items = a.metTaken ? s.items.filter(i => !hoortErbij(i))
+        : s.items.map(i => (hoortErbij(i) ? { ...i, planId: null, onderdeelId: null } as Taak : i));
+      const koppelingen = zonderPlan(s.planKoppelingen, a.id);
+      return wijzigAlles(s, {
+        items, plannen: s.plannen.filter(p => p.id !== a.id), onderdelen: s.onderdelen.filter(o => o.planId !== a.id),
+        planKoppelingen: a.metTaken ? zonderTaken(koppelingen, s.items.filter(hoortErbij).map(i => i.id)) : koppelingen,
+      }, a.melding);
+    }
+    case 'onderdeelToevoegen': {
+      const volgorde = Math.max(0, ...s.onderdelen.filter(o => o.planId === a.onderdeel.planId).map(o => o.volgorde)) + 1;
+      return wijzigAlles(s, { onderdelen: [...s.onderdelen, { ...a.onderdeel, volgorde }] }, a.melding);
+    }
+    case 'onderdeelHernoemen':
+      return wijzigAlles(s, { onderdelen: s.onderdelen.map(o => (o.id === a.id ? { ...o, naam: a.naam } : o)) }, a.melding);
+    case 'onderdeelVerplaatsen': {
+      const o = s.onderdelen.find(x => x.id === a.id);
+      if (!o) return s;
+      const rij = s.onderdelen.filter(x => x.planId === o.planId).sort((x, y) => x.volgorde - y.volgorde);
+      const buur = rij[rij.findIndex(x => x.id === a.id) + a.richting];
+      if (!buur) return s;
+      return { ...wijzigAlles(s, { onderdelen: s.onderdelen.map(x => (x.id === o.id ? { ...x, volgorde: buur.volgorde } : x.id === buur.id ? { ...x, volgorde: o.volgorde } : x)) }), melding: null };
+    }
+    case 'onderdeelVerwijderen':
+      // De taken blijven in het plan, zonder onderdeel.
+      return wijzigAlles(s, {
+        onderdelen: s.onderdelen.filter(o => o.id !== a.id),
+        items: s.items.map(i => (i.soort === 'taak' && i.onderdeelId === a.id ? { ...i, onderdeelId: null } : i)),
+      }, a.melding);
     // ---- Extra inpaklijsten (§20) ----
     case 'paklijstToevoegen': {
       const fout = paklijstNaamFout(a.lijst.naam, huishouden, s.paklijsten, a.lijst.vakantieId);
@@ -230,10 +285,25 @@ export function reducer(s: Staat, a: Actie): Staat {
   }
 }
 
-/** Een taak uit een formulier zonder vakantieveld houdt haar vakantie (het veld ontbreekt = niet gewijzigd). */
-function behoudVakantie(oud: Item, nieuw: Item): Item {
-  if (oud.soort === 'taak' && nieuw.soort === 'taak' && nieuw.vakantieId === undefined && oud.vakantieId !== undefined) {
-    return { ...nieuw, vakantieId: oud.vakantieId };
+/** Een taak van een afgerond plan weer openzetten: dan is het plan niet meer af. */
+function heropendPlan(s: Staat, taakId: string, items: Item[]): Plan[] {
+  const oud = s.items.find((i): i is Taak => i.id === taakId && i.soort === 'taak');
+  const nieuw = items.find((i): i is Taak => i.id === taakId && i.soort === 'taak');
+  if (!oud?.klaar || nieuw?.klaar || !nieuw?.planId) return s.plannen;
+  return s.plannen.map(p => (p.id === nieuw.planId && p.afgerondOp ? { ...p, afgerondOp: null } : p));
+}
+
+/** Een taak uit een formulier zonder vakantie-, plan-, onderdeel- of Bezig-veld houdt die (het veld ontbreekt = niet gewijzigd). */
+function behoudKoppeling(oud: Item, nieuw: Item): Item {
+  if (oud.soort === 'taak' && nieuw.soort === 'taak') {
+    return {
+      ...nieuw,
+      ...(nieuw.vakantieId === undefined && oud.vakantieId !== undefined ? { vakantieId: oud.vakantieId } : {}),
+      ...(nieuw.planId === undefined && oud.planId !== undefined ? { planId: oud.planId } : {}),
+      ...(nieuw.onderdeelId === undefined && oud.onderdeelId !== undefined ? { onderdeelId: oud.onderdeelId } : {}),
+      ...(nieuw.bezig === undefined && oud.bezig !== undefined ? { bezig: oud.bezig } : {}),
+      ...(nieuw.ookVoor === undefined && oud.ookVoor !== undefined ? { ookVoor: oud.ookVoor } : {}),
+    };
   }
   // Een boodschap aanpassen (naam) laat "Later nodig" staan.
   if (oud.soort === 'boodschap' && nieuw.soort === 'boodschap' && nieuw.later === undefined && oud.later) {
@@ -245,8 +315,10 @@ function behoudVakantie(oud: Item, nieuw: Item): Item {
 export function beginStaat(vandaag: Datum, scenario: Scenario = 'gewoon'): Staat {
   // Zoals een server het zou teruggeven: privé-afspraken van anderen zonder details.
   const v = demoVakanties(vandaag);
+  const pl = demoPlannen(vandaag, scenario);
   return {
-    scenario, items: zichtbaarVoor([...demoItems(vandaag, scenario), ...v.items], huishouden.ik),
+    scenario, items: zichtbaarVoor([...demoItems(vandaag, scenario), ...v.items, ...pl.items], huishouden.ik),
+    plannen: pl.plannen, onderdelen: pl.onderdelen, planKoppelingen: [],
     vakanties: v.vakanties, pakitems: v.pakitems, paklijsten: v.paklijsten, koppelingen: v.koppelingen,
     weggeklikt: new Set(), vorige: null, melding: null,
   };
@@ -307,6 +379,24 @@ export function useDemoStaat(vandaag: Datum) {
     paklijstVerwijderen: (l: Paklijst) => dispatch({ type: 'paklijstVerwijderen', id: l.id, melding: `${l.naam} verwijderd` }),
     vinkjesOpnieuw: (vakantieId: string, groep: Groep) => dispatch({ type: 'vinkjesOpnieuw', vakantieId, groep }),
     boodschapOntkoppelen: (k: VakantieKoppeling, naam: string) => dispatch({ type: 'ontkoppelen', koppelingId: k.id, melding: `${naam} niet meer voor deze vakantie` }),
+    // ---- Plannen (besluit 18): alleen in de demo ----
+    /** Geeft het id van het nieuwe plan (om het meteen te openen). */
+    planToevoegen: (p: Omit<Plan, 'id'>): string => {
+      const id = nieuwId('plan');
+      dispatch({ type: 'planToevoegen', plan: { ...p, id }, melding: `${p.titel} toegevoegd` });
+      return id;
+    },
+    planBijwerken: (p: Plan, melding?: string): void => dispatch({ type: 'planBijwerken', plan: p, melding }),
+    planVerwijderen: (p: Plan, metTaken: boolean): void => dispatch({ type: 'planVerwijderen', id: p.id, metTaken, melding: `${p.titel} verwijderd` }),
+    /** Geeft het id van het nieuwe onderdeel (om het meteen open te zetten). */
+    onderdeelToevoegen: (planId: string, naam: string): string => {
+      const id = nieuwId('ond');
+      dispatch({ type: 'onderdeelToevoegen', onderdeel: { id, planId, naam }, melding: `${naam} toegevoegd` });
+      return id;
+    },
+    onderdeelHernoemen: (o: PlanOnderdeel, naam: string): void => dispatch({ type: 'onderdeelHernoemen', id: o.id, naam, melding: `Onderdeel heet nu ${naam}` }),
+    onderdeelVerplaatsen: (o: PlanOnderdeel, richting: -1 | 1): void => dispatch({ type: 'onderdeelVerplaatsen', id: o.id, richting }),
+    onderdeelVerwijderen: (o: PlanOnderdeel): void => dispatch({ type: 'onderdeelVerwijderen', id: o.id, melding: `${o.naam} verwijderd` }),
     /** Een afgelopen vakantie tonen (lokaal: haar paklijst ophalen). In de demo staat alles al klaar. */
     vakantieOpenen: (_id: string) => {},
     vakantieSluiten: (_id: string) => {},

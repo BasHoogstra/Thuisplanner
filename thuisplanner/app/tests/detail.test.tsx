@@ -78,6 +78,7 @@ it('de tijd: "Hele dag" haalt begin en eind weg', async () => {
 it('een taak: één persoon, "Geen datum" kan, en de rest blijft behouden', async () => {
   const o = opzet([taak()], 't1');
   await o.user.click(o.d().getByRole('button', { name: /^Wie pakt het op / }));
+  await o.user.click(within(o.d().getByRole('group', { name: 'Wie pakt het op' })).getByRole('button', { name: 'Thomas' }));   // in de demo kan er meer dan één; Thomas eraf
   await o.user.click(within(o.d().getByRole('group', { name: 'Wie pakt het op' })).getByRole('button', { name: 'Lotte' }));
   await o.user.click(o.d().getByRole('button', { name: /^Dag / }));
   await o.user.click(within(o.d().getByRole('group', { name: 'Wanneer' })).getByRole('button', { name: 'Geen datum' }));

@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 test('Vandaag: begroeting, samenvatting, één nadrukkaart, demo-markering, geen horizontale scroll', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Goedemorgen, Eva');
   await expect(page.getByText('Zaterdag 10 oktober', { exact: false })).toBeVisible();
-  await expect(page.getByText('Vandaag: 4 afspraken en 3 taken.')).toBeVisible();
+  await expect(page.getByText('Vandaag: 4 afspraken en 4 taken.')).toBeVisible();
   await expect(page.locator('.straks')).toHaveCount(1);
   await expect(page.locator('.straks')).toContainText('Voetbal');
   await expect(page.locator('.demobalk')).toContainText('Demo');
