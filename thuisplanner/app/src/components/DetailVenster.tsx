@@ -6,6 +6,8 @@
 // Gegevensbehoud: opslaan bouwt de afspraak op dezelfde manier als het formulier (ItemVenster): notities, voorbereiding,
 // de duur van een meerdaagse afspraak, herhaling en de reeksgegevens gaan mee, en de versie bij het openen voorkomt dat
 // een gelijktijdige wijziging van een ander stil wordt overschreven.
+import { metMensen, taakMensen } from '../lib/mensen';
+import { onderdelenVan, statusVelden, TAAK_STATUSSEN, taakStatus, type TaakStatus } from '../lib/plan';
 import { useState, type ReactNode } from 'react';
 import { useApp } from '../lib/context';
 import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen, verschilInDagen } from '../lib/datum';
@@ -26,7 +28,7 @@ function schuif(oudStart: string, oudEind: string, nieuwStart: string): string {
   return e > minuten(nieuwStart) && e < 24 * 60 ? `${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}` : '';
 }
 
-type Paneel = 'dag' | 'tijd' | 'wie' | 'plek' | 'herhaling' | 'vakantie' | null;
+type Paneel = 'dag' | 'tijd' | 'wie' | 'plek' | 'herhaling' | 'vakantie' | 'plan' | 'onderdeel' | 'status' | null;
 
 export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: {
   item: Afspraak | Taak;
@@ -45,10 +47,13 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
     dag: (afspraak ? afspraak.datum : taak!.datum) as Datum | null,
     start: afspraak?.start ?? '',
     eind: afspraak?.eind ?? '',
-    wie: afspraak ? afspraak.wie : taak!.voor ? [taak!.voor] : [],
+    wie: afspraak ? afspraak.wie : taakMensen(taak!),
     plek: afspraak?.plek ?? '',
     prive: afspraak?.zichtbaarheid === 'prive',
     vakantie: taak?.vakantieId ?? null,
+    plan: taak?.planId ?? null,
+    onderdeel: taak?.onderdeelId ?? null,
+    status: (taak ? taakStatus(taak) : 'Te doen') as TaakStatus,
   };
   const [titel, zetTitel] = useState(begin.titel);
   const [dag, zetDag] = useState<Datum | null>(begin.dag);
@@ -59,6 +64,14 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
   const [prive, zetPrive] = useState(begin.prive);
   const [vakantie, zetVakantie] = useState<string | null>(begin.vakantie);
   const vakanties = taak ? kiesbareVakanties(staat.vakanties, vandaag, begin.vakantie) : [];
+  const [plan, zetPlan] = useState<string | null>(begin.plan);
+  const [onderdeel, zetOnderdeel] = useState<string | null>(begin.onderdeel);
+  const [status, zetStatus] = useState<TaakStatus>(begin.status);
+  // Besluit 18: alleen in de demo. Een taak hoort bij hoogstens één vakantie of plan. Een afgerond plan is niet te kiezen.
+  const plannen = taak && !app.lokaal ? (staat.plannen ?? []).filter(p => !p.afgerondOp || p.id === begin.plan) : [];
+  const onderdelen = plan && !app.lokaal ? onderdelenVan(staat.onderdelen ?? [], plan) : [];
+  // De drie standen alleen bij een plan-taak; elke andere taak blijft zoals ze was.
+  const metStatus = !!plan && !app.lokaal;
   const [paneel, zetPaneel] = useState<Paneel>(null);
   const [meer, zetMeer] = useState(false);
   const [verwijderen, zetVerwijderen] = useState(false);
@@ -71,14 +84,14 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
   const kanPrive = !!afspraak && magZichtbaarheidKiezen(afspraak, huishouden.ik);
   const herhaling = reeks?.herhaling ?? afspraak?.herhaling;
   const gewijzigd = titel.trim().replace(/\s+/g, ' ') !== begin.titel || dag !== begin.dag || start !== begin.start || eind !== begin.eind
-    || wie.join() !== begin.wie.join() || plek.trim() !== begin.plek || prive !== begin.prive || vakantie !== begin.vakantie;
+    || wie.join() !== begin.wie.join() || plek.trim() !== begin.plek || prive !== begin.prive || vakantie !== begin.vakantie || plan !== begin.plan || onderdeel !== begin.onderdeel || status !== begin.status;
   const open = (p: Exclude<Paneel, null>) => zetPaneel(x => (x === p ? null : p));
   const tijd = start ? (eind ? `${start} – ${eind}` : start) : 'Hele dag';
   const wieTekst = wie.length ? wie.map(id => lid(id)?.naam ?? '?').join(', ') : afspraak ? 'Iedereen' : 'Nog niemand';
 
   function weggooien() {
     zetTitel(begin.titel); zetDag(begin.dag); zetStart(begin.start); zetEind(begin.eind); zetWie(begin.wie);
-    zetPlek(begin.plek); zetPrive(begin.prive); zetVakantie(begin.vakantie); zetPaneel(null); zetFout(null);
+    zetPlek(begin.plek); zetPrive(begin.prive); zetVakantie(begin.vakantie); zetPlan(begin.plan); zetOnderdeel(begin.onderdeel); zetStatus(begin.status); zetPaneel(null); zetFout(null);
   }
 
   function opslaan(bereik?: 'deze' | 'reeks') {
@@ -86,7 +99,8 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
     if (!t) { zetFout('Geef het even een naam.'); return; }
     if (taak) {
       // De vakantie alleen meegeven als die is gewijzigd; anders blijft het veld zoals het was (F8).
-      const nieuw: Taak = { ...taak, titel: t, datum: dag, voor: wie[0] ?? null, ...(vakantie !== begin.vakantie ? { vakantieId: vakantie } : {}), versie: beginVersie };
+      const nieuw: Taak = { ...taak, titel: t, datum: dag, ...metMensen(taak, wie), ...(vakantie !== begin.vakantie ? { vakantieId: vakantie } : {}), ...(plan !== begin.plan ? { planId: plan } : {}),
+        ...(onderdeel !== begin.onderdeel ? { onderdeelId: onderdeel } : {}), ...(status !== begin.status ? statusVelden(status, taak, vandaag) : {}), versie: beginVersie };
       app.bijwerken(nieuw, `${t} aangepast`);
       sluit();
       return;
@@ -166,7 +180,7 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
           {rij('wie', afspraak ? 'Voor wie' : 'Wie pakt het op', wieTekst)}
           {paneel === 'wie' && (
             <div className="paneel">
-              <WieKeuze leden={huishouden.leden} wie={wie} enkel={!!taak} kies={w => { zetWie(w); if (taak) zetPaneel(null); }} />
+              <WieKeuze leden={huishouden.leden} wie={wie} enkel={!!taak && !!app.lokaal} taak={!!taak} kies={w => { zetWie(w); if (taak && app.lokaal) zetPaneel(null); }} />
             </div>
           )}
           {afspraak && (begin.plek || plek) && rij('plek', 'Waar', plek || '—')}
@@ -190,19 +204,55 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
               <span className="detail-waarde">{prive ? <><IcSlot /> Alleen voor jou</> : 'Voor het hele huishouden'}</span>
             </button>
           )}
-          {taak && vakanties.length > 0 && rij('vakantie', 'Vakantie', vakanties.find(v => v.id === vakantie)?.naam ?? 'Geen')}
-          {taak && paneel === 'vakantie' && (
+          {taak && !plan && vakanties.length > 0 && rij('vakantie', 'Vakantie', vakanties.find(v => v.id === vakantie)?.naam ?? 'Geen')}
+          {taak && !plan && paneel === 'vakantie' && (
             <div className="paneel">
               <div className="keuzes" role="group" aria-label="Hoort bij vakantie">
                 {vakanties.map(v => (
                   <button key={v.id} type="button" className={'keuze' + (vakantie === v.id ? ' aan' : '')} aria-pressed={vakantie === v.id}
-                    onClick={() => { zetVakantie(v.id); zetPaneel(null); }}>{v.naam}</button>
+                    onClick={() => { zetVakantie(v.id); zetPlan(null); zetOnderdeel(null); zetPaneel(null); }}>{v.naam}</button>
                 ))}
                 <button type="button" className={'keuze' + (!vakantie ? ' aan' : '')} aria-pressed={!vakantie} onClick={() => { zetVakantie(null); zetPaneel(null); }}>Geen</button>
               </div>
             </div>
           )}
-          {taak && (
+          {taak && plannen.length > 0 && rij('plan', 'Plan', plannen.find(p => p.id === plan)?.titel ?? 'Geen')}
+          {taak && paneel === 'plan' && (
+            <div className="paneel">
+              <div className="keuzes" role="group" aria-label="Hoort bij plan">
+                {plannen.map(p => (
+                  <button key={p.id} type="button" className={'keuze' + (plan === p.id ? ' aan' : '')} aria-pressed={plan === p.id}
+                    onClick={() => { if (p.id !== plan) zetOnderdeel(null); zetPlan(p.id); zetVakantie(null); zetPaneel(null); }}>{p.titel}</button>
+                ))}
+                <button type="button" className={'keuze' + (!plan ? ' aan' : '')} aria-pressed={!plan} onClick={() => { zetPlan(null); zetOnderdeel(null); zetPaneel(null); }}>Geen</button>
+              </div>
+              {begin.plan && !gewijzigd && <button type="button" className="tekstknop" onClick={() => { sluit(); app.openPlan(begin.plan); }}>Naar het plan</button>}
+            </div>
+          )}
+          {taak && onderdelen.length > 0 && rij('onderdeel', 'Onderdeel', onderdelen.find(o => o.id === onderdeel)?.naam ?? 'Geen')}
+          {taak && paneel === 'onderdeel' && (
+            <div className="paneel">
+              <div className="keuzes" role="group" aria-label="Hoort bij onderdeel">
+                {onderdelen.map(o => (
+                  <button key={o.id} type="button" className={'keuze' + (onderdeel === o.id ? ' aan' : '')} aria-pressed={onderdeel === o.id}
+                    onClick={() => { zetOnderdeel(o.id); zetPaneel(null); }}>{o.naam}</button>
+                ))}
+                <button type="button" className={'keuze' + (!onderdeel ? ' aan' : '')} aria-pressed={!onderdeel} onClick={() => { zetOnderdeel(null); zetPaneel(null); }}>Geen</button>
+              </div>
+            </div>
+          )}
+          {taak && metStatus && rij('status', 'Status', status)}
+          {taak && metStatus && paneel === 'status' && (
+            <div className="paneel">
+              <div className="keuzes" role="group" aria-label="Status van de taak">
+                {TAAK_STATUSSEN.map(s => (
+                  <button key={s} type="button" className={'keuze' + (status === s ? ' aan' : '')} aria-pressed={status === s}
+                    onClick={() => { zetStatus(s); zetPaneel(null); }}>{s}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {taak && !metStatus && (
             <div className="detail-rij statisch">
               <span className="detail-label">Status</span>{' '}
               <span className="detail-waarde">{taak.klaar ? 'Afgerond' : 'Nog te doen'}</span>

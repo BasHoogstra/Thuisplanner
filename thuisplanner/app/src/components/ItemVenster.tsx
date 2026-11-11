@@ -1,3 +1,4 @@
+import { metMensen, taakMensen } from '../lib/mensen';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useApp, type Soort } from '../lib/context';
 import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen, verschilInDagen } from '../lib/datum';
@@ -110,7 +111,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
   const [eind, zetEind] = useState(bestaand?.soort === 'afspraak' ? bestaand.eind ?? '' : vi?.eind ?? '');
   const [plek, zetPlek] = useState(bestaand?.soort === 'afspraak' ? bestaand.plek ?? '' : vi?.plek ?? '');
   const [wie, zetWie] = useState<LidId[]>(
-    bestaand?.soort === 'afspraak' ? bestaand.wie : bestaand?.soort === 'taak' && bestaand.voor ? [bestaand.voor] : vi?.wie ?? []);
+    bestaand?.soort === 'afspraak' ? bestaand.wie : bestaand?.soort === 'taak' ? taakMensen(bestaand) : vi?.wie ?? []);
   const [prive, zetPrive] = useState(herinvoerPrive || (bestaand?.soort === 'afspraak' && bestaand.zichtbaarheid === 'prive') || !!vi?.prive);
   // F8: uit de slimme + ("Alles invullen"): de gekozen vakantie en Later nodig / Nu te kopen gaan mee en blijven te wijzigen.
   const metVakantie = !bestaand && !herinvoerId && (!!vi?.vakantieId || vi?.later !== undefined);
@@ -228,9 +229,11 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
       }
     } else if (soort === 'taak') {
       const vorig = bestaand?.soort === 'taak' ? bestaand : undefined;
+      // De oude taak gaat mee: wat dit formulier niet toont (plan, onderdeel, Bezig), blijft staan.
       const taak = {
+        ...(vorig ?? {}),
         id: vorig?.id ?? nieuwId('t'), soort: 'taak' as const, titel: t, datum: dag === 'ooit' ? null : dag,
-        voor: wie[0] ?? null, klaar: vorig?.klaar ?? false, klaarOp: vorig?.klaarOp ?? null, versie: beginVersie,
+        ...metMensen(vorig, wie), klaar: vorig?.klaar ?? false, klaarOp: vorig?.klaarOp ?? null, versie: beginVersie,
         // Dit formulier toont de vakantie niet; een bestaande koppeling blijft staan (F8). Uit de slimme +: de gekozen.
         vakantieId: vorig ? vorig.vakantieId : metVakantie && vakantieKeuze ? vakantieKeuze : undefined,
       };
@@ -268,7 +271,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
   }
 
   const keuzeWie = (enkel: boolean) => (
-    <div className="keuzes" role="group" aria-label={enkel ? 'Wie pakt het op' : 'Voor wie'}>
+    <div className="keuzes" role="group" aria-label={soort === 'taak' ? 'Wie pakt het op' : 'Voor wie'}>
       {huishouden.leden.map(l => {
         const aan = wie.includes(l.id);
         return (
@@ -434,7 +437,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
         {soort !== 'boodschap' && (
           <div className="veld">
             <span className="veld-label">{soort === 'afspraak' ? 'Voor wie?' : 'Wie pakt het op?'} <span className="optioneel">(optioneel)</span></span>
-            {keuzeWie(soort === 'taak')}
+            {keuzeWie(soort === 'taak' && !!app.lokaal)}
           </div>
         )}
 

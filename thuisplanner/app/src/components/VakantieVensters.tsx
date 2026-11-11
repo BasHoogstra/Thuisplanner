@@ -13,7 +13,7 @@ import { Venster } from './Venster';
  * Een melding (onderaan, boven de vensterlaag) mag geen knop van een venster bedekken, zoals "Ja, verwijderen" op een
  * kleine iPhone: bij het openen van een paklijstvenster gaat de melding van dat moment weg.
  */
-function useMeldingWegBijOpenen() {
+export function useMeldingWegBijOpenen() {
   const app = useApp();
   const bijOpenen = useRef(app.staat.melding?.id ?? null);
   useEffect(() => { if (bijOpenen.current != null) app.meldingWeg(bijOpenen.current); }, [app]);

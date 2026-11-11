@@ -26,7 +26,7 @@ export function Vakanties() {
 }
 
 /** Een rustige voortgangsbalk (alleen tokens; de breedte is het enige vaste gegeven). */
-function Voortgang({ klaar, totaal, label, klein }: { klaar: number; totaal: number; label: string; klein?: boolean }) {
+export function Voortgang({ klaar, totaal, label, klein }: { klaar: number; totaal: number; label: string; klein?: boolean }) {
   const pct = totaal ? Math.round((klaar / totaal) * 100) : 0;
   return (
     <span className={'voortgang' + (klein ? ' klein' : '') + (totaal && klaar === totaal ? ' vol' : '')} role="progressbar"
@@ -199,7 +199,7 @@ function VakantiePagina({ v }: { v: Vakantie }) {
 // ---------------------------------------------------------------- Regelen: voorbereidingen (taken) en boodschappen
 
 /** De kop van een inklapbaar blok: titel en voortgang blijven altijd zichtbaar; de hele kop is de knop. */
-function BlokKop({ id, titel, tel, open, wissel }: { id: string; titel: string; tel?: string; open: boolean; wissel: () => void }) {
+export function BlokKop({ id, titel, tel, open, wissel }: { id: string; titel: string; tel?: string; open: boolean; wissel: () => void }) {
   return (
     <div className="vak-blok-kop">
       <h2 id={id}>

@@ -431,8 +431,8 @@ export function begrijp(tekst: string, ctx: Context, opties: Opties = {}): Voors
   if (soort !== 'afspraak' && start) { start = undefined; eind = undefined; herkend.delete('tijd'); }
   let wieUit = wie;
   if (soort === 'taak' && wie.length > 1) {
-    // Een taak heeft één persoon: bij meer namen blijven ze in de titel.
-    meld({ soort: 'taak-meer-personen', tekst: 'Een taak is voor één persoon: de namen blijven in de titel.' });
+    // De zin herkent bij een taak één persoon: bij meer namen blijven ze in de titel.
+    meld({ soort: 'taak-meer-personen', tekst: 'De namen blijven in de titel. Wie het oppakt, kies je bij de taak.' });
     tokens.forEach((t, i) => {
       if (vakIdx.includes(i)) return;   // "voor <vakantie>" blijft herkend
       if (leden.some(x => x.k === t.w) || ((t.w === 'met' || t.w === 'voor' || t.w === 'en') && t.gebruikt)) t.gebruikt = false;

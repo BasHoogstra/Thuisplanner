@@ -12,7 +12,7 @@
 //   verschijnt dan niet. Zie tests/acties-contract.test.tsx.
 import type { Scenario } from '../data/demo';
 import type { Gegevens, Groep, Melding } from './store';
-import type { Afspraak, Boodschap, Datum, Item, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from './types';
+import type { Afspraak, Boodschap, Datum, Item, PakDoel, Pakitem, Paklijst, Plan, PlanOnderdeel, Vakantie, VakantieKoppeling } from './types';
 
 /** Wat de schermen lezen: de gedeelde gegevens plus wat alleen dit toestel weet (weggeklikt, de melding). */
 export interface Staat extends Gegevens {
@@ -63,6 +63,18 @@ export interface Acties {
   /** Een afgelopen vakantie tonen (online: haar paklijst ophalen). */
   vakantieOpenen: (id: string) => Promise<void>;
   vakantieSluiten: (id: string) => void;
+
+  // ---- Plannen (besluit 18). De taken van een plan zijn gewone items (toevoegen, bijwerken, wissel). ----
+  /** Geeft het id van het nieuwe plan (om het meteen te openen). */
+  planToevoegen: (p: Omit<Plan, 'id'>) => string;
+  planBijwerken: (p: Plan, melding?: string) => void;
+  /** metTaken: ook de taken weg (anders blijven ze als losse taken). */
+  planVerwijderen: (p: Plan, metTaken: boolean) => void;
+  /** Geeft het id van het nieuwe onderdeel. */
+  onderdeelToevoegen: (planId: string, naam: string) => string;
+  onderdeelHernoemen: (o: PlanOnderdeel, naam: string) => void;
+  onderdeelVerplaatsen: (o: PlanOnderdeel, richting: -1 | 1) => void;
+  onderdeelVerwijderen: (o: PlanOnderdeel) => void;
 }
 
 /** Alleen in de demo: voorbeelddagen kiezen en alles vervangen. Nooit online. */

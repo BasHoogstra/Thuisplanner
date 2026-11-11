@@ -26,14 +26,18 @@ import { SpullenLaag, useSpullenInvoer } from './components/SpullenVensters';
 import { useSupabaseSpullen } from './lib/spullen/opslag-supabase';
 import type { Toestand } from '../../sync/thuisplanner-sync.js';
 
-const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties', 'spullen'];
-const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', spullen: 'Spullen & documenten' };
+import { Plannen } from './screens/Plannen';
+import { schermVoor } from './lib/plan';
 
-/** "#/agenda" → agenda; "#/vakanties/<id>" → vakanties met die vakantie open (F8); "#/spullen/<pad>" → Spullen & documenten. */
-function uitHash(): { scherm: Scherm; vakantie: string | null; spullen: string } {
+const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties', 'spullen', 'plannen'];
+const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', spullen: 'Spullen & documenten', plannen: 'Plannen' };
+
+/** "#/agenda" → agenda; "#/vakanties/<id>" → die vakantie (F8); "#/spullen/<pad>" → Spullen & documenten; "#/plannen/<id>" → dat plan (besluit 18). */
+function uitHash(): { scherm: Scherm; vakantie: string | null; spullen: string; plan: string | null } {
   const [h, id, ...rest] = window.location.hash.replace('#/', '').replace('#', '').split('/') as [Scherm, string | undefined, ...string[]];
-  if (!SCHERMEN.includes(h)) return { scherm: 'vandaag', vakantie: null, spullen: '' };
-  return { scherm: h, vakantie: h === 'vakanties' && id ? decodeURIComponent(id) : null, spullen: h === 'spullen' ? [id, ...rest].filter(Boolean).join('/') : '' };
+  if (!SCHERMEN.includes(h)) return { scherm: 'vandaag', vakantie: null, spullen: '', plan: null };
+  return { scherm: h, vakantie: h === 'vakanties' && id ? decodeURIComponent(id) : null, spullen: h === 'spullen' ? [id, ...rest].filter(Boolean).join('/') : '',
+    plan: h === 'plannen' && id ? decodeURIComponent(id) : null };
 }
 function schermUitHash(): Scherm { return uitHash().scherm; }
 
@@ -205,16 +209,19 @@ function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, chi
   lokaal?: LokaalContext; titelSoort: string; children?: ReactNode;
 }) {
   const vandaag = naarDatum(klok);
-  const [scherm, zetScherm] = useState<Scherm>(schermUitHash);
+  const [schermKeuze, zetScherm] = useState<Scherm>(schermUitHash);
+  // Plannen bestaat alleen in de demo (besluit 18): in lokaal en staging is er geen route naartoe.
+  const scherm = schermVoor(schermKeuze, !!lokaal);
   const [vakantie, zetVakantie] = useState<string | null>(() => uitHash().vakantie);
   const [spullenPad, zetSpullenPad] = useState<string>(() => uitHash().spullen);
+  const [plan, zetPlan] = useState<string | null>(() => uitHash().plan);
   const [venster, zetVenster] = useState<VensterOpdracht | null>(null);
   const [agenda, zetAgendaStand] = useState<AgendaStand>({ weergave: 'week', datum: vandaag, filter: null });
   const zetAgenda = useCallback((s: Partial<AgendaStand>) => zetAgendaStand(a => ({ ...a, ...s })), []);
   const hoofd = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const opHash = () => { const u = uitHash(); zetScherm(u.scherm); zetVakantie(u.vakantie); zetSpullenPad(u.spullen); };
+    const opHash = () => { const u = uitHash(); zetScherm(u.scherm); zetVakantie(u.vakantie); zetSpullenPad(u.spullen); zetPlan(u.plan); };
     window.addEventListener('hashchange', opHash);
     return () => window.removeEventListener('hashchange', opHash);
   }, []);
@@ -226,6 +233,7 @@ function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, chi
     zetScherm(s);
     zetVakantie(null);
     zetSpullenPad('');
+    zetPlan(null);
     window.scrollTo({ top: 0 });
     hoofd.current?.focus({ preventScroll: true });
   }, []);
@@ -234,6 +242,14 @@ function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, chi
     if (window.location.hash !== doel) window.location.hash = doel;
     zetScherm('vakanties');
     zetVakantie(id);
+    window.scrollTo({ top: 0 });
+    hoofd.current?.focus({ preventScroll: true });
+  }, []);
+  const openPlan = useCallback((id: string | null) => {
+    const doel = id ? `#/plannen/${encodeURIComponent(id)}` : '#/plannen';
+    if (window.location.hash !== doel) window.location.hash = doel;
+    zetScherm('plannen');
+    zetPlan(id);
     window.scrollTo({ top: 0 });
     hoofd.current?.focus({ preventScroll: true });
   }, []);
@@ -273,6 +289,8 @@ function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, chi
     openVakantie,
     spullenPad,
     openSpullen,
+    plan,
+    openPlan,
     agenda,
     zetAgenda,
     lokaal,
@@ -293,6 +311,7 @@ function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, chi
             {scherm === 'meer' && <Meer />}
             {scherm === 'vakanties' && <Vakanties />}
             {scherm === 'spullen' && <Spullen />}
+            {scherm === 'plannen' && <Plannen />}
           </Foutgrens>
         </main>
         {venster && (

@@ -39,7 +39,7 @@ test.describe('Maandweergave', () => {
     await weergave(page, 'Maand');
     await expect(titel(page)).toContainText('Oktober 2026');
     await expect(page.getByRole('cell')).toHaveCount(35);
-    await expect(maandDag(page, 'zaterdag 10 oktober \\(vandaag\\): 4 afspraken, 2 taken')).toBeVisible();
+    await expect(maandDag(page, 'zaterdag 10 oktober \\(vandaag\\): 4 afspraken, 3 taken')).toBeVisible();
     await expect(maandDag(page, 'maandag 12 oktober: 1 taak')).toBeVisible();
     await expect(maandDag(page, 'woensdag 7 oktober: niets gepland')).toBeVisible();
     await geenHorizontaleScroll(page);
@@ -231,7 +231,7 @@ test.describe('Herhalende afspraken', () => {
     await maandDag(page, 'zaterdag 24 oktober').click();
     await expect(dagLijst(page)).not.toContainText('Zwemles');
     await nav(page, 'Vandaag');
-    await expect(page.getByText('Vandaag: 3 afspraken en 3 taken.')).toBeVisible();
+    await expect(page.getByText('Vandaag: 3 afspraken en 4 taken.')).toBeVisible();
   });
 });
 
@@ -265,7 +265,7 @@ test.describe('Gezinsfilter en privacy', () => {
     await filter(page, 'Daan');
     await weergave(page, 'Maand');
     await nav(page, 'Vandaag');
-    await expect(page.getByText('Vandaag: 4 afspraken en 3 taken.')).toBeVisible();
+    await expect(page.getByText('Vandaag: 4 afspraken en 4 taken.')).toBeVisible();
     await expect(page.getByRole('group', { name: 'Wiens agenda' })).toHaveCount(0);
     await nav(page, 'Agenda');
     await expect(page.getByRole('tab', { name: 'Maand', exact: true })).toHaveAttribute('aria-selected', 'true');

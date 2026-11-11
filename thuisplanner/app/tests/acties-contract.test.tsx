@@ -20,6 +20,7 @@ const ACTIES: (keyof Acties)[] = [
   'verwijderReeks', 'ongedaan', 'wegklikken', 'meld', 'meldingWeg', 'vakantieToevoegen', 'vakantieBijwerken', 'vakantieVerwijderen',
   'pakitemToevoegen', 'pakitemWissel', 'pakitemBijwerken', 'pakitemVerwijderen', 'paklijstOvernemen', 'paklijstToevoegen',
   'paklijstHernoemen', 'paklijstVerwijderen', 'vinkjesOpnieuw', 'boodschapOntkoppelen', 'vakantieOpenen', 'vakantieSluiten',
+  'planToevoegen', 'planBijwerken', 'planVerwijderen', 'onderdeelToevoegen', 'onderdeelHernoemen', 'onderdeelVerplaatsen', 'onderdeelVerwijderen',
 ];
 const DEMO_EXTRA = ['kiesScenario', 'vervangAlles'];
 const LOKAAL_EXTRA = ['opnieuwProberen', 'herinvoeren', 'vergeten', 'syncMeldingWeg', 'keuze', 'sluitKeuze'];
@@ -41,7 +42,7 @@ describe('contract: beide kanten leveren dezelfde handelingen', () => {
     const { result } = renderHook(() => useLokaleStaat(sessie, { toestand: leegToestand } as unknown as Momentopname, VANDAAG, HH_DEMO));
     const { staat, ...rest } = result.current;
     expect(Object.keys(rest).sort()).toEqual([...ACTIES, ...LOKAAL_EXTRA].sort());
-    expect(Object.keys(staat).sort()).toEqual(['items', 'koppelingen', 'melding', 'pakitems', 'paklijsten', 'vakanties', 'weggeklikt']);
+    expect(Object.keys(staat).sort()).toEqual(['items', 'koppelingen', 'melding', 'onderdelen', 'pakitems', 'paklijsten', 'planKoppelingen', 'plannen', 'vakanties', 'weggeklikt']);
     for (const k of DEMO_EXTRA) expect(rest).not.toHaveProperty(k);
   });
 });

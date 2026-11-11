@@ -5,6 +5,7 @@ import { HerstelKnoppen } from '../components/Lokaal';
 import { Account } from '../components/Account';
 import { VakantiesRij } from './Vakanties';
 import { SpullenRij } from './Spullen';
+import { PlannenRij } from './Plannen';
 import type { Item, SyncVelden } from '../lib/types';
 
 const ZONDER_INHOUD_NAAM = { afspraak: 'Afspraak', taak: 'Taak', boodschap: 'Boodschap' } as const;
@@ -29,6 +30,7 @@ export function Meer() {
       </header>
 
       <VakantiesRij />
+      <PlannenRij />
       <SpullenRij />
 
       <section aria-labelledby="h-leden" className="blok">
@@ -62,7 +64,7 @@ export function Meer() {
       <section aria-labelledby="h-wat" className="blok">
         <h2 id="h-wat" className="sectie-kop">Wat werkt er in deze demo?</h2>
         <ul className="uitleg">
-          <li><strong>Werkt:</strong> afspraken, taken en boodschappen toevoegen, openen, aanpassen en verwijderen; taken en boodschappen afvinken en weer openzetten; een agenda met dag-, week- en maandweergave en een filter per gezinslid; herhalende afspraken (dagelijks, wekelijks, maandelijks, jaarlijks) waarvan je één keer of de hele reeks wijzigt of verwijdert; ongedaan maken van de laatste wijziging; het meedenk-signaal accepteren of wegklikken; vakanties met voorbereidingen, boodschappen voor de vakantie, notities en een paklijst per gezinslid en Gezamenlijk (ook overnemen van een eerdere vakantie); spullen en documenten (aankopen, bonnen en garanties) bewaren, koppelen en terugvinden, ook met een vraag in de + ("Welk modelnummer heeft onze vaatwasser?").</li>
+          <li><strong>Werkt:</strong> afspraken, taken en boodschappen toevoegen, openen, aanpassen en verwijderen; taken en boodschappen afvinken en weer openzetten; een agenda met dag-, week- en maandweergave en een filter per gezinslid; herhalende afspraken (dagelijks, wekelijks, maandelijks, jaarlijks) waarvan je één keer of de hele reeks wijzigt of verwijdert; ongedaan maken van de laatste wijziging; het meedenk-signaal accepteren of wegklikken; vakanties met voorbereidingen, boodschappen voor de vakantie, notities en een paklijst per gezinslid en Gezamenlijk (ook overnemen van een eerdere vakantie); plannen met taken, onderdelen, voortgang en meer verantwoordelijken per taak, waarbij een taak dezelfde taak is als op Vandaag en in de Agenda; spullen en documenten (aankopen, bonnen en garanties) bewaren, koppelen en terugvinden, ook met een vraag in de + ("Welk modelnummer heeft onze vaatwasser?").</li>
           <li><strong>Alleen in deze demo:</strong> alles staat in het geheugen van dit tabblad. Er is geen account, geen server en niets wordt opgeslagen of gedeeld.</li>
           <li><strong>Privé:</strong> een privé-afspraak van een ander zie je alleen als "bezet", zonder details, en je kunt hem niet wijzigen. In de echte app regelt de server dat, niet het scherm.</li>
           <li><strong>Nog niet:</strong> inloggen, uitnodigen, synchroniseren, meldingen, herhalende taken.</li>

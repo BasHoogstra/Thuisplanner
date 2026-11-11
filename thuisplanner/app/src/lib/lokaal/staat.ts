@@ -15,6 +15,7 @@ import type { Acties, Staat } from '../acties';
 import type { Groep, Melding } from '../store';
 import type { Afspraak, Boodschap, Datum, Huishouden, Item, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from '../types';
 import { doelVan, doelVelden, groepNaam, paklijstNaamFout, zelfdeDoel } from '../vakantie';
+import { GEEN_PLANACTIES } from '../plan';
 import { naarItems, naarNieuweAfspraak, naarPaklijst, naarTaakVelden, naarVakantieGegevens } from './omzetten';
 import type { Momentopname, Sessie } from './sessie';
 
@@ -341,10 +342,12 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
       },
       vakantieOpenen: (id: string) => a()?.vakantieOpenen(id) ?? Promise.resolve(),
       vakantieSluiten: (id: string) => { a()?.vakantieSluiten(id); },
+      // Plannen: in deze merge-stand nog de lege handelingen van de demo-branch (lib/plan.ts); het echte pad volgt.
+      ...GEEN_PLANACTIES,
     };
   }, [sessie, na, meld, meldMetTerug, rij]);
 
-  const staat: Staat = { items, ...vak, weggeklikt, melding };
+  const staat: Staat = { items, ...vak, plannen: [], onderdelen: [], planKoppelingen: [], weggeklikt, melding };
   return { staat, ...acties, keuze, sluitKeuze: () => zetKeuze(null) };
 }
 
