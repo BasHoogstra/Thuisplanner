@@ -1,7 +1,13 @@
-name: Thuisplanner beta-status (handmatig)
+name: Thuisplanner beta-status
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Thuisplanner app (KG-2)
+      - Thuisplanner database en sync (thuisplanner)
+    types:
+      - completed
 
 permissions:
   actions: read
@@ -31,7 +37,7 @@ jobs:
             });
             // Alleen bestaande CI-runs; deze rapportageworkflow zelf telt niet mee.
             const relevant = runs.workflow_runs
-              .filter(r => r.name !== 'Thuisplanner beta-status (handmatig)')
+              .filter(r => r.name !== 'Thuisplanner beta-status' && r.name !== 'Thuisplanner beta-status (handmatig)')
               .slice(0, 12);
             const esc = s => String(s ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
             const rows = relevant.map(r => {
