@@ -1,0 +1,66 @@
+name: Thuisplanner beta-status (handmatig)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+concurrency:
+  group: thuisplanner-beta-status
+  cancel-in-progress: false
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Werk centrale statusreactie bij op issue 28
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = 28;
+            const marker = '<!-- thuisplanner-beta-status-v1 -->';
+            const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner, repo, per_page: 100
+            });
+            // Alleen bestaande CI-runs; deze rapportageworkflow zelf telt niet mee.
+            const relevant = runs.workflow_runs
+              .filter(r => r.name !== 'Thuisplanner beta-status (handmatig)')
+              .slice(0, 12);
+            const esc = s => String(s ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+            const rows = relevant.map(r => {
+              const state = r.status !== 'completed' ? r.status : r.conclusion;
+              const link = `[run ${r.run_number}](${r.html_url})`;
+              return `| ${esc(r.name)} | ${esc(r.head_branch)} | ${esc(state)} | ${link} |`;
+            });
+            const body = [
+              marker,
+              '## Automatische GitHub CI-status',
+              '',
+              `Bijgewerkt: ${new Date().toISOString()} (UTC).`,
+              '',
+              '| Workflow | Branch | Resultaat | Bewijs |',
+              '|---|---|---|---|',
+              ...(rows.length ? rows : ['| Geen runs gevonden | — | — | — |']),
+              '',
+              '**Beperkingen:** dit overzicht toont alleen recente GitHub Actions-runs. ',
+              'Lokaal Claude-werk, de actuele bèta-HEAD, reviewstatus, stagingstatus ',
+              'en echte telefoon-/hersteltests worden hiermee niet bevestigd.',
+              '',
+              'Deze workflow voert geen tests, merges, deployments of databasewijzigingen uit.'
+            ].join('\n');
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100
+            });
+            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({owner, repo, comment_id: existing.id, body});
+            } else {
+              await github.rest.issues.createComment({owner, repo, issue_number, body});
+            }
