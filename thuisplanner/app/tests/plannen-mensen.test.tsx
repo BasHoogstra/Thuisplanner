@@ -1,3 +1,6 @@
+// UITGESCHAKELD voor Plannen v1 (besluit Bas, 10 november 2026): één verantwoordelijke per taak, in de demo én online, zodat
+// beide hetzelfde doen (KG-5E licht, geen tweede datapad). Deze tests horen bij stap C (meer verantwoordelijken) en komen
+// terug als die stap na de gezinsbèta alsnog wordt gekozen; de code in lib/mensen.ts blijft daarom staan.
 // Plannen, stap C (besluit 18, gate "Meerdere verantwoordelijken", docs/thuisplanner-plannen.md §5.1): geen enkele bewerkingsroute
 // mag stil een verantwoordelijke of ander taakveld verliezen. Waar de server één persoon kent, kies je er ook maar één.
 // Vaste demo-klok: woensdag 21 oktober 2026. "Muren schilderen" is voor Eva en Lotte.
@@ -37,7 +40,7 @@ async function nieuweTitel(user: ReturnType<typeof userEvent.setup>, label: RegE
   await user.type(veld, titel);
 }
 
-describe('de centrale regels', () => {
+describe.skip('de centrale regels', () => {
   it('taakMensen: eerst voor, dan de rest', () => {
     expect(taakMensen(taak({ ookVoor: [LOTTE] }))).toEqual([EVA, LOTTE]);
     expect(taakMensen(taak({ voor: null }))).toEqual([]);
@@ -75,7 +78,7 @@ describe('de centrale regels', () => {
   });
 });
 
-describe('alle routes in de app', () => {
+describe.skip('alle routes in de app', () => {
   it('T1: alleen de titel wijzigen in het detailvenster: beide personen blijven', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -261,7 +264,7 @@ describe('alle routes in de app', () => {
   });
 });
 
-describe('T11 en T12: waar de server één persoon kent, kies je er één', () => {
+describe.skip('T11 en T12: waar de server één persoon kent, kies je er één', () => {
   const leden = [
     { id: EVA, naam: 'Eva', soort: 'volwassene', kleur: 'red', heeftAccount: true },
     { id: LOTTE, naam: 'Lotte', soort: 'kind', kleur: 'green', heeftAccount: false }];
@@ -298,7 +301,7 @@ describe('T11 en T12: waar de server één persoon kent, kies je er één', () =
   });
 });
 
-describe('wie doet wat op de planpagina', () => {
+describe.skip('wie doet wat op de planpagina', () => {
   it('een klein plan toont geen filter; een groot plan wel', () => {
     naar('#/plannen/plan-schuur');
     const { unmount } = render(<App />);

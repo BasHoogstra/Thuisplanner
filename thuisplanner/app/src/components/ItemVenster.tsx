@@ -437,7 +437,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
         {soort !== 'boodschap' && (
           <div className="veld">
             <span className="veld-label">{soort === 'afspraak' ? 'Voor wie?' : 'Wie pakt het op?'} <span className="optioneel">(optioneel)</span></span>
-            {keuzeWie(soort === 'taak' && !!app.lokaal)}
+            {keuzeWie(soort === 'taak')}
           </div>
         )}
 

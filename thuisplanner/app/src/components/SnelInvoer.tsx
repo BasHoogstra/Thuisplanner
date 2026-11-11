@@ -293,8 +293,8 @@ export function SnelInvoer({ standaard, sluit, allesInvullen, terugNaar }: {
             <><TijdKeuze start={start ?? ''} kies={(st, _e, viaVeld) => viaVeld ? zetKeuze(x => ({ ...x, start: st || null })) : kies({ start: st || null })} />{nietHerkennen('tijd')}</>
           ))}
           {soort !== 'boodschap' && rij('wie', soort === 'taak' ? 'Wie' : 'Met wie', wieLabel, (
-            <><WieKeuze leden={huishouden.leden} wie={wie} enkel={soort === 'taak' && !!app.lokaal} taak={soort === 'taak'}
-              kies={w => (soort === 'taak' && app.lokaal) || !w.length ? kies({ wie: w }) : zetKeuze(x => ({ ...x, wie: w }))} />{nietHerkennen('wie')}</>
+            <><WieKeuze leden={huishouden.leden} wie={wie} enkel={soort === 'taak'} taak={soort === 'taak'}
+              kies={w => soort === 'taak' || !w.length ? kies({ wie: w }) : zetKeuze(x => ({ ...x, wie: w }))} />{nietHerkennen('wie')}</>
           ))}
           {soort === 'afspraak' && v.plek && rij('plek', 'Waar', v.plek, nietHerkennen('plek'))}
           {soort === 'afspraak' && v.herhaling && rij('herhaling', 'Herhalen', herhaalLabel, (

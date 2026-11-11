@@ -7,7 +7,7 @@
 // de duur van een meerdaagse afspraak, herhaling en de reeksgegevens gaan mee, en de versie bij het openen voorkomt dat
 // een gelijktijdige wijziging van een ander stil wordt overschreven.
 import { metMensen, taakMensen } from '../lib/mensen';
-import { onderdelenVan, statusVelden, TAAK_STATUSSEN, taakStatus, type TaakStatus } from '../lib/plan';
+import { onderdelenVan, plannenAan, statusVelden, TAAK_STATUSSEN, taakStatus, type TaakStatus } from '../lib/plan';
 import { useState, type ReactNode } from 'react';
 import { useApp } from '../lib/context';
 import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen, verschilInDagen } from '../lib/datum';
@@ -68,10 +68,10 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
   const [onderdeel, zetOnderdeel] = useState<string | null>(begin.onderdeel);
   const [status, zetStatus] = useState<TaakStatus>(begin.status);
   // Besluit 18: alleen in de demo. Een taak hoort bij hoogstens één vakantie of plan. Een afgerond plan is niet te kiezen.
-  const plannen = taak && !app.lokaal ? (staat.plannen ?? []).filter(p => !p.afgerondOp || p.id === begin.plan) : [];
-  const onderdelen = plan && !app.lokaal ? onderdelenVan(staat.onderdelen ?? [], plan) : [];
+  const plannen = taak && plannenAan(app) ? (staat.plannen ?? []).filter(p => !p.afgerondOp || p.id === begin.plan) : [];
+  const onderdelen = plan && plannenAan(app) ? onderdelenVan(staat.onderdelen ?? [], plan) : [];
   // De drie standen alleen bij een plan-taak; elke andere taak blijft zoals ze was.
-  const metStatus = !!plan && !app.lokaal;
+  const metStatus = !!plan && plannenAan(app);
   const [paneel, zetPaneel] = useState<Paneel>(null);
   const [meer, zetMeer] = useState(false);
   const [verwijderen, zetVerwijderen] = useState(false);
@@ -180,7 +180,7 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
           {rij('wie', afspraak ? 'Voor wie' : 'Wie pakt het op', wieTekst)}
           {paneel === 'wie' && (
             <div className="paneel">
-              <WieKeuze leden={huishouden.leden} wie={wie} enkel={!!taak && !!app.lokaal} taak={!!taak} kies={w => { zetWie(w); if (taak && app.lokaal) zetPaneel(null); }} />
+              <WieKeuze leden={huishouden.leden} wie={wie} enkel={!!taak} taak={!!taak} kies={w => { zetWie(w); if (taak) zetPaneel(null); }} />
             </div>
           )}
           {afspraak && (begin.plek || plek) && rij('plek', 'Waar', plek || '—')}

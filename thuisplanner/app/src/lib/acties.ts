@@ -65,13 +65,13 @@ export interface Acties {
   vakantieSluiten: (id: string) => void;
 
   // ---- Plannen (besluit 18). De taken van een plan zijn gewone items (toevoegen, bijwerken, wissel). ----
-  /** Geeft het id van het nieuwe plan (om het meteen te openen). */
-  planToevoegen: (p: Omit<Plan, 'id'>) => string;
+  /** Geeft het id van het nieuwe plan (om het meteen te openen), of null. */
+  planToevoegen: (p: Omit<Plan, 'id'>) => Promise<string | null>;
   planBijwerken: (p: Plan, melding?: string) => void;
   /** metTaken: ook de taken weg (anders blijven ze als losse taken). */
   planVerwijderen: (p: Plan, metTaken: boolean) => void;
-  /** Geeft het id van het nieuwe onderdeel. */
-  onderdeelToevoegen: (planId: string, naam: string) => string;
+  /** Geeft het id van het nieuwe onderdeel, of null. */
+  onderdeelToevoegen: (planId: string, naam: string) => Promise<string | null>;
   onderdeelHernoemen: (o: PlanOnderdeel, naam: string) => void;
   onderdeelVerplaatsen: (o: PlanOnderdeel, richting: -1 | 1) => void;
   onderdeelVerwijderen: (o: PlanOnderdeel) => void;

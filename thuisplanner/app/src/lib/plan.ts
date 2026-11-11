@@ -78,18 +78,10 @@ export function planTaakPast(t: Taak, f: PlanFilter): boolean {
   return f === 'niemand' ? !mensen.length : mensen.includes(f);
 }
 
-/** In lokaal en staging bestaat Plannen niet: daar valt het scherm terug op Vandaag. */
-export function schermVoor(scherm: Scherm, lokaal: boolean): Scherm {
-  return lokaal && scherm === 'plannen' ? 'vandaag' : scherm;
-}
+/** Plannen staat aan: altijd in de demo; in lokaal en staging alleen met de schakelaar VITE_PLANNEN (en migratie 20261111120000). */
+export const plannenAan = (app: { lokaal?: { plannen?: boolean } }): boolean => !app.lokaal || !!app.lokaal.plannen;
 
-/** De lokale Supabase-modus kent geen plannen; deze acties bestaan alleen zodat beide modi dezelfde vorm hebben. */
-export const GEEN_PLANACTIES = {
-  planToevoegen: (_p: Omit<Plan, 'id'>): string => '',
-  planBijwerken: (_p: Plan, _melding?: string): void => {},
-  planVerwijderen: (_p: Plan, _metTaken: boolean): void => {},
-  onderdeelToevoegen: (_planId: string, _naam: string): string => '',
-  onderdeelHernoemen: (_o: PlanOnderdeel, _naam: string): void => {},
-  onderdeelVerplaatsen: (_o: PlanOnderdeel, _richting: -1 | 1): void => {},
-  onderdeelVerwijderen: (_o: PlanOnderdeel): void => {},
-};
+/** Zonder Plannen valt het scherm Plannen terug op Vandaag (geen route ernaartoe). */
+export function schermVoor(scherm: Scherm, aan: boolean): Scherm {
+  return !aan && scherm === 'plannen' ? 'vandaag' : scherm;
+}

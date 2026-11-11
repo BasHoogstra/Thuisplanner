@@ -4,6 +4,10 @@ import { expect, test, type Page } from '@playwright/test';
 // De proef uit docs/thuisplanner-plannen.md §5.1: één taak, achter elkaar door plan, venster, formulier en Agenda.
 const START = './?nu=2026-10-21T10:00';
 
+// UITGESCHAKELD voor Plannen v1 (besluit Bas, 10 november 2026): één verantwoordelijke per taak, in de demo én online.
+// Deze proeven horen bij stap C en komen terug als die na de gezinsbèta alsnog wordt gekozen.
+test.skip(true, 'Plannen v1: één verantwoordelijke per taak (stap C staat uit)');
+
 async function geenHorizontaleScroll(p: Page, wat: string) {
   const { breed, scherm } = await p.evaluate(() => ({ breed: document.documentElement.scrollWidth, scherm: window.innerWidth }));
   expect(breed, `${wat}: pagina is breder dan het scherm`).toBeLessThanOrEqual(scherm);

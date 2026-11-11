@@ -58,6 +58,8 @@ export interface AppContext extends Acties {
 export interface LokaalContext {
   /** lokaal (fictief, eigen netwerk) of staging (de testomgeving online). */
   omgeving: 'lokaal' | 'staging';
+  /** Plannen aan (VITE_PLANNEN=aan, met migratie 20261111120000). Anders is Plannen online niet zichtbaar. */
+  plannen?: boolean;
   /** Huishoudbeheer (KG-5H): het huidige huishouden met je rol, je andere huishoudens en de leden. */
   beheer: {
     client: SupabaseClient;

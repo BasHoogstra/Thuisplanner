@@ -88,8 +88,11 @@ describe('onderdelen in de staat', () => {
     expect(taakIn(s, 't-zolder-vergunning')).toMatchObject({ titel: 'Nieuw', planId: 'plan-zolder', onderdeelId: 'ond-voorbereiding', bezig: true });
   });
 
-  it('de nieuwe velden gaan niet naar de server', () => {
-    expect(Object.keys(naarTaakVelden(taak({ onderdeelId: 'o', bezig: true })))).toEqual(['title', 'due_date', 'assignee_member_id']);
+  it('onderdeel en Bezig gaan mee naar de server (migratie 20261111120000); afgerond maakt Bezig leeg', () => {
+    const v = naarTaakVelden(taak({ onderdeelId: 'o', bezig: true }));
+    expect(v).toMatchObject({ plan_id: 'p1', plan_section_id: 'o' });
+    expect(v.started_on).toMatch(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/);
+    expect(naarTaakVelden(taak({ onderdeelId: 'o', bezig: true, klaar: true })).started_on).toBeNull();
   });
 });
 

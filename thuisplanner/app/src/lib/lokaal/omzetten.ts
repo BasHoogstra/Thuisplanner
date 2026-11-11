@@ -5,9 +5,9 @@
 // komt als `is_busy` zonder titel, plek, notities en voorbereiding binnen (RLS, gate 9); de app maakt
 // daar een afspraak zonder die velden van, die elk scherm als "Bezet" toont.
 import type {
-  AfspraakRij, BoodschapRij, LidRij, NieuweAfspraak, PakitemRij, PaklijstRij, TaakRij, Toestand, Uitzondering, VakantieKoppelingRij, VakantieRij,
+  AfspraakRij, BoodschapRij, LidRij, NieuweAfspraak, PakitemRij, PaklijstRij, PlanOnderdeelRij, PlanRij, TaakRij, Toestand, Uitzondering, VakantieKoppelingRij, VakantieRij,
 } from '../../../../sync/thuisplanner-sync.js';
-import type { Afspraak, Boodschap, Frequentie, Huishouden, Item, Lid, Pakitem, Paklijst, SyncVelden, Taak, Vakantie, VakantieKoppeling } from '../types';
+import type { Afspraak, Boodschap, Frequentie, Huishouden, Item, Lid, Pakitem, Paklijst, Plan, PlanOnderdeel, SyncVelden, Taak, Vakantie, VakantieKoppeling } from '../types';
 
 const NAAR_FREQ: Record<string, Frequentie> = { daily: 'dagelijks', weekly: 'wekelijks', monthly: 'maandelijks', yearly: 'jaarlijks' };
 const VAN_FREQ: Record<Frequentie, string> = { dagelijks: 'daily', wekelijks: 'weekly', maandelijks: 'monthly', jaarlijks: 'yearly' };
@@ -72,6 +72,8 @@ export function naarTaak(r: TaakRij): Taak {
     klaar: !!r.done_on, klaarOp: r.done_on ?? null, versie: r.version, sync: syncStaat(r), vakantieId: r.trip_id ?? null,
     // Alleen met Mijn spullen (de sync vraagt possession_id dan op): anders ontbreekt het veld, en blijft het zo.
     ...(r.possession_id !== undefined ? { spulId: r.possession_id } : {}),
+    // Alleen met Plannen (de sync vraagt de planvelden dan op): anders ontbreken de velden, en blijven ze zo.
+    ...(r.plan_id !== undefined ? { planId: r.plan_id, onderdeelId: r.plan_section_id ?? null, bezig: !!r.started_on && !r.done_on } : {}),
   };
 }
 
@@ -128,10 +130,31 @@ export function naarNieuweAfspraak(a: Afspraak, versie: number | null): NieuweAf
  * Velden voor een taak (toevoegen of bijwerken). De vakantie (trip_id) alleen als het veld bestaat: een formulier zonder
  * vakantieveld laat een bestaande koppeling dan staan.
  */
-export function naarTaakVelden(t: Taak): { title: string; due_date: string | null; assignee_member_id: string | null; trip_id?: string | null; possession_id?: string | null } {
+export function naarTaakVelden(t: Taak): { title: string; due_date: string | null; assignee_member_id: string | null; trip_id?: string | null; possession_id?: string | null;
+  plan_id?: string | null; plan_section_id?: string | null; started_on?: string | null } {
   return { title: t.titel, due_date: t.datum, assignee_member_id: t.voor, ...(t.vakantieId !== undefined ? { trip_id: t.vakantieId } : {}),
     // Het spul (Mijn spullen) ook alleen als het veld bestaat: een formulier zonder spulveld laat de koppeling staan.
-    ...(t.spulId !== undefined ? { possession_id: t.spulId } : {}) };
+    ...(t.spulId !== undefined ? { possession_id: t.spulId } : {}),
+    // Plannen ook alleen als het veld bestaat (anders blijft een koppeling staan, en vraagt de app niets wat de database
+    // zonder de migratie niet kent). Bezig wordt een datum; afvinken maakt die op de server leeg.
+    ...(t.planId !== undefined ? { plan_id: t.planId, plan_section_id: t.planId ? t.onderdeelId ?? null : null } : {}),
+    ...(t.bezig !== undefined ? { started_on: t.bezig && !t.klaar ? lokaleDag() : null } : {}) };
+}
+
+const lokaleDag = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+// ---- Plannen (besluit 18) ----
+export function naarPlan(r: PlanRij): Plan {
+  const p: Plan = { id: r.id, titel: r.title, einddatum: r.due_date ?? null, wie: r.member_ids ?? [], afgerondOp: r.closed_on ?? null,
+    versie: r.version, sync: syncStaat(r) };
+  if (r.description) p.omschrijving = r.description;
+  return p;
+}
+export function naarPlanVelden(p: Omit<Plan, 'id'>): { title: string; description: string | null; due_date: string | null; member_ids: string[]; closed_on: string | null } {
+  return { title: p.titel, description: p.omschrijving ?? null, due_date: p.einddatum, member_ids: p.wie, closed_on: p.afgerondOp ?? null };
+}
+export function naarOnderdeel(r: PlanOnderdeelRij): PlanOnderdeel {
+  return { id: r.id, planId: r.plan_id, naam: r.name, volgorde: r.position, versie: r.version, sync: syncStaat(r) };
 }
 
 // ---- F8 Vakanties ----

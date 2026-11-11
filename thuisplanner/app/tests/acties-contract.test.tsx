@@ -104,6 +104,25 @@ async function contract(k: Kant, run: string) {
   await k.wachtOp('vakantie verwijderd', s => !s.vakanties.some(v => v.id === vid) && s.melding?.ongedaan === true);
   await doe(a => a.ongedaan!());
   await k.wachtOp('vakantie teruggezet', s => s.vakanties.some(v => v.id === vid && v.naam === naam));
+
+  // Plannen: een plan met een onderdeel en een taak daarin; afvinken; verwijderen zonder taken laat de taak los, en
+  // ongedaan maken zet plan én koppeling terug.
+  const pnaam = `Contractplan ${run}`, ptaak = `Plantaak ${run}`;
+  let pid: string | null = null, oid: string | null = null;
+  await doe(async a => { pid = await a.planToevoegen({ titel: pnaam, einddatum: null, wie: [k.ik] }); });
+  expect(pid).toBeTruthy();
+  await k.wachtOp('plan toegevoegd', s => s.plannen.some(p => p.id === pid && p.titel === pnaam && p.wie.includes(k.ik)));
+  await doe(async a => { oid = await a.onderdeelToevoegen(pid!, 'Voorbereiding'); });
+  expect(oid).toBeTruthy();
+  await k.wachtOp('onderdeel toegevoegd', s => s.onderdelen.some(o => o.id === oid && o.planId === pid));
+  await doe(a => a.toevoegen([{ id: 't-plan', soort: 'taak', titel: ptaak, datum: null, voor: k.ik, klaar: false, klaarOp: null, planId: pid, onderdeelId: oid } as Item]));
+  await k.wachtOp('plantaak toegevoegd', s => taakMet(s, ptaak)?.planId === pid && taakMet(s, ptaak)?.onderdeelId === oid);
+  await doe(a => a.wissel(taakMet(k.staat(), ptaak)!.id));
+  await k.wachtOp('plantaak afgevinkt', s => taakMet(s, ptaak)?.klaar === true);
+  await doe(a => a.planVerwijderen(k.staat().plannen.find(p => p.id === pid)!, false));
+  await k.wachtOp('plan weg, taak los', s => !s.plannen.some(p => p.id === pid) && !!taakMet(s, ptaak) && !taakMet(s, ptaak)!.planId && s.melding?.ongedaan === true);
+  await doe(a => a.ongedaan!());
+  await k.wachtOp('plan en koppeling terug', s => s.plannen.some(p => p.id === pid) && taakMet(s, ptaak)?.planId === pid && taakMet(s, ptaak)?.onderdeelId === oid);
 }
 
 describe('contract: hetzelfde gedrag', () => {
@@ -137,7 +156,7 @@ describe('contract: hetzelfde gedrag', () => {
       const h = await client.rpc('create_household', { p_name: 'Contract ' + run, p_display_name: 'Eva' });
       if (h.error) throw h.error;
       huishouden = h.data as string;
-      sync = maakSync({ supabase: client, huishoudenId: huishouden, vangnetMs: 60000 });
+      sync = maakSync({ supabase: client, huishoudenId: huishouden, vangnetMs: 60000, plannen: true });
       await sync.start();
     }, 30_000);
     afterAll(async () => {

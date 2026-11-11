@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { App } from '../src/App';
 import { beginStaat, reducer, type Staat } from '../src/lib/store';
 import { naarTaakVelden } from '../src/lib/lokaal/omzetten';
-import { eindTekst, planStand, schermVoor, sorteerPlannen, takenVan, voortgang } from '../src/lib/plan';
+import { eindTekst, planStand, plannenAan, schermVoor, sorteerPlannen, takenVan, voortgang } from '../src/lib/plan';
 import type { Plan, Taak } from '../src/lib/types';
 
 const V = '2026-10-21';
@@ -44,15 +44,19 @@ describe('berekeningen', () => {
   });
 });
 
-describe('scheiding demo en echt', () => {
-  it('in lokaal en staging bestaat het scherm niet: terug naar Vandaag', () => {
-    expect(schermVoor('plannen', true)).toBe('vandaag');
-    expect(schermVoor('plannen', false)).toBe('plannen');
-    expect(schermVoor('agenda', true)).toBe('agenda');
+describe('demo en echt: Plannen in de demo altijd, online alleen met de schakelaar (VITE_PLANNEN)', () => {
+  it('zonder Plannen bestaat het scherm niet: terug naar Vandaag', () => {
+    expect(plannenAan({})).toBe(true);
+    expect(plannenAan({ lokaal: {} })).toBe(false);
+    expect(plannenAan({ lokaal: { plannen: true } })).toBe(true);
+    expect(schermVoor('plannen', false)).toBe('vandaag');
+    expect(schermVoor('plannen', true)).toBe('plannen');
+    expect(schermVoor('agenda', false)).toBe('agenda');
   });
 
-  it('de koppeling met een plan gaat nooit mee naar de server', () => {
-    expect(naarTaakVelden(taak())).toEqual({ title: 'Taak', due_date: null, assignee_member_id: null });
+  it('de koppeling met een plan gaat alleen mee als het veld bestaat (anders vraagt de app niets wat de database zonder migratie niet kent)', () => {
+    expect(naarTaakVelden(taak())).toEqual({ title: 'Taak', due_date: null, assignee_member_id: null, plan_id: 'p1', plan_section_id: null });
+    expect(naarTaakVelden({ ...taak(), planId: undefined })).toEqual({ title: 'Taak', due_date: null, assignee_member_id: null });
   });
 });
 

@@ -42,7 +42,7 @@ export function demoPlannen(vandaag: Datum, scenario: Scenario): DemoPlannen {
       taak('t-zolder-dakraam', ZOLDER, 'Dakraam laten plaatsen', 'm-thomas', { onderdeelId: BOUW, datum: d(30) }),
       taak('t-zolder-isolatie', ZOLDER, 'Isolatie aanbrengen', 'm-thomas', { onderdeelId: BOUW }),
       taak('t-zolder-elektra', ZOLDER, 'Elektra leggen', null, { onderdeelId: BOUW }),
-      taak('t-zolder-muren', ZOLDER, 'Muren schilderen', 'm-eva', { onderdeelId: AF, ookVoor: ['m-lotte'] }),
+      taak('t-zolder-muren', ZOLDER, 'Muren schilderen', 'm-eva', { onderdeelId: AF }),
       taak('t-zolder-vloer', ZOLDER, 'Vloer leggen', null, { onderdeelId: AF }),
       taak('t-zolder-bureau', ZOLDER, 'Bureau terugzetten', 'm-thomas', { onderdeelId: AF }),
     ],

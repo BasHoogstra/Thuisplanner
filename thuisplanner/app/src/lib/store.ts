@@ -389,7 +389,7 @@ export function useDemoStaat(vandaag: Datum) {
     boodschapOntkoppelen: (k: VakantieKoppeling, naam: string) => dispatch({ type: 'ontkoppelen', koppelingId: k.id, melding: `${naam} niet meer voor deze vakantie` }),
     // ---- Plannen (besluit 18): alleen in de demo ----
     /** Geeft het id van het nieuwe plan (om het meteen te openen). */
-    planToevoegen: (p: Omit<Plan, 'id'>): string => {
+    planToevoegen: async (p: Omit<Plan, 'id'>): Promise<string | null> => {
       const id = nieuwId('plan');
       dispatch({ type: 'planToevoegen', plan: { ...p, id }, melding: `${p.titel} toegevoegd` });
       return id;
@@ -397,7 +397,7 @@ export function useDemoStaat(vandaag: Datum) {
     planBijwerken: (p: Plan, melding?: string): void => dispatch({ type: 'planBijwerken', plan: p, melding }),
     planVerwijderen: (p: Plan, metTaken: boolean): void => dispatch({ type: 'planVerwijderen', id: p.id, metTaken, melding: `${p.titel} verwijderd` }),
     /** Geeft het id van het nieuwe onderdeel (om het meteen open te zetten). */
-    onderdeelToevoegen: (planId: string, naam: string): string => {
+    onderdeelToevoegen: async (planId: string, naam: string): Promise<string | null> => {
       const id = nieuwId('ond');
       dispatch({ type: 'onderdeelToevoegen', onderdeel: { id, planId, naam }, melding: `${naam} toegevoegd` });
       return id;

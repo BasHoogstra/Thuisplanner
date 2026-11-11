@@ -32,9 +32,8 @@ export function PlanVenster({ bestaand, sluit }: { bestaand?: Plan; sluit: () =>
       sluit();
       return;
     }
-    const id = app.planToevoegen(velden);
     sluit();
-    app.openPlan(id);
+    void app.planToevoegen(velden).then(id => { if (id) app.openPlan(id); });
   }
   function weg(metTaken: boolean) {
     app.planVerwijderen(bestaand!, metTaken);
@@ -112,7 +111,7 @@ export function OnderdeelVenster({ planId, bestaand, sluit, gemaakt }: { planId:
     if (!n) { zetFout('Geef het onderdeel een naam.'); return; }
     if (alle.some(o => o.id !== bestaand?.id && o.naam.toLocaleLowerCase('nl') === n.toLocaleLowerCase('nl'))) { zetFout('Dit plan heeft al een onderdeel met deze naam.'); return; }
     if (bestaand) { if (n !== bestaand.naam) app.onderdeelHernoemen(bestaand, n); }
-    else gemaakt?.(app.onderdeelToevoegen(planId, n));
+    else void app.onderdeelToevoegen(planId, n).then(id => { if (id) gemaakt?.(id); });
     sluit();
   }
 

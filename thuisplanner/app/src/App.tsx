@@ -27,7 +27,7 @@ import { useSupabaseSpullen } from './lib/spullen/opslag-supabase';
 import type { Toestand } from '../../sync/thuisplanner-sync.js';
 
 import { Plannen } from './screens/Plannen';
-import { schermVoor } from './lib/plan';
+import { plannenAan, schermVoor } from './lib/plan';
 
 const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties', 'spullen', 'plannen'];
 const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', spullen: 'Spullen & documenten', plannen: 'Plannen' };
@@ -156,6 +156,7 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
   const { keuze, sluitKeuze, opnieuwProberen, vergeten, herinvoeren, syncMeldingWeg, ...data } = useLokaleStaat(sessie, snap, vandaag, hh);
   const lokaal: LokaalContext = {
     omgeving: sessie.config.omgeving,
+    plannen: !!sessie.config.plannen,
     beheer: {
       client: sessie.client,
       huishouden: snap.huishouden!,
@@ -210,8 +211,8 @@ function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, chi
 }) {
   const vandaag = naarDatum(klok);
   const [schermKeuze, zetScherm] = useState<Scherm>(schermUitHash);
-  // Plannen bestaat alleen in de demo (besluit 18): in lokaal en staging is er geen route naartoe.
-  const scherm = schermVoor(schermKeuze, !!lokaal);
+  // Plannen (besluit 18): in de demo altijd; in lokaal en staging alleen met VITE_PLANNEN=aan (anders geen route).
+  const scherm = schermVoor(schermKeuze, plannenAan({ lokaal }));
   const [vakantie, zetVakantie] = useState<string | null>(() => uitHash().vakantie);
   const [spullenPad, zetSpullenPad] = useState<string>(() => uitHash().spullen);
   const [plan, zetPlan] = useState<string | null>(() => uitHash().plan);

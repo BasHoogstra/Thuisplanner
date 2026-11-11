@@ -96,6 +96,8 @@ function MeerLokaal() {
       </header>
 
       <VakantiesRij />
+      {/* Plannen (besluit 18) alleen met VITE_PLANNEN=aan; anders precies de Meer van daarvoor. */}
+      {lokaal.plannen && <PlannenRij />}
       <SpullenRij />
 
       <HuishoudenBeheer />
