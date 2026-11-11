@@ -11,7 +11,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { BoodschapRij, PakitemRij, PaklijstRij, PlanOnderdeelRij, PlanRij, Resultaat, TaakRij, VakantieKoppelingRij, VakantieRij } from '../../../../sync/thuisplanner-sync.js';
 import { boodschappenMelding } from '../boodschappen';
-import type { Acties, Staat } from '../acties';
+import type { Acties, Opgeslagen, Staat } from '../acties';
 import type { Groep, Melding } from '../store';
 import type { Afspraak, Boodschap, Datum, Huishouden, Item, PakDoel, Pakitem, Paklijst, Plan, PlanOnderdeel, Vakantie, VakantieKoppeling } from '../types';
 import { doelVan, doelVelden, groepNaam, paklijstNaamFout, zelfdeDoel } from '../vakantie';
@@ -58,10 +58,10 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
   const rij = useCallback(<T extends { id: string }>(lijst: T[] | undefined, id: string) => lijst?.find(x => x.id === id), []);
 
   // Na een actie: gelukt → onze melding; mogelijk dubbel → een keuze; anders meldt de sync-module het.
-  const na = useCallback(async (p: Promise<Resultaat> | undefined, gelukt?: string, herhaal?: (bewustNieuw: boolean) => void) => {
-    if (!p) return;
+  const na = useCallback(async (p: Promise<Resultaat> | undefined, gelukt?: string, herhaal?: (bewustNieuw: boolean) => void): Promise<Opgeslagen> => {
+    if (!p) return 'fout';
     const r = await p;
-    if (r.ok) { if (gelukt) meld(gelukt); return; }
+    if (r.ok) { if (gelukt) meld(gelukt); return 'ok'; }
     if (r.mogelijkDubbel && herhaal) {
       const id = r.mogelijkDubbel;
       zetKeuze({
@@ -70,6 +70,7 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
         nieuw: () => { zetKeuze(null); herhaal(true); },
       });
     }
+    return r.melding?.soort === 'conflict' ? 'conflict' : 'fout';
   }, [meld, sessie]);
 
   // Hetzelfde contract als de demo (acties.ts); geen scenario's en geen "alles vervangen" online.
@@ -92,17 +93,17 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
 
     return {
       toevoegen: (nieuw: Item[], melding?: string) => { for (const i of nieuw) voegToe(i, melding); },
-      bijwerken: (item: Item, melding?: string) => {
+      // De versie van het item is die van het moment waarop het venster openging: wijzigde iemand anders het intussen, dan
+      // weigert de server (conflict) en blijft het venster open met de invoer (P1, review PR #54).
+      bijwerken: async (item: Item, melding?: string): Promise<Opgeslagen> => {
         const versie = item.versie;
-        if (item.soort === 'afspraak') {
-          void na(a()?.afspraakBewaren(naarNieuweAfspraak(item, versie ?? 0)), melding);
-        } else if (item.soort === 'taak') {
+        if (item.soort === 'afspraak') return na(a()?.afspraakBewaren(naarNieuweAfspraak(item, versie ?? 0)), melding);
+        if (item.soort === 'taak') {
           const r = rij(t()?.taken, item.id);
-          if (r) void na(a()?.taakBijwerken(r, naarTaakVelden(item), versie), melding);
-        } else {
-          const r = rij(t()?.boodschappen, item.id);
-          if (r) void na(a()?.boodschapHernoemen(r, item.naam, versie), melding);
+          return r ? na(a()?.taakBijwerken(r, naarTaakVelden(item), versie), melding) : 'fout';
         }
+        const r = rij(t()?.boodschappen, item.id);
+        return r ? na(a()?.boodschapHernoemen(r, item.naam, versie), melding) : 'fout';
       },
       wissel: (id: string, melding?: string) => {
         const taak = rij<TaakRij>(t()?.taken, id);
@@ -192,10 +193,10 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
         // Ook onzeker: de vakantie staat (niet bevestigd) in de lijst, onder deze UUID.
         return r.ok || r.onzeker ? r.id ?? null : null;
       },
-      vakantieBijwerken: (v: Vakantie, melding?: string) => {
+      vakantieBijwerken: async (v: Vakantie, melding?: string): Promise<Opgeslagen> => {
         const r = rij<VakantieRij>(t()?.vakanties, v.id);
-        if (r) void na(a()?.vakantieBijwerken(r, { name: v.naam, start_date: v.vertrek, end_date: v.terug,
-          destination: v.bestemming ?? null, notes: v.notities ?? null }, v.versie), melding);
+        return r ? na(a()?.vakantieBijwerken(r, { name: v.naam, start_date: v.vertrek, end_date: v.terug,
+          destination: v.bestemming ?? null, notes: v.notities ?? null }, v.versie), melding) : 'fout';
       },
       vakantieVerwijderen: (v: Vakantie) => {
         const r = rij<VakantieRij>(t()?.vakanties, v.id);
@@ -358,9 +359,9 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
         // Ook onzeker: het plan staat (niet bevestigd) in de lijst, onder deze UUID.
         return r.ok || r.onzeker ? id : null;
       },
-      planBijwerken: (p: Plan, melding?: string) => {
+      planBijwerken: async (p: Plan, melding?: string): Promise<Opgeslagen> => {
         const r = rij<PlanRij>(t()?.plannen, p.id);
-        if (r) void na(a()?.planBijwerken(r, naarPlanVelden(p), p.versie), melding);
+        return r ? na(a()?.planBijwerken(r, naarPlanVelden(p), p.versie), melding) : 'fout';
       },
       // Verwijderen (met of zonder taken) in één transactie op de server; ongedaan maken zet precies dat terug.
       planVerwijderen: (p: Plan, metTaken: boolean) => {
@@ -393,9 +394,9 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
         if (r.ok) meld(`${naam} toegevoegd`);
         return r.ok || r.onzeker ? id : null;
       },
-      onderdeelHernoemen: (o: PlanOnderdeel, naam: string) => {
+      onderdeelHernoemen: async (o: PlanOnderdeel, naam: string): Promise<Opgeslagen> => {
         const r = rij<PlanOnderdeelRij>(t()?.planOnderdelen, o.id);
-        if (r) void na(a()?.onderdeelBijwerken(r, { name: naam }, o.versie), `Onderdeel heet nu ${naam}`);
+        return r ? na(a()?.onderdeelBijwerken(r, { name: naam }, o.versie), `Onderdeel heet nu ${naam}`) : 'fout';
       },
       // Verplaatsen: de plek ruilen met de buur (twee wijzigingen, elk met versiecontrole).
       onderdeelVerplaatsen: (o: PlanOnderdeel, richting: -1 | 1) => {

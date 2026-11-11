@@ -7,6 +7,7 @@
 // de duur van een meerdaagse afspraak, herhaling en de reeksgegevens gaan mee, en de versie bij het openen voorkomt dat
 // een gelijktijdige wijziging van een ander stil wordt overschreven.
 import { metMensen, taakMensen } from '../lib/mensen';
+import { CONFLICT_IN_VENSTER, type Opgeslagen } from '../lib/acties';
 import { onderdelenVan, plannenAan, statusVelden, TAAK_STATUSSEN, taakStatus, type TaakStatus } from '../lib/plan';
 import { useState, type ReactNode } from 'react';
 import { useApp } from '../lib/context';
@@ -79,6 +80,12 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
   // De versies bij het openen (versiecontrole; in de demo ongebruikt).
   const [beginVersie] = useState(() => item.versie);
   const [reeksVersie] = useState(() => reeks?.versie);
+  // Na een versieconflict (iemand anders paste het intussen aan) blijft het venster open met je invoer; opnieuw opslaan
+  // zet dan bewust jouw waarden door, met de versie die nu bekend is (P1, review PR #54).
+  const [conflict, zetConflict] = useState(false);
+  const versie = conflict ? item.versie : beginVersie;
+  const reeksVersieNu = conflict ? reeks?.versie : reeksVersie;
+  const klaar = (u: Opgeslagen | void) => { if (u === 'conflict') zetConflict(true); else sluit(); };
 
   const losgemaakt = !!afspraak?.reeksId;
   const kanPrive = !!afspraak && magZichtbaarheidKiezen(afspraak, huishouden.ik);
@@ -94,15 +101,14 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
     zetPlek(begin.plek); zetPrive(begin.prive); zetVakantie(begin.vakantie); zetPlan(begin.plan); zetOnderdeel(begin.onderdeel); zetStatus(begin.status); zetPaneel(null); zetFout(null);
   }
 
-  function opslaan(bereik?: 'deze' | 'reeks') {
+  async function opslaan(bereik?: 'deze' | 'reeks') {
     const t = titel.trim().replace(/\s+/g, ' ');
     if (!t) { zetFout('Geef het even een naam.'); return; }
     if (taak) {
       // De vakantie alleen meegeven als die is gewijzigd; anders blijft het veld zoals het was (F8).
       const nieuw: Taak = { ...taak, titel: t, datum: dag, ...metMensen(taak, wie), ...(vakantie !== begin.vakantie ? { vakantieId: vakantie } : {}), ...(plan !== begin.plan ? { planId: plan } : {}),
-        ...(onderdeel !== begin.onderdeel ? { onderdeelId: onderdeel } : {}), ...(status !== begin.status ? statusVelden(status, taak, vandaag) : {}), versie: beginVersie };
-      app.bijwerken(nieuw, `${t} aangepast`);
-      sluit();
+        ...(onderdeel !== begin.onderdeel ? { onderdeelId: onderdeel } : {}), ...(status !== begin.status ? statusVelden(status, taak, vandaag) : {}), versie };
+      klaar(await app.bijwerken(nieuw, `${t} aangepast`));
       return;
     }
     const vorig = afspraak!;
@@ -131,10 +137,9 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
       reeksId: vorig.reeksId, origineleDatum: vorig.origineleDatum,
     };
     const wanneer = `${dagLabel(doel, vandaag).toLowerCase()}${a.start ? ' ' + a.start : ''}`;
-    if (reeks && bereik === 'deze') app.wijzigVoorkomen(reeks.id, vorig.datum, { ...a, id: nieuwId('a') }, `${t} aangepast (${wanneer})`);
-    else if (reeks) app.bijwerken({ ...a, id: reeks.id, versie: reeksVersie }, `Hele reeks ${t} aangepast`);
-    else app.bijwerken({ ...a, versie: beginVersie }, `${t} aangepast (${wanneer})`);
-    sluit();
+    if (reeks && bereik === 'deze') { app.wijzigVoorkomen(reeks.id, vorig.datum, { ...a, id: nieuwId('a') }, `${t} aangepast (${wanneer})`); sluit(); }
+    else if (reeks) klaar(await app.bijwerken({ ...a, id: reeks.id, versie: reeksVersieNu }, `Hele reeks ${t} aangepast`));
+    else klaar(await app.bijwerken({ ...a, versie }, `${t} aangepast (${wanneer})`));
   }
 
   function verwijder(bereik?: 'deze' | 'reeks') {
@@ -262,6 +267,7 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
         </div>
 
         {fout && <p className="veld-fout" role="alert">{fout}</p>}
+        {conflict && <p className="veld-fout" role="alert">{CONFLICT_IN_VENSTER}</p>}
 
         {gewijzigd ? (
           <div className="detail-acties">

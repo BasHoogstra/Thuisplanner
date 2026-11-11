@@ -2,6 +2,7 @@
 // onderdelen als de rest van de app (Venster, keuzes, knoppen).
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../lib/context';
+import { CONFLICT_IN_VENSTER } from '../lib/acties';
 import { isGeldigeDatum } from '../lib/datum';
 import type { Groep } from '../lib/store';
 import type { Boodschap, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from '../lib/types';
@@ -29,6 +30,9 @@ export function VakantieVenster({ bestaand, sluit }: { bestaand?: Vakantie; slui
   const [fout, zetFout] = useState<string | null>(null);
   const [verwijderen, zetVerwijderen] = useState(false);
   const [bezig, zetBezig] = useState(false);
+  // De versie bij het openen; bij een conflict blijft het venster open met je invoer (P1, review PR #54).
+  const [beginVersie] = useState(() => bestaand?.versie);
+  const [conflict, zetConflict] = useState(false);
 
   async function bewaar(e: { preventDefault(): void }) {
     e.preventDefault();
@@ -39,7 +43,8 @@ export function VakantieVenster({ bestaand, sluit }: { bestaand?: Vakantie; slui
     if (vertrek && terug && terug < vertrek) { zetFout('De terugdatum ligt vóór het vertrek.'); return; }
     const velden = { naam: n, vertrek: vertrek || null, terug: (vertrek && terug) || null, bestemming: bestemming.trim() || undefined };
     if (bestaand) {
-      app.vakantieBijwerken({ ...bestaand, ...velden }, `${n} aangepast`);
+      const u = await app.vakantieBijwerken({ ...bestaand, ...velden, versie: conflict ? bestaand.versie : beginVersie }, `${n} aangepast`);
+      if (u === 'conflict') { zetConflict(true); return; }
       sluit();
       return;
     }
@@ -71,6 +76,7 @@ export function VakantieVenster({ bestaand, sluit }: { bestaand?: Vakantie; slui
           <input value={bestemming} maxLength={100} autoComplete="off" placeholder="Bijv. Ardèche" onChange={e => zetBestemming(e.target.value)} />
         </label>
         {fout && <p className="veld-fout" role="alert">{fout}</p>}
+        {conflict && <p className="veld-fout" role="alert">{CONFLICT_IN_VENSTER}</p>}
         <button type="submit" className="knop breed" disabled={bezig} onClick={bewaar}>{bestaand ? 'Opslaan' : 'Vakantie toevoegen'}</button>
       </form>
       {bestaand && !verwijderen && (

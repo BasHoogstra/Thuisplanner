@@ -3,6 +3,7 @@
 // van dit tabblad en bewaart nooit een bestand van de gebruiker; het echte pad (Supabase, privé-bucket, uploaden in twee
 // fasen, §6.2–6.3) komt er later naast, met dezelfde handelingen.
 import { createContext, useContext, useMemo, useReducer } from 'react';
+import type { Opgeslagen } from '../acties';
 import { demoSpullen, voorbeeldBestand } from '../../data/spullen-demo';
 import type { Datum, LidId } from '../types';
 import { koppel, ontkoppel, zichtbaarVoorLid } from './logica';
@@ -34,7 +35,8 @@ export interface SpullenOpslag {
   spulTerugzetten: (id: string) => void;
   /** Eén handeling: document, eventueel een nieuw spul, en de koppelingen samen (zoals maakSamen in KG-5E licht). */
   documentBewaren: (n: NieuwDocument) => Promise<{ documentId: string; spulId?: string }>;
-  documentBijwerken: (d: Document) => void;
+  /** Met d.versie: de versie bij het openen van het venster. Bij een conflict blijft het venster open. */
+  documentBijwerken: (d: Document) => Promise<Opgeslagen>;
   documentVerwijderen: (id: string) => void;
   documentTerugzetten: (id: string) => void;
   koppel: (documentId: string, spulId: string) => void;
@@ -131,7 +133,7 @@ export function useDemoSpullen(vandaag: Datum, ik: LidId, meld: (tekst: string) 
       meld('Bewaard (in de demo alleen in dit tabblad)');
       return { documentId, spulId };
     },
-    documentBijwerken: d => { dispatch({ type: 'documentBij', document: d }); meld(`${d.titel} aangepast`); },
+    documentBijwerken: async d => { dispatch({ type: 'documentBij', document: d }); meld(`${d.titel} aangepast`); return 'ok' as const; },
     documentVerwijderen: id => {
       const d = alles.documenten.find(x => x.id === id);
       dispatch({ type: 'documentWeg', id, op: new Date().toISOString() });

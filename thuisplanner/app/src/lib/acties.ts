@@ -14,6 +14,14 @@ import type { Scenario } from '../data/demo';
 import type { Gegevens, Groep, Melding } from './store';
 import type { Afspraak, Boodschap, Datum, Item, PakDoel, Pakitem, Paklijst, Plan, PlanOnderdeel, Vakantie, VakantieKoppeling } from './types';
 
+/**
+ * De uitkomst van bewaren vanuit een venster (P1, review PR #54): ok, een versieconflict (iemand anders heeft het intussen
+ * aangepast; niets is overschreven) of een andere fout. Een venster blijft bij een conflict open, met wat je invoerde.
+ */
+export type Opgeslagen = 'ok' | 'conflict' | 'fout';
+/** De melding in een venster na een versieconflict. Opnieuw opslaan zet dan bewust jouw waarden door. */
+export const CONFLICT_IN_VENSTER = 'Iemand anders heeft dit net aangepast. Je wijzigingen staan er nog: kijk ze na en sla opnieuw op, dan gaan jouw waarden voor.';
+
 /** Wat de schermen lezen: de gedeelde gegevens plus wat alleen dit toestel weet (weggeklikt, de melding). */
 export interface Staat extends Gegevens {
   /** Weggeklikte meedenk-signalen (alleen op dit toestel). */
@@ -25,7 +33,8 @@ export interface Staat extends Gegevens {
 export interface Acties {
   // ---- Afspraken, taken en boodschappen ----
   toevoegen: (items: Item[], melding?: string) => void;
-  bijwerken: (item: Item, melding?: string) => void;
+  /** Met item.versie: de versie van het moment waarop het venster openging (versiecontrole). */
+  bijwerken: (item: Item, melding?: string) => Promise<Opgeslagen>;
   /** Afvinken of weer openzetten (taak of boodschap). */
   wissel: (id: string, melding?: string) => void;
   verwijder: (ids: string[], melding?: string) => void;
@@ -46,7 +55,7 @@ export interface Acties {
   // ---- Vakanties (F8) ----
   /** Geeft het id van de nieuwe vakantie (om haar meteen te openen), of null. */
   vakantieToevoegen: (v: Omit<Vakantie, 'id'>) => Promise<string | null>;
-  vakantieBijwerken: (v: Vakantie, melding?: string) => void;
+  vakantieBijwerken: (v: Vakantie, melding?: string) => Promise<Opgeslagen>;
   vakantieVerwijderen: (v: Vakantie) => void;
   pakitemToevoegen: (vakantieId: string, doel: PakDoel, naam: string) => void;
   pakitemWissel: (p: Pakitem) => void;
@@ -67,12 +76,12 @@ export interface Acties {
   // ---- Plannen (besluit 18). De taken van een plan zijn gewone items (toevoegen, bijwerken, wissel). ----
   /** Geeft het id van het nieuwe plan (om het meteen te openen), of null. */
   planToevoegen: (p: Omit<Plan, 'id'>) => Promise<string | null>;
-  planBijwerken: (p: Plan, melding?: string) => void;
+  planBijwerken: (p: Plan, melding?: string) => Promise<Opgeslagen>;
   /** metTaken: ook de taken weg (anders blijven ze als losse taken). */
   planVerwijderen: (p: Plan, metTaken: boolean) => void;
   /** Geeft het id van het nieuwe onderdeel, of null. */
   onderdeelToevoegen: (planId: string, naam: string) => Promise<string | null>;
-  onderdeelHernoemen: (o: PlanOnderdeel, naam: string) => void;
+  onderdeelHernoemen: (o: PlanOnderdeel, naam: string) => Promise<Opgeslagen>;
   onderdeelVerplaatsen: (o: PlanOnderdeel, richting: -1 | 1) => void;
   onderdeelVerwijderen: (o: PlanOnderdeel) => void;
 }

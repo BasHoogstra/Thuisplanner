@@ -7,7 +7,7 @@ import { zichtbaarVoor } from './rechten';
 import { boodschappenMelding, voegBoodschappenToe } from './boodschappen';
 import { verwijderReeks, verwijderVoorkomen, wijzigVoorkomen } from './herhaling';
 import { alOpPaklijst, doelVan, doelVelden, groepNaam, inDoel, pakSleutel, paklijstNaamFout, zelfdeDoel } from './vakantie';
-import type { Acties, DemoExtra, Staat as AppStaat } from './acties';
+import type { Acties, DemoExtra, Opgeslagen, Staat as AppStaat } from './acties';
 import { zonderPlan, zonderTaken } from './plan-bijlagen';
 import type { Afspraak, Boodschap, Datum, Item, LidId, PakDoel, Pakitem, Paklijst, Plan, PlanKoppeling, PlanOnderdeel, Taak, Vakantie, VakantieKoppeling } from './types';
 
@@ -340,7 +340,7 @@ export function useDemoStaat(vandaag: Datum) {
   const acties = useMemo((): Acties & Omit<DemoExtra, 'scenario'> & { ongedaan: () => void } => ({
     toevoegen: (items: Item[], melding?: string) => dispatch({ type: 'toevoegen', items, melding }),
     vervangAlles: (items: Item[], melding?: string) => dispatch({ type: 'vervangAlles', items, melding }),
-    bijwerken: (item: Item, melding?: string) => dispatch({ type: 'bijwerken', item, melding }),
+    bijwerken: async (item: Item, melding?: string): Promise<Opgeslagen> => { dispatch({ type: 'bijwerken', item, melding }); return 'ok'; },
     wissel: (id: string, melding?: string) => dispatch({ type: 'wissel', id, vandaag, melding }),
     verwijder: (ids: string[], melding?: string) => dispatch({ type: 'verwijder', ids, melding }),
     // Expliciete handelingen (in plaats van "vervang alles"): zo kan de lokale Supabase-modus precies
@@ -367,7 +367,7 @@ export function useDemoStaat(vandaag: Datum) {
       dispatch({ type: 'vakantieToevoegen', vakantie: { ...v, id }, melding: `${v.naam} toegevoegd` });
       return id;
     },
-    vakantieBijwerken: (v: Vakantie, melding?: string) => dispatch({ type: 'vakantieBijwerken', vakantie: v, melding }),
+    vakantieBijwerken: async (v: Vakantie, melding?: string): Promise<Opgeslagen> => { dispatch({ type: 'vakantieBijwerken', vakantie: v, melding }); return 'ok'; },
     vakantieVerwijderen: (v: Vakantie) => dispatch({ type: 'vakantieVerwijderen', id: v.id, melding: `${v.naam} verwijderd` }),
     pakitemToevoegen: (vakantieId: string, doel: PakDoel, naam: string) => dispatch({ type: 'pakitemToevoegen',
       item: { id: nieuwId('p'), vakantieId, ...doelVelden(doel), naam: naam.trim().replace(/\s+/g, ' '), ingepakt: false, ingepaktOp: null, ingepaktDoor: null } }),
@@ -394,7 +394,7 @@ export function useDemoStaat(vandaag: Datum) {
       dispatch({ type: 'planToevoegen', plan: { ...p, id }, melding: `${p.titel} toegevoegd` });
       return id;
     },
-    planBijwerken: (p: Plan, melding?: string): void => dispatch({ type: 'planBijwerken', plan: p, melding }),
+    planBijwerken: async (p: Plan, melding?: string): Promise<Opgeslagen> => { dispatch({ type: 'planBijwerken', plan: p, melding }); return 'ok'; },
     planVerwijderen: (p: Plan, metTaken: boolean): void => dispatch({ type: 'planVerwijderen', id: p.id, metTaken, melding: `${p.titel} verwijderd` }),
     /** Geeft het id van het nieuwe onderdeel (om het meteen open te zetten). */
     onderdeelToevoegen: async (planId: string, naam: string): Promise<string | null> => {
@@ -402,7 +402,7 @@ export function useDemoStaat(vandaag: Datum) {
       dispatch({ type: 'onderdeelToevoegen', onderdeel: { id, planId, naam }, melding: `${naam} toegevoegd` });
       return id;
     },
-    onderdeelHernoemen: (o: PlanOnderdeel, naam: string): void => dispatch({ type: 'onderdeelHernoemen', id: o.id, naam, melding: `Onderdeel heet nu ${naam}` }),
+    onderdeelHernoemen: async (o: PlanOnderdeel, naam: string): Promise<Opgeslagen> => { dispatch({ type: 'onderdeelHernoemen', id: o.id, naam, melding: `Onderdeel heet nu ${naam}` }); return 'ok'; },
     onderdeelVerplaatsen: (o: PlanOnderdeel, richting: -1 | 1): void => dispatch({ type: 'onderdeelVerplaatsen', id: o.id, richting }),
     onderdeelVerwijderen: (o: PlanOnderdeel): void => dispatch({ type: 'onderdeelVerwijderen', id: o.id, melding: `${o.naam} verwijderd` }),
     /** Een afgelopen vakantie tonen (lokaal: haar paklijst ophalen). In de demo staat alles al klaar. */

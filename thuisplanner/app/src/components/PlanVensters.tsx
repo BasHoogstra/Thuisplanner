@@ -2,6 +2,7 @@
 // nodig; de rest staat achter "Meer invullen".
 import { useState } from 'react';
 import { useApp } from '../lib/context';
+import { CONFLICT_IN_VENSTER } from '../lib/acties';
 import { isGeldigeDatum } from '../lib/datum';
 import { onderdelenVan, takenVan } from '../lib/plan';
 import type { LidId, Plan, PlanOnderdeel } from '../lib/types';
@@ -20,15 +21,20 @@ export function PlanVenster({ bestaand, sluit }: { bestaand?: Plan; sluit: () =>
   const [fout, zetFout] = useState<string | null>(null);
   const [verwijderen, zetVerwijderen] = useState(false);
   const aantalTaken = bestaand ? takenVan(app.staat.items, bestaand.id).length : 0;
+  // De versie bij het openen: wijzigde iemand anders het plan intussen, dan geen stille overschrijving maar een conflict,
+  // en het venster blijft open met je invoer; opnieuw opslaan zet dan bewust jouw waarden door (P1, review PR #54).
+  const [beginVersie] = useState(() => bestaand?.versie);
+  const [conflict, zetConflict] = useState(false);
 
-  function bewaar(e: { preventDefault(): void }) {
+  async function bewaar(e: { preventDefault(): void }) {
     e.preventDefault();
     const n = naam.trim().replace(/\s+/g, ' ');
     if (!n) { zetFout('Geef het plan een naam.'); return; }
     if (einddatum && !isGeldigeDatum(einddatum)) { zetFout('Kies een geldige einddatum.'); return; }
     const velden = { titel: n, omschrijving: omschrijving.trim() || undefined, einddatum: einddatum || null, wie };
     if (bestaand) {
-      app.planBijwerken({ ...bestaand, ...velden }, `${n} aangepast`);
+      const u = await app.planBijwerken({ ...bestaand, ...velden, versie: conflict ? bestaand.versie : beginVersie }, `${n} aangepast`);
+      if (u === 'conflict') { zetConflict(true); return; }
       sluit();
       return;
     }
@@ -70,6 +76,7 @@ export function PlanVenster({ bestaand, sluit }: { bestaand?: Plan; sluit: () =>
         )}
         <p className="stil-tekst plan-gedeeld">Iedereen in het huishouden ziet dit plan.</p>
         {fout && <p className="veld-fout" role="alert">{fout}</p>}
+        {conflict && <p className="veld-fout" role="alert">{CONFLICT_IN_VENSTER}</p>}
         <button type="submit" className="knop breed" onClick={bewaar}>{bestaand ? 'Opslaan' : 'Plan maken'}</button>
       </form>
       {bestaand && !verwijderen && (
@@ -104,14 +111,20 @@ export function OnderdeelVenster({ planId, bestaand, sluit, gemaakt }: { planId:
   const alle = onderdelenVan(app.staat.onderdelen, planId);
   const plek = bestaand ? alle.findIndex(o => o.id === bestaand.id) : -1;
   const aantalTaken = bestaand ? app.staat.items.filter(i => i.soort === 'taak' && i.onderdeelId === bestaand.id).length : 0;
+  const [beginVersie] = useState(() => bestaand?.versie);
+  const [conflict, zetConflict] = useState(false);
 
-  function bewaar(e: { preventDefault(): void }) {
+  async function bewaar(e: { preventDefault(): void }) {
     e.preventDefault();
     const n = naam.trim().replace(/\s+/g, ' ');
     if (!n) { zetFout('Geef het onderdeel een naam.'); return; }
     if (alle.some(o => o.id !== bestaand?.id && o.naam.toLocaleLowerCase('nl') === n.toLocaleLowerCase('nl'))) { zetFout('Dit plan heeft al een onderdeel met deze naam.'); return; }
-    if (bestaand) { if (n !== bestaand.naam) app.onderdeelHernoemen(bestaand, n); }
-    else void app.onderdeelToevoegen(planId, n).then(id => { if (id) gemaakt?.(id); });
+    if (bestaand) {
+      if (n !== bestaand.naam) {
+        const u = await app.onderdeelHernoemen({ ...bestaand, versie: conflict ? bestaand.versie : beginVersie }, n);
+        if (u === 'conflict') { zetConflict(true); return; }
+      }
+    } else void app.onderdeelToevoegen(planId, n).then(id => { if (id) gemaakt?.(id); });
     sluit();
   }
 
@@ -123,6 +136,7 @@ export function OnderdeelVenster({ planId, bestaand, sluit, gemaakt }: { planId:
             onChange={e => { zetNaam(e.target.value); zetFout(null); }} />
         </label>
         {fout && <p className="veld-fout" role="alert">{fout}</p>}
+        {conflict && <p className="veld-fout" role="alert">{CONFLICT_IN_VENSTER}</p>}
         <button type="submit" className="knop breed" onClick={bewaar}>{bestaand ? 'Opslaan' : 'Onderdeel toevoegen'}</button>
       </form>
       {bestaand && alle.length > 1 && (

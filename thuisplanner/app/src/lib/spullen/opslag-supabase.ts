@@ -3,6 +3,7 @@
 // en bestanden via sync/spullen-opslag.js (uploaden in twee fasen, ondertekende links, no-store). Alleen actief met
 // VITE_SPULLEN=aan (LokaleConfig.spullen); de rest van de app merkt er dan niets van.
 import { useMemo, useRef } from 'react';
+import type { Opgeslagen } from '../acties';
 import { maakSpullenOpslag } from '../../../../sync/spullen-opslag.js';
 import type { DocumentKoppelingRij, DocumentRij, SpulRij, Toestand } from '../../../../sync/thuisplanner-sync.js';
 import type { Sessie } from '../lokaal/sessie';
@@ -87,6 +88,12 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
       t()?.documentKoppelingen?.find(x => x.document_id === documentId && x.possession_id === spulId);
     const bestanden = sync ? maakSpullenOpslag({ supabase: sessie.client, sync, huishoudenId: huishouden, nieuweId: () => uuidV4() }) : null;
     const ok = async (p: Promise<{ ok: boolean }> | undefined, tekst?: string) => { const r = await p; if (r?.ok && tekst) meld(tekst); return !!r?.ok; };
+    // Zoals ok, maar met de soort uitkomst: een versieconflict laat het venster open (P1, review PR #54).
+    const uitkomst = async (p: Promise<{ ok: boolean; melding?: { soort?: string } | null }> | undefined, tekst?: string): Promise<Opgeslagen> => {
+      const r = await p;
+      if (r?.ok) { if (tekst) meld(tekst); return 'ok'; }
+      return r?.melding?.soort === 'conflict' ? 'conflict' : 'fout';
+    };
     return {
       soort: 'echt' as const,
       gegevens,
@@ -95,7 +102,9 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
       spulBewaren: async s => {
         const bestaand = s.id ? spulRij(s.id) : undefined;
         if (bestaand) {
-          if (!(await ok(a()?.spulBijwerken(bestaand, spulKolommen(s)), `${s.naam} aangepast`))) throw new Error('niet bewaard');
+          // De versie van het moment waarop het venster openging (anders de huidige): geen stille overschrijving.
+          const u = await uitkomst(a()?.spulBijwerken(bestaand, spulKolommen(s), s.versie ?? bestaand.version), `${s.naam} aangepast`);
+          if (u !== 'ok') throw new Error(u === 'conflict' ? 'conflict' : 'niet bewaard');
           return bestaand.id;
         }
         const id = uuidV4();
@@ -128,10 +137,11 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
         meld('Bewaard');
         return { documentId, spulId: nieuwSpul?.id };
       },
-      documentBijwerken: d => {
+      documentBijwerken: async d => {
         const r = docRij(d.id);
-        if (r) void ok(a()?.documentBijwerken(r, { title: d.titel, kind: d.soort, document_date: d.datum ?? null,
-          visibility: d.zichtbaarheid === 'persoonlijk' ? 'private' : 'household' }), `${d.titel} aangepast`);
+        if (!r) return 'fout';
+        return uitkomst(a()?.documentBijwerken(r, { title: d.titel, kind: d.soort, document_date: d.datum ?? null,
+          visibility: d.zichtbaarheid === 'persoonlijk' ? 'private' : 'household' }, d.versie ?? r.version), `${d.titel} aangepast`);
       },
       documentVerwijderen: id => { const r = docRij(id); if (r) void ok(a()?.documentVerwijderen(r), `${r.title} staat in de prullenbak`); },
       documentTerugzetten: id => { const r = docRij(id); if (r) void ok(a()?.documentTerugzetten(r), 'Teruggezet'); },

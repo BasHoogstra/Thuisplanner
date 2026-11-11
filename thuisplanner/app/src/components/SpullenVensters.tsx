@@ -3,6 +3,7 @@
 // bewaard: opslaan bewaart wat er staat, met de status erbij, en een voorstel blijft "controleer" tot je het bevestigt.
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useApp } from '../lib/context';
+import { CONFLICT_IN_VENSTER } from '../lib/acties';
 import { DEMO_AANKOOP, voorbeeldBestand } from '../data/spullen-demo';
 import { controleer, eersteBytes, sha256, typeUitBytes, verkleinFoto } from '../lib/spullen/bestand';
 import {
@@ -141,6 +142,9 @@ export function SpulVenster({ bestaand, sluit, opBewaard }: { bestaand?: Spul; s
   const v = useVelden(veldenVan(bestaand ?? {}), bestaand?.status);
   const [zicht, zetZicht] = useState<Zichtbaarheid>(bestaand?.zichtbaarheid ?? 'gedeeld');
   const [fout, zetFout] = useState<string | null>(null);
+  // De versie bij het openen; bij een conflict blijft het venster open met je invoer (P1, review PR #54).
+  const [beginVersie] = useState(() => bestaand?.versie);
+  const [conflict, zetConflict] = useState(false);
   // Compact: naam en zichtbaarheid direct, de rest achter "Meer details". Ingeklapt blijven de waarden gewoon bewaard;
   // bij aanpassen staat het open als er al details zijn, zodat je ziet wat er staat.
   const ingevuld = DETAILS.filter(k => v.velden[k]?.trim()).length;
@@ -153,7 +157,14 @@ export function SpulVenster({ bestaand, sluit, opBewaard }: { bestaand?: Spul; s
     if (!r.spul.naam) { zetFout('Geef het spul een naam.'); return; }
     // De prijs staat onder "Meer details": klap het open, zodat het veld met de fout te zien is.
     if (r.fout) { zetFout(r.fout); zetDetails(true); return; }
-    const id = await sp.spulBewaren({ ...r.spul, id: bestaand?.id, zichtbaarheid: zicht, notities: bestaand?.notities });
+    let id: string;
+    try {
+      id = await sp.spulBewaren({ ...r.spul, id: bestaand?.id, zichtbaarheid: zicht, notities: bestaand?.notities,
+        ...(bestaand ? { versie: conflict ? bestaand.versie : beginVersie } : {}) });
+    } catch (e) {
+      if ((e as Error).message === 'conflict') zetConflict(true);
+      return;
+    }
     sluit();
     opBewaard?.(id);
   };
@@ -168,6 +179,7 @@ export function SpulVenster({ bestaand, sluit, opBewaard }: { bestaand?: Spul; s
       <form onSubmit={bewaar} noValidate>
         <Veld veld="naam" verplicht {...p} />
         {fout && <span className="veld-fout" role="alert">{fout}</span>}
+        {conflict && <span className="veld-fout" role="alert">{CONFLICT_IN_VENSTER}</span>}
         <Zichtbaarheidskeuze waarde={zicht} zet={zetZicht} mag={!bestaand || bestaand.eigenaar === sp.ik} />
         {losTaken.length > 0 && (
           <p className="sp-noot" role="alert">
@@ -209,6 +221,8 @@ export function DocumentVenster({ bestaand, sluit, magZichtbaarheid }: { bestaan
   const [datum, zetDatum] = useState(bestaand.datum ?? '');
   const [zicht, zetZicht] = useState<Zichtbaarheid>(bestaand.zichtbaarheid);
   const [goedgekeurd, zetGoedgekeurd] = useState<string | null>(null);
+  const [beginVersie] = useState(() => bestaand.versie);
+  const [conflict, zetConflict] = useState(false);
   const { vandaag } = useApp();
   if (!sp) return null;
   const bij = spullenVan(sp.gegevens, bestaand.id);
@@ -218,7 +232,15 @@ export function DocumentVenster({ bestaand, sluit, magZichtbaarheid }: { bestaan
   const vraag = !!lek && goedgekeurd !== titel.trim();
   return (
     <Venster titel="Document aanpassen" sluit={sluit}>
-      <form onSubmit={e => { e.preventDefault(); if (vraag) return; sp.documentBijwerken({ ...bestaand, titel: titel.trim() || terugval, soort, datum: datum || undefined, zichtbaarheid: zicht }); sluit(); }} noValidate>
+      <form onSubmit={async e => {
+        e.preventDefault();
+        if (vraag) return;
+        const u = await sp.documentBijwerken({ ...bestaand, titel: titel.trim() || terugval, soort, datum: datum || undefined, zichtbaarheid: zicht,
+          versie: conflict ? bestaand.versie : beginVersie });
+        if (u === 'conflict') { zetConflict(true); return; }
+        sluit();
+      }} noValidate>
+        {conflict && <p className="veld-fout" role="alert">{CONFLICT_IN_VENSTER}</p>}
         <label className="veld"><span className="veld-label">Titel</span><input value={titel} onChange={e => zetTitel(e.target.value)} maxLength={120} placeholder={terugval} /></label>
         <SoortKeuze soort={soort} zet={zetSoort} />
         <label className="veld"><span className="veld-label">Datum <span className="optioneel">(optioneel)</span></span><input type="date" value={datum} onChange={e => zetDatum(e.target.value)} /></label>
