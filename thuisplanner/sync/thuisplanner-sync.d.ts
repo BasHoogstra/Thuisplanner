@@ -31,6 +31,19 @@ export interface TaakRij extends VoorlopigeVelden {
   trip_id?: string | null;
   /** Het spul waar deze taak bij hoort (Mijn spullen, migratie 29), of null. Alleen met de optie spullen. */
   possession_id?: string | null;
+  /** Plannen (besluit 18), alleen met de optie plannen: het plan en onderdeel van deze taak, en "Bezig" (started_on). */
+  plan_id?: string | null;
+  plan_section_id?: string | null;
+  started_on?: string | null;
+}
+/** Plannen (besluit 18, migratie 20261111120000): gedeeld binnen het huishouden. */
+export interface PlanRij {
+  id: string; household_id?: string; title: string; description: string | null; due_date: string | null;
+  member_ids: string[]; closed_on: string | null; version: number; created_at?: string; updated_at?: string; wachtend?: boolean;
+}
+export interface PlanOnderdeelRij {
+  id: string; household_id?: string; plan_id: string; name: string; position: number; version: number;
+  created_at?: string; updated_at?: string; wachtend?: boolean;
 }
 export interface AfspraakRij extends VoorlopigeVelden {
   id: string; household_id?: string; owner_member_id?: string; visibility: 'household' | 'private';
@@ -112,6 +125,9 @@ export interface Toestand {
   spullen: SpulRij[];
   documenten: DocumentRij[];
   documentKoppelingen: DocumentKoppelingRij[];
+  /** Alleen met de optie plannen: niet verwijderde plannen en onderdelen. */
+  plannen: PlanRij[];
+  planOnderdelen: PlanOnderdeelRij[];
 }
 
 export interface Resultaat {
@@ -214,6 +230,15 @@ export interface Acties {
   documentTerugzetten(d: DocumentRij, versie?: number): Promise<Resultaat>;
   documentKoppelen(documentId: string, spulId: string, id: string): Promise<Resultaat>;
   documentOntkoppelen(k: DocumentKoppelingRij): Promise<Resultaat>;
+  // Plannen (alleen met de optie plannen). Toevoegen met een vaste UUID van de app.
+  planToevoegen(id: string, velden: Record<string, unknown>): Promise<Resultaat>;
+  planBijwerken(p: PlanRij, velden: Record<string, unknown>, versie?: number): Promise<Resultaat>;
+  /** data[0] = { version, tasks, outcome }; met die versie zet planHerstellen het terug. */
+  planVerwijderen(p: PlanRij, metTaken?: boolean): Promise<Resultaat>;
+  planHerstellen(p: PlanRij, versie: number): Promise<Resultaat>;
+  onderdeelToevoegen(id: string, velden: Record<string, unknown>): Promise<Resultaat>;
+  onderdeelBijwerken(o: PlanOnderdeelRij, velden: Record<string, unknown>, versie?: number): Promise<Resultaat>;
+  onderdeelVerwijderen(o: PlanOnderdeelRij): Promise<Resultaat>;
   opnieuwProberen(id: string): Promise<Resultaat>;
   vergeten(id: string): boolean;
   meldingWeg(): void;
@@ -248,6 +273,8 @@ export declare function maakSync(o: {
   vandaag?: () => string;
   /** Ook Mijn spullen & Documenten (migratie 29). Standaard uit: dan precies de zoekopdrachten van daarvoor. */
   spullen?: boolean;
+  /** Ook Plannen (migratie 20261111120000). Standaard uit: dan precies de zoekopdrachten van daarvoor. */
+  plannen?: boolean;
 }): Sync;
 
 /** De laatste dag van een vakantie: einddatum, of vertrek + 13 dagen; zonder datum null. */

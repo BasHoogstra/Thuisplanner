@@ -5,7 +5,7 @@
 # thuisplanner/supabase/migrations/*.sql uit. Raakt geen enkel Supabase-project en maakt geen netwerkverbinding.
 # Met --db: gebruikt een al draaiende LOKALE Supabase-stack (supabase start), waarop de migraties al staan.
 #
-#   thuisplanner/supabase/tests/run.sh                          # matrix op de nabootsing (verwacht: 97 van 97)
+#   thuisplanner/supabase/tests/run.sh                          # matrix op de nabootsing (verwacht: 98 van 98)
 #   thuisplanner/supabase/tests/run.sh --tegenproef             # daarna: elke sabotage moet het juiste scenario laten falen
 #   thuisplanner/supabase/tests/run.sh --db postgresql://postgres:postgres@127.0.0.1:55322/postgres [--tegenproef]
 #   ... --gelijktijdig   daarna ook de gelijktijdigheidstests (tests/integratie/gelijktijdig.test.mjs, met
@@ -17,7 +17,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 KG="$(cd "$HERE/.." && pwd)"
 PGBIN="${PGBIN:-/usr/lib/postgresql/16/bin}"
-VERWACHT="KG-RLS-tests geslaagd: 97 van 97"
+VERWACHT="KG-RLS-tests geslaagd: 98 van 98"
 
 DB_URL=""; TEGENPROEF=0; GELIJKTIJDIG=0
 while [ $# -gt 0 ]; do

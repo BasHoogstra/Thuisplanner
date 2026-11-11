@@ -3144,6 +3144,80 @@ do $$ declare ha uuid := current_setting('test.ha')::uuid; ms uuid := current_se
 end $$;
 set local role authenticated;
 
+-- KG-T98 (Plannen, besluit 18; gate 9 voor het domein plannen) Gedeeld binnen het huishouden: ieder actief lid leest en
+-- wijzigt plannen en onderdelen; een ander huishouden en anon zien niets en koppelen niets. Een taak hoort bij hoogstens
+-- één context (vakantie óf plan); een onderdeel hoort bij hetzelfde plan; wie een plan oppakt, is een actief lid; niet
+-- koppelen aan een verwijderd plan; afvinken maakt Bezig leeg; geen delete-recht; een plan verwijderen laat de taken
+-- standaard los staan, of neemt ze mee; terugzetten zet precies dat terug; een onderdeel verwijderen houdt de taken in
+-- het plan; seintjes alleen {t, id, v, op}.
+do $$ declare ha uuid := current_setting('test.ha')::uuid; hb uuid := current_setting('test.hb')::uuid;
+  ms uuid := current_setting('test.m_sara')::uuid; mt uuid := current_setting('test.m_tim')::uuid; mb uuid := current_setting('test.m_bo')::uuid;
+  pl1 uuid := gen_random_uuid(); pl2 uuid := gen_random_uuid(); s1 uuid := gen_random_uuid(); s2 uuid := gen_random_uuid();
+  t1 uuid := gen_random_uuid(); t2 uuid := gen_random_uuid(); t3 uuid := gen_random_uuid(); trip uuid := gen_random_uuid();
+  pb uuid := gen_random_uuid(); v integer; r record; m record; begin
+  perform pg_temp.als('sara');
+  insert into public.plans (id, household_id, title, member_ids) values (pl1, ha, 'Zolder verbouwen', array[ms, mt]);
+  insert into public.plans (id, household_id, title) values (pl2, ha, 'Schuur opruimen');
+  insert into public.plan_sections (id, household_id, plan_id, name, position) values (s1, ha, pl1, 'Voorbereiding', 1), (s2, ha, pl2, 'Afvoeren', 1);
+  insert into public.tasks (id, household_id, title, plan_id, plan_section_id) values (t1, ha, 'Isolatie bestellen', pl1, s1);
+  insert into public.tasks (id, household_id, title, plan_id) values (t2, ha, 'Vloer leggen', pl1), (t3, ha, 'Planken weg', pl2);
+  insert into public.trips (id, household_id, name) values (trip, ha, 'Texel');
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, plan_id, plan_section_id) values (%L, %L, %L, %L)', ha, 'x', pl1, s2)) then raise exception 'KG-T98: een onderdeel van een ander plan'; end if;
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, plan_section_id) values (%L, %L, %L)', ha, 'x', s1)) then raise exception 'KG-T98: een onderdeel zonder plan'; end if;
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, plan_id, trip_id) values (%L, %L, %L, %L)', ha, 'x', pl1, trip)) then raise exception 'KG-T98: een taak in een vakantie en een plan tegelijk'; end if;
+  if not pg_temp.faalt(format('insert into public.plans (household_id, title, member_ids) values (%L, %L, %L)', ha, 'x', array[mb])) then raise exception 'KG-T98: een lid van een ander huishouden pakt een plan op'; end if;
+  if not pg_temp.faalt(format('delete from public.plans where id = %L', pl2)) then raise exception 'KG-T98: delete-recht op plannen'; end if;
+  -- Bezig en afvinken: afgerond is alleen done_on.
+  update public.tasks set started_on = current_date where id = t2;
+  if (select started_on from public.tasks where id = t2) is null then raise exception 'KG-T98: Bezig niet bewaard'; end if;
+  update public.tasks set done_on = current_date, done_by_member_id = ms where id = t2;
+  if (select started_on from public.tasks where id = t2) is not null then raise exception 'KG-T98: Bezig blijft staan na afvinken'; end if;
+  -- Tim (lid) leest en wijzigt.
+  perform pg_temp.als('tim');
+  if pg_temp.aantal(format('select 1 from public.plans where household_id = %L', ha)) <> 2 or pg_temp.aantal(format('select 1 from public.plan_sections where household_id = %L', ha)) <> 2 then raise exception 'KG-T98: Tim ziet de plannen niet'; end if;
+  if (select plan_section_id from public.tasks where id = t1) is distinct from s1 then raise exception 'KG-T98: Tim ziet het onderdeel van de taak niet'; end if;
+  if pg_temp.geraakt(format('update public.plans set title = %L where id = %L', 'Zolder', pl1)) <> 1 then raise exception 'KG-T98: Tim wijzigt een gedeeld plan niet'; end if;
+  -- Bo (ander huishouden) en anon: niets.
+  perform pg_temp.als('bo');
+  if pg_temp.aantal(format('select 1 from public.plans where household_id = %L', ha)) <> 0 or pg_temp.aantal(format('select 1 from public.plan_sections where household_id = %L', ha)) <> 0 then raise exception 'KG-T98: Bo ziet plannen van HA'; end if;
+  if pg_temp.geraakt(format('update public.plans set title = %L where id = %L', 'Gekaapt', pl1)) <> 0 then raise exception 'KG-T98: Bo wijzigt een plan van HA'; end if;
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, plan_id) values (%L, %L, %L)', hb, 'x', pl1)) then raise exception 'KG-T98: taak van HB in een plan van HA'; end if;
+  if not pg_temp.faalt(format('insert into public.plan_sections (household_id, plan_id, name) values (%L, %L, %L)', hb, pl1, 'x')) then raise exception 'KG-T98: onderdeel van HB in een plan van HA'; end if;
+  if not pg_temp.faalt(format('insert into public.plans (household_id, title) values (%L, %L)', ha, 'Indringer')) then raise exception 'KG-T98: Bo maakt een plan in HA'; end if;
+  if pg_temp.fout(format('select public.delete_plan(%L, %L, 1)', ha, pl2)) is distinct from '42501' then raise exception 'KG-T98: Bo verwijdert een plan van HA'; end if;
+  insert into public.plans (id, household_id, title) values (pb, hb, 'Buren');
+  reset role;
+  set local role anon;
+  if not pg_temp.faalt('select 1 from public.plans') then raise exception 'KG-T98: anon leest plannen'; end if;
+  reset role;
+  set local role authenticated;
+  -- Onderdeel verwijderen: de taak blijft in het plan.
+  perform pg_temp.als('sara');
+  perform public.delete_plan_section(ha, s1, (select version from public.plan_sections where id = s1));
+  if (select plan_id from public.tasks where id = t1) is distinct from pl1 or (select plan_section_id from public.tasks where id = t1) is not null then raise exception 'KG-T98: onderdeel verwijderen raakt de taak verkeerd'; end if;
+  -- Plan verwijderen, standaard: de taken blijven als losse taken; een verkeerde versie verandert niets.
+  if pg_temp.fout(format('select public.delete_plan(%L, %L, 999)', ha, pl1)) is distinct from 'PT409' then raise exception 'KG-T98: verwijderen met een oude versie'; end if;
+  perform public.delete_plan(ha, pl1, (select version from public.plans where id = pl1));
+  if (select deleted_at from public.plans where id = pl1) is null or exists (select 1 from public.tasks where id in (t1, t2) and (plan_id is not null or deleted_at is not null)) then raise exception 'KG-T98: plan verwijderen laat de taken niet los staan'; end if;
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, plan_id) values (%L, %L, %L)', ha, 'x', pl1)) then raise exception 'KG-T98: een taak in een verwijderd plan'; end if;
+  -- Plan en taken: samen weg, en samen terug.
+  v := (select version from public.plans where id = pl2);
+  select * into r from public.delete_plan(ha, pl2, v, true);
+  if (select deleted_at from public.tasks where id = t3) is null or (select deleted_at from public.plan_sections where id = s2) is null then raise exception 'KG-T98: plan en taken niet samen verwijderd'; end if;
+  perform public.restore_plan(ha, pl2, r.version);
+  if (select deleted_at from public.plans where id = pl2) is not null or (select deleted_at from public.tasks where id = t3) is not null
+     or (select deleted_at from public.plan_sections where id = s2) is not null or (select plan_id from public.tasks where id = t3) is distinct from pl2 then raise exception 'KG-T98: terugzetten zet niet alles terug'; end if;
+  -- Seintjes: alleen {t, id, v, op}.
+  reset role;
+  for m in select payload from realtime.messages where payload->>'t' in ('plans', 'plan_sections') loop
+    if exists (select 1 from jsonb_object_keys(m.payload) k where k not in ('t', 'id', 'v', 'op')) then raise exception 'KG-T98: seintje bevat meer dan t/id/v/op'; end if;
+  end loop;
+  if not exists (select 1 from realtime.messages where payload->>'t' = 'plans' and payload->>'id' = pl1::text) then raise exception 'KG-T98: geen seintje over een plan'; end if;
+  set local role authenticated;
+  perform pg_temp.ok('KG-T98');
+end $$;
+set local role authenticated;
+
 -- KG-T94 Persoonlijk volgt het account, en de seintjes verraden niets: geen seintje over een persoonlijke rij; gedeelde
 -- seintjes alleen {t, id, v, op}; een gearchiveerd lid ziet niets; ontkoppelen, de bewaartermijn en een verwijderd
 -- account wissen de persoonlijke spullen en documenten.
@@ -3258,6 +3332,6 @@ do $$ declare r record; begin
 end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 97' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 98' as resultaat;
 
 rollback;

@@ -45,11 +45,15 @@ const VELDEN_SPUL = 'id,household_id,name,category,brand,model,serial,purchase_d
 const VELDEN_DOCUMENT = 'id,household_id,title,kind,document_date,visibility,owner_member_id,upload_status,storage_path,mime,size_bytes,sha256,' +
   'version,created_at,updated_at,deleted_at';
 const VELDEN_DOCKOPPELING = 'id,household_id,document_id,possession_id,version,created_at';
+// Plannen (besluit 18, migratie 20261111120000). Alleen met de optie plannen: true. Gedeeld binnen het huishouden.
+const VELDEN_PLAN = 'id,household_id,title,description,due_date,member_ids,closed_on,version,created_at,updated_at';
+const VELDEN_ONDERDEEL = 'id,household_id,plan_id,name,position,version,created_at,updated_at';
+const VELDEN_TAAK_PLAN = ',plan_id,plan_section_id,started_on';
 // De prullenbak: verwijderde spullen en documenten blijven 30 dagen zichtbaar om terug te zetten.
 const PRULLENBAK_MS = 30 * 86400000;
 // Tabellen waarvan een seintje met een al bekende versie niets hoeft te doen.
 const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events', 'trips', 'trip_packing_items', 'trip_shopping_links', 'trip_packing_lists',
-  'possessions', 'documents', 'document_links']);
+  'possessions', 'documents', 'document_links', 'plans', 'plan_sections']);
 const VELDEN_LID = 'id,household_id,display_name,kind,role,status,color,has_account,sort,created_at';
 const VELDEN_AFSPRAAK = 'id,household_id,owner_member_id,visibility,start_date,start_time,end_date,end_time,recurrence_freq,' +
   'recurrence_until,series_id,original_date,version,is_busy,title,location,notes,preparation,participant_ids';
@@ -112,7 +116,8 @@ export function meldingVoor(fout) {
 
 const foutVan = r => (r?.error ? { ...r.error, status: r.status } : null);
 const leeg = () => ({ lid: null, leden: [], boodschappen: [], taken: [], afspraken: [], uitzonderingen: [],
-  vakanties: [], pakitems: [], paklijsten: [], vakantieKoppelingen: [], spullen: [], documenten: [], documentKoppelingen: [] });
+  vakanties: [], pakitems: [], paklijsten: [], vakantieKoppelingen: [], spullen: [], documenten: [], documentKoppelingen: [],
+  plannen: [], planOnderdelen: [] });
 // Lijsten met toevoegingen als opdracht (zie OPDRACHTEN).
 const OPDRACHT_LIJSTEN = ['boodschappen', 'taken', 'afspraken', 'vakanties', 'pakitems', 'paklijsten'];
 
@@ -183,6 +188,8 @@ const SORTEER = {
   spullen: volgorde('name', 'id'),
   documenten: volgorde('created_at', 'id'),
   documentKoppelingen: volgorde('created_at', 'id'),
+  plannen: volgorde('created_at', 'id'),
+  planOnderdelen: volgorde('position', 'created_at', 'id'),
 };
 
 // Opdrachten per account en huishouden in het geheugen van de pagina: ze overleven stop()/start() en een
@@ -266,10 +273,12 @@ const OPDRACHTEN = {
  * @param {(soort: string, status: string) => void} [o.spoor]  optioneel: kanaalstatus volgen (geen inhoud)
  * @param {boolean} [o.spullen]  ook Mijn spullen & Documenten ophalen (migratie 29). Standaard uit: dan zijn de
  *   zoekopdrachten precies die van vóór deze functie, ook op een database zonder de spullentabellen.
+ * @param {boolean} [o.plannen]  ook Plannen ophalen (besluit 18, migratie 20261111120000): plannen, onderdelen en de
+ *   planvelden van taken. Standaard uit: dan precies de zoekopdrachten van daarvoor, ook zonder die migratie.
  */
 export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangnetMs = 30000, debounceMs = 150,
   paginaGrootte = 1000, opslag = null, bewaarInhoud = false, geheugen = PAGINAGEHEUGEN, spoor = () => {},
-  vandaag = () => lokaleDatum(), spullen = false }) {
+  vandaag = () => lokaleDatum(), spullen = false, plannen = false }) {
   let toestand = { status: STATUS.LADEN, melding: null, laatstOpgehaald: null, opslagDuurzaam: null, ...leeg() };
   let generatie = 0;         // elke start() en elke beëindiging begint een nieuwe generatie
   let levend = false;        // tussen start() en stop()/verlies van toegang
@@ -462,7 +471,7 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
     const [kn, b, t, a, l, u, v] = await Promise.all([
       supabase.rpc('household_channel', { p_household: huishoudenId }),
       allePaginas(() => supabase.from('shopping_items').select(VELDEN_BOODSCHAP).eq('household_id', huishoudenId).is('deleted_at', null), g),
-      allePaginas(() => supabase.from('tasks').select(spullen ? VELDEN_TAAK + ',possession_id' : VELDEN_TAAK).eq('household_id', huishoudenId).is('deleted_at', null), g),
+      allePaginas(() => supabase.from('tasks').select(VELDEN_TAAK + (spullen ? ',possession_id' : '') + (plannen ? VELDEN_TAAK_PLAN : '')).eq('household_id', huishoudenId).is('deleted_at', null), g),
       allePaginas(() => supabase.from('event_overview').select(VELDEN_AFSPRAAK).eq('household_id', huishoudenId).is('deleted_at', null), g),
       allePaginas(() => supabase.from('household_members').select(VELDEN_LID).eq('household_id', huishoudenId), g),
       alleUitzonderingen(g),
@@ -500,7 +509,16 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
       ]);
       if (!geldig(g)) throw VERVALLEN;
     }
-    return { spullen: sp.sort(SORTEER.spullen), documenten: dc.sort(SORTEER.documenten), documentKoppelingen: dk.sort(SORTEER.documentKoppelingen),
+    // 5. Plannen (alleen met de optie): niet verwijderde plannen en onderdelen.
+    let pn = [], po = [];
+    if (plannen) {
+      [pn, po] = await Promise.all([
+        allePaginas(() => supabase.from('plans').select(VELDEN_PLAN).eq('household_id', huishoudenId).is('deleted_at', null), g),
+        allePaginas(() => supabase.from('plan_sections').select(VELDEN_ONDERDEEL).eq('household_id', huishoudenId).is('deleted_at', null), g),
+      ]);
+      if (!geldig(g)) throw VERVALLEN;
+    }
+    return { plannen: pn.sort(SORTEER.plannen), planOnderdelen: po.sort(SORTEER.planOnderdelen), spullen: sp.sort(SORTEER.spullen), documenten: dc.sort(SORTEER.documenten), documentKoppelingen: dk.sort(SORTEER.documentKoppelingen),
       lid: mijn, kanaalNaam: kn.data, boodschappen: b, taken: t, afspraken: a, leden: l.sort(SORTEER.leden), uitzonderingen: u,
       vakanties: v, pakitems: p, paklijsten: pl, vakantieKoppelingen: k.sort(SORTEER.vakantieKoppelingen), bevestigd: new Set([...cv, ...cp, ...cl].map(x => x.id)) };
   }
@@ -537,12 +555,15 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
         for (const x of r.spullen) bekend.set(`possessions:${x.id}`, x.version);
         for (const x of r.documenten) bekend.set(`documents:${x.id}`, x.version);
         for (const x of r.documentKoppelingen) bekend.set(`document_links:${x.id}`, x.version);
+        for (const x of r.plannen) bekend.set(`plans:${x.id}`, x.version);
+        for (const x of r.planOnderdelen) bekend.set(`plan_sections:${x.id}`, x.version);
         const lijsten = samenvoegen({ boodschappen: r.boodschappen, taken: r.taken, afspraken: r.afspraken,
           vakanties: r.vakanties, pakitems: r.pakitems, paklijsten: r.paklijsten }, r.bevestigd);
         // Verbonden = gegevens actueel én het kanaal luistert. Kanaal nog niet open: bij de eerste ronde
         // nog "laden", daarna "offline" (er komen dan geen seintjes binnen).
         zet({ lid: r.lid, leden: r.leden, uitzonderingen: r.uitzonderingen, vakantieKoppelingen: r.vakantieKoppelingen, ...lijsten,
               ...(spullen ? { spullen: r.spullen, documenten: r.documenten, documentKoppelingen: r.documentKoppelingen } : {}),
+              ...(plannen ? { plannen: r.plannen, planOnderdelen: r.planOnderdelen } : {}),
               status: kanaalOpen() ? STATUS.VERBONDEN : (kanaal ? STATUS.OFFLINE : STATUS.LADEN),
               laatstOpgehaald: new Date().toISOString() });
         // Andere kanaalnaam (iemand verloor toegang): overstappen. Het oude kanaal krijgt niets meer.
@@ -1306,6 +1327,68 @@ export function maakSync({ supabase, huishoudenId, opWijziging = () => {}, vangn
       return schrijf(() => bijwerkenMetVersie('document_links', k.id, k.version, { deleted_at: new Date().toISOString() }, 'id,version'), {
         optimistisch: t => ({ documentKoppelingen: t.documentKoppelingen.filter(x => x.id !== k.id) }),
         terugdraaien: t => ({ documentKoppelingen: terugZetten(t.documentKoppelingen, k, 'documentKoppelingen') }),
+      });
+    },
+    // ---- Plannen (alleen met de optie plannen; besluit 18, migratie 20261111120000) ----
+    // Toevoegen met een vaste UUID van de app (23505 = er al = gelukt), zoals spullen. De taken van een plan zijn gewone
+    // taken (taakToevoegen en taakBijwerken met plan_id, plan_section_id en started_on).
+    planToevoegen(id, velden) {
+      if (!plannen) return Promise.resolve({ ok: false, melding: { soort: 'fout', tekst: MELDINGEN.fout } });
+      const rij = { id, household_id: huishoudenId, ...velden };
+      return schrijf(dubbelIsGoed(() => supabase.from('plans').insert(rij).select('id,version')), {
+        optimistisch: t => ({ plannen: [...t.plannen.filter(x => x.id !== id), { member_ids: [], ...rij, version: 0, wachtend: true }].sort(SORTEER.plannen) }),
+        terugdraaien: t => ({ plannen: t.plannen.filter(x => !(x.id === id && x.wachtend)) }),
+      });
+    },
+    planBijwerken(p, velden, versie = p.version) {
+      return schrijf(() => bijwerkenMetVersie('plans', p.id, versie, velden, 'id,version'), {
+        optimistisch: t => ({ plannen: vervang(t.plannen, p.id, x => ({ ...x, ...velden, wachtend: true })) }),
+        terugdraaien: t => ({ plannen: vervang(t.plannen, p.id, x => ({ ...x, ...Object.fromEntries(Object.keys(velden).map(k => [k, p[k]])), wachtend: false })) }),
+      });
+    },
+    // Verwijderen in één transactie op de server: de taken blijven als losse taken (standaard) of gaan mee (metTaken).
+    // Geeft data[0] = { version, tasks, outcome }; met die versie zet planHerstellen het terug.
+    planVerwijderen(p, metTaken = false) {
+      const taken = toestand.taken.filter(x => x.plan_id === p.id);
+      const onderdelen = toestand.planOnderdelen.filter(x => x.plan_id === p.id);
+      return schrijf(() => supabase.rpc('delete_plan', { p_household: huishoudenId, p_plan: p.id, p_version: p.version, p_with_tasks: metTaken }), {
+        optimistisch: t => ({
+          plannen: t.plannen.filter(x => x.id !== p.id), planOnderdelen: t.planOnderdelen.filter(x => x.plan_id !== p.id),
+          taken: metTaken ? t.taken.filter(x => x.plan_id !== p.id) : t.taken.map(x => (x.plan_id === p.id ? { ...x, plan_id: null, plan_section_id: null } : x)),
+        }),
+        terugdraaien: t => ({
+          plannen: terugZetten(t.plannen, p, 'plannen'), planOnderdelen: [...t.planOnderdelen.filter(x => x.plan_id !== p.id), ...onderdelen].sort(SORTEER.planOnderdelen),
+          taken: [...t.taken.filter(x => !taken.some(y => y.id === x.id)), ...taken].sort(SORTEER.taken),
+        }),
+        nietGevonden: MELDINGEN.toegang,
+      });
+    },
+    planHerstellen(p, versie) {
+      return schrijf(() => supabase.rpc('restore_plan', { p_household: huishoudenId, p_plan: p.id, p_version: versie }), {
+        optimistisch: t => ({ plannen: terugZetten(t.plannen, p, 'plannen') }),
+        terugdraaien: t => ({ plannen: t.plannen.filter(x => x.id !== p.id) }),
+      });
+    },
+    onderdeelToevoegen(id, velden) {
+      if (!plannen) return Promise.resolve({ ok: false, melding: { soort: 'fout', tekst: MELDINGEN.fout } });
+      const rij = { id, household_id: huishoudenId, ...velden };
+      return schrijf(dubbelIsGoed(() => supabase.from('plan_sections').insert(rij).select('id,version')), {
+        optimistisch: t => ({ planOnderdelen: [...t.planOnderdelen.filter(x => x.id !== id), { position: 0, ...rij, version: 0, wachtend: true }].sort(SORTEER.planOnderdelen) }),
+        terugdraaien: t => ({ planOnderdelen: t.planOnderdelen.filter(x => !(x.id === id && x.wachtend)) }),
+      });
+    },
+    onderdeelBijwerken(o, velden, versie = o.version) {
+      return schrijf(() => bijwerkenMetVersie('plan_sections', o.id, versie, velden, 'id,version'), {
+        optimistisch: t => ({ planOnderdelen: vervang(t.planOnderdelen, o.id, x => ({ ...x, ...velden, wachtend: true })).sort(SORTEER.planOnderdelen) }),
+        terugdraaien: t => ({ planOnderdelen: vervang(t.planOnderdelen, o.id, x => ({ ...x, ...Object.fromEntries(Object.keys(velden).map(k => [k, o[k]])), wachtend: false })).sort(SORTEER.planOnderdelen) }),
+      });
+    },
+    // Een onderdeel verwijderen: de taken blijven in het plan, zonder onderdeel (op de server in één transactie).
+    onderdeelVerwijderen(o) {
+      return schrijf(() => supabase.rpc('delete_plan_section', { p_household: huishoudenId, p_section: o.id, p_version: o.version }), {
+        optimistisch: t => ({ planOnderdelen: t.planOnderdelen.filter(x => x.id !== o.id),
+          taken: t.taken.map(x => (x.plan_section_id === o.id ? { ...x, plan_section_id: null } : x)) }),
+        terugdraaien: t => ({ planOnderdelen: terugZetten(t.planOnderdelen, o, 'planOnderdelen') }),
       });
     },
     // Een niet-bevestigde toevoeging waarvan de inhoud niet op dit toestel staat (P1), opnieuw invoeren onder
