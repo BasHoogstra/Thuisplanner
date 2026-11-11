@@ -99,8 +99,19 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
         const versie = item.versie;
         if (item.soort === 'afspraak') return na(a()?.afspraakBewaren(naarNieuweAfspraak(item, versie ?? 0)), melding);
         if (item.soort === 'taak') {
-          const r = rij(t()?.taken, item.id);
-          return r ? na(a()?.taakBijwerken(r, naarTaakVelden(item), versie), melding) : 'fout';
+          const r = rij<TaakRij>(t()?.taken, item.id);
+          if (!r) return 'fout';
+          // De status uit het detailvenster (Afgerond, Bezig, Te doen; P2, review PR #54): afgerond is done_on (met wie het
+          // afrondde), in dezelfde wijziging als de rest. Weer open: done_on leeg. Bezig staat in naarTaakVelden.
+          const afgerondNu = !!r.done_on, afgerond = item.klaar;
+          const status = afgerondNu === afgerond ? {} : afgerond
+            ? { done_on: item.klaarOp ?? vandaagRef.current, done_by_member_id: hhRef.current?.ik || null }
+            : { done_on: null, done_by_member_id: null };
+          const uit = await na(a()?.taakBijwerken(r, { ...naarTaakVelden(item), ...status }, versie), melding);
+          // Een taak van een afgerond plan weer openzetten: dan is het plan niet meer af (zoals bij afvinken).
+          const plan = uit === 'ok' && afgerondNu && !afgerond && r.plan_id ? rij<PlanRij>(t()?.plannen, r.plan_id) : undefined;
+          if (plan?.closed_on) void a()?.planBijwerken(plan, { closed_on: null });
+          return uit;
         }
         const r = rij(t()?.boodschappen, item.id);
         return r ? na(a()?.boodschapHernoemen(r, item.naam, versie), melding) : 'fout';

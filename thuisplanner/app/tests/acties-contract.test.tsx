@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { maakSync } from '../../sync/thuisplanner-sync.js';
 import { useDemoStaat } from '../src/lib/store';
+import { statusVelden } from '../src/lib/plan';
 import { useLokaleStaat } from '../src/lib/lokaal/staat';
 import type { Momentopname, Sessie } from '../src/lib/lokaal/sessie';
 import type { Acties, Staat } from '../src/lib/acties';
@@ -117,6 +118,17 @@ async function contract(k: Kant, run: string) {
   await k.wachtOp('onderdeel toegevoegd', s => s.onderdelen.some(o => o.id === oid && o.planId === pid));
   await doe(a => a.toevoegen([{ id: 't-plan', soort: 'taak', titel: ptaak, datum: null, voor: k.ik, klaar: false, klaarOp: null, planId: pid, onderdeelId: oid } as Item]));
   await k.wachtOp('plantaak toegevoegd', s => taakMet(s, ptaak)?.planId === pid && taakMet(s, ptaak)?.onderdeelId === oid);
+  // De status uit het detailvenster (P2, review PR #54): Bezig, Afgerond en weer Te doen, via bijwerken.
+  const status = async (naar: 'Te doen' | 'Bezig' | 'Afgerond') => {
+    const t = taakMet(k.staat(), ptaak)!;
+    await doe(a => a.bijwerken({ ...t, ...statusVelden(naar, t, VANDAAG) }));
+  };
+  await status('Bezig');
+  await k.wachtOp('plantaak bezig', s => taakMet(s, ptaak)?.bezig === true && taakMet(s, ptaak)?.klaar === false);
+  await status('Afgerond');
+  await k.wachtOp('plantaak afgerond via het venster', s => taakMet(s, ptaak)?.klaar === true && !taakMet(s, ptaak)?.bezig);
+  await status('Te doen');
+  await k.wachtOp('plantaak weer te doen', s => taakMet(s, ptaak)?.klaar === false && !taakMet(s, ptaak)?.bezig);
   await doe(a => a.wissel(taakMet(k.staat(), ptaak)!.id));
   await k.wachtOp('plantaak afgevinkt', s => taakMet(s, ptaak)?.klaar === true);
   await doe(a => a.planVerwijderen(k.staat().plannen.find(p => p.id === pid)!, false));
