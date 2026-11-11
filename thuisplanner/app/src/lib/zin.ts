@@ -398,6 +398,13 @@ export function begrijp(tekst: string, ctx: Context, opties: Opties = {}): Voors
   };
   const metPlek = new Set<number>(plek ? tokens.map((_, i) => i).filter(i => i >= plekVanaf) : []);
 
+  // Een verjaardag ("Oma jarig 12 maart", "verjaardag Noor"): voorlopig een jaarlijks terugkerende afspraak voor de hele dag
+  // (besluit Bas, 10 november 2026). Het woord blijft in de titel. Met een tijd erbij is het een gewone afspraak (een feestje);
+  // de herhaling staat als herkend onderdeel in beeld en is met één tik weg te halen.
+  const jarigWoord = !opties.soort && tokens.some(t => t.w === 'jarig' || t.w === 'verjaardag');
+  const jarig = jarigWoord && !herhaling && !start && !negeer.has('herhaling');
+  if (jarig) { herhaling = { freq: 'jaarlijks', tot: null }; herkend.add('herhaling'); }
+
   // De soort, in deze volgorde (snelinvoer §4.2): gekozen, boodschapwoord, tijd/plek/herhaling, waar je vandaan komt,
   // een bekende boodschap, anders een taak.
   const aangenomen: Voorstel['aangenomen'] = [];
@@ -405,7 +412,7 @@ export function begrijp(tekst: string, ctx: Context, opties: Opties = {}): Voors
   let soort: Soort;
   if (opties.soort) soort = opties.soort;
   else if (soortwoord) soort = 'boodschap';
-  else if (start || plek || herhaling) soort = 'afspraak';
+  else if (start || plek || herhaling || jarigWoord) soort = 'afspraak';
   else if (ctx.standaard?.soort) { soort = ctx.standaard.soort; aangenomen.push('soort'); }
   else if (titelVan(new Set()) && bekend.has(norm(titelVan(new Set())))) soort = 'boodschap';
   // Elk deel is een herkend product ("melk, bananen, luiers en brood"), zonder lid erbij: boodschappen.
@@ -419,7 +426,7 @@ export function begrijp(tekst: string, ctx: Context, opties: Opties = {}): Voors
     if (soort === 'taak') meld({ soort: 'plek-geen-afspraak', tekst: `"${tokens[plekVanaf].ruw} ${plek}" blijft in de titel: een plek hoort bij een afspraak.` });
     plek = undefined;
   }
-  if (herhaling && soort === 'afspraak' && !start && !opties.soort && !plek) {
+  if (herhaling && soort === 'afspraak' && !start && !opties.soort && !plek && !jarig) {
     meld({ soort: 'herhalende-taak', tekst: 'Herhalende taken kunnen nog niet; dit wordt een afspraak voor de hele dag.' });
   }
   if (herhaling && soort !== 'afspraak') { herhaling = undefined; herkend.delete('herhaling'); }
