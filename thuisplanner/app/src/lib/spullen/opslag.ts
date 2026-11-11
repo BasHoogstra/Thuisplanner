@@ -22,6 +22,11 @@ export interface NieuwDocument {
   /** Koppelen aan bestaande spullen, en eventueel een nieuw spul dat in dezelfde handeling wordt gemaakt. */
   spullen: string[];
   nieuwSpul?: Omit<Spul, 'id' | 'eigenaar'>;
+  /**
+   * Eén sleutel per invoer (P2, review PR #54): opnieuw bewaren na een fout of een verloren antwoord gebruikt dezelfde
+   * document- en spul-UUID, zodat er nooit een tweede spul of document ontstaat.
+   */
+  poging?: string;
 }
 
 export interface SpullenOpslag {

@@ -226,6 +226,38 @@ test('antwoord van de upload verloren: opnieuw proberen ziet het bestaande objec
   assert.equal((await o.opnieuwUploaden(doc, PDF, 'application/pdf')).ok, true);
 });
 
+// P2 (review PR #54): opnieuw bewaren met dezelfde UUID's na een fout (verzoek niet aangekomen) of een verloren antwoord
+// (wel uitgevoerd) in elke opslagfase: precies één spul, één document (klaar), één koppeling en één bestand.
+test('opnieuw bewaren na een fout of een verloren antwoord in elke fase: nooit een tweede spul, document, koppeling of bestand', async () => {
+  const fasen = [
+    ['spul', (u, m) => m === 'POST' && u.includes('/rest/v1/possessions')],
+    ['begin', (u, m) => m === 'POST' && u.includes('/rest/v1/documents')],
+    ['upload', (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/')],
+    ['bevestigen', (u, m) => m === 'POST' && u.includes('/functions/v1/bevestig-upload')],
+    ['koppelen', (u, m) => m === 'POST' && u.includes('/rest/v1/document_links')],
+  ];
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  for (const [fase, treft] of fasen) {
+    for (const voor of [true, false]) {
+      const doc = randomUUID(), spul = randomUUID(), naam = `Opnieuw ${fase} ${voor ? 'fout' : 'verloren'} ${run}`;
+      const n = { documentId: doc, velden: docVelden(mSara), bytes: PDF, nieuwSpul: { id: spul, velden: { name: naam, owner_member_id: mSara } } };
+      sara.verlies.wat = treft; sara.verlies.voor = voor;
+      const eerste = await o.bewaarDocument(n);
+      sara.verlies.wat = null; sara.verlies.voor = false;
+      assert.equal(eerste.ok, false, `${fase}/${voor}: de eerste poging hoort te mislukken`);
+      const tweede = await o.bewaarDocument(n);
+      assert.equal(tweede.ok, true, `${fase}/${voor}: opnieuw bewaren lukt niet (${tweede.fase})`);
+      const tel = async (tabel, kolom, waarde) => ok(await admin.from(tabel).select('id').eq(kolom, waarde)).length;
+      assert.equal(await tel('possessions', 'name', naam), 1, `${fase}/${voor}: spullen`);
+      assert.equal(await tel('documents', 'id', doc), 1, `${fase}/${voor}: documenten`);
+      assert.equal(ok(await admin.from('documents').select('upload_status').eq('id', doc).single()).upload_status, 'klaar');
+      assert.equal(ok(await admin.from('document_links').select('id').eq('document_id', doc).eq('possession_id', spul).is('deleted_at', null)).length, 1, `${fase}/${voor}: koppelingen`);
+      const { data: map } = await admin.storage.from('documenten').list(`${ha}/${doc}`);
+      assert.equal((map ?? []).length, 1, `${fase}/${voor}: bestanden`);
+    }
+  }
+});
+
 test('bevestigen onderbroken: opnieuw proberen bevestigt; een vermomd bestand wordt geweigerd en blijft geweigerd', async () => {
   const doc = randomUUID();
   const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });

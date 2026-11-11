@@ -49,7 +49,14 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
     }
     // Er staat al een object (een eerdere poging kwam aan): niet overschrijven, maar wel laten controleren.
     const alEr = up.error && (String(up.error.statusCode) === '409' || /exist|duplicate/i.test(up.error.message || ''));
-    if (up.error && !alEr) return { ok: false, fase: 'upload', opnieuw: true, tekst: MELDING.upload };
+    if (up.error && !alEr) {
+      // Een eerdere poging is misschien al helemaal gelukt (het antwoord van bevestig-upload ging verloren): dan staat het
+      // document op 'klaar' en weigert de opslag terecht een nieuwe upload. Dan is dit geen fout (P2, review PR #54).
+      let st = null;
+      try { st = (await supabase.from('documents').select('upload_status').eq('id', documentId).maybeSingle()).data?.upload_status ?? null; } catch { st = null; }
+      if (st === 'klaar') return { ok: true };
+      return { ok: false, fase: 'upload', opnieuw: true, tekst: MELDING.upload };
+    }
     let r;
     try {
       r = await supabase.functions.invoke('bevestig-upload', { body: { document_id: documentId } });

@@ -427,6 +427,8 @@ function DocumentInvoer({ invoer, sluit }: { invoer: Invoer; sluit: () => void }
       const r = await sp.documentBewaren({
         document: { titel: titel.trim() || autoTitel, soort, datum: datum || undefined, zichtbaarheid: zicht, type: v.type, grootte: v.blob.size, sha256: v.sha },
         bestand: v.blob, voorbeeld: v.voorbeeld, spullen: doel === 'bestaand' && gekozen ? [gekozen] : [], nieuwSpul,
+        // Eén sleutel per invoer: opnieuw bewaren maakt geen tweede spul of document.
+        poging: String(invoer.sleutel),
       });
       sluit();
       const spul = r.spulId ?? (doel === 'bestaand' ? gekozen : undefined);

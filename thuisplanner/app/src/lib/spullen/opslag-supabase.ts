@@ -77,6 +77,8 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
   const ik = toestand?.lid?.member_id ?? '';
   const tRef = useRef(toestand);
   tRef.current = toestand;
+  // Per invoer (poging) dezelfde UUID's, ook bij opnieuw bewaren na een fout of verloren antwoord (P2, review PR #54).
+  const pogingen = useRef(new Map<string, { documentId: string; spulId: string }>());
   const { gegevens, onvoltooid } = useMemo(() => gegevensUit(toestand), [toestand]);
   return useMemo(() => {
     const sync = sessie.syncObject;
@@ -125,8 +127,10 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
       spulTerugzetten: id => { const r = spulRij(id); if (r) void ok(a()?.spulTerugzetten(r), 'Teruggezet'); },
       documentBewaren: async n => {
         if (!bestanden || !n.bestand) throw new Error('Kies eerst een bestand.');
-        const documentId = uuidV4();
-        const nieuwSpul = n.nieuwSpul ? { id: uuidV4(), velden: { ...spulKolommen(n.nieuwSpul), owner_member_id: ik } } : null;
+        let ids = n.poging ? pogingen.current.get(n.poging) : undefined;
+        if (!ids) { ids = { documentId: uuidV4(), spulId: uuidV4() }; if (n.poging) pogingen.current.set(n.poging, ids); }
+        const documentId = ids.documentId;
+        const nieuwSpul = n.nieuwSpul ? { id: ids.spulId, velden: { ...spulKolommen(n.nieuwSpul), owner_member_id: ik } } : null;
         const r = await bestanden.bewaarDocument({
           documentId, bytes: n.bestand, spullen: n.spullen, nieuwSpul,
           velden: { title: n.document.titel, kind: n.document.soort, document_date: n.document.datum ?? null,
