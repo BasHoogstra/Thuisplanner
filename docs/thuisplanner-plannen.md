@@ -337,7 +337,11 @@ De end-to-endproef op 360 en 390 px doorloopt T1, T2 en T9 achter elkaar op éé
   Dat wijzigt de samenvatting op Vandaag, dus een paar tests en schermafbeeldingen gaan mee. De **rustige dag blijft
   ongewijzigd rustig**: daarin staan geen plan-taken met een datum van vandaag.
 
-## 6. Demo en echte backend, strikt gescheiden
+## 6. Demo en echte backend
+
+> **Bijgewerkt 11 november 2026** (aanvulling op besluit 18): Plannen gaat de gezinsbèta in, op het echte pad. V1 heeft
+> één verantwoordelijke per taak en geen bijlagen, in de demo én online. De tabel hieronder beschrijft het oorspronkelijke
+> voorstel; §6.1 en §6.2 beschrijven wat nu gebouwd is.
 
 | | **Demo (dit voorstel)** | **Echt (later, apart akkoord per stap)** |
 | --- | --- | --- |
@@ -346,15 +350,25 @@ De end-to-endproef op 360 en 390 px doorloopt T1, T2 en T9 achter elkaar op éé
 | Bijlagen | Verzonnen voorbeelden en een eigen bestand als tijdelijke `blob:`-link; nooit verstuurd | Privé-bucket, kort geldige links |
 | Samenwerking | **Alleen nagespeeld:** je bent altijd Eva, en je ziet toewijzingen. Geen tweede telefoon, geen live bijwerken | Realtime-seintjes en versiecontrole via de bestaande sync |
 
-### 6.1 Wat de scheiding bewaakt
-- Plannen is **alleen zichtbaar in de demomodus**: geen rij in `MeerLokaal`, en `#/plannen` valt in lokaal en staging terug
-  op Vandaag. Dus ook niet bij Sanne op staging.
-- De planvelden gaan niet mee in `naarTaakVelden` (`omzetten.ts`), en de keuze van personen blijft daar één persoon (§5.1,
-  R8 en T11).
-- Test: een stagingbuild toont geen Plannen.
-- De `Demo`-labels blijven zichtbaar bij de nagespeelde bijlagen, zoals Spullen dat nu doet.
+### 6.1 Demo en echt: één gedrag, wel een schakelaar (bijgewerkt 11 november 2026)
+- **Eén datapad.** De planhandelingen staan in het contract `Acties` (`lib/acties.ts`, KG-5E licht) en zijn aan beide
+  kanten gebouwd: de demo (`lib/store.ts`) en online via de sync (`lib/lokaal/staat.ts`). De contracttest
+  (`tests/acties-contract.test.tsx`) draait hetzelfde planscenario op de demo en op een lokale stack.
+- **Zichtbaar:** in de demo altijd; in lokaal en staging alleen met `VITE_PLANNEN=aan` in de build (`plannenAan`,
+  `schermVoor`, de rij in `MeerLokaal`). Zonder schakelaar valt `#/plannen` terug op Vandaag, en vraagt de app precies wat ze
+  daarvoor vroeg; ook op een database zonder migratie `20261111120000`.
+- **De planvelden** (`plan_id`, `plan_section_id`, `started_on`) gaan alleen mee in `naarTaakVelden` als de sync ze ophaalt.
+  Zo blijft een taak zonder dat veld ongemoeid.
+- **Eén verantwoordelijke per taak** in v1, in de demo én online (§5.1 blijft gelden voor een latere stap C; de tests
+  daarvan staan overgeslagen met reden). **Geen bijlagen** in v1.
+- **Tests:** e2e-lokaal `plannen.spec.ts` (twee telefoons; alleen met de schakelaar); de staging-e2e blijft zonder Plannen.
 
-### 6.2 Benodigde schema-uitbreidingen (schets; geen migratie maken)
+### 6.2 Benodigde schema-uitbreidingen (oorspronkelijke schets)
+
+> **Gebouwd als migratie `20261111120000_plannen.sql`** (11 november 2026, alleen lokaal getest): `plans` (met `member_ids` in
+> plaats van een aparte `plan_members`), `plan_sections`, `tasks.plan_id`, `plan_section_id` en `started_on`, "één context"
+> (vakantie óf plan), `delete_plan`, `restore_plan` en `delete_plan_section`. **Niet in v1:** `task_members` (meer
+> verantwoordelijken) en de bijlagen van §6.3. Gate 9 voor het domein plannen: RLS-scenario KG-T98 met tegenproeven.
 Nummer: de eerstvolgende vrije ná de reservering 28–30.
 ```sql
 create table public.plans (id, household_id, title, description, due_date, closed_on, version, created_at, updated_at, deleted_at,

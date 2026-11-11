@@ -22,6 +22,8 @@ wordt hier niet gewijzigd of aangevuld.
   zijn daarbij niet herschreven.
 - Op 4 november 2026 is besluit 18 toegevoegd (Plannen), met twee nieuwe gates. Daarbij is de gate-rij van besluit 13
   gesplitst en staat bij besluit 13 een verwijzing; de beslissingen 1–17 zijn verder niet herschreven.
+- Op 10 en 11 november 2026 is besluit 18 aangevuld (Plannen in de gezinsbèta, op het echte pad; v1 met één
+  verantwoordelijke en zonder bijlagen). De oorspronkelijke tekst blijft staan; de aanvulling staat erbij.
 - De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
@@ -367,17 +369,29 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   - **Taken blijven vindbaar.** Plan-taken zonder datum staan in de Agenda in een inklapbare groep "Taken uit plannen"
     onder Zonder datum. Ook dit is een ontwerpkeuze om te toetsen.
   - **Meer verantwoordelijken, één status.** Een taak kan meer verantwoordelijken hebben en heeft één gedeeld vinkje. Er
-    mag geen verantwoordelijke of ander taakveld stil verloren gaan.
+    mag geen verantwoordelijke of ander taakveld stil verloren gaan. *(Voor v1 aangepast op 10 november: één
+    verantwoordelijke; zie de aanvulling.)*
   - **Niet oordelen.** Geen scores, percentages of vergelijkingen per persoon (principe 9).
   - **Gedeeld binnen het huishouden** in de eerste versie, en dat staat er ook bij. Plannen gaan niet over een koppeling
     tussen huishoudens (besluit 12).
-  - **Bijlagen** gebruiken de opslag van besluit 17; er komt geen tweede bestandssysteem.
+  - **Bijlagen** gebruiken de opslag van besluit 17; er komt geen tweede bestandssysteem. *(Niet in v1; zie de aanvulling.)*
   - **Demo en echt gescheiden.** In lokaal en staging is Plannen niet zichtbaar. Nagespeelde bijlagen en samenwerking
-    staan als nagespeeld aangeduid.
+    staan als nagespeeld aangeduid. *(Vervangen op 11 november; zie de aanvulling.)*
 - **Volgorde:** de demo mag vóór KG-5E licht, als uitzondering die alleen voor de demo geldt. De echte versie komt na
-  KG-5E licht en na bèta 1.
+  KG-5E licht en na bèta 1. *(Aangepast op 10 november: de echte versie hoort in de gezinsbèta; zie de aanvulling.)*
 - **Voorwaarden vóór implementatie:** de gates "Plannen" en "Meerdere verantwoordelijken" (zie de tabel met gates); geen
   worktree, code, migratie, bucket, dienst, kostenpost of uitrol zonder afzonderlijk akkoord.
 - **Uitwerking:** `docs/thuisplanner-plannen.md`.
+- **Aanvulling (producteigenaar, 10 en 11 november 2026):**
+  - **Plannen hoort in de gezinsbèta** van Bas en Sanne, niet uitgesteld, en meteen op het echte pad (Supabase met RLS
+    en de bestaande sync). De volgorde wordt: KG-5E licht (afgerond), dan de echte versie, vóór de gezinsbèta.
+  - **V1: één verantwoordelijke per taak**, in de demo én online, zodat beide hetzelfde doen (één datapad, geen tweede
+    takensysteem). Meer verantwoordelijken (stap C) is een latere keuze, na de gezinsbèta; de gate "Meerdere
+    verantwoordelijken" geldt dan pas.
+  - **V1: geen bijlagen.** De gate van besluit 17 voor plan-bijlagen geldt pas als bijlagen terugkomen.
+  - **Demo en echt: één gedrag, wel een schakelaar.** Plannen is in de demo altijd zichtbaar; in lokaal en staging alleen
+    met `VITE_PLANNEN=aan` in de build en migratie `20261111120000` in de database. Zonder schakelaar werkt de app
+    precies zoals daarvoor. De gate "Plannen" (KG-5E licht en gate 9 voor het domein plannen) is lokaal aangetoond; de
+    migratie gaat alleen met een afzonderlijk akkoord naar staging.
 - **Wat niet verandert:** het Productkompas en de beslissingen 1–12 en 14–17. Bij besluit 13 verandert alleen wanneer de
   gate geldt; de inhoud van het besluit blijft staan.
