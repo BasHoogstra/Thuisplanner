@@ -26,7 +26,7 @@
 param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta', 'productie')][string]$Omgeving = 'staging', [switch]$Push, [switch]$Bijwerken, [switch]$Export, [string]$ExportMap, [switch]$VoorStap6, [switch]$MetBestanden)
 $ErrorActionPreference = 'Stop'
 # Het aantal migraties in de repository dat deze versie van het script verwacht (bij elke nieuwe migratie bijwerken).
-$VerwachtAantal = 20
+$VerwachtAantal = 23
 $hier = Split-Path -Parent $MyInvocation.MyCommand.Path
 $thuisplanner = (Resolve-Path (Join-Path $hier '..\..')).Path
 $controle = Join-Path $hier 'verbinding-controle.mjs'

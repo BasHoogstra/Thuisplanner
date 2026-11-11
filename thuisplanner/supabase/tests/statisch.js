@@ -98,6 +98,25 @@ function taakVerwijzingFouten(sql) {
   return Object.assign(fouten, { beschermd });
 }
 
+/**
+ * P2 (review PR #54): de migraties in de repository, het overzicht (docs/thuisplanner-migratievolgorde.md), de gemeten
+ * schemareferenties (SCHEMA_PER_STAND) en het uitrolscript (verbinding.ps1, $VerwachtAantal) moeten overeenstemmen; anders
+ * weigert het uitrolscript terecht, of controleert de nacontrole tegen een verkeerde stand. Geeft de fouten; leeg = in orde.
+ * Het overzicht mag een reeks noemen ("`A` … `B`"); elke versie daarbinnen telt dan als genoemd.
+ */
+function migratieConsistentieFouten({ versies, verwachtAantal, overzicht, schemaSleutels }) {
+  const fouten = [];
+  if (verwachtAantal !== versies.length) fouten.push(`verbinding.ps1 verwacht ${verwachtAantal} migraties; de repository heeft er ${versies.length}`);
+  const reeksen = [...overzicht.matchAll(/`(\d{14})` … `(\d{14})`/g)].map(m => [m[1], m[2]]);
+  for (const v of versies) {
+    if (!overzicht.includes('`' + v + '`') && !reeksen.some(([a, b]) => v >= a && v <= b)) fouten.push(`migratie ${v} staat niet in docs/thuisplanner-migratievolgorde.md`);
+  }
+  const laatste = versies[versies.length - 1];
+  if (!schemaSleutels.includes(laatste)) fouten.push(`geen gemeten schemareferentie (SCHEMA_PER_STAND) voor de laatste migratie ${laatste}`);
+  for (const s of schemaSleutels) if (!versies.includes(s)) fouten.push(`SCHEMA_PER_STAND noemt ${s}, maar die migratie bestaat niet`);
+  return fouten;
+}
+
 const checks = {
   'migraties: geldige namen en oplopende, unieke versies'() {
     const files = migraties();
@@ -108,6 +127,29 @@ const checks = {
       return m[1];
     });
     assert(new Set(versies).size === versies.length, 'Dubbele migratieversie');
+  },
+
+  'migraties: repository, overzicht, schemareferenties en het uitrolscript stemmen overeen'() {
+    const versies = migraties().map(f => f.slice(0, 14));
+    const ps1 = fs.readFileSync(path.join(KG, 'staging', 'verbinding.ps1'), 'utf8');
+    const verwachtAantal = Number((/^\$VerwachtAantal = (\d+)/m.exec(ps1) || [])[1]);
+    const overzicht = fs.readFileSync(path.join(ROOT, 'docs', 'thuisplanner-migratievolgorde.md'), 'utf8');
+    const controle = fs.readFileSync(path.join(KG, 'staging', 'verbinding-controle.mjs'), 'utf8');
+    const schemaSleutels = [...controle.matchAll(/^ {2}'(\d{14})': Object\.freeze\(\[/gm)].map(m => m[1]);
+    const invoer = { versies, verwachtAantal, overzicht, schemaSleutels };
+    const fouten = migratieConsistentieFouten(invoer);
+    assert(fouten.length === 0, fouten.join('\n'));
+    // Tegenproeven: elk soort afwijking moet gevonden worden.
+    const laatste = versies[versies.length - 1];
+    const proeven = [
+      { ...invoer, verwachtAantal: verwachtAantal - 1 },
+      { ...invoer, overzicht: overzicht.split('`' + laatste + '`').join('') },
+      { ...invoer, schemaSleutels: schemaSleutels.filter(v => v !== laatste) },
+      { ...invoer, schemaSleutels: [...schemaSleutels, '20991231120000'] },
+    ];
+    const gevangen = proeven.filter(p => migratieConsistentieFouten(p).length > 0).length;
+    assert(gevangen === proeven.length, `tegenproeven migratieconsistentie: ${gevangen} van ${proeven.length} gevangen`);
+    return `${versies.length} migraties; ${gevangen} tegenproeven gevangen`;
   },
 
   'SQL en scripts: alleen LF-regeleinden'() {

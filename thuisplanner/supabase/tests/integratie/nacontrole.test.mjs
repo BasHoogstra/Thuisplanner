@@ -38,6 +38,18 @@ test('de referenties per stand: staging (16 migraties) ongewijzigd; Vakanties pr
   const [p2, u2] = SCHEMA_PER_STAND['20261027180000'];
   assert.deepEqual([p2.relaties - p1.relaties, p2.functies - p1.functies, p2.policies - p1.policies], [1, 1, 0]);
   assert.deepEqual([u2.relaties - u1.relaties, u2.functies - u1.functies, u2.policies - u1.policies], [0, 0, 0]);
+  // Mijn spullen & Documenten (29): private +16 functies; public +3 tabellen, +3 functies, +9 policies.
+  const [p3, u3] = SCHEMA_PER_STAND['20261029120000'];
+  assert.deepEqual([p3.relaties - p2.relaties, p3.functies - p2.functies, p3.policies - p2.policies], [0, 16, 0]);
+  assert.deepEqual([u3.relaties - u2.relaties, u3.functies - u2.functies, u3.policies - u2.policies], [3, 3, 9]);
+  // Privacyherstel tasks.possession_id: alleen 3 functies in private.
+  const [p4, u4] = SCHEMA_PER_STAND['20261029130000'];
+  assert.deepEqual([p4.relaties - p3.relaties, p4.functies - p3.functies, p4.policies - p3.policies], [0, 3, 0]);
+  assert.deepEqual([u4.relaties - u3.relaties, u4.functies - u3.functies, u4.policies - u3.policies], [0, 0, 0]);
+  // Plannen: private +7 functies; public +2 tabellen, +3 functies (de wrappers), +6 policies.
+  const [p5, u5] = SCHEMA_PER_STAND['20261111120000'];
+  assert.deepEqual([p5.relaties - p4.relaties, p5.functies - p4.functies, p5.policies - p4.policies], [0, 7, 0]);
+  assert.deepEqual([u5.relaties - u4.relaties, u5.functies - u4.functies, u5.policies - u4.policies], [2, 3, 6]);
   // Elke referentie hoort bij een migratie die in de repository staat, en een onbekende stand is een fout.
   for (const v of Object.keys(SCHEMA_PER_STAND)) assert.ok(repoVersies().includes(v), `referentie voor onbekende migratie ${v}`);
   assert.throws(() => verwachtSchemaVoor(['20261009120000']), /geen schemareferentie/);

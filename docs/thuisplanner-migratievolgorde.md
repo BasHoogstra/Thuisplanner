@@ -18,11 +18,12 @@ die eerder online gaan. Een eenmaal toegepaste migratie wordt nooit herschreven 
 | `20261025120000` | Vakanties | toegepast op staging (stap 9b) |
 | `20261026120000` | Boodschappen "Later nodig" | toegepast op staging (stap 9b) |
 | `20261027120000` | Extra inpaklijsten | toegepast op staging (stap 9b); **laatst toegepaste** (19 migraties) |
-| **`20261027180000`** | **Herstel bezorgmeldingen** (PR #48) | in de repository op `thuisplanner-herstel-server`; nog niet toegepast |
+| **`20261027180000`** | **Herstel bezorgmeldingen** (PR #48) | in `thuisplanner-beta` (PR #54); nog niet toegepast |
 | `20261028120000` | Vakanties-reviewpunten (V1.1) | gereserveerd; volgens de hoofdlijnsessie niet nodig (herstel in app en sync), nog niet geschreven |
-| `20261029120000` | Mijn spullen & Documenten | op `thuisplanner-spullen` (lokaal), nog niet toegepast |
-| `20261029130000` | Spullen: taken alleen bij gedeelde spullen (privacyherstel `tasks.possession_id`, optie A) | op `thuisplanner-beta` (lokaal), nog niet toegepast; hoort onlosmakelijk bij `20261029120000` |
-| `20261030…` | Afsprakenmodel en agenda-integratie | voorgesteld, nog niet geschreven |
+| `20261029120000` | Mijn spullen & Documenten | in `thuisplanner-beta` (PR #54); nog niet toegepast |
+| `20261029130000` | Spullen: taken alleen bij gedeelde spullen (privacyherstel `tasks.possession_id`, optie A) | in `thuisplanner-beta` (PR #54); nog niet toegepast; hoort onlosmakelijk bij `20261029120000` |
+| `20261030120000` | Afsprakenmodel (A2, met A1) | **niet in de repository van de bèta**: op `thuisplanner-a2-afsprakenmodel`; buiten de gezinsbèta (besluit Bas, 10 november). Krijgt bij integratie een nieuw nummer na de laatst toegepaste |
+| `20261111120000` | Plannen (besluit 18) | in `thuisplanner-beta` (PR #54); nog niet toegepast; **laatste in de repository** (23 migraties) |
 
 ## Waarom `20261027180000` voor de herstelmigratie
 
@@ -44,3 +45,9 @@ die eerder online gaan. Een eenmaal toegepaste migratie wordt nooit herschreven 
 
 `staging/verbinding-controle.mjs` (`SCHEMA_PER_STAND`, gemeten op een lege lokale database), `staging/verbinding.ps1`
 (`$VerwachtAantal`), `tests/integratie/nacontrole.test.mjs` (de verschillen per stand), en dit overzicht.
+
+**Automatisch bewaakt** (`tests/statisch.js`, "migraties: repository, overzicht, schemareferenties en het uitrolscript
+stemmen overeen", met tegenproeven): elke migratie staat in dit overzicht; `$VerwachtAantal` is het aantal migraties;
+de laatste migratie heeft een gemeten referentie in `SCHEMA_PER_STAND`, en elke referentie hoort bij een bestaande
+migratie. Bijgewerkt op 11 november 2026 (review PR #54): het script verwachtte nog 20 migraties en dit overzicht miste
+Plannen.
