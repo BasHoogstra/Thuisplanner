@@ -148,6 +148,8 @@ describe('contract: hetzelfde gedrag', () => {
 
   const { KG_CONTRACT, KG_CONTRACT_API_URL: URL, KG_CONTRACT_ANON_KEY: ANON, KG_CONTRACT_SERVICE_ROLE_KEY: SERVICE } = process.env;
   const online = KG_CONTRACT === '1' && !!URL && !!ANON && !!SERVICE;
+  // In CI (KG_CONTRACT=1) moet het online contract echt draaien: zonder stackgegevens is dat een fout, geen overslag.
+  if (KG_CONTRACT === '1' && !online) throw new Error('KG_CONTRACT=1, maar KG_CONTRACT_API_URL, _ANON_KEY of _SERVICE_ROLE_KEY ontbreekt');
   if (online && !/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(URL!)) throw new Error('Weigering: het contract draait alleen tegen een lokale stack');
 
   describe.skipIf(!online)('online (lokale Supabase-stack, KG_CONTRACT=1)', () => {
