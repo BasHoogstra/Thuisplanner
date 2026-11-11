@@ -6,6 +6,7 @@ import { zichtbaarVoor } from './rechten';
 import { boodschappenMelding, voegBoodschappenToe } from './boodschappen';
 import { verwijderReeks, verwijderVoorkomen, wijzigVoorkomen } from './herhaling';
 import { alOpPaklijst, doelVan, doelVelden, groepNaam, inDoel, pakSleutel, paklijstNaamFout, zelfdeDoel } from './vakantie';
+import type { Acties, DemoExtra, Staat as AppStaat } from './acties';
 import type { Afspraak, Boodschap, Datum, Item, LidId, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from './types';
 
 export interface Melding {
@@ -25,13 +26,17 @@ export interface Gegevens {
   koppelingen: VakantieKoppeling[];
 }
 
-export interface Staat extends Gegevens {
+/**
+ * De demo-staat: de gedeelde staat van de schermen (Staat in acties.ts) plus wat alleen de demo heeft. Online bestaan
+ * scenario en vorige niet (KG-5E licht).
+ */
+export interface DemoStaat extends AppStaat {
   scenario: Scenario;
-  weggeklikt: Set<string>;
   /** Eén stap terug ("fouten moeten goedkoop zijn"). */
   vorige: Gegevens | null;
-  melding: Melding | null;
 }
+/** De demo-staat onder zijn oude naam (de reducer-tests gebruiken die). De schermen gebruiken Staat uit acties.ts. */
+export type Staat = DemoStaat;
 
 /** Voor wie vinkjes of overnemen gelden: één lid, Gezamenlijk (null), een extra lijst ({ lijst }) of iedereen. */
 export type Groep = PakDoel | 'iedereen';
@@ -261,7 +266,9 @@ export const nieuwId = (prefix: string) => `${prefix}-nieuw-${Date.now().toStrin
 
 export function useDemoStaat(vandaag: Datum) {
   const [staat, dispatch] = useReducer(reducer, undefined, () => beginStaat(vandaag));
-  const acties = useMemo(() => ({
+  // Hetzelfde contract als online (acties.ts), plus alleen de demo-extra's. Een handeling buiten het contract is een
+  // typefout: geen verborgen demo-pad.
+  const acties = useMemo((): Acties & Omit<DemoExtra, 'scenario'> & { ongedaan: () => void } => ({
     toevoegen: (items: Item[], melding?: string) => dispatch({ type: 'toevoegen', items, melding }),
     vervangAlles: (items: Item[], melding?: string) => dispatch({ type: 'vervangAlles', items, melding }),
     bijwerken: (item: Item, melding?: string) => dispatch({ type: 'bijwerken', item, melding }),
@@ -318,4 +325,5 @@ export function useDemoStaat(vandaag: Datum) {
   return { staat, ...acties };
 }
 
+/** Alles wat de demo levert behalve de staat: het contract plus de demo-extra's (kiesScenario, vervangAlles). */
 export type DemoActies = Omit<ReturnType<typeof useDemoStaat>, 'staat'>;

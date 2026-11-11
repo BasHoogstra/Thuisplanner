@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { huishouden } from './data/demo';
 import { naarDatum, naarTijd } from './lib/datum';
 import { Ctx, type AgendaStand, type AppContext, type LokaalContext, type Scherm } from './lib/context';
-import { useDemoStaat, type DemoActies, type Staat } from './lib/store';
+import { useDemoStaat } from './lib/store';
+import type { Acties, Staat } from './lib/acties';
 import type { Huishouden } from './lib/types';
 import { appConfig, sessieVoor, useSessie, type LokaleConfig, type Momentopname, type Sessie, type UitnodigingVoorMij } from './lib/lokaal/sessie';
 import { useLokaleStaat } from './lib/lokaal/staat';
@@ -86,9 +87,12 @@ function DemoApp() {
   const opslag = useDemoSpullen(vandaag, huishouden.ik, demo.meld, takenLos);
   const { invoer, startInvoer, sluitInvoer } = useSpullenInvoer();
   const spullen = useMemo(() => ({ ...opslag, startInvoer }), [opslag, startInvoer]);
+  // De demo-extra's gaan apart naar de schermen (ctx.demo); de rest is hetzelfde contract als online (acties.ts).
+  const { kiesScenario, vervangAlles: _alleenDemo, ...data } = demo;
+  const demoExtra = useMemo(() => ({ scenario: demo.staat.scenario, kiesScenario }), [demo.staat.scenario, kiesScenario]);
   return (
     <SpullenCtx.Provider value={spullen}>
-      <Schil klok={klok} data={demo} huishouden={huishouden} balk={<DemoBalk />} titelSoort="demo">
+      <Schil klok={klok} data={data} demo={demoExtra} huishouden={huishouden} balk={<DemoBalk />} titelSoort="demo">
         <SpullenLaag invoer={invoer} sluit={sluitInvoer} />
       </Schil>
     </SpullenCtx.Provider>
@@ -196,8 +200,8 @@ function EchteSpullen({ sessie, toestand, meld, children }: { sessie: Sessie; to
   return <SpullenCtx.Provider value={spullen}>{children(<SpullenLaag invoer={invoer} sluit={sluitInvoer} />)}</SpullenCtx.Provider>;
 }
 
-function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children }: {
-  klok: Date; data: DemoActies & { staat: Staat }; huishouden: Huishouden; balk: ReactNode;
+function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, children }: {
+  klok: Date; data: Acties & { staat: Staat }; demo?: AppContext['demo']; huishouden: Huishouden; balk: ReactNode;
   lokaal?: LokaalContext; titelSoort: string; children?: ReactNode;
 }) {
   const vandaag = naarDatum(klok);
@@ -272,6 +276,7 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
     agenda,
     zetAgenda,
     lokaal,
+    demo,
   };
 
   return (
@@ -300,7 +305,8 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
           {melding && (
             <div className="melding" key={melding.id} role="status">
               <span>{melding.tekst}</span>
-              {melding.ongedaan && (
+              {/* Alleen als deze handeling echt terug kan (acties.ts: ongedaan is een mogelijkheid, geen belofte). */}
+              {melding.ongedaan && data.ongedaan && (
                 <button className="melding-knop" onClick={data.ongedaan}>
                   Ongedaan maken
                 </button>

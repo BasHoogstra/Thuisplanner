@@ -13,11 +13,11 @@ const naamVan = (i: Item) => (i.sync === 'zonder-inhoud'
   : i.soort === 'boodschap' ? i.naam : i.titel ?? 'Afspraak (privé)');
 
 export function Meer() {
-  const { huishouden, staat, kiesScenario, gaNaar, lokaal } = useApp();
-  if (lokaal) return <MeerLokaal />;
+  const { huishouden, demo, gaNaar, lokaal } = useApp();
+  if (lokaal || !demo) return <MeerLokaal />;
 
   const kies = (s: Scenario) => {
-    kiesScenario(s, s === 'rustig' ? 'Demo: rustige dag' : 'Demo: gewone dag');
+    demo.kiesScenario(s, s === 'rustig' ? 'Demo: rustige dag' : 'Demo: gewone dag');
     gaNaar('vandaag');
   };
 
@@ -51,9 +51,9 @@ export function Meer() {
       <section aria-labelledby="h-demo" className="blok demo-blok">
         <h2 id="h-demo" className="sectie-kop"><span className="demo-label">Demo</span> Probeer een andere dag</h2>
         <div className="keuzes">
-          <button className={'keuze' + (staat.scenario === 'gewoon' ? ' aan' : '')} aria-pressed={staat.scenario === 'gewoon'}
+          <button className={'keuze' + (demo.scenario === 'gewoon' ? ' aan' : '')} aria-pressed={demo.scenario === 'gewoon'}
             onClick={() => kies('gewoon')}>Gewone dag</button>
-          <button className={'keuze' + (staat.scenario === 'rustig' ? ' aan' : '')} aria-pressed={staat.scenario === 'rustig'}
+          <button className={'keuze' + (demo.scenario === 'rustig' ? ' aan' : '')} aria-pressed={demo.scenario === 'rustig'}
             onClick={() => kies('rustig')}>Rustige dag</button>
         </div>
         <p className="stil-tekst">Kiezen zet de demo terug naar het begin. Herladen doet dat ook.</p>

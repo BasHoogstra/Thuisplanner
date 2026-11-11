@@ -5,12 +5,14 @@
 // - Schrijven: elke actie wordt één opdracht van de sync-module, met versiecontrole bij wijzigen en een
 //   vaste opdracht-ID bij toevoegen. Conflicten, onbevestigde opdrachten en fouten meldt de sync-module
 //   zelf (toestand.melding); hier komt alleen de "gelukt"-melding bij.
-// - Niet in deze modus: de demo-scenario's. "Ongedaan maken" alleen bij vakanties (verwijderen, overnemen, vinkjes opnieuw,
+// - Het contract staat in acties.ts (KG-5E licht). Niet in deze modus: de demo-extra's (scenario's, alles vervangen).
+//   "Ongedaan maken" alleen bij vakanties (verwijderen, overnemen, vinkjes opnieuw,
 //   ontkoppelen): de sync-module geeft daarvoor terug wat nodig is (versie, ID's, vorige vinkjes).
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { BoodschapRij, PakitemRij, PaklijstRij, Resultaat, TaakRij, VakantieKoppelingRij, VakantieRij } from '../../../../sync/thuisplanner-sync.js';
 import { boodschappenMelding } from '../boodschappen';
-import type { Groep, Melding, Staat } from '../store';
+import type { Acties, Staat } from '../acties';
+import type { Groep, Melding } from '../store';
 import type { Afspraak, Boodschap, Datum, Huishouden, Item, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from '../types';
 import { doelVan, doelVelden, groepNaam, paklijstNaamFout, zelfdeDoel } from '../vakantie';
 import { naarItems, naarNieuweAfspraak, naarPaklijst, naarTaakVelden, naarVakantieGegevens } from './omzetten';
@@ -21,6 +23,15 @@ export interface Keuze {
   tekst: string;
   opnieuw: () => void;
   nieuw: () => void;
+}
+
+/** Alleen online (Meer en de syncbalk): opdrachten van de sync-module op dit toestel. Geen domeinhandelingen. */
+export interface LokaleExtra {
+  opnieuwProberen: (id: string) => void;
+  /** Een opdracht zonder bewaarde inhoud (P1) opnieuw invoeren, met dezelfde opdracht-ID. */
+  herinvoeren: (id: string, item: Item, melding?: string) => void;
+  vergeten: (id: string) => void;
+  syncMeldingWeg: () => void;
 }
 
 let meldingTeller = 0;
@@ -60,7 +71,8 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
     }
   }, [meld, sessie]);
 
-  const acties = useMemo(() => {
+  // Hetzelfde contract als de demo (acties.ts); geen scenario's en geen "alles vervangen" online.
+  const acties = useMemo((): Acties & LokaleExtra & { ongedaan: () => void } => {
     const a = () => sessie.acties;
     const t = () => sessie.syncObject?.toestand;
     const hh = (): Huishouden => hhRef.current ?? { naam: '', ik: '', leden: [] };
@@ -79,7 +91,6 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
 
     return {
       toevoegen: (nieuw: Item[], melding?: string) => { for (const i of nieuw) voegToe(i, melding); },
-      vervangAlles: () => meld('Dat kan in deze versie nog niet.'),
       bijwerken: (item: Item, melding?: string) => {
         const versie = item.versie;
         if (item.soort === 'afspraak') {
@@ -149,7 +160,6 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
       wegklikken: (id: string) => zetWeggeklikt(w => new Set([...w, id])),
       meld,
       meldingWeg: (id: number) => zetMelding(m => (m?.id === id ? null : m)),
-      kiesScenario: () => {},
       opnieuwProberen: (id: string) => { void na(a()?.opnieuwProberen(id), 'Opnieuw verstuurd'); },
       // Zelfde opdracht-ID als de oorspronkelijke toevoeging (P1: de inhoud stond niet op dit toestel): de sync-module
       // zet de inhoud op die opdracht en verstuurt hem opnieuw. Staat hij intussen al op de server, dan blijft het bij
@@ -334,7 +344,7 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
     };
   }, [sessie, na, meld, meldMetTerug, rij]);
 
-  const staat: Staat = { scenario: 'gewoon', items, ...vak, weggeklikt, vorige: null, melding };
+  const staat: Staat = { items, ...vak, weggeklikt, melding };
   return { staat, ...acties, keuze, sluitKeuze: () => zetKeuze(null) };
 }
 

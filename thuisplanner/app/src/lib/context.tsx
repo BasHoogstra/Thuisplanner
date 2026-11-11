@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LidRij, Melding as SyncMelding, SyncStatus } from '../../../sync/thuisplanner-sync.js';
 import type { Lidmaatschap, UitnodigingVoorMij, Uitkomst } from './lokaal/sessie';
-import type { DemoActies, Staat } from './store';
+import type { Acties, DemoExtra, Staat } from './acties';
 import type { GezinsFilter } from './filter';
 import type { Datum, Huishouden, Item, Lid, LidId, Tijd } from './types';
 
@@ -19,8 +19,11 @@ export interface AgendaStand {
 
 export type Soort = 'afspraak' | 'taak' | 'boodschap';
 
-export interface AppContext extends DemoActies {
+/** De schermen: één staat en één set handelingen, in de demo en online gelijk (acties.ts, KG-5E licht). */
+export interface AppContext extends Acties {
   staat: Staat;
+  /** Alleen in de demo: een andere voorbeelddag kiezen (Meer). Online undefined. */
+  demo?: Pick<DemoExtra, 'scenario' | 'kiesScenario'>;
   huishouden: Huishouden;
   vandaag: Datum;
   nu: Tijd;
