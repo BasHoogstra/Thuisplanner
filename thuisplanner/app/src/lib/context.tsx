@@ -6,7 +6,8 @@ import type { Acties, DemoExtra, Staat } from './acties';
 import type { GezinsFilter } from './filter';
 import type { Datum, Huishouden, Item, Lid, LidId, Tijd } from './types';
 
-export type AgendaWeergave = 'dag' | 'week' | 'maand';
+/** taken: de takenweergave binnen de Agenda (besluit Bas, 10 november 2026), geen eigen hoofdknop. */
+export type AgendaWeergave = 'dag' | 'week' | 'maand' | 'taken';
 
 /** Waar je in de agenda bent; blijft staan als je even naar een ander scherm gaat. */
 export interface AgendaStand {
