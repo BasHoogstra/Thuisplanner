@@ -1,6 +1,7 @@
 // De centrale + (docs/thuisplanner-snelinvoer.md §4 en §10). Een invoerbalk die vlak boven het toetsenbord staat, met de
 // verzendknop in de balk: openen en direct typen. Daarboven, pas na het typen, één rustige kaart met wat Thuisplanner
 // begrijpt; corrigeren op verzoek. Privé staat bij een afspraak altijd in beeld. "Formulier" opent het bestaande formulier.
+import { metMensen } from '../lib/mensen';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useApp, type Soort } from '../lib/context';
 import { dagLabel } from '../lib/datum';
@@ -13,7 +14,11 @@ import { kiesbareVakanties, periode, vakantiesVoorBoodschap } from '../lib/vakan
 import type { Afspraak, Datum, Frequentie, LidId, Taak } from '../lib/types';
 import { begrijp, type Onderdeel } from '../lib/zin';
 import { useZichtbaarScherm } from '../lib/scherm';
-import { IcAgenda, IcBoodschappen, IcFormulier, IcPijl, IcSlot, IcVerstuur, IcVink } from './Iconen';
+import { IcAgenda, IcBijlage, IcBoodschappen, IcFormulier, IcPijl, IcSlot, IcVerstuur, IcVink } from './Iconen';
+import { useSpullen } from '../lib/spullen/opslag';
+import { herkenIntentie } from '../lib/intentie';
+import { beantwoordSpullen } from '../lib/vraag/spullen';
+import { AntwoordKaart, BijlageKeuze } from './AntwoordKaart';
 import { useVensterGedrag } from './Venster';
 
 const NAAM: Record<Soort, string> = { afspraak: 'Afspraak', taak: 'Taak', boodschap: 'Boodschap' };
@@ -54,6 +59,12 @@ export function SnelInvoer({ standaard, sluit, allesInvullen, terugNaar }: {
   const [aanpassen, zetAanpassen] = useState(false);
   const [afgewezen, zetAfgewezen] = useState<Set<string>>(new Set());
   const [toonAlleVakanties, zetToonAlleVakanties] = useState(false);
+  // Vragen (docs/thuisplanner-spullen-documenten.md §13): alleen als Spullen & documenten er is (nu: de demo). Zonder
+  // spullen-opslag werkt de + precies zoals voorheen. "Toch toevoegen" zet de vraag terug naar de gewone kaart.
+  const sp = useSpullen();
+  const [alsActie, zetAlsActie] = useState(false);
+  const [gekozenSpul, zetGekozenSpul] = useState<string | undefined>(undefined);
+  const [bijlage, zetBijlage] = useState(false);
   const veld = useRef<HTMLTextAreaElement>(null);
   const vel = useRef<HTMLDivElement>(null);
   useVensterGedrag(vel, sluit, terugNaar);
@@ -112,6 +123,14 @@ export function SnelInvoer({ standaard, sluit, allesInvullen, terugNaar }: {
   if (!leeg && soort === 'taak' && vakantie && staat.items.filter(isTaak).some(t => !t.klaar && t.vakantieId === vakantie.id && sleutel(t.titel) === sleutel(v.titel))) {
     vooraf.push(`"${v.titel}" staat al bij de voorbereidingen van ${vakantie.naam}. Toevoegen kan toch.`);
   }
+  const intentie = useMemo(() => (sp ? herkenIntentie(tekst) : { soort: 'actie' as const }), [sp, tekst]);
+  const antwoord = useMemo(() => (sp && !alsActie ? beantwoordSpullen(intentie, sp.gegevens, vandaag, { gekozen: gekozenSpul, taken: staat.items.filter(isTaak) }) : null),
+    [sp, alsActie, intentie, vandaag, gekozenSpul, staat.items]);
+  const onduidelijk = !!sp && !alsActie && intentie.soort === 'onduidelijk';
+  const alsVraagKaart = !leeg && (!!antwoord || onduidelijk);
+  // Een andere zin: een eerder gekozen spul geldt niet meer.
+  useEffect(() => { zetGekozenSpul(undefined); }, [tekst]);
+  useEffect(() => { if (leeg) zetAlsActie(false); }, [leeg]);
   const aanname = (o: 'soort' | 'datum') => v.aangenomen.includes(o) && (o === 'soort' ? keuze.soort === undefined : keuze.datum === undefined);
   const lid = (id: LidId) => huishouden.leden.find(l => l.id === id);
   const kies = (k: Keuze) => { zetKeuze(x => ({ ...x, ...k })); zetPaneel(null); };
@@ -134,13 +153,14 @@ export function SnelInvoer({ standaard, sluit, allesInvullen, terugNaar }: {
 
   function toevoegen(e: { preventDefault(): void }) {
     e.preventDefault();
-    if (leeg || geenTitel || twijfel) { veld.current?.focus(); return; }
+    // Een vraag voegt niets toe: het antwoord staat op de kaart (een actie erbij kies je daar zelf).
+    if (leeg || geenTitel || twijfel || alsVraagKaart) { veld.current?.focus(); return; }
     if (soort === 'boodschap') {
       // Dezelfde handeling als op de Boodschappen- en vakantiepagina: één item, eventueel gekoppeld.
       if (vakantieId || later) app.voegBoodschappenToe(v.boodschappen, vakantieId ?? undefined, later);
       else app.voegBoodschappenToe(v.boodschappen);   // een gewone boodschap: precies zoals altijd
     } else if (soort === 'taak') {
-      const t: Taak = { id: nieuwId('t'), soort: 'taak', titel: v.titel, datum, voor: wie[0] ?? null, klaar: false, klaarOp: null,
+      const t: Taak = { id: nieuwId('t'), soort: 'taak', titel: v.titel, datum, ...metMensen(undefined, wie), klaar: false, klaarOp: null,
         ...(vakantie ? { vakantieId: vakantie.id } : {}) };
       app.toevoegen([t], vakantie ? `${v.titel} staat bij de voorbereidingen van ${vakantie.naam}`
         : datum ? `${v.titel} staat op de takenlijst` : `${v.titel} staat op de lijst voor later`);
@@ -273,7 +293,7 @@ export function SnelInvoer({ standaard, sluit, allesInvullen, terugNaar }: {
             <><TijdKeuze start={start ?? ''} kies={(st, _e, viaVeld) => viaVeld ? zetKeuze(x => ({ ...x, start: st || null })) : kies({ start: st || null })} />{nietHerkennen('tijd')}</>
           ))}
           {soort !== 'boodschap' && rij('wie', soort === 'taak' ? 'Wie' : 'Met wie', wieLabel, (
-            <><WieKeuze leden={huishouden.leden} wie={wie} enkel={soort === 'taak'}
+            <><WieKeuze leden={huishouden.leden} wie={wie} enkel={soort === 'taak'} taak={soort === 'taak'}
               kies={w => soort === 'taak' || !w.length ? kies({ wie: w }) : zetKeuze(x => ({ ...x, wie: w }))} />{nietHerkennen('wie')}</>
           ))}
           {soort === 'afspraak' && v.plek && rij('plek', 'Waar', v.plek, nietHerkennen('plek'))}
@@ -312,7 +332,7 @@ export function SnelInvoer({ standaard, sluit, allesInvullen, terugNaar }: {
 
   // Enter ("Gereed" op de telefoon) voegt toe; een nieuwe regel is niet nodig.
   const opToets = (e: KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) toevoegen(e); };
-  const kanToevoegen = !leeg && !geenTitel && !twijfel;
+  const kanToevoegen = !leeg && !geenTitel && !twijfel && !alsVraagKaart;
   const plekStijl = zichtbaar ? { top: zichtbaar.top, height: zichtbaar.hoogte, bottom: 'auto' } : undefined;
 
   return (
@@ -321,12 +341,21 @@ export function SnelInvoer({ standaard, sluit, allesInvullen, terugNaar }: {
       <div className="snel-vel" role="dialog" aria-modal="true" aria-label="Toevoegen" ref={vel} tabIndex={-1}>
         {/* Geen kopregel: de invoer staat centraal. Sluiten = buiten tikken of Escape; deze knop is er voor schermlezers. */}
         <button type="button" className="sr-only" onClick={sluit}>Sluiten</button>
-        {kaart}
+        {bijlage && sp ? <BijlageKeuze sp={sp} sluit={sluit} />
+          : alsVraagKaart ? <AntwoordKaart antwoord={antwoord} vervolgvraag={intentie.soort === 'onduidelijk' ? intentie.vervolgvraag : undefined}
+            kiesSpul={zetGekozenSpul} tochToevoegen={() => { zetAlsActie(true); veld.current?.focus(); }} sluit={sluit} />
+            : kaart}
         <form className="snel-balk" onSubmit={toevoegen} noValidate>
           {/* Het formulier: klein en rustig links in de balk (zoals de knop naast het veld in Berichten). */}
           <button type="button" className="snel-formulier" aria-label="Formulier" title="Formulier" onClick={() => allesInvullen(voorinvulling())}>
             <IcFormulier />
           </button>
+          {sp && (
+            <button type="button" className="snel-bijlage" aria-label="Bijlage: foto of PDF" title="Foto of PDF" aria-expanded={bijlage}
+              onClick={() => zetBijlage(x => !x)}>
+              <IcBijlage />
+            </button>
+          )}
           <label className="sr-only" htmlFor="snel-zin">Wat wil je regelen?</label>
           <textarea ref={veld} id="snel-zin" rows={1} value={tekst} onChange={e => zetTekst(e.target.value)} onKeyDown={opToets}
             onFocus={() => { zetAanpassen(false); zetPaneel(null); }}

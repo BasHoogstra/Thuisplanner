@@ -1,0 +1,202 @@
+// KG-5E licht: één datapad. Dezelfde handelingen (lib/acties.ts) op de demo (lib/store.ts) en op de echte opslag
+// (lib/lokaal/staat.ts via de sync-module en een LOKALE Supabase-stack), met dezelfde verwachte uitkomst.
+//
+// - Altijd: beide kanten leveren precies dezelfde handelingen, online zonder demo-extra's en zonder demovelden.
+// - Alleen met KG_CONTRACT=1 en een lokale stack (KG_CONTRACT_API_URL, _ANON_KEY, _SERVICE_ROLE_KEY): het gedrag online.
+//   Zonder die variabelen draait het gedrag alleen op de demo, en meldt de test dat de online kant is overgeslagen.
+import { act, renderHook } from '@testing-library/react';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { maakSync } from '../../sync/thuisplanner-sync.js';
+import { useDemoStaat } from '../src/lib/store';
+import { statusVelden } from '../src/lib/plan';
+import { useLokaleStaat } from '../src/lib/lokaal/staat';
+import type { Momentopname, Sessie } from '../src/lib/lokaal/sessie';
+import type { Acties, Staat } from '../src/lib/acties';
+import type { Afspraak, Boodschap, Huishouden, Item, Taak } from '../src/lib/types';
+
+/** Het contract, als lijst: elke handeling uit acties.ts. Een nieuwe handeling hoort hier en aan beide kanten. */
+const ACTIES: (keyof Acties)[] = [
+  'toevoegen', 'bijwerken', 'wissel', 'verwijder', 'voegBoodschappenToe', 'boodschapLater', 'wijzigVoorkomen', 'verwijderVoorkomen',
+  'verwijderReeks', 'ongedaan', 'wegklikken', 'meld', 'meldingWeg', 'vakantieToevoegen', 'vakantieBijwerken', 'vakantieVerwijderen',
+  'pakitemToevoegen', 'pakitemWissel', 'pakitemBijwerken', 'pakitemVerwijderen', 'paklijstOvernemen', 'paklijstToevoegen',
+  'paklijstHernoemen', 'paklijstVerwijderen', 'vinkjesOpnieuw', 'boodschapOntkoppelen', 'vakantieOpenen', 'vakantieSluiten',
+  'planToevoegen', 'planBijwerken', 'planVerwijderen', 'onderdeelToevoegen', 'onderdeelHernoemen', 'onderdeelVerplaatsen', 'onderdeelVerwijderen',
+];
+const DEMO_EXTRA = ['kiesScenario', 'vervangAlles'];
+const LOKAAL_EXTRA = ['opnieuwProberen', 'herinvoeren', 'vergeten', 'syncMeldingWeg', 'keuze', 'sluitKeuze'];
+const VANDAAG = '2026-11-10';
+const HH_DEMO: Huishouden = { naam: 'Demo', ik: 'm-eva', leden: [{ id: 'm-eva', naam: 'Eva', soort: 'volwassene', kleur: 'x', heeftAccount: true }] };
+
+const leegToestand = { status: 'verbonden', melding: null, laatstOpgehaald: null, opslagDuurzaam: true, lid: null, leden: [], boodschappen: [], taken: [],
+  afspraken: [], uitzonderingen: [], vakanties: [], pakitems: [], paklijsten: [], vakantieKoppelingen: [] };
+
+describe('contract: beide kanten leveren dezelfde handelingen', () => {
+  it('de demo: het contract plus alleen de demo-extra\'s', () => {
+    const { result } = renderHook(() => useDemoStaat(VANDAAG));
+    const { staat, ...rest } = result.current;
+    expect(Object.keys(rest).sort()).toEqual([...ACTIES, ...DEMO_EXTRA].sort());
+    expect(staat).toHaveProperty('scenario');   // alleen de demo heeft voorbeelddagen
+  });
+  it('online: het contract plus alleen de syncopdrachten; geen scenario, geen "vorige", geen demo-extra\'s', () => {
+    const sessie = { acties: {}, syncObject: { toestand: leegToestand } } as unknown as Sessie;
+    const { result } = renderHook(() => useLokaleStaat(sessie, { toestand: leegToestand } as unknown as Momentopname, VANDAAG, HH_DEMO));
+    const { staat, ...rest } = result.current;
+    expect(Object.keys(rest).sort()).toEqual([...ACTIES, ...LOKAAL_EXTRA].sort());
+    expect(Object.keys(staat).sort()).toEqual(['items', 'koppelingen', 'melding', 'onderdelen', 'pakitems', 'paklijsten', 'planKoppelingen', 'plannen', 'vakanties', 'weggeklikt']);
+    for (const k of DEMO_EXTRA) expect(rest).not.toHaveProperty(k);
+  });
+});
+
+// ---- Het gedrag: één scenario, twee kanten ----
+
+interface Kant {
+  naam: string;
+  ik: string;
+  staat: () => Staat;
+  acties: () => Acties;
+  /** Wacht tot de staat aan de voorwaarde voldoet (demo: meteen; online: tot de server het bevestigt). */
+  wachtOp: (wat: string, f: (s: Staat) => boolean) => Promise<void>;
+}
+const taakMet = (s: Staat, titel: string) => s.items.find((i): i is Taak => i.soort === 'taak' && i.titel === titel);
+const boodschapMet = (s: Staat, naam: string) => s.items.find((i): i is Boodschap => i.soort === 'boodschap' && i.naam === naam);
+
+async function contract(k: Kant, run: string) {
+  const doe = async (f: (a: Acties) => unknown) => { await act(async () => { await f(k.acties()); }); };
+  const taak = `Contracttaak ${run}`, taak2 = `Contracttaak ${run} (aangepast)`, melk = `Contractmelk ${run}`;
+
+  // Een taak: toevoegen, afvinken, aanpassen, verwijderen.
+  await doe(a => a.toevoegen([{ id: 't-contract', soort: 'taak', titel: taak, datum: null, voor: null, klaar: false, klaarOp: null } as Item], 'Toegevoegd'));
+  await k.wachtOp('taak toegevoegd', s => !!taakMet(s, taak));
+  const t = taakMet(k.staat(), taak)!;
+  expect(t.klaar).toBe(false);
+  await doe(a => a.wissel(t.id));
+  await k.wachtOp('taak afgevinkt', s => taakMet(s, taak)?.klaar === true);
+  await doe(a => a.bijwerken({ ...taakMet(k.staat(), taak)!, titel: taak2 }));
+  await k.wachtOp('taak aangepast', s => !!taakMet(s, taak2) && !taakMet(s, taak));
+  await doe(a => a.verwijder([taakMet(k.staat(), taak2)!.id], 'Verwijderd'));
+  await k.wachtOp('taak verwijderd', s => !taakMet(s, taak2));
+
+  // Een afspraak.
+  const afspraak = { id: 'a-contract', soort: 'afspraak', datum: '2026-11-20', start: '10:00', eind: '11:00', wie: [], eigenaar: k.ik,
+    zichtbaarheid: 'huishouden', titel: `Contractafspraak ${run}` } as Afspraak;
+  await doe(a => a.toevoegen([afspraak], 'Toegevoegd'));
+  await k.wachtOp('afspraak toegevoegd', s => s.items.some(i => i.soort === 'afspraak' && i.titel === afspraak.titel && i.datum === '2026-11-20'));
+
+  // Een boodschap, naar "Later nodig", en ongedaan maken: de melding belooft het, en het werkt (aan beide kanten).
+  await doe(a => a.voegBoodschappenToe([melk]));
+  await k.wachtOp('boodschap toegevoegd', s => !!boodschapMet(s, melk) && !boodschapMet(s, melk)!.later);
+  await doe(a => a.boodschapLater(boodschapMet(k.staat(), melk)!, true));
+  await k.wachtOp('boodschap later', s => boodschapMet(s, melk)?.later === true && s.melding?.ongedaan === true);
+  await doe(a => a.ongedaan!());
+  await k.wachtOp('later ongedaan', s => boodschapMet(s, melk)?.later !== true);
+
+  // Een vakantie met een pakitem; verwijderen en ongedaan maken.
+  const naam = `Contractvakantie ${run}`;
+  let vid: string | null = null;
+  await doe(async a => { vid = await a.vakantieToevoegen({ naam, vertrek: '2026-12-20', terug: '2026-12-27' }); });
+  expect(vid).toBeTruthy();
+  await k.wachtOp('vakantie toegevoegd', s => s.vakanties.some(v => v.id === vid && v.naam === naam));
+  await doe(a => a.pakitemToevoegen(vid!, k.ik, 'Zonnebrand'));
+  await k.wachtOp('pakitem toegevoegd', s => s.pakitems.some(p => p.vakantieId === vid && p.naam === 'Zonnebrand'));
+  await doe(a => a.pakitemWissel(k.staat().pakitems.find(p => p.vakantieId === vid && p.naam === 'Zonnebrand')!));
+  await k.wachtOp('pakitem ingepakt', s => s.pakitems.some(p => p.vakantieId === vid && p.naam === 'Zonnebrand' && p.ingepakt));
+  await doe(a => a.vakantieVerwijderen(k.staat().vakanties.find(v => v.id === vid)!));
+  await k.wachtOp('vakantie verwijderd', s => !s.vakanties.some(v => v.id === vid) && s.melding?.ongedaan === true);
+  await doe(a => a.ongedaan!());
+  await k.wachtOp('vakantie teruggezet', s => s.vakanties.some(v => v.id === vid && v.naam === naam));
+
+  // Plannen: een plan met een onderdeel en een taak daarin; afvinken; verwijderen zonder taken laat de taak los, en
+  // ongedaan maken zet plan én koppeling terug.
+  const pnaam = `Contractplan ${run}`, ptaak = `Plantaak ${run}`;
+  let pid: string | null = null, oid: string | null = null;
+  await doe(async a => { pid = await a.planToevoegen({ titel: pnaam, einddatum: null, wie: [k.ik] }); });
+  expect(pid).toBeTruthy();
+  await k.wachtOp('plan toegevoegd', s => s.plannen.some(p => p.id === pid && p.titel === pnaam && p.wie.includes(k.ik)));
+  await doe(async a => { oid = await a.onderdeelToevoegen(pid!, 'Voorbereiding'); });
+  expect(oid).toBeTruthy();
+  await k.wachtOp('onderdeel toegevoegd', s => s.onderdelen.some(o => o.id === oid && o.planId === pid));
+  await doe(a => a.toevoegen([{ id: 't-plan', soort: 'taak', titel: ptaak, datum: null, voor: k.ik, klaar: false, klaarOp: null, planId: pid, onderdeelId: oid } as Item]));
+  await k.wachtOp('plantaak toegevoegd', s => taakMet(s, ptaak)?.planId === pid && taakMet(s, ptaak)?.onderdeelId === oid);
+  // De status uit het detailvenster (P2, review PR #54): Bezig, Afgerond en weer Te doen, via bijwerken.
+  const status = async (naar: 'Te doen' | 'Bezig' | 'Afgerond') => {
+    const t = taakMet(k.staat(), ptaak)!;
+    await doe(a => a.bijwerken({ ...t, ...statusVelden(naar, t, VANDAAG) }));
+  };
+  await status('Bezig');
+  await k.wachtOp('plantaak bezig', s => taakMet(s, ptaak)?.bezig === true && taakMet(s, ptaak)?.klaar === false);
+  await status('Afgerond');
+  await k.wachtOp('plantaak afgerond via het venster', s => taakMet(s, ptaak)?.klaar === true && !taakMet(s, ptaak)?.bezig);
+  await status('Te doen');
+  await k.wachtOp('plantaak weer te doen', s => taakMet(s, ptaak)?.klaar === false && !taakMet(s, ptaak)?.bezig);
+  await doe(a => a.wissel(taakMet(k.staat(), ptaak)!.id));
+  await k.wachtOp('plantaak afgevinkt', s => taakMet(s, ptaak)?.klaar === true);
+  await doe(a => a.planVerwijderen(k.staat().plannen.find(p => p.id === pid)!, false));
+  await k.wachtOp('plan weg, taak los', s => !s.plannen.some(p => p.id === pid) && !!taakMet(s, ptaak) && !taakMet(s, ptaak)!.planId && s.melding?.ongedaan === true);
+  await doe(a => a.ongedaan!());
+  await k.wachtOp('plan en koppeling terug', s => s.plannen.some(p => p.id === pid) && taakMet(s, ptaak)?.planId === pid && taakMet(s, ptaak)?.onderdeelId === oid);
+}
+
+describe('contract: hetzelfde gedrag', () => {
+  it('de demo', async () => {
+    const { result } = renderHook(() => useDemoStaat(VANDAAG));
+    await contract({
+      naam: 'demo', ik: 'm-eva', staat: () => result.current.staat, acties: () => result.current,
+      wachtOp: async (wat, f) => { expect(f(result.current.staat), wat).toBe(true); },
+    }, 'demo');
+  });
+
+  const { KG_CONTRACT, KG_CONTRACT_API_URL: URL, KG_CONTRACT_ANON_KEY: ANON, KG_CONTRACT_SERVICE_ROLE_KEY: SERVICE } = process.env;
+  const online = KG_CONTRACT === '1' && !!URL && !!ANON && !!SERVICE;
+  // In CI (KG_CONTRACT=1) moet het online contract echt draaien: zonder stackgegevens is dat een fout, geen overslag.
+  if (KG_CONTRACT === '1' && !online) throw new Error('KG_CONTRACT=1, maar KG_CONTRACT_API_URL, _ANON_KEY of _SERVICE_ROLE_KEY ontbreekt');
+  if (online && !/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(URL!)) throw new Error('Weigering: het contract draait alleen tegen een lokale stack');
+
+  describe.skipIf(!online)('online (lokale Supabase-stack, KG_CONTRACT=1)', () => {
+    const run = Math.random().toString(36).slice(2, 10);
+    const opties = { auth: { persistSession: false, autoRefreshToken: false } };
+    let admin: SupabaseClient, client: SupabaseClient, gebruiker = '', huishouden = '';
+    let sync: ReturnType<typeof maakSync>;
+
+    beforeAll(async () => {
+      admin = createClient(URL!, SERVICE!, opties);
+      const email = `contract-${run}@test.invalid`, wachtwoord = 'Kc-' + run + run;
+      const u = await admin.auth.admin.createUser({ email, password: wachtwoord, email_confirm: true });
+      if (u.error) throw u.error;
+      gebruiker = u.data.user.id;
+      client = createClient(URL!, ANON!, opties);
+      const inlog = await client.auth.signInWithPassword({ email, password: wachtwoord });
+      if (inlog.error) throw inlog.error;
+      const h = await client.rpc('create_household', { p_name: 'Contract ' + run, p_display_name: 'Eva' });
+      if (h.error) throw h.error;
+      huishouden = h.data as string;
+      sync = maakSync({ supabase: client, huishoudenId: huishouden, vangnetMs: 60000, plannen: true });
+      await sync.start();
+    }, 30_000);
+    afterAll(async () => {
+      await sync?.stop();
+      if (huishouden) await admin.from('households').delete().eq('id', huishouden);
+      if (gebruiker) await admin.auth.admin.deleteUser(gebruiker);
+    });
+
+    it('de echte opslag', async () => {
+      const ik = ((await client.rpc('my_memberships')).data as { household_id: string; member_id: string }[]).find(m => m.household_id === huishouden)!.member_id;
+      const hh: Huishouden = { naam: 'Contract', ik, leden: [{ id: ik, naam: 'Eva', soort: 'volwassene', kleur: 'x', heeftAccount: true }] };
+      const sessie = { acties: sync.acties, syncObject: sync } as unknown as Sessie;
+      const snap = () => ({ toestand: { ...sync.toestand } }) as unknown as Momentopname;
+      const { result, rerender } = renderHook(({ s }) => useLokaleStaat(sessie, s, VANDAAG, hh), { initialProps: { s: snap() } });
+      await contract({
+        naam: 'online', ik, staat: () => result.current.staat, acties: () => result.current,
+        wachtOp: async (wat, f) => {
+          const eind = Date.now() + 15_000;
+          for (;;) {
+            await act(async () => { await sync.vernieuw(); rerender({ s: snap() }); });
+            if (f(result.current.staat)) return;
+            if (Date.now() > eind) throw new Error('Niet binnen 15 s: ' + wat);
+            await act(async () => { await new Promise(r => setTimeout(r, 200)); });
+          }
+        },
+      }, run);
+    }, 120_000);
+  });
+});

@@ -273,3 +273,30 @@ describe('F8: "voor <vakantie>" (alleen de volledige naam van een lopende of kom
     expect(b('Zonnebrand kopen voor Frankrijk')).toMatchObject({ boodschappen: ['Zonnebrand voor Frankrijk'], vakantie: null, vakantieKeuze: [] });
   });
 });
+
+// Verjaardagen (besluit Bas, 10 november 2026): voorlopig een jaarlijks terugkerende afspraak voor de hele dag, eenvoudig en
+// herkenbaar; het woord blijft in de titel en de herhaling is als herkend onderdeel weer weg te halen.
+describe('jarig en verjaardag', () => {
+  it('"Oma jarig 12 maart": een jaarlijkse afspraak voor de hele dag, zonder melding over herhalende taken', () => {
+    const v = b('Oma jarig 12 maart');
+    expect(v).toMatchObject({ soort: 'afspraak', titel: 'Oma jarig', datum: '2027-03-12', start: undefined, herhaling: { freq: 'jaarlijks', tot: null } });
+    expect(v.herkend).toContain('herhaling');
+    expect(meldingen(v)).not.toContain('herhalende-taak');
+  });
+  it('"verjaardag Noor 3 november": ook jaarlijks; de dag blijft de dag', () => {
+    expect(b('verjaardag Noor 3 november')).toMatchObject({ soort: 'afspraak', titel: 'Verjaardag Noor', datum: '2026-11-03', herhaling: { freq: 'jaarlijks', tot: null } });
+  });
+  it('met een tijd is het een feestje: een gewone afspraak, niet elk jaar', () => {
+    const v = b('verjaardag Noor zaterdag om 14');
+    expect(v).toMatchObject({ soort: 'afspraak', start: '14:00' });
+    expect(v.herhaling).toBeUndefined();
+  });
+  it('de herhaling is met één tik weg te halen (niet herkennen): dan één afspraak voor de hele dag', () => {
+    const v = b('Oma jarig 12 maart', {}, { negeer: new Set(['herhaling']) });
+    expect(v.herhaling).toBeUndefined();
+    expect(v).toMatchObject({ soort: 'afspraak', titel: 'Oma jarig', datum: '2027-03-12', start: undefined });
+  });
+  it('een woord dat er alleen op lijkt, telt niet', () => {
+    expect(b('verjaardagscadeau kopen').herhaling).toBeUndefined();
+  });
+});

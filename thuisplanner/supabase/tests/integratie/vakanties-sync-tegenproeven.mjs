@@ -15,14 +15,15 @@ const BRON = readFileSync(path.resolve(HIER, '../../../sync/thuisplanner-sync.js
 // [test (naampatroon), omschrijving, [[zoek, vervang], ...]]
 const PROEVEN = [
   ['^V1', 'een bekende versie van een vakantietabel wordt niet overgeslagen', [
-    ["const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events', 'trips', 'trip_packing_items', 'trip_shopping_links', 'trip_packing_lists']);",
-      "const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events']);"]]],
+    // Sinds Mijn spullen staan er ook spullentabellen in MET_VERSIE (op de volgende regel); alleen de vakantietabellen eruit.
+    ["const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events', 'trips', 'trip_packing_items', 'trip_shopping_links', 'trip_packing_lists',",
+      "const MET_VERSIE = new Set(['shopping_items', 'tasks', 'events',"]]],
   ['^V3', 'een unieke-sleutelfout (HTTP 409) gemeld als versieconflict', [
     ["  if (code === '23505') return { soort: 'dubbel', tekst: MELDINGEN.dubbel };\n  if (code === 'PT409'", "  if (code === 'PT409'"]]],
   ['^V3', 'een zekere weigering na een onzekere poging blijft eeuwig "niet bevestigd"', [
     ["      if (o.soort === 'pakitem' || o.soort === 'paklijst') return { uitkomst: 'mislukt', fout, zeker: true };\n", '']]],
   ['^V4', 'ongedaan maken van een overname verwijdert ook intussen aangepaste items', [
-    [".in('id', ids).eq('version', 1)", ".in('id', ids)"]]],
+    [".eq('version', 1).is('deleted_at', null));", ".is('deleted_at', null));"]]],
   ['^V5', 'vinkjes terugzetten zonder het oorspronkelijke moment', [
     ['        ...(i.packed_at ? { packed_at: i.packed_at } : {}), ', '        ']]],
   ['^V7', 'paklijsten van alle (ook afgelopen) vakanties steeds opgehaald', [
@@ -48,8 +49,14 @@ const PROEVEN = [
     ['...(lijsten?.length ? { p_lists: lijsten } : {})', '']]],
   ['^V15', 'naam van een onbevestigde lijst duurzaam op het toestel (P1)', [
     ['    const inhoud = prive(o) || !bewaarInhoud || o.inhoudNietBewaard\n', '    const inhoud = prive(o) || o.inhoudNietBewaard\n']]],
+  ['^V16', 'het aantal van een grote overname komt uit de (afgekapte) lijst van 1000', [
+    ["          if (!t.error && typeof t.count === 'number') aantal = t.count;\n", '']]],
+  ['^V16', 'ongedaan maken raakt ook items die niet uit deze overname komen', [
+    [".eq('trip_id', overname.vakantie).eq('created_at', overname.moment);", ".eq('trip_id', overname.vakantie);"]]],
+  ['^V16', 'ongedaan maken met de lijst ID\'s in de adresregel (de oude werkwijze)', [
+    ["overname = { vakantie: naar, moment: m.data.created_at };", "overname = { vakantie: naar, moment: m.data.created_at, ids: items.map(x => x.id) };"],
+    [".eq('trip_id', overname.vakantie).eq('created_at', overname.moment);", ".eq('trip_id', overname.vakantie).in('id', overname.ids);"]]],
 ];
-
 const map = mkdtempSync(path.join(tmpdir(), 'kg-vakanties-tegenproef-'));
 let fouten = 0;
 try {

@@ -5,15 +5,18 @@
 // - Schrijven: elke actie wordt één opdracht van de sync-module, met versiecontrole bij wijzigen en een
 //   vaste opdracht-ID bij toevoegen. Conflicten, onbevestigde opdrachten en fouten meldt de sync-module
 //   zelf (toestand.melding); hier komt alleen de "gelukt"-melding bij.
-// - Niet in deze modus: de demo-scenario's. "Ongedaan maken" alleen bij vakanties (verwijderen, overnemen, vinkjes opnieuw,
+// - Het contract staat in acties.ts (KG-5E licht). Niet in deze modus: de demo-extra's (scenario's, alles vervangen).
+//   "Ongedaan maken" alleen bij vakanties (verwijderen, overnemen, vinkjes opnieuw,
 //   ontkoppelen): de sync-module geeft daarvoor terug wat nodig is (versie, ID's, vorige vinkjes).
 import { useCallback, useMemo, useRef, useState } from 'react';
-import type { BoodschapRij, PakitemRij, PaklijstRij, Resultaat, TaakRij, VakantieKoppelingRij, VakantieRij } from '../../../../sync/thuisplanner-sync.js';
+import type { BoodschapRij, PakitemRij, PaklijstRij, PlanOnderdeelRij, PlanRij, Resultaat, TaakRij, VakantieKoppelingRij, VakantieRij } from '../../../../sync/thuisplanner-sync.js';
 import { boodschappenMelding } from '../boodschappen';
-import type { Groep, Melding, Staat } from '../store';
-import type { Afspraak, Boodschap, Datum, Huishouden, Item, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from '../types';
+import type { Acties, Opgeslagen, Staat } from '../acties';
+import type { Groep, Melding } from '../store';
+import type { Afspraak, Boodschap, Datum, Huishouden, Item, PakDoel, Pakitem, Paklijst, Plan, PlanOnderdeel, Vakantie, VakantieKoppeling } from '../types';
 import { doelVan, doelVelden, groepNaam, paklijstNaamFout, zelfdeDoel } from '../vakantie';
-import { naarItems, naarNieuweAfspraak, naarPaklijst, naarTaakVelden, naarVakantieGegevens } from './omzetten';
+import { uuidV4 } from '../../../../sync/thuisplanner-sync.js';
+import { naarItems, naarNieuweAfspraak, naarOnderdeel, naarPaklijst, naarPlan, naarPlanVelden, naarTaakVelden, naarVakantieGegevens } from './omzetten';
 import type { Momentopname, Sessie } from './sessie';
 
 /** Een keuze die de gebruiker moet maken (mogelijk dubbele toevoeging, zie de sync-module). */
@@ -21,6 +24,15 @@ export interface Keuze {
   tekst: string;
   opnieuw: () => void;
   nieuw: () => void;
+}
+
+/** Alleen online (Meer en de syncbalk): opdrachten van de sync-module op dit toestel. Geen domeinhandelingen. */
+export interface LokaleExtra {
+  opnieuwProberen: (id: string) => void;
+  /** Een opdracht zonder bewaarde inhoud (P1) opnieuw invoeren, met dezelfde opdracht-ID. */
+  herinvoeren: (id: string, item: Item, melding?: string) => void;
+  vergeten: (id: string) => void;
+  syncMeldingWeg: () => void;
 }
 
 let meldingTeller = 0;
@@ -46,10 +58,10 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
   const rij = useCallback(<T extends { id: string }>(lijst: T[] | undefined, id: string) => lijst?.find(x => x.id === id), []);
 
   // Na een actie: gelukt → onze melding; mogelijk dubbel → een keuze; anders meldt de sync-module het.
-  const na = useCallback(async (p: Promise<Resultaat> | undefined, gelukt?: string, herhaal?: (bewustNieuw: boolean) => void) => {
-    if (!p) return;
+  const na = useCallback(async (p: Promise<Resultaat> | undefined, gelukt?: string, herhaal?: (bewustNieuw: boolean) => void): Promise<Opgeslagen> => {
+    if (!p) return 'fout';
     const r = await p;
-    if (r.ok) { if (gelukt) meld(gelukt); return; }
+    if (r.ok) { if (gelukt) meld(gelukt); return 'ok'; }
     if (r.mogelijkDubbel && herhaal) {
       const id = r.mogelijkDubbel;
       zetKeuze({
@@ -58,9 +70,11 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
         nieuw: () => { zetKeuze(null); herhaal(true); },
       });
     }
+    return r.melding?.soort === 'conflict' ? 'conflict' : 'fout';
   }, [meld, sessie]);
 
-  const acties = useMemo(() => {
+  // Hetzelfde contract als de demo (acties.ts); geen scenario's en geen "alles vervangen" online.
+  const acties = useMemo((): Acties & LokaleExtra & { ongedaan: () => void } => {
     const a = () => sessie.acties;
     const t = () => sessie.syncObject?.toestand;
     const hh = (): Huishouden => hhRef.current ?? { naam: '', ik: '', leden: [] };
@@ -79,22 +93,38 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
 
     return {
       toevoegen: (nieuw: Item[], melding?: string) => { for (const i of nieuw) voegToe(i, melding); },
-      vervangAlles: () => meld('Dat kan in deze versie nog niet.'),
-      bijwerken: (item: Item, melding?: string) => {
+      // De versie van het item is die van het moment waarop het venster openging: wijzigde iemand anders het intussen, dan
+      // weigert de server (conflict) en blijft het venster open met de invoer (P1, review PR #54).
+      bijwerken: async (item: Item, melding?: string): Promise<Opgeslagen> => {
         const versie = item.versie;
-        if (item.soort === 'afspraak') {
-          void na(a()?.afspraakBewaren(naarNieuweAfspraak(item, versie ?? 0)), melding);
-        } else if (item.soort === 'taak') {
-          const r = rij(t()?.taken, item.id);
-          if (r) void na(a()?.taakBijwerken(r, naarTaakVelden(item), versie), melding);
-        } else {
-          const r = rij(t()?.boodschappen, item.id);
-          if (r) void na(a()?.boodschapHernoemen(r, item.naam, versie), melding);
+        if (item.soort === 'afspraak') return na(a()?.afspraakBewaren(naarNieuweAfspraak(item, versie ?? 0)), melding);
+        if (item.soort === 'taak') {
+          const r = rij<TaakRij>(t()?.taken, item.id);
+          if (!r) return 'fout';
+          // De status uit het detailvenster (Afgerond, Bezig, Te doen; P2, review PR #54): afgerond is done_on (met wie het
+          // afrondde), in dezelfde wijziging als de rest. Weer open: done_on leeg. Bezig staat in naarTaakVelden.
+          const afgerondNu = !!r.done_on, afgerond = item.klaar;
+          const status = afgerondNu === afgerond ? {} : afgerond
+            ? { done_on: item.klaarOp ?? vandaagRef.current, done_by_member_id: hhRef.current?.ik || null }
+            : { done_on: null, done_by_member_id: null };
+          const uit = await na(a()?.taakBijwerken(r, { ...naarTaakVelden(item), ...status }, versie), melding);
+          // Een taak van een afgerond plan weer openzetten: dan is het plan niet meer af (zoals bij afvinken).
+          const plan = uit === 'ok' && afgerondNu && !afgerond && r.plan_id ? rij<PlanRij>(t()?.plannen, r.plan_id) : undefined;
+          if (plan?.closed_on) void a()?.planBijwerken(plan, { closed_on: null });
+          return uit;
         }
+        const r = rij(t()?.boodschappen, item.id);
+        return r ? na(a()?.boodschapHernoemen(r, item.naam, versie), melding) : 'fout';
       },
       wissel: (id: string, melding?: string) => {
         const taak = rij<TaakRij>(t()?.taken, id);
-        if (taak) { void na(a()?.taakAfvinken(taak, vandaagRef.current), melding); return; }
+        if (taak) {
+          void na(a()?.taakAfvinken(taak, vandaagRef.current), melding);
+          // Een taak van een afgerond plan weer openzetten: dan is het plan niet meer af (zoals de demo).
+          const plan = taak.done_on && taak.plan_id ? rij<PlanRij>(t()?.plannen, taak.plan_id) : undefined;
+          if (plan?.closed_on) void a()?.planBijwerken(plan, { closed_on: null });
+          return;
+        }
         const b = rij<BoodschapRij>(t()?.boodschappen, id);
         if (b) void na(a()?.boodschapAfvinken(b), melding);
       },
@@ -149,7 +179,6 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
       wegklikken: (id: string) => zetWeggeklikt(w => new Set([...w, id])),
       meld,
       meldingWeg: (id: number) => zetMelding(m => (m?.id === id ? null : m)),
-      kiesScenario: () => {},
       opnieuwProberen: (id: string) => { void na(a()?.opnieuwProberen(id), 'Opnieuw verstuurd'); },
       // Zelfde opdracht-ID als de oorspronkelijke toevoeging (P1: de inhoud stond niet op dit toestel): de sync-module
       // zet de inhoud op die opdracht en verstuurt hem opnieuw. Staat hij intussen al op de server, dan blijft het bij
@@ -175,10 +204,10 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
         // Ook onzeker: de vakantie staat (niet bevestigd) in de lijst, onder deze UUID.
         return r.ok || r.onzeker ? r.id ?? null : null;
       },
-      vakantieBijwerken: (v: Vakantie, melding?: string) => {
+      vakantieBijwerken: async (v: Vakantie, melding?: string): Promise<Opgeslagen> => {
         const r = rij<VakantieRij>(t()?.vakanties, v.id);
-        if (r) void na(a()?.vakantieBijwerken(r, { name: v.naam, start_date: v.vertrek, end_date: v.terug,
-          destination: v.bestemming ?? null, notes: v.notities ?? null }, v.versie), melding);
+        return r ? na(a()?.vakantieBijwerken(r, { name: v.naam, start_date: v.vertrek, end_date: v.terug,
+          destination: v.bestemming ?? null, notes: v.notities ?? null }, v.versie), melding) : 'fout';
       },
       vakantieVerwijderen: (v: Vakantie) => {
         const r = rij<VakantieRij>(t()?.vakanties, v.id);
@@ -241,11 +270,16 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
           // Onzeker (antwoord verloren): één keer dezelfde opdracht opnieuw; die geeft dezelfde items (U2).
           if (r && !r.ok && r.melding?.soort === 'onzeker') r = await a()?.paklijstOvernemen({ ...o, opdracht: r.opdracht });
           if (!r?.ok) return;
-          const ids = (r.items ?? []).map(x => x.id);
-          if (!ids.length) { meld('Alles stond er al'); return; }
-          meldMetTerug(`${ids.length} ${ids.length === 1 ? 'item' : 'items'} overgenomen`, () => {
+          if (!r.items?.length) { meld('Alles stond er al'); return; }
+          // Het aantal van de server (de API geeft hoogstens 1000 items terug; review V-04).
+          const n = r.aantal ?? r.items.length;
+          const tekst = `${n} ${n === 1 ? 'item' : 'items'} overgenomen`;
+          const overname = r.overname;
+          // Zonder overname (het aanmaakmoment was niet op te vragen) kan ongedaan maken niet veilig: alleen de melding.
+          if (!overname) { meld(tekst); return; }
+          meldMetTerug(tekst, () => {
             void (async () => {
-              const u = await a()?.overnemenOngedaanMaken(ids, r.nieuweLijsten ?? []);
+              const u = await a()?.overnemenOngedaanMaken(overname, r.nieuweLijsten ?? []);
               if (u?.ok && !u.gebleven) meld('Teruggezet');
             })();
           });
@@ -324,12 +358,79 @@ export function useLokaleStaat(sessie: Sessie, snap: Momentopname, vandaag: Datu
           }
         })();
       },
-      vakantieOpenen: (id: string) => { void a()?.vakantieOpenen(id); },
+      vakantieOpenen: (id: string) => a()?.vakantieOpenen(id) ?? Promise.resolve(),
       vakantieSluiten: (id: string) => { a()?.vakantieSluiten(id); },
+      // ---- Plannen (besluit 18): de acties van de sync-module (optie plannen). De taken van een plan zijn gewone taken
+      // (toevoegen, bijwerken, wissel); alleen het plan en zijn onderdelen hebben eigen handelingen. ----
+      planToevoegen: async (p: Omit<Plan, 'id'>): Promise<string | null> => {
+        const id = uuidV4();
+        const r = await a()?.planToevoegen(id, naarPlanVelden(p));
+        if (!r) return null;
+        if (r.ok) meld(`${p.titel} toegevoegd`);
+        // Ook onzeker: het plan staat (niet bevestigd) in de lijst, onder deze UUID.
+        return r.ok || r.onzeker ? id : null;
+      },
+      planBijwerken: async (p: Plan, melding?: string): Promise<Opgeslagen> => {
+        const r = rij<PlanRij>(t()?.plannen, p.id);
+        return r ? na(a()?.planBijwerken(r, naarPlanVelden(p), p.versie), melding) : 'fout';
+      },
+      // Verwijderen (met of zonder taken) in één transactie op de server; ongedaan maken zet precies dat terug.
+      planVerwijderen: (p: Plan, metTaken: boolean) => {
+        const r = rij<PlanRij>(t()?.plannen, p.id);
+        if (!r) return;
+        // Zonder taken: welke taken (met onderdeel) losgemaakt worden, zodat ongedaan maken ze terug in het plan zet (zoals de demo).
+        const los = metTaken ? [] : (t()?.taken ?? []).filter(x => x.plan_id === p.id).map(x => ({ id: x.id, sectie: x.plan_section_id ?? null }));
+        void (async () => {
+          const u = await a()?.planVerwijderen(r, metTaken);
+          const versie = (u?.data as { version: number }[] | undefined)?.[0]?.version;
+          if (u?.ok && versie != null) meldMetTerug(`${p.titel} verwijderd`, () => {
+            void (async () => {
+              const h = await a()?.planHerstellen(r, versie);
+              if (!h?.ok) return;
+              await sessie.syncObject?.vernieuw();
+              for (const x of los) {
+                const tr = rij<TaakRij>(t()?.taken, x.id);
+                if (tr && !tr.plan_id) await a()?.taakBijwerken(tr, { plan_id: p.id, plan_section_id: x.sectie });
+              }
+              meld(`${p.titel} teruggezet`);
+            })();
+          });
+        })();
+      },
+      onderdeelToevoegen: async (planId: string, naam: string): Promise<string | null> => {
+        const id = uuidV4();
+        const position = Math.max(0, ...(t()?.planOnderdelen ?? []).filter(o => o.plan_id === planId).map(o => o.position)) + 1;
+        const r = await a()?.onderdeelToevoegen(id, { plan_id: planId, name: naam, position });
+        if (!r) return null;
+        if (r.ok) meld(`${naam} toegevoegd`);
+        return r.ok || r.onzeker ? id : null;
+      },
+      onderdeelHernoemen: async (o: PlanOnderdeel, naam: string): Promise<Opgeslagen> => {
+        const r = rij<PlanOnderdeelRij>(t()?.planOnderdelen, o.id);
+        return r ? na(a()?.onderdeelBijwerken(r, { name: naam }, o.versie), `Onderdeel heet nu ${naam}`) : 'fout';
+      },
+      // Verplaatsen: de plek ruilen met de buur (twee wijzigingen, elk met versiecontrole).
+      onderdeelVerplaatsen: (o: PlanOnderdeel, richting: -1 | 1) => {
+        const rijen = (t()?.planOnderdelen ?? []).filter(x => x.plan_id === o.planId).sort((x, y) => x.position - y.position);
+        const i = rijen.findIndex(x => x.id === o.id), buur = rijen[i + richting], deze = rijen[i];
+        if (!deze || !buur) return;
+        const [p1, p2] = deze.position === buur.position ? [i + 1 + richting, i + 1] : [buur.position, deze.position];
+        void (async () => {
+          const u = await a()?.onderdeelBijwerken(deze, { position: p1 });
+          if (u?.ok) await a()?.onderdeelBijwerken(buur, { position: p2 });
+        })();
+      },
+      onderdeelVerwijderen: (o: PlanOnderdeel) => {
+        const r = rij<PlanOnderdeelRij>(t()?.planOnderdelen, o.id);
+        if (r) void na(a()?.onderdeelVerwijderen(r), `${o.naam} verwijderd`);
+      },
     };
   }, [sessie, na, meld, meldMetTerug, rij]);
 
-  const staat: Staat = { scenario: 'gewoon', items, ...vak, weggeklikt, vorige: null, melding };
+  // Plannen alleen met de optie (anders leeg; de schermen tonen Plannen dan niet). Bijlagen zijn er in v1 niet.
+  const plannen = useMemo(() => (toestand?.plannen ?? []).map(naarPlan), [toestand]);
+  const onderdelen = useMemo(() => (toestand?.planOnderdelen ?? []).map(naarOnderdeel), [toestand]);
+  const staat: Staat = { items, ...vak, plannen, onderdelen, planKoppelingen: [], weggeklikt, melding };
   return { staat, ...acties, keuze, sluitKeuze: () => zetKeuze(null) };
 }
 

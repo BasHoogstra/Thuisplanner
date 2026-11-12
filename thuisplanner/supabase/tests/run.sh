@@ -5,7 +5,7 @@
 # thuisplanner/supabase/migrations/*.sql uit. Raakt geen enkel Supabase-project en maakt geen netwerkverbinding.
 # Met --db: gebruikt een al draaiende LOKALE Supabase-stack (supabase start), waarop de migraties al staan.
 #
-#   thuisplanner/supabase/tests/run.sh                          # matrix op de nabootsing (verwacht: 88 van 88)
+#   thuisplanner/supabase/tests/run.sh                          # matrix op de nabootsing (verwacht: 98 van 98)
 #   thuisplanner/supabase/tests/run.sh --tegenproef             # daarna: elke sabotage moet het juiste scenario laten falen
 #   thuisplanner/supabase/tests/run.sh --db postgresql://postgres:postgres@127.0.0.1:55322/postgres [--tegenproef]
 #   ... --gelijktijdig   daarna ook de gelijktijdigheidstests (tests/integratie/gelijktijdig.test.mjs, met
@@ -17,7 +17,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 KG="$(cd "$HERE/.." && pwd)"
 PGBIN="${PGBIN:-/usr/lib/postgresql/16/bin}"
-VERWACHT="KG-RLS-tests geslaagd: 88 van 88"
+VERWACHT="KG-RLS-tests geslaagd: 98 van 98"
 
 DB_URL=""; TEGENPROEF=0; GELIJKTIJDIG=0
 while [ $# -gt 0 ]; do
@@ -93,6 +93,13 @@ if [ "$TEGENPROEF" = "1" ]; then
   echo "Tegenproeven gevangen: $((n-fouten)) van $n"
   [ "$fouten" -eq 0 ] || exit 1
 fi
+
+# Herstelronde (review): bezorgmeldingen vóór het verzendantwoord, dubbele meldingen en het opruimen (één transactie die
+# wordt teruggedraaid; er blijft niets achter). De races met aparte verbindingen staan in gelijktijdig.test.mjs.
+BEZORG_VERWACHT="herstel_bezorgmeldingen: 7 van 7 scenario's geslaagd"
+uit="$(psqlq -t -A -f "$HERE/herstel_bezorgmeldingen.sql" 2>&1 | grep -E "herstel_bezorgmeldingen|MISLUKT|ERROR" || true)"
+echo "$uit"
+echo "$uit" | grep -qF "$BEZORG_VERWACHT" || { echo "BEZORGMELDINGEN MISLUKT"; exit 1; }
 
 if [ "$GELIJKTIJDIG" = "1" ]; then
   INT="$HERE/integratie"

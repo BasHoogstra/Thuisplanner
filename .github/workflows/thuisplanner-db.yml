@@ -54,7 +54,8 @@ jobs:
     # Echte Supabase-componenten (PostgreSQL 17, PostgREST, GoTrue, Realtime) in Docker op de runner.
     # De sleutels zijn de vaste lokale demosleutels uit `supabase status`; niets online.
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    # 50: de app-e2e tegen de stack draait twee keer (Plannen uit en aan), plus het online contract.
+    timeout-minutes: 50
     env:
       SUPABASE: npx --yes supabase@2.117.0
       DB_URL: postgresql://postgres:postgres@127.0.0.1:55322/postgres
@@ -67,9 +68,10 @@ jobs:
         working-directory: thuisplanner
         run: node supabase/k1-lokaal.mjs
       - name: Lokale Supabase starten
-        # Met de Edge Runtime: de Send Email-hook (K1) en controleer-code draaien daarin.
+        # Met de Edge Runtime: de Send Email-hook (K1) en controleer-code draaien daarin. Met Storage: Mijn spullen &
+        # Documenten (migratie 29) maakt de privé-bucket "documenten"; de scheidingstests lopen tegen de echte Storage.
         working-directory: thuisplanner
-        run: $SUPABASE start -x studio,imgproxy,storage-api,logflare,vector,supavisor,postgres-meta
+        run: $SUPABASE start -x studio,imgproxy,logflare,vector,supavisor,postgres-meta
       - name: RLS-matrix en tegenproeven op de echte stack
         run: bash thuisplanner/supabase/tests/run.sh --db "$DB_URL" --tegenproef
       - name: Integratie (API, Auth, Realtime) en gelijktijdigheid
@@ -95,6 +97,21 @@ jobs:
           npm run e2e:website
         env:
           CI: '1'
+      - name: Contract demo en online (KG-5E licht, met Plannen en de taakstatus) tegen de lokale stack
+        # Dezelfde handelingen op de demo en op de echte opslag (tests/acties-contract.test.tsx). KG_CONTRACT=1 zonder
+        # stackgegevens is een fout, geen stille overslag.
+        working-directory: thuisplanner/app
+        run: |
+          eval "$(cd .. && $SUPABASE status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')"
+          KG_CONTRACT=1 KG_CONTRACT_API_URL="$API_URL" KG_CONTRACT_ANON_KEY="$ANON_KEY" KG_CONTRACT_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" npx vitest run tests/acties-contract.test.tsx
+      - name: React-app e2e tegen de lokale stack, met Plannen aan (VITE_PLANNEN=aan, migratie 20261111120000)
+        # Hierboven draaide dezelfde reeks met Plannen uit (zoals staging nu); hier met de schakelaar aan, inclusief
+        # e2e-lokaal/plannen.spec.ts (twee telefoons) en de regressietest P1 (review PR #54).
+        working-directory: thuisplanner/app
+        run: npm run e2e:lokaal
+        env:
+          CI: '1'
+          VITE_PLANNEN: aan
       - name: LAN-proef (browsers op een aparte netwerkhost, zonder secure context)
         working-directory: thuisplanner/app
         run: bash scripts/lan-proef.sh

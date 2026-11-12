@@ -149,6 +149,14 @@ before(async () => {
     // toevallig ook een rijslot per huishouden. Dat hoort niet bij het vergrendelprotocol; om alleen dat
     // protocol te meten staat de kanaalwissel tijdens de tegenproef uit.
     await db.query('alter table public.household_members disable trigger household_members_rotate_channel');
+    // Herstelronde (review): het slot per bericht-id van de bezorgmeldingen (alleen als de herstelmigratie er is).
+    const slot = (await db.query(`select pg_get_functiondef(p.oid) as d from pg_proc p
+      where p.pronamespace = 'private'::regnamespace and p.proname = 'uitnodigingsmail_slot'`)).rows[0]?.d;
+    if (slot) {
+      bewaard.uitnodigingsmail_slot = slot;
+      await db.query(`create or replace function private.uitnodigingsmail_slot(p_bericht text) returns void
+        language sql security definer set search_path = '' as $$ select $$`);
+    }
   }
 });
 
@@ -466,4 +474,43 @@ test('Extra lijsten: twee keer tegelijk overnemen met lijsten: één lijst per n
   const lijsten = Number((await db.query(`select count(*) from public.trip_packing_lists where trip_id = $1 and name_key = 'oma' and deleted_at is null`, [doel])).rows[0].count);
   const items = Number((await db.query(`select count(*) from public.trip_packing_items where trip_id = $1 and list_id is not null and deleted_at is null`, [doel])).rows[0].count);
   toets('dubbel overnemen met lijsten', lijsten !== 1 || items !== 2, uitkomst, { weigering: false });
+});
+
+// Herstelronde (review): een bezorgmelding en het opslaan van het verzendantwoord tegelijk. Beide nemen het slot per
+// bericht-id (private.uitnodigingsmail_slot); de tweede moet wachten en daarna is de mail bezorgd, zonder achtergebleven
+// vroege melding. In de tegenproef is het slot een no-op en blijft de melding hangen (de mail blijft "aangenomen").
+async function mailInBehandeling(naam) {
+  const sam = await account(`bez-${naam}`);
+  const h = await huishouden(sam, `Bezorg ${naam}`);
+  await alsDoe(sam, 'select public.create_invite($1, null, $2, 7, $3)', [h, 'member', `gast-${naam}-${run}@test.invalid`]);
+  const id = (await db.query('select id from private.uitnodigingsmails where household_id = $1', [h])).rows[0].id;
+  await db.query(`update private.uitnodigingsmails set status = 'bezig', pogingen = 1, bezig_tot = now() + interval '2 minutes' where id = $1`, [id]);
+  return { id, bericht: `lm-${naam}-${run}` };
+}
+async function bezorgStand(id, bericht) {
+  const status = (await db.query('select status from private.uitnodigingsmails where id = $1', [id])).rows[0].status;
+  const vroeg = Number((await db.query('select count(*) from private.uitnodigingsmail_vroege_meldingen where bericht_id = $1', [bericht])).rows[0].count);
+  await db.query('delete from private.uitnodigingsmail_vroege_meldingen where bericht_id = $1', [bericht]);
+  return { status, vroeg };
+}
+const metHerstel = async () => (await db.query(`select to_regprocedure('private.uitnodigingsmail_slot(text)') is not null as er`)).rows[0].er;
+
+test('Bezorgmelding houdt het slot terwijl het verzendantwoord wordt opgeslagen: daarna bezorgd, niets achtergebleven', async t => {
+  if (!(await metHerstel())) return t.skip('herstelmigratie niet aanwezig');
+  const { id, bericht } = await mailInBehandeling('b1');
+  const uitkomst = await race(
+    async c1 => { await c1.query('select public.uitnodigingsmail_bezorging($1, $2)', [bericht, 'bezorgd']); },
+    async c2 => volg(c2.query('select public.uitnodigingsmail_klaar($1, $2, $3, null, false)', [id, 'aangenomen', bericht])));
+  const s = await bezorgStand(id, bericht);
+  toets('melding vóór het antwoord gemist', s.status !== 'bezorgd' || s.vroeg !== 0, uitkomst, { weigering: false });
+});
+
+test('Verzendantwoord houdt het slot terwijl de bezorgmelding binnenkomt: daarna bezorgd, niets achtergebleven', async t => {
+  if (!(await metHerstel())) return t.skip('herstelmigratie niet aanwezig');
+  const { id, bericht } = await mailInBehandeling('b2');
+  const uitkomst = await race(
+    async c1 => { await c1.query('select public.uitnodigingsmail_klaar($1, $2, $3, null, false)', [id, 'aangenomen', bericht]); },
+    async c2 => volg(c2.query('select public.uitnodigingsmail_bezorging($1, $2)', [bericht, 'bezorgd'])));
+  const s = await bezorgStand(id, bericht);
+  toets('melding tijdens het antwoord gemist', s.status !== 'bezorgd' || s.vroeg !== 0, uitkomst, { weigering: false });
 });

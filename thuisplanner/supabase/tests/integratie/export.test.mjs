@@ -11,7 +11,7 @@ import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import {
-  controleerExport, exportMapFouten, herstelExport, leesExport, lokaalFouten, schrijfExport, vergelijkExport,
+  controleerExport, exportMapFouten, haalBestanden, herstelExport, leesExport, lokaalFouten, schrijfExport, vergelijkExport,
 } from '../../staging/export.mjs';
 
 const DB_URL = process.env.DB_URL || '';
@@ -56,6 +56,8 @@ test('alleen een lokale database voor het terugzetten', () => {
 
 test('export: één momentopname, tellingen en controlesommen kloppen; alleen accounts en identiteiten uit auth', async () => {
   const exp = await leesExport(client);
+  // Mijn spullen: staan er bestanden in de bucket, dan horen ze erbij (met de lokale service-rol; zie spullen-sync.test.mjs).
+  if (exp.bestanden.length) exp.bestandenInhoud = await haalBestanden(exp.bestanden, { url: process.env.API_URL, sleutel: process.env.SERVICE_ROLE_KEY });
   const { manifest } = schrijfExport(map, exp, { omgeving: 'lokaal-test' });
   const namen = manifest.tabellen.map(t => t.naam);
   assert.ok(namen.includes('auth.users') && namen.includes('auth.identities'));

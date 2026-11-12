@@ -1,8 +1,8 @@
 // Thuisplanner KG-5D: gedeelde testhulp voor herstel.test.mjs en herstel2.test.mjs (lokale Supabase-stack).
 // Lopende verzoeken worden met "poorten" in een vaste volgorde vastgehouden, uitgevoerd of zonder
 // antwoord afgebroken; een sessie kan "verlopen" (verlopen JWT op elk REST-verzoek) en opnieuw inloggen.
+import { psql } from './psql.mjs';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { createHmac, randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -11,7 +11,7 @@ for (const u of [API_URL, DB_URL]) {
   if (!u || !/\/\/([^@/]*@)?(127\.0\.0\.1|localhost)[:/]/.test(u)) throw new Error('Weigering: alleen een lokale Supabase');
 }
 
-export const sql = q => execFileSync(process.env.PSQL || 'psql', ['-X', '-q', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-d', DB_URL, '-c', q]).toString().trim();
+export const sql = q => psql(DB_URL, q);
 export const wacht = ms => new Promise(r => setTimeout(r, ms));
 export async function totdat(f, ms = 10000, wat = 'voorwaarde') {
   const eind = Date.now() + ms;

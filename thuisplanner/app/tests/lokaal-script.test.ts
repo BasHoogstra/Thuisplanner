@@ -52,9 +52,9 @@ describe('opdrachten starten zonder .cmd via spawn', () => {
 });
 
 describe('Vite-proxy naar de lokale Supabase (telefoonproef)', () => {
-  it('stuurt alleen Auth, REST en Realtime door, Realtime met websocket', () => {
+  it('stuurt alleen Auth, REST, Realtime, Storage en de Edge Functions door, Realtime met websocket', () => {
     const p = supabaseProxy('http://127.0.0.1:55321/');
-    expect(Object.keys(p).sort()).toEqual(['/auth/v1', '/realtime/v1', '/rest/v1']);
+    expect(Object.keys(p).sort()).toEqual(['/auth/v1', '/functions/v1', '/realtime/v1', '/rest/v1', '/storage/v1']);
     expect(Object.values(p).every(o => o.target === 'http://127.0.0.1:55321')).toBe(true);
     expect(p['/realtime/v1'].ws).toBe(true);
     expect(p['/auth/v1'].ws).toBeUndefined();

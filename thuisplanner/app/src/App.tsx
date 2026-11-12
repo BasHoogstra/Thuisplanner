@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { huishouden } from './data/demo';
 import { naarDatum, naarTijd } from './lib/datum';
 import { Ctx, type AgendaStand, type AppContext, type LokaalContext, type Scherm } from './lib/context';
-import { useDemoStaat, type DemoActies, type Staat } from './lib/store';
+import { useDemoStaat } from './lib/store';
+import type { Acties, Staat } from './lib/acties';
 import type { Huishouden } from './lib/types';
 import { appConfig, sessieVoor, useSessie, type LokaleConfig, type Momentopname, type Sessie, type UitnodigingVoorMij } from './lib/lokaal/sessie';
 import { useLokaleStaat } from './lib/lokaal/staat';
@@ -19,15 +20,24 @@ import { Agenda } from './screens/Agenda';
 import { Boodschappen } from './screens/Boodschappen';
 import { Meer } from './screens/Meer';
 import { Vakanties } from './screens/Vakanties';
+import { Spullen } from './screens/Spullen';
+import { SpullenCtx, useDemoSpullen } from './lib/spullen/opslag';
+import { SpullenLaag, useSpullenInvoer } from './components/SpullenVensters';
+import { useSupabaseSpullen } from './lib/spullen/opslag-supabase';
+import type { Toestand } from '../../sync/thuisplanner-sync.js';
 
-const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties'];
-const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties' };
+import { Plannen } from './screens/Plannen';
+import { plannenAan, schermVoor } from './lib/plan';
 
-/** "#/agenda" → agenda; "#/vakanties/<id>" → vakanties met die vakantie open (F8). */
-function uitHash(): { scherm: Scherm; vakantie: string | null } {
-  const [h, id] = window.location.hash.replace('#/', '').replace('#', '').split('/') as [Scherm, string | undefined];
-  if (!SCHERMEN.includes(h)) return { scherm: 'vandaag', vakantie: null };
-  return { scherm: h, vakantie: h === 'vakanties' && id ? decodeURIComponent(id) : null };
+const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties', 'spullen', 'plannen'];
+const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', spullen: 'Spullen & documenten', plannen: 'Plannen' };
+
+/** "#/agenda" → agenda; "#/vakanties/<id>" → die vakantie (F8); "#/spullen/<pad>" → Spullen & documenten; "#/plannen/<id>" → dat plan (besluit 18). */
+function uitHash(): { scherm: Scherm; vakantie: string | null; spullen: string; plan: string | null } {
+  const [h, id, ...rest] = window.location.hash.replace('#/', '').replace('#', '').split('/') as [Scherm, string | undefined, ...string[]];
+  if (!SCHERMEN.includes(h)) return { scherm: 'vandaag', vakantie: null, spullen: '', plan: null };
+  return { scherm: h, vakantie: h === 'vakanties' && id ? decodeURIComponent(id) : null, spullen: h === 'spullen' ? [id, ...rest].filter(Boolean).join('/') : '',
+    plan: h === 'plannen' && id ? decodeURIComponent(id) : null };
 }
 function schermUitHash(): Scherm { return uitHash().scherm; }
 
@@ -70,7 +80,27 @@ function DemoApp() {
   const klok = useKlok();
   const vandaag = naarDatum(klok);
   const demo = useDemoStaat(vandaag);
-  return <Schil klok={klok} data={demo} huishouden={huishouden} balk={<DemoBalk />} titelSoort="demo" />;
+  // Mijn spullen & Documenten: alleen in de demo. Het echte pad volgt na de migratie, met een eigen akkoord.
+  // Een spul dat persoonlijk wordt, verliest zijn taken (zoals online): de taken blijven, zonder koppeling.
+  const items = useRef(demo.staat.items);
+  items.current = demo.staat.items;
+  const { bijwerken } = demo;
+  const takenLos = useCallback((spulId: string) => {
+    for (const t of items.current) if (t.soort === 'taak' && t.spulId === spulId) bijwerken({ ...t, spulId: null });
+  }, [bijwerken]);
+  const opslag = useDemoSpullen(vandaag, huishouden.ik, demo.meld, takenLos);
+  const { invoer, startInvoer, sluitInvoer } = useSpullenInvoer();
+  const spullen = useMemo(() => ({ ...opslag, startInvoer }), [opslag, startInvoer]);
+  // De demo-extra's gaan apart naar de schermen (ctx.demo); de rest is hetzelfde contract als online (acties.ts).
+  const { kiesScenario, vervangAlles: _alleenDemo, ...data } = demo;
+  const demoExtra = useMemo(() => ({ scenario: demo.staat.scenario, kiesScenario }), [demo.staat.scenario, kiesScenario]);
+  return (
+    <SpullenCtx.Provider value={spullen}>
+      <Schil klok={klok} data={data} demo={demoExtra} huishouden={huishouden} balk={<DemoBalk />} titelSoort="demo">
+        <SpullenLaag invoer={invoer} sluit={sluitInvoer} />
+      </Schil>
+    </SpullenCtx.Provider>
+  );
 }
 
 function LokaleApp({ config }: { config: LokaleConfig }) {
@@ -126,6 +156,7 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
   const { keuze, sluitKeuze, opnieuwProberen, vergeten, herinvoeren, syncMeldingWeg, ...data } = useLokaleStaat(sessie, snap, vandaag, hh);
   const lokaal: LokaalContext = {
     omgeving: sessie.config.omgeving,
+    plannen: !!sessie.config.plannen,
     beheer: {
       client: sessie.client,
       huishouden: snap.huishouden!,
@@ -138,8 +169,9 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
     accountBeheer: {
       uitloggenOveral: (o?: { wissen?: boolean }) => sessie.uitloggenOveral(o),
       wijzigAdres: (n: string) => sessie.wijzigAdres(n),
-      bevestigAdres: (e: string, c: string) => sessie.bevestigAdres(e, c),
+      bevestigAdres: (e: string, c: string, t?: string | null) => sessie.bevestigAdres(e, c, t),
       wijziging: snap.adreswijziging,
+      captchaSitekey: sessie.config.turnstile ?? null,
     },
     status: t.status,
     opslagDuurzaam: t.opslagDuurzaam,
@@ -153,27 +185,44 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
     nakijken: () => sessie.nakijken(),
     uitloggen: (o?: { wissen?: boolean }) => { void sessie.uitloggen(o); },
   };
-  return (
+  const schil = (extra?: ReactNode) => (
     <Schil klok={klok} data={data} huishouden={hh} lokaal={lokaal} balk={<LokaleBalk />} titelSoort={sessie.config.omgeving === 'staging' ? 'testomgeving' : 'lokaal'}>
       {keuze && <KeuzeVenster keuze={keuze} sluit={sluitKeuze} />}
+      {extra}
     </Schil>
   );
+  // Mijn spullen & Documenten alleen met VITE_SPULLEN=aan (en migratie 29): anders precies de app van daarvoor.
+  if (!sessie.config.spullen) return schil();
+  return <EchteSpullen sessie={sessie} toestand={t} meld={data.meld}>{schil}</EchteSpullen>;
 }
 
-function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children }: {
-  klok: Date; data: DemoActies & { staat: Staat }; huishouden: Huishouden; balk: ReactNode;
+/** De echte spullen-opslag als context, met de invoerlaag (dezelfde schermen als de demo). */
+function EchteSpullen({ sessie, toestand, meld, children }: { sessie: Sessie; toestand: Toestand; meld: (tekst: string) => void;
+  children: (extra: ReactNode) => ReactNode }) {
+  const opslag = useSupabaseSpullen(sessie, toestand, meld);
+  const { invoer, startInvoer, sluitInvoer } = useSpullenInvoer();
+  const spullen = useMemo(() => ({ ...opslag, startInvoer }), [opslag, startInvoer]);
+  return <SpullenCtx.Provider value={spullen}>{children(<SpullenLaag invoer={invoer} sluit={sluitInvoer} />)}</SpullenCtx.Provider>;
+}
+
+function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, children }: {
+  klok: Date; data: Acties & { staat: Staat }; demo?: AppContext['demo']; huishouden: Huishouden; balk: ReactNode;
   lokaal?: LokaalContext; titelSoort: string; children?: ReactNode;
 }) {
   const vandaag = naarDatum(klok);
-  const [scherm, zetScherm] = useState<Scherm>(schermUitHash);
+  const [schermKeuze, zetScherm] = useState<Scherm>(schermUitHash);
+  // Plannen (besluit 18): in de demo altijd; in lokaal en staging alleen met VITE_PLANNEN=aan (anders geen route).
+  const scherm = schermVoor(schermKeuze, plannenAan({ lokaal }));
   const [vakantie, zetVakantie] = useState<string | null>(() => uitHash().vakantie);
+  const [spullenPad, zetSpullenPad] = useState<string>(() => uitHash().spullen);
+  const [plan, zetPlan] = useState<string | null>(() => uitHash().plan);
   const [venster, zetVenster] = useState<VensterOpdracht | null>(null);
   const [agenda, zetAgendaStand] = useState<AgendaStand>({ weergave: 'week', datum: vandaag, filter: null });
   const zetAgenda = useCallback((s: Partial<AgendaStand>) => zetAgendaStand(a => ({ ...a, ...s })), []);
   const hoofd = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const opHash = () => { const u = uitHash(); zetScherm(u.scherm); zetVakantie(u.vakantie); };
+    const opHash = () => { const u = uitHash(); zetScherm(u.scherm); zetVakantie(u.vakantie); zetSpullenPad(u.spullen); zetPlan(u.plan); };
     window.addEventListener('hashchange', opHash);
     return () => window.removeEventListener('hashchange', opHash);
   }, []);
@@ -184,6 +233,8 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
     if (window.location.hash !== `#/${s}`) window.location.hash = `#/${s}`;
     zetScherm(s);
     zetVakantie(null);
+    zetSpullenPad('');
+    zetPlan(null);
     window.scrollTo({ top: 0 });
     hoofd.current?.focus({ preventScroll: true });
   }, []);
@@ -192,6 +243,23 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
     if (window.location.hash !== doel) window.location.hash = doel;
     zetScherm('vakanties');
     zetVakantie(id);
+    window.scrollTo({ top: 0 });
+    hoofd.current?.focus({ preventScroll: true });
+  }, []);
+  const openPlan = useCallback((id: string | null) => {
+    const doel = id ? `#/plannen/${encodeURIComponent(id)}` : '#/plannen';
+    if (window.location.hash !== doel) window.location.hash = doel;
+    zetScherm('plannen');
+    zetPlan(id);
+    window.scrollTo({ top: 0 });
+    hoofd.current?.focus({ preventScroll: true });
+  }, []);
+
+  const openSpullen = useCallback((pad = '') => {
+    const doel = pad ? `#/spullen/${pad}` : '#/spullen';
+    if (window.location.hash !== doel) window.location.hash = doel;
+    zetScherm('spullen');
+    zetSpullenPad(pad);
     window.scrollTo({ top: 0 });
     hoofd.current?.focus({ preventScroll: true });
   }, []);
@@ -220,9 +288,14 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
     gaNaar,
     vakantie,
     openVakantie,
+    spullenPad,
+    openSpullen,
+    plan,
+    openPlan,
     agenda,
     zetAgenda,
     lokaal,
+    demo,
   };
 
   return (
@@ -238,6 +311,8 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
             {scherm === 'boodschappen' && <Boodschappen />}
             {scherm === 'meer' && <Meer />}
             {scherm === 'vakanties' && <Vakanties />}
+            {scherm === 'spullen' && <Spullen />}
+            {scherm === 'plannen' && <Plannen />}
           </Foutgrens>
         </main>
         {venster && (
@@ -250,7 +325,8 @@ function Schil({ klok, data, huishouden: hh, balk, lokaal, titelSoort, children 
           {melding && (
             <div className="melding" key={melding.id} role="status">
               <span>{melding.tekst}</span>
-              {melding.ongedaan && (
+              {/* Alleen als deze handeling echt terug kan (acties.ts: ongedaan is een mogelijkheid, geen belofte). */}
+              {melding.ongedaan && data.ongedaan && (
                 <button className="melding-knop" onClick={data.ongedaan}>
                   Ongedaan maken
                 </button>

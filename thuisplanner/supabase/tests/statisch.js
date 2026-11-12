@@ -30,6 +30,10 @@ const SERVICE_ROL_TOEGESTAAN = {
     reden: 'alleen met het wachtrijgeheim van de database (Vault), in constante tijd vergeleken' },
   'mail-bezorging': { bewijs: /aanbieder\.bezorging\(req, body\)[\s\S]*if \(!melding\) return json\(401/,
     reden: 'alleen een melding met een geldige handtekening van de aanbieder' },
+  'bevestig-upload': { bewijs: /const rij = await eigenRij\(req, id\);\s*if \(!rij\) return antwoord\(404[\s\S]*if \(rij\.upload_status !== 'wacht'\) return antwoord\(409/,
+    reden: 'eerst het document als de gebruiker zelf (RLS) ophalen, en alleen een eigen wachtend document' },
+  'opruimen-documenten': { bewijs: /instelling\('WACHTRIJ_GEHEIM'\)[\s\S]*geheimGelijk\(geheim, verwacht\)[\s\S]*return json\(401/,
+    reden: 'alleen met het wachtrijgeheim van de database (Vault), in constante tijd vergeleken' },
 };
 /** Fouten voor een lijst Edge Functions ({ naam, bron }); _gedeeld telt als gedeelde code. Leeg = in orde. */
 function serviceRolFouten(functies) {
@@ -61,6 +65,58 @@ function leesFuncties() {
   return uit;
 }
 
+/**
+ * P13 (privacyherstel tasks.possession_id): taken zijn voor het hele huishouden zichtbaar. Elke kolom op public.tasks die
+ * verwijst naar een tabel met `visibility` (persoonlijk of gedeeld) moet een trigger hebben (before insert or update of die
+ * kolom) met een guard die security invoker is, de kolom controleert en eist dat het doel gedeeld is (visibility =
+ * 'household'), direct of via een functie in private. Geeft de fouten; leeg = in orde. `beschermd` telt de kolommen.
+ */
+function taakVerwijzingFouten(sql) {
+  const fouten = [], beschermd = [];
+  const metZicht = new Set([...sql.matchAll(/create table public\.([a-z_]+) \(([\s\S]*?)\n\);/gi)]
+    .filter(m => /\bvisibility\b/i.test(m[2])).map(m => m[1].toLowerCase()));
+  for (const m of sql.matchAll(/alter table public\.([a-z_]+) add column visibility\b/gi)) metZicht.add(m[1].toLowerCase());
+  const functies = {};   // de laatste definitie telt
+  for (const m of sql.matchAll(/create (?:or replace )?function private\.([a-z_]+)\s*\(([\s\S]*?)\$\$([\s\S]*?)\$\$/gi)) functies[m[1].toLowerCase()] = { kop: m[2], romp: m[3] };
+  // Gedeeld zonder uitzondering voor de eigenaar (possession_visible laat de eigenaar zijn persoonlijke spul zien: te ruim).
+  const alleenGedeeld = romp => /visibility\s*=\s*'household'/i.test(romp) && !/is_my_event|owner_/i.test(romp);
+  const eistGedeeld = romp => alleenGedeeld(romp)
+    || [...romp.matchAll(/private\.([a-z_]+)\s*\(/gi)].some(c => alleenGedeeld(functies[c[1].toLowerCase()]?.romp ?? ''));
+  for (const m of sql.matchAll(/alter table public\.tasks add constraint [a-z_]+ foreign key \(household_id, ([a-z_]+)\)\s+references public\.([a-z_]+)/gi)) {
+    const [kolom, doel] = [m[1].toLowerCase(), m[2].toLowerCase()];
+    if (!metZicht.has(doel)) continue;
+    beschermd.push(kolom);
+    const triggers = [...sql.matchAll(new RegExp('create trigger [a-z_]+ before insert or update of ' + kolom + ' on public\\.tasks\\s+for each row execute function private\\.([a-z_]+)\\(\\)', 'gi'))];
+    if (!triggers.length) { fouten.push(`tasks.${kolom} → ${doel}: geen guard-trigger (before insert or update of ${kolom})`); continue; }
+    for (const t of triggers) {
+      const f = functies[t[1].toLowerCase()];
+      if (!f) fouten.push(`tasks.${kolom}: guard private.${t[1]} niet gevonden`);
+      else if (/security definer/i.test(f.kop)) fouten.push(`tasks.${kolom}: guard private.${t[1]} is security definer (dan is current_user nooit authenticated)`);
+      else if (!new RegExp('new\\.' + kolom + '\\b', 'i').test(f.romp) || !eistGedeeld(f.romp)) fouten.push(`tasks.${kolom}: guard private.${t[1]} eist niet dat ${doel} gedeeld is`);
+    }
+  }
+  return Object.assign(fouten, { beschermd });
+}
+
+/**
+ * P2 (review PR #54): de migraties in de repository, het overzicht (docs/thuisplanner-migratievolgorde.md), de gemeten
+ * schemareferenties (SCHEMA_PER_STAND) en het uitrolscript (verbinding.ps1, $VerwachtAantal) moeten overeenstemmen; anders
+ * weigert het uitrolscript terecht, of controleert de nacontrole tegen een verkeerde stand. Geeft de fouten; leeg = in orde.
+ * Het overzicht mag een reeks noemen ("`A` … `B`"); elke versie daarbinnen telt dan als genoemd.
+ */
+function migratieConsistentieFouten({ versies, verwachtAantal, overzicht, schemaSleutels }) {
+  const fouten = [];
+  if (verwachtAantal !== versies.length) fouten.push(`verbinding.ps1 verwacht ${verwachtAantal} migraties; de repository heeft er ${versies.length}`);
+  const reeksen = [...overzicht.matchAll(/`(\d{14})` … `(\d{14})`/g)].map(m => [m[1], m[2]]);
+  for (const v of versies) {
+    if (!overzicht.includes('`' + v + '`') && !reeksen.some(([a, b]) => v >= a && v <= b)) fouten.push(`migratie ${v} staat niet in docs/thuisplanner-migratievolgorde.md`);
+  }
+  const laatste = versies[versies.length - 1];
+  if (!schemaSleutels.includes(laatste)) fouten.push(`geen gemeten schemareferentie (SCHEMA_PER_STAND) voor de laatste migratie ${laatste}`);
+  for (const s of schemaSleutels) if (!versies.includes(s)) fouten.push(`SCHEMA_PER_STAND noemt ${s}, maar die migratie bestaat niet`);
+  return fouten;
+}
+
 const checks = {
   'migraties: geldige namen en oplopende, unieke versies'() {
     const files = migraties();
@@ -71,6 +127,29 @@ const checks = {
       return m[1];
     });
     assert(new Set(versies).size === versies.length, 'Dubbele migratieversie');
+  },
+
+  'migraties: repository, overzicht, schemareferenties en het uitrolscript stemmen overeen'() {
+    const versies = migraties().map(f => f.slice(0, 14));
+    const ps1 = fs.readFileSync(path.join(KG, 'staging', 'verbinding.ps1'), 'utf8');
+    const verwachtAantal = Number((/^\$VerwachtAantal = (\d+)/m.exec(ps1) || [])[1]);
+    const overzicht = fs.readFileSync(path.join(ROOT, 'docs', 'thuisplanner-migratievolgorde.md'), 'utf8');
+    const controle = fs.readFileSync(path.join(KG, 'staging', 'verbinding-controle.mjs'), 'utf8');
+    const schemaSleutels = [...controle.matchAll(/^ {2}'(\d{14})': Object\.freeze\(\[/gm)].map(m => m[1]);
+    const invoer = { versies, verwachtAantal, overzicht, schemaSleutels };
+    const fouten = migratieConsistentieFouten(invoer);
+    assert(fouten.length === 0, fouten.join('\n'));
+    // Tegenproeven: elk soort afwijking moet gevonden worden.
+    const laatste = versies[versies.length - 1];
+    const proeven = [
+      { ...invoer, verwachtAantal: verwachtAantal - 1 },
+      { ...invoer, overzicht: overzicht.split('`' + laatste + '`').join('') },
+      { ...invoer, schemaSleutels: schemaSleutels.filter(v => v !== laatste) },
+      { ...invoer, schemaSleutels: [...schemaSleutels, '20991231120000'] },
+    ];
+    const gevangen = proeven.filter(p => migratieConsistentieFouten(p).length > 0).length;
+    assert(gevangen === proeven.length, `tegenproeven migratieconsistentie: ${gevangen} van ${proeven.length} gevangen`);
+    return `${versies.length} migraties; ${gevangen} tegenproeven gevangen`;
   },
 
   'SQL en scripts: alleen LF-regeleinden'() {
@@ -114,13 +193,32 @@ const checks = {
     assert(bad.length === 0, bad.join('\n'));
   },
 
+  'taken: een verwijzing naar iets met persoonlijk/gedeeld heeft een guard die gedeeld eist (P13)'() {
+    const sql = migraties().map(f => sqlZonderCommentaar(fs.readFileSync(path.join(MIG, f), 'utf8'))).join('\n');
+    const fouten = taakVerwijzingFouten(sql);
+    assert(fouten.length === 0, fouten.join('\n'));
+    assert(fouten.beschermd.includes('possession_id'), 'tasks.possession_id niet gevonden; klopt de controle nog?');
+    // Tegenproeven: zonder trigger, met de oude guard, als security definer, en een nieuwe kolom zonder guard.
+    const oudeGuard = `create or replace function private.guard_task_possession() returns trigger language plpgsql set search_path = '' as $$ begin
+      if new.possession_id is not null and not private.possession_visible(new.possession_id) then raise exception 'x'; end if; return new; end $$;`;
+    const proeven = [
+      sql.replace(/create trigger tasks_possession_refs[^;]*;/i, ''),
+      sql + '\n' + oudeGuard,
+      sql + '\nalter function private.guard_task_possession() security definer;\n' + oudeGuard.replace("set search_path = ''", "security definer set search_path = ''").replace('possession_visible(new.possession_id)', "spul_gedeeld_vergrendeld(new.household_id, new.possession_id, true)"),
+      sql + `\ncreate table public.plans (\n  id uuid,\n  visibility public.visibility\n);\nalter table public.tasks add constraint tasks_plan_fkey foreign key (household_id, plan_id) references public.plans (household_id, id);`,
+    ];
+    const gevangen = proeven.filter(s => taakVerwijzingFouten(s).length > 0).length;
+    assert(gevangen === proeven.length, `tegenproeven P13: ${gevangen} van ${proeven.length} gevangen`);
+    return `${fouten.beschermd.join(', ')}; ${gevangen} tegenproeven gevangen`;
+  },
+
   'RLS-tests: één transactie die wordt teruggedraaid'() {
     const sql = sqlZonderCommentaar(fs.readFileSync(path.join(TESTS, 'rls_tests.sql'), 'utf8'));
     assert(/^\s*begin;/i.test(sql), 'rls_tests.sql moet met begin; starten');
     assert(/rollback;\s*$/i.test(sql), 'rls_tests.sql moet met rollback; eindigen');
     assert(!/\bcommit\b/i.test(sql), 'rls_tests.sql mag geen commit bevatten');
     const nummers = [...new Set([...sql.matchAll(/pg_temp\.ok\('(KG-T\d\d)'\)/g)].map(m => m[1]))];
-    assert(nummers.length === 88, 'Verwacht 88 genummerde scenario\'s, gevonden ' + nummers.length);
+    assert(nummers.length === 98, 'Verwacht 98 genummerde scenario\'s, gevonden ' + nummers.length);
   },
 
   'tegenproeven: elke regel noemt een bestaand scenario'() {

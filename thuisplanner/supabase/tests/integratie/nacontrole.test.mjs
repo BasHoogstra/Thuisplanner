@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import pg from 'pg';
-import { leesNa, naFouten, repoVersies, SCHEMA_PER_STAND, splitsVerwacht, VERWACHT_SCHEMA, VERWACHTE_TAKEN, verwachtSchemaVoor } from '../../staging/verbinding-controle.mjs';
+import { leesNa, naFouten, repoVersies, SCHEMA_PER_STAND, splitsVerwacht, VERWACHT_SCHEMA, VERWACHTE_TAKEN, verwachteTakenVoor, verwachtSchemaVoor } from '../../staging/verbinding-controle.mjs';
 
 const DB_URL = process.env.DB_URL || '';
 if (!/^postgres(ql)?:\/\/[^@/]*@(127\.0\.0\.1|localhost):\d+\//.test(DB_URL)) throw new Error('Weigering: alleen een lokale database (DB_URL naar 127.0.0.1/localhost)');
@@ -34,6 +34,22 @@ test('de referenties per stand: staging (16 migraties) ongewijzigd; Vakanties pr
   const [p0, u0] = SCHEMA_PER_STAND['20261024120000'], [p1, u1] = SCHEMA_PER_STAND['20261027120000'];
   assert.deepEqual([p1.relaties - p0.relaties, p1.functies - p0.functies, p1.policies - p0.policies], [0, 8, 0]);
   assert.deepEqual([u1.relaties - u0.relaties, u1.functies - u0.functies, u1.policies - u0.policies], [4, 4, 12]);
+  // De herstelmigratie (bezorgmeldingen): alleen in private 1 tabel en 1 functie erbij; public ongewijzigd.
+  const [p2, u2] = SCHEMA_PER_STAND['20261027180000'];
+  assert.deepEqual([p2.relaties - p1.relaties, p2.functies - p1.functies, p2.policies - p1.policies], [1, 1, 0]);
+  assert.deepEqual([u2.relaties - u1.relaties, u2.functies - u1.functies, u2.policies - u1.policies], [0, 0, 0]);
+  // Mijn spullen & Documenten (29): private +16 functies; public +3 tabellen, +3 functies, +9 policies.
+  const [p3, u3] = SCHEMA_PER_STAND['20261029120000'];
+  assert.deepEqual([p3.relaties - p2.relaties, p3.functies - p2.functies, p3.policies - p2.policies], [0, 16, 0]);
+  assert.deepEqual([u3.relaties - u2.relaties, u3.functies - u2.functies, u3.policies - u2.policies], [3, 3, 9]);
+  // Privacyherstel tasks.possession_id: alleen 3 functies in private.
+  const [p4, u4] = SCHEMA_PER_STAND['20261029130000'];
+  assert.deepEqual([p4.relaties - p3.relaties, p4.functies - p3.functies, p4.policies - p3.policies], [0, 3, 0]);
+  assert.deepEqual([u4.relaties - u3.relaties, u4.functies - u3.functies, u4.policies - u3.policies], [0, 0, 0]);
+  // Plannen: private +7 functies; public +2 tabellen, +3 functies (de wrappers), +6 policies.
+  const [p5, u5] = SCHEMA_PER_STAND['20261111120000'];
+  assert.deepEqual([p5.relaties - p4.relaties, p5.functies - p4.functies, p5.policies - p4.policies], [0, 7, 0]);
+  assert.deepEqual([u5.relaties - u4.relaties, u5.functies - u4.functies, u5.policies - u4.policies], [2, 3, 6]);
   // Elke referentie hoort bij een migratie die in de repository staat, en een onbekende stand is een fout.
   for (const v of Object.keys(SCHEMA_PER_STAND)) assert.ok(repoVersies().includes(v), `referentie voor onbekende migratie ${v}`);
   assert.throws(() => verwachtSchemaVoor(['20261009120000']), /geen schemareferentie/);
@@ -44,7 +60,10 @@ test('de referenties per stand: staging (16 migraties) ongewijzigd; Vakanties pr
 
 test('de migratiegeschiedenis is die van de repository, en de geplande taken zijn precies de verwachte', () => {
   assert.deepEqual(n.versies, repoVersies());
-  assert.deepEqual(n.cron.map(j => j.jobname).sort(), VERWACHTE_TAKEN.map(t => t.jobname).sort());
+  assert.deepEqual(n.cron.map(j => j.jobname).sort(), verwachteTakenVoor(n.versies).map(t => t.jobname).sort());
+  // Per stand: tot en met migratie 27 de vijf bestaande taken; vanaf 29 de opruimronde van de documenten erbij.
+  assert.equal(verwachteTakenVoor(['20261027120000']), VERWACHTE_TAKEN);
+  assert.deepEqual(verwachteTakenVoor(['20261027120000', '20261029120000']).map(t => t.jobname).slice(-1), ['thuisplanner-documenten-opruimen']);
 });
 
 test('de nacontrole vindt lokaal alleen de bekende, lokale afwijkingen', () => {

@@ -46,7 +46,8 @@ const LOKAAL_DOEL = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/;
 
 /**
  * Vite-proxy naar de lokale Supabase (telefoonproef): telefoons praten alleen met de app op poort 5180; Vite
- * stuurt Auth, REST en Realtime (websocket) door naar Supabase op dit toestel. Zo blijven de database, Studio
+ * stuurt Auth, REST, Realtime (websocket), Storage en de Edge Functions (Mijn spullen: uploaden, bevestig-upload en de
+ * ondertekende links) door naar Supabase op dit toestel. Zo blijven de database, Studio
  * en de API zelf alleen op 127.0.0.1 (Docker Desktop: Port binding "Local only"). Het doel moet op dit toestel
  * staan; een ander adres wordt geweigerd.
  */
@@ -57,6 +58,8 @@ export function supabaseProxy(doel) {
     '/auth/v1': { target, changeOrigin: true },
     '/rest/v1': { target, changeOrigin: true },
     '/realtime/v1': { target, changeOrigin: true, ws: true },
+    '/storage/v1': { target, changeOrigin: true },
+    '/functions/v1': { target, changeOrigin: true },
   };
 }
 

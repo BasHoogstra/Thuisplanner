@@ -2253,9 +2253,20 @@ do $$ declare r record; begin
   if has_table_privilege('authenticated', 'private.instellingen', 'select') or has_table_privilege('authenticated', 'private.instellingen', 'update')
      or has_table_privilege('authenticated', 'private.testers', 'select') or has_table_privilege('anon', 'private.testers', 'insert') then
     raise exception 'KG-T71: instellingen of testerslijst via de API bereikbaar'; end if;
+  -- Storage: een vaste lijst (besluit 17). Precies de privé-bucket "documenten" met deze limieten, en precies de
+  -- policies documenten_lezen en documenten_uploaden (KG-T92 toetst hun inhoud). Elke andere bucket of policy faalt.
   if to_regclass('storage.objects') is not null then
-    if exists (select 1 from pg_policies where schemaname = 'storage') then raise exception 'KG-T71: er zijn storage-policies'; end if;
-    execute 'select count(*) from storage.buckets' into r;
+    for r in select schemaname || '.' || tablename || ' ' || policyname || ' ' || cmd as naam from pg_policies
+             where schemaname = 'storage' and (schemaname, tablename, policyname, cmd) not in
+               (('storage', 'objects', 'documenten_lezen', 'SELECT'), ('storage', 'objects', 'documenten_uploaden', 'INSERT')) loop
+      raise exception 'KG-T71: onverwachte storage-policy %', r.naam;
+    end loop;
+    for r in select id from storage.buckets where id <> 'documenten' loop raise exception 'KG-T71: onverwachte bucket %', r.id; end loop;
+    if not exists (select 1 from storage.buckets where id = 'documenten' and public = false and file_size_limit = 10485760
+                   and allowed_mime_types::text[] @> array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+                   and allowed_mime_types::text[] <@ array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']) then
+      raise exception 'KG-T71: de bucket documenten ontbreekt, is publiek of heeft andere limieten';
+    end if;
   end if;
   perform pg_temp.ok('KG-T71');
 end $$;
@@ -2847,6 +2858,402 @@ do $$ declare h uuid := current_setting('test.hv')::uuid; v2 uuid := current_set
   end if;
   perform pg_temp.ok('KG-T88');
 end $$;
+
+-- KG-T95 (review Vakanties V-10) Een gearchiveerd lid (Xan) als AANROEPER van de pakfuncties: overnemen, vinkjes zetten,
+-- een lijst verwijderen en een lijst herstellen geven 42501, en er verandert niets. (KG-T77 toetst Xan als inpakker en
+-- als lezer; dit is de aanroeper, voor elke functie apart.)
+do $$ declare h uuid := current_setting('test.hv')::uuid; v1 uuid := current_setting('test.v1')::uuid; v2 uuid := current_setting('test.v2')::uuid;
+  lijst uuid := gen_random_uuid(); weg uuid := gen_random_uuid(); item uuid; versie int; voor bigint; begin
+  perform pg_temp.als('vera');
+  insert into public.trip_packing_lists (id, household_id, trip_id, name) values (lijst, h, v1, 'Archieflijst'), (weg, h, v1, 'Archiefweg');
+  insert into public.trip_packing_items (household_id, trip_id, name) values (h, v1, 'Archieftest') returning id, version into item, versie;
+  perform public.delete_packing_list(h, weg, (select version from public.trip_packing_lists where id = weg));
+  voor := (select count(*) from public.trip_packing_items where household_id = h and deleted_at is null);
+  perform pg_temp.als('xan');
+  if pg_temp.fout(format('select public.copy_packing_items(%L, %L, %L, %L)', h, gen_random_uuid(), v1, v2)) is distinct from '42501' then raise exception 'KG-T95: gearchiveerd lid neemt een paklijst over'; end if;
+  if pg_temp.fout(format($q$ select public.set_packed(%L, %L, %L::jsonb) $q$, h, v1, jsonb_build_array(jsonb_build_object('id', item, 'version', versie, 'packed', true)))) is distinct from '42501' then raise exception 'KG-T95: gearchiveerd lid zet vinkjes'; end if;
+  if pg_temp.fout(format('select public.delete_packing_list(%L, %L, 1)', h, lijst)) is distinct from '42501' then raise exception 'KG-T95: gearchiveerd lid verwijdert een lijst'; end if;
+  if pg_temp.fout(format('select public.restore_packing_list(%L, %L, %s)', h, weg, (select version from public.trip_packing_lists where id = weg))) is distinct from '42501' then raise exception 'KG-T95: gearchiveerd lid herstelt een lijst'; end if;
+  perform pg_temp.als('vera');
+  if (select packed_at from public.trip_packing_items where id = item) is not null then raise exception 'KG-T95: vinkje toch gezet'; end if;
+  if (select deleted_at from public.trip_packing_lists where id = lijst) is not null then raise exception 'KG-T95: lijst toch verwijderd'; end if;
+  if (select deleted_at from public.trip_packing_lists where id = weg) is null then raise exception 'KG-T95: lijst toch hersteld'; end if;
+  if (select count(*) from public.trip_packing_items where household_id = h and deleted_at is null) <> voor then raise exception 'KG-T95: toch items overgenomen'; end if;
+  perform pg_temp.ok('KG-T95');
+end $$;
+
+-- KG-T96 (review Vakanties V-10) "Ingepakt door" via de API: alleen een lid van hetzelfde huishouden. Een lid van een ander
+-- huishouden of een onbestaand lid wordt geweigerd (de samengestelde FK trip_packing_items_packed_by_fkey is hier de
+-- enige grens: geen trigger controleert packed_by_member_id bij een directe wijziging), en er verandert niets.
+do $$ declare h uuid := current_setting('test.hv')::uuid; v1 uuid := current_setting('test.v1')::uuid; item uuid; begin
+  perform pg_temp.als('vera');
+  insert into public.trip_packing_items (household_id, trip_id, name) values (h, v1, 'Inpakkertest') returning id into item;
+  if not pg_temp.faalt(format('update public.trip_packing_items set packed_at = now(), packed_by_member_id = %L where id = %L', current_setting('test.m_otto'), item)) then raise exception 'KG-T96: ingepakt door een lid van een ander huishouden'; end if;
+  if not pg_temp.faalt(format('update public.trip_packing_items set packed_at = now(), packed_by_member_id = %L where id = %L', gen_random_uuid(), item)) then raise exception 'KG-T96: ingepakt door een onbestaand lid'; end if;
+  if (select packed_by_member_id from public.trip_packing_items where id = item) is not null then raise exception 'KG-T96: inpakker toch gezet'; end if;
+  if pg_temp.geraakt(format('update public.trip_packing_items set packed_at = now(), packed_by_member_id = %L where id = %L', current_setting('test.m_vera'), item)) <> 1 then raise exception 'KG-T96: ingepakt door een eigen lid lukt niet'; end if;
+  perform pg_temp.ok('KG-T96');
+end $$;
+set local role authenticated;
+
+-- ============================== Mijn spullen & Documenten (docs/thuisplanner-spullen-documenten.md §7 en §14) ==============================
+-- Huishouden HA (Spullen): Sara eigenaar, Tim lid met account. Bo heeft een eigen huishouden HB en is voor HA een
+-- buitenstaander. P1/D1 gedeeld, P2/D2 persoonlijk van Sara. Gate 9: wie het item niet mag zien, krijgt geen aanwijzing.
+reset role;
+select set_config('test.sara', gen_random_uuid()::text, true);
+select set_config('test.tim',  gen_random_uuid()::text, true);
+select set_config('test.bo',   gen_random_uuid()::text, true);
+insert into auth.users (id, email) values
+  (current_setting('test.sara')::uuid, 'sara@test.invalid'),
+  (current_setting('test.tim')::uuid,  'tim@test.invalid'),
+  (current_setting('test.bo')::uuid,   'bo@test.invalid');
+select set_config('test.p1', gen_random_uuid()::text, true);
+select set_config('test.p2', gen_random_uuid()::text, true);
+select set_config('test.d1', gen_random_uuid()::text, true);
+select set_config('test.d2', gen_random_uuid()::text, true);
+set local role authenticated;
+select pg_temp.als('sara');
+select set_config('test.ha', public.create_household('Spullen', 'Sara')::text, true);
+select set_config('test.m_sara', (select member_id from public.my_memberships() where household_id = current_setting('test.ha')::uuid)::text, true);
+select set_config('test.tok_tim', public.create_invite(current_setting('test.ha')::uuid), true);
+select pg_temp.als('tim');
+select public.accept_invite(current_setting('test.tok_tim'), 'Tim');
+select set_config('test.m_tim', (select member_id from public.my_memberships() where household_id = current_setting('test.ha')::uuid)::text, true);
+select pg_temp.als('bo');
+select set_config('test.hb', public.create_household('Buren', 'Bo')::text, true);
+select set_config('test.m_bo', (select member_id from public.my_memberships() where household_id = current_setting('test.hb')::uuid)::text, true);
+
+-- KG-T89 Lezen per toegangsniveau: gedeeld voor ieder actief lid; persoonlijk alleen voor de eigenaar (geen rij, geen
+-- telling, geen koppeling); niets voor een ander huishouden of zonder sessie; de eigenaar is altijd het eigen lid.
+do $$ declare ha uuid := current_setting('test.ha')::uuid; ms uuid := current_setting('test.m_sara')::uuid; begin
+  perform pg_temp.als('sara');
+  insert into public.possessions (id, household_id, name, owner_member_id) values (current_setting('test.p1')::uuid, ha, 'Vaatwasser', ms);
+  insert into public.possessions (id, household_id, name, owner_member_id, visibility) values (current_setting('test.p2')::uuid, ha, 'Sieraad', ms, 'private');
+  insert into public.documents (id, household_id, title, kind, owner_member_id, mime, size_bytes) values (current_setting('test.d1')::uuid, ha, 'Factuur vaatwasser', 'factuur', ms, 'application/pdf', 1000);
+  insert into public.documents (id, household_id, title, kind, owner_member_id, mime, size_bytes, visibility) values (current_setting('test.d2')::uuid, ha, 'Polis sieraad', 'polis', ms, 'application/pdf', 2000, 'private');
+  if pg_temp.aantal('select 1 from public.possessions') <> 2 or pg_temp.aantal('select 1 from public.documents') <> 2 then raise exception 'KG-T89: Sara ziet haar eigen items niet'; end if;
+  perform pg_temp.als('tim');
+  if pg_temp.aantal('select 1 from public.possessions') <> 1 or pg_temp.aantal('select 1 from public.documents') <> 1 then raise exception 'KG-T89: Tim ziet een persoonlijk item van Sara (of mist het gedeelde)'; end if;
+  if exists (select 1 from public.possessions where name = 'Sieraad') or exists (select 1 from public.documents where title like 'Polis%') then raise exception 'KG-T89: persoonlijk item van een ander zichtbaar'; end if;
+  if pg_temp.geraakt(format('update public.possessions set name = %L where id = %L', 'Gestolen', current_setting('test.p2'))) <> 0 then raise exception 'KG-T89: Tim wijzigt een persoonlijk spul van Sara'; end if;
+  if not pg_temp.faalt(format('insert into public.possessions (household_id, name, owner_member_id, visibility) values (%L, %L, %L, %L)', ha, 'Vals', ms, 'private')) then raise exception 'KG-T89: Tim maakt een persoonlijk spul op naam van Sara'; end if;
+  if not pg_temp.faalt(format('insert into public.possessions (household_id, name, owner_member_id) values (%L, %L, %L)', ha, 'Vals', ms)) then raise exception 'KG-T89: Tim maakt een spul met Sara als eigenaar'; end if;
+  perform pg_temp.als('bo');
+  if pg_temp.aantal(format('select 1 from public.possessions where household_id = %L', ha)) <> 0 or pg_temp.aantal(format('select 1 from public.documents where household_id = %L', ha)) <> 0 then raise exception 'KG-T89: Bo ziet items van HA'; end if;
+  if not pg_temp.faalt(format('insert into public.documents (household_id, title, kind, owner_member_id, mime, size_bytes) values (%L, %L, %L, %L, %L, 1)', ha, 'Indringer', 'bon', current_setting('test.m_bo'), 'image/png')) then raise exception 'KG-T89: Bo schrijft in HA'; end if;
+  perform set_config('request.jwt.claims', '', true);
+  if pg_temp.aantal('select 1 from public.possessions') <> 0 then raise exception 'KG-T89: zonder sessie zichtbaar'; end if;
+  reset role;
+  set local role anon;
+  if not pg_temp.faalt('select 1 from public.documents') then raise exception 'KG-T89: anon leest documenten'; end if;
+  reset role;
+  perform pg_temp.ok('KG-T89');
+end $$;
+set local role authenticated;
+
+-- KG-T90 Koppelen: veel-op-veel zonder duplicaten; nooit naar een item dat het lid niet mag zien (ook niet het
+-- persoonlijke document van de partner) of naar een ander huishouden; een koppeling met een persoonlijke kant is voor
+-- anderen onzichtbaar; ontkoppelen laat het document staan.
+do $$ declare ha uuid := current_setting('test.ha')::uuid; hb uuid := current_setting('test.hb')::uuid;
+  p1 uuid := current_setting('test.p1')::uuid; p2 uuid := current_setting('test.p2')::uuid;
+  d1 uuid := current_setting('test.d1')::uuid; d2 uuid := current_setting('test.d2')::uuid; pb uuid := gen_random_uuid(); l uuid; begin
+  perform pg_temp.als('sara');
+  insert into public.document_links (household_id, document_id, possession_id) values (ha, d1, p1) returning id into l;
+  if not pg_temp.faalt(format('insert into public.document_links (household_id, document_id, possession_id) values (%L, %L, %L)', ha, d1, p1)) then raise exception 'KG-T90: dubbele koppeling'; end if;
+  insert into public.document_links (household_id, document_id, possession_id) values (ha, d2, p1);
+  insert into public.document_links (household_id, document_id, possession_id) values (ha, d1, p2);
+  perform pg_temp.als('tim');
+  if pg_temp.aantal('select 1 from public.document_links') <> 1 then raise exception 'KG-T90: Tim ziet een koppeling met een persoonlijke kant'; end if;
+  insert into public.possessions (id, household_id, name, owner_member_id) values (pb, ha, 'Fiets Tim', current_setting('test.m_tim')::uuid);
+  if not pg_temp.faalt(format('insert into public.document_links (household_id, document_id, possession_id) values (%L, %L, %L)', ha, d2, pb)) then raise exception 'KG-T90: Tim koppelt het persoonlijke document van Sara'; end if;
+  pb := gen_random_uuid();
+  perform pg_temp.als('bo');
+  insert into public.possessions (id, household_id, name, owner_member_id) values (pb, hb, 'Fiets Bo', current_setting('test.m_bo')::uuid);
+  if not pg_temp.faalt(format('insert into public.document_links (household_id, document_id, possession_id) values (%L, %L, %L)', hb, d1, pb)) then raise exception 'KG-T90: Bo koppelt een document van HA'; end if;
+  if not pg_temp.faalt(format('insert into public.document_links (household_id, document_id, possession_id) values (%L, %L, %L)', ha, d1, p1)) then raise exception 'KG-T90: Bo koppelt binnen HA'; end if;
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, possession_id) values (%L, %L, %L)', hb, 'Onderhoud', p1)) then raise exception 'KG-T90: taak van HB aan een spul van HA'; end if;
+  perform pg_temp.als('tim');
+  update public.document_links set deleted_at = now() where id = l;
+  if pg_temp.aantal('select 1 from public.document_links where deleted_at is null') <> 0 or pg_temp.aantal(format('select 1 from public.documents where id = %L and deleted_at is null', d1)) <> 1 then raise exception 'KG-T90: ontkoppelen raakte het document'; end if;
+  insert into public.document_links (household_id, document_id, possession_id) values (ha, d1, p1);   -- opnieuw koppelen mag
+  perform pg_temp.ok('KG-T90');
+end $$;
+
+-- KG-T91 Eigenaar en vaste kolommen: alleen de eigenaar maakt persoonlijk of gedeeld; eigenaar, account, type,
+-- grootte, controlesom en de uploadstatus zijn niet via de API te wijzigen; owner_user_id is niet leesbaar; geen delete.
+do $$ declare p1 uuid := current_setting('test.p1')::uuid; d1 uuid := current_setting('test.d1')::uuid; begin
+  perform pg_temp.als('tim');
+  if not pg_temp.faalt(format('update public.possessions set visibility = %L where id = %L', 'private', p1)) then raise exception 'KG-T91: een ander maakt het spul persoonlijk'; end if;
+  if pg_temp.fout(format('update public.documents set upload_status = %L where id = %L', 'klaar', d1)) is null then raise exception 'KG-T91: de client zet een upload op klaar'; end if;
+  perform pg_temp.als('sara');
+  if pg_temp.fout(format('update public.documents set upload_status = %L where id = %L', 'klaar', d1)) is null then raise exception 'KG-T91: de eigenaar zet een upload op klaar'; end if;
+  if pg_temp.fout(format('update public.documents set size_bytes = 5 where id = %L', d1)) is null
+     or pg_temp.fout(format('update public.documents set mime = %L where id = %L', 'image/png', d1)) is null
+     or pg_temp.fout(format('update public.possessions set owner_member_id = %L where id = %L', current_setting('test.m_tim'), p1)) is null then raise exception 'KG-T91: vaste kolom gewijzigd'; end if;
+  if pg_temp.fout(format('insert into public.documents (household_id, title, kind, owner_member_id, mime, size_bytes, upload_status) values (%L, %L, %L, %L, %L, 1, %L)', current_setting('test.ha'), 'X', 'bon', current_setting('test.m_sara'), 'image/png', 'klaar')) is null then raise exception 'KG-T91: document direct op klaar ingevoegd'; end if;
+  if not pg_temp.faalt(format('insert into public.documents (household_id, title, kind, owner_member_id, mime, size_bytes) values (%L, %L, %L, %L, %L, 1)', current_setting('test.ha'), 'X', 'bon', current_setting('test.m_sara'), 'image/svg+xml')) then raise exception 'KG-T91: SVG toegestaan'; end if;
+  if not pg_temp.faalt(format('insert into public.documents (household_id, title, kind, owner_member_id, mime, size_bytes) values (%L, %L, %L, %L, %L, 10485761)', current_setting('test.ha'), 'X', 'bon', current_setting('test.m_sara'), 'image/png')) then raise exception 'KG-T91: groter dan 10 MB toegestaan'; end if;
+  if not pg_temp.faalt(format('update public.possessions set field_status = %L where id = %L', '{"model": "bevestigd"}', p1)) then raise exception 'KG-T91: ongeldige veldstatus'; end if;
+  update public.possessions set field_status = '{"model": "voorstel"}' where id = p1;
+  reset role;
+  if has_column_privilege('authenticated', 'public.documents', 'owner_user_id', 'select') or has_column_privilege('authenticated', 'public.possessions', 'owner_user_id', 'select')
+     or has_table_privilege('authenticated', 'public.documents', 'delete') or has_table_privilege('authenticated', 'public.possessions', 'delete')
+     or has_table_privilege('authenticated', 'public.document_links', 'delete') or has_table_privilege('anon', 'public.documents', 'select')
+     or has_column_privilege('authenticated', 'public.documents', 'storage_path', 'update') then raise exception 'KG-T91: rechten te ruim'; end if;
+  if (select owner_user_id from public.documents where id = d1) is distinct from current_setting('test.sara')::uuid then raise exception 'KG-T91: account van de eigenaar niet vastgelegd'; end if;
+  if (select storage_path from public.documents where id = d1) <> current_setting('test.ha') || '/' || d1 || '/origineel' then raise exception 'KG-T91: pad niet vast'; end if;
+  perform pg_temp.ok('KG-T91');
+end $$;
+set local role authenticated;
+
+-- KG-T92 Storage-policies (via de poort): uploaden alleen naar het eigen 'wacht'-document op precies het vaste pad;
+-- lezen alleen bij 'klaar', niet verwijderd en zichtbaar; nooit een pad van een ander huishouden, een ander bestand
+-- of een verzonnen pad.
+do $$ declare ha text := current_setting('test.ha'); hb text := current_setting('test.hb'); d1 text := current_setting('test.d1');
+  d2 text := current_setting('test.d2'); pad1 text; pad2 text; begin
+  pad1 := ha || '/' || d1 || '/origineel'; pad2 := ha || '/' || d2 || '/origineel';
+  perform pg_temp.als('sara');
+  if not private.documentobject_uploaden(pad1) then raise exception 'KG-T92: Sara mag haar wachtende document niet uploaden'; end if;
+  if private.documentobject_lezen(pad1) then raise exception 'KG-T92: lezen vóór de bevestiging'; end if;
+  if private.documentobject_uploaden(ha || '/' || d1 || '/anders') or private.documentobject_uploaden(ha || '/' || d1 || '/origineel/x')
+     or private.documentobject_uploaden(hb || '/' || d1 || '/origineel') or private.documentobject_uploaden('../' || pad1)
+     or private.documentobject_uploaden(ha || '/' || gen_random_uuid() || '/origineel') or private.documentobject_uploaden('niet-een-uuid/x/origineel') then raise exception 'KG-T92: upload naar een ander pad'; end if;
+  perform pg_temp.als('tim');
+  if private.documentobject_uploaden(pad1) then raise exception 'KG-T92: een ander uploadt in het document van Sara'; end if;
+  perform pg_temp.als('bo');
+  if private.documentobject_uploaden(pad1) or private.documentobject_lezen(pad1) then raise exception 'KG-T92: Bo uploadt of leest in HA'; end if;
+  -- Bevestigd (zoals bevestig-upload doet): nu lezen, maar alleen wie het document mag zien.
+  reset role;
+  insert into storage.objects (bucket_id, name, metadata) values ('documenten', pad1, '{"size": 1000, "mimetype": "application/pdf"}'),
+    ('documenten', pad2, '{"size": 2000, "mimetype": "application/pdf"}');
+  if private.documenten_klaar(d1::uuid, 'application/pdf') <> 'klaar' or private.documenten_klaar(d2::uuid, 'application/pdf') <> 'klaar' then raise exception 'KG-T92: bevestigen mislukt'; end if;
+  set local role authenticated;
+  perform pg_temp.als('sara');
+  if not private.documentobject_lezen(pad1) or not private.documentobject_lezen(pad2) then raise exception 'KG-T92: de eigenaar kan niet lezen'; end if;
+  if private.documentobject_uploaden(pad1) then raise exception 'KG-T92: overschrijven van een bevestigd document'; end if;
+  perform pg_temp.als('tim');
+  if not private.documentobject_lezen(pad1) then raise exception 'KG-T92: een lid leest het gedeelde document niet'; end if;
+  if private.documentobject_lezen(pad2) then raise exception 'KG-T92: een lid leest het persoonlijke document van een ander'; end if;
+  perform pg_temp.als('bo');
+  if private.documentobject_lezen(pad1) then raise exception 'KG-T92: Bo leest een document van HA via een bekend pad'; end if;
+  -- In de prullenbak: niet meer te lezen.
+  perform pg_temp.als('sara');
+  update public.documents set deleted_at = now() where id = d1::uuid;
+  if private.documentobject_lezen(pad1) then raise exception 'KG-T92: document in de prullenbak nog te lezen'; end if;
+  update public.documents set deleted_at = null where id = d1::uuid;
+  -- Catalogus: precies deze twee policies op storage.objects, voor authenticated, met de bucket en de poortfunctie.
+  reset role;
+  if (select count(*) from pg_policies where schemaname = 'storage') <> 2
+     or not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'documenten_lezen' and cmd = 'SELECT'
+                    and roles = '{authenticated}' and qual like '%bucket_id = ''documenten''%' and qual like '%private.documentobject_lezen(name)%')
+     or not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'documenten_uploaden' and cmd = 'INSERT'
+                    and roles = '{authenticated}' and with_check like '%bucket_id = ''documenten''%' and with_check like '%private.documentobject_uploaden(name)%') then
+    raise exception 'KG-T92: storage-policies wijken af';
+  end if;
+  perform pg_temp.ok('KG-T92');
+end $$;
+set local role authenticated;
+
+-- KG-T93 Twee fasen en opruimen: alleen de service-rol bevestigt; zonder object of met een andere grootte of een ander
+-- type wordt het 'mislukt'; de opruimronde geeft wezen, verlopen prullenbak en oude wachtende uploads, en wist die rijen.
+-- De geplande ronde is niet via de API aan te roepen, en staat gepland waar pg_cron bestaat.
+do $$ declare ha uuid := current_setting('test.ha')::uuid; ms uuid := current_setting('test.m_sara')::uuid;
+  a uuid := gen_random_uuid(); b uuid := gen_random_uuid(); c uuid := gen_random_uuid(); e uuid := gen_random_uuid(); wees text; paden text[]; n integer; begin
+  perform pg_temp.als('sara');
+  if not pg_temp.faalt(format('select public.documenten_klaar(%L, %L)', current_setting('test.d1'), 'application/pdf')) then raise exception 'KG-T93: authenticated bevestigt een upload'; end if;
+  if not pg_temp.faalt('select * from public.documenten_op_te_ruimen()') then raise exception 'KG-T93: authenticated start de opruimronde'; end if;
+  insert into public.documents (id, household_id, title, kind, owner_member_id, mime, size_bytes) values
+    (a, ha, 'Zonder object', 'bon', ms, 'image/jpeg', 10), (b, ha, 'Verkeerde grootte', 'bon', ms, 'image/jpeg', 10),
+    (c, ha, 'Oud wachtend', 'bon', ms, 'image/jpeg', 10), (e, ha, 'Lang weg', 'bon', ms, 'image/jpeg', 10);
+  reset role;
+  if private.documenten_klaar(a, 'image/jpeg') <> 'mislukt' then raise exception 'KG-T93: klaar zonder object'; end if;
+  insert into storage.objects (bucket_id, name, metadata) values ('documenten', ha || '/' || b || '/origineel', '{"size": 11}');
+  if private.documenten_klaar(b, 'image/jpeg') <> 'mislukt' then raise exception 'KG-T93: klaar met een andere grootte'; end if;
+  if private.documenten_klaar(b, 'image/jpeg') <> 'onbekend' then raise exception 'KG-T93: een mislukt document opnieuw bevestigd'; end if;
+  -- created_at is een vaste kolom: de tijd verschuiven zonder triggers (alleen in deze testtransactie).
+  set local session_replication_role = replica;
+  update public.documents set created_at = now() - interval '25 hours' where id = c;
+  set local session_replication_role = origin;
+  update public.documents set upload_status = 'klaar', deleted_at = now() - interval '31 days' where id = e;
+  wees := ha || '/' || gen_random_uuid() || '/origineel';
+  insert into storage.objects (bucket_id, name, metadata) values ('documenten', wees, '{"size": 1}');
+  select array_agg(pad) into paden from private.documenten_op_te_ruimen();
+  if not (wees = any (paden)) or not ((ha || '/' || c || '/origineel') = any (paden)) or not ((ha || '/' || e || '/origineel') = any (paden)) then raise exception 'KG-T93: opruimronde mist een pad: %', paden; end if;
+  if (ha || '/' || current_setting('test.d1') || '/origineel') = any (paden) then raise exception 'KG-T93: opruimronde wist een actief document'; end if;
+  if exists (select 1 from public.documents where id in (c, e)) then raise exception 'KG-T93: verlopen rijen niet gewist'; end if;
+  if not exists (select 1 from public.documents where id = current_setting('test.d1')::uuid) then raise exception 'KG-T93: actief document gewist'; end if;
+  if has_function_privilege('authenticated', 'private.documenten_klaar(uuid, text)', 'execute') or has_function_privilege('anon', 'public.documenten_op_te_ruimen()', 'execute') then raise exception 'KG-T93: serverfuncties via de API'; end if;
+  if has_function_privilege('authenticated', 'private.documenten_opruimen_ronde()', 'execute') or has_function_privilege('anon', 'private.documenten_opruimen_ronde()', 'execute') then
+    raise exception 'KG-T93: de geplande opruimronde via de API'; end if;
+  if to_regnamespace('cron') is not null then
+    execute $q$ select count(*) from cron.job where jobname = 'thuisplanner-documenten-opruimen' and schedule = '7 4 * * *'
+      and command = 'select private.documenten_opruimen_ronde()' and active $q$ into n;
+    if n <> 1 then raise exception 'KG-T93: de opruimronde staat niet gepland'; end if;
+  end if;
+  perform pg_temp.ok('KG-T93');
+end $$;
+set local role authenticated;
+
+-- KG-T97 (privacyherstel tasks.possession_id, optie A) Taken zijn voor het hele huishouden zichtbaar, dus een taak hoort
+-- alleen bij een gedeeld spul: ook de eigenaar koppelt geen taak aan het eigen persoonlijke spul (P1); de partner krijgt
+-- dezelfde fout als bij een onbekend id (P2); gedeeld werkt (P3); persoonlijk maken maakt de koppeling meteen leeg en laat
+-- de taak en andere taken staan (P4); weer delen brengt haar niet terug (P5); niet aan een spul in de prullenbak; ook de
+-- service-rol niet (de regel geldt voor elke rol); geen possession_id die het lid niet kan lezen (P7); de eenmalige
+-- opschoning raakt alleen koppelingen aan niet-gedeelde spullen (P8 opschoning).
+do $$ declare ha uuid := current_setting('test.ha')::uuid; ms uuid := current_setting('test.m_sara')::uuid;
+  p2 uuid := current_setting('test.p2')::uuid; q uuid := gen_random_uuid(); r uuid := gen_random_uuid();
+  t0 uuid := gen_random_uuid(); t1 uuid := gen_random_uuid(); t2 uuid := gen_random_uuid(); t3 uuid := gen_random_uuid();
+  voor bigint; n integer; begin
+  perform pg_temp.als('sara');
+  if pg_temp.fout(format('insert into public.tasks (household_id, title, possession_id) values (%L, %L, %L)', ha, 'Sieraad laten taxeren', p2)) is distinct from '42501' then raise exception 'KG-T97: eigenaar koppelt een taak aan het eigen persoonlijke spul'; end if;
+  insert into public.possessions (id, household_id, name, owner_member_id) values (q, ha, 'Wasmachine', ms);
+  insert into public.tasks (id, household_id, title) values (t0, ha, 'Losse taak');
+  insert into public.tasks (id, household_id, title, possession_id) values (t1, ha, 'Filter wasmachine', q);
+  perform pg_temp.als('tim');
+  if pg_temp.fout(format('insert into public.tasks (household_id, title, possession_id) values (%L, %L, %L)', ha, 'x', p2))
+     is distinct from pg_temp.fout(format('insert into public.tasks (household_id, title, possession_id) values (%L, %L, %L)', ha, 'x', gen_random_uuid())) then raise exception 'KG-T97: andere fout bij een persoonlijk spul dan bij een onbekend id'; end if;
+  if (select possession_id from public.tasks where id = t1) is distinct from q then raise exception 'KG-T97: de partner ziet de koppeling aan een gedeeld spul niet'; end if;
+  perform pg_temp.als('sara');
+  voor := pg_temp.aantal(format('select 1 from public.tasks where household_id = %L', ha));
+  update public.possessions set visibility = 'private' where id = q;
+  perform pg_temp.als('tim');
+  if (select possession_id from public.tasks where id = t1) is not null then raise exception 'KG-T97: koppeling blijft na persoonlijk maken'; end if;
+  if (select title from public.tasks where id = t1) is distinct from 'Filter wasmachine' or not exists (select 1 from public.tasks where id = t0)
+     or pg_temp.aantal(format('select 1 from public.tasks where household_id = %L', ha)) <> voor then raise exception 'KG-T97: persoonlijk maken raakt de taken zelf'; end if;
+  if exists (select 1 from public.tasks t where t.possession_id is not null and not exists (select 1 from public.possessions p where p.id = t.possession_id)) then raise exception 'KG-T97: de partner ziet een possession_id die hij niet kan lezen'; end if;
+  perform pg_temp.als('sara');
+  update public.possessions set visibility = 'household' where id = q;
+  if (select possession_id from public.tasks where id = t1) is not null then raise exception 'KG-T97: koppeling komt terug na weer delen'; end if;
+  update public.possessions set deleted_at = now() where id = q;
+  if pg_temp.fout(format('update public.tasks set possession_id = %L where id = %L', q, t1)) is distinct from '42501' then raise exception 'KG-T97: taak aan een spul in de prullenbak'; end if;
+  update public.possessions set deleted_at = null where id = q;
+  reset role;
+  if pg_temp.fout(format('insert into public.tasks (household_id, title, possession_id) values (%L, %L, %L)', ha, 'Dienst', p2)) is distinct from '42501' then raise exception 'KG-T97: een rol buiten de API koppelt aan een persoonlijk spul'; end if;
+  -- De opschoning: een oude koppeling aan een persoonlijk spul verdwijnt, een gedeelde en een losse taak blijven.
+  insert into public.possessions (id, household_id, name, owner_member_id) values (r, ha, 'Boor', ms);
+  alter table public.tasks disable trigger tasks_possession_refs;
+  insert into public.tasks (id, household_id, title, possession_id) values (t2, ha, 'Oud: sieraad', p2), (t3, ha, 'Oud: boor', r);
+  alter table public.tasks enable trigger tasks_possession_refs;
+  voor := (select count(*) from public.tasks where household_id = ha);
+  n := private.spullen_taakkoppelingen_opschonen();
+  if n <> 1 or (select possession_id from public.tasks where id = t2) is not null then raise exception 'KG-T97: de opschoning laat een koppeling aan een persoonlijk spul staan'; end if;
+  if (select possession_id from public.tasks where id = t3) is distinct from r or (select title from public.tasks where id = t2) <> 'Oud: sieraad'
+     or (select count(*) from public.tasks where household_id = ha) <> voor or not exists (select 1 from public.tasks where id = t0) then raise exception 'KG-T97: de opschoning raakt meer dan de koppelingen aan niet-gedeelde spullen'; end if;
+  set local role authenticated;
+  perform pg_temp.ok('KG-T97');
+end $$;
+set local role authenticated;
+
+-- KG-T98 (Plannen, besluit 18; gate 9 voor het domein plannen) Gedeeld binnen het huishouden: ieder actief lid leest en
+-- wijzigt plannen en onderdelen; een ander huishouden en anon zien niets en koppelen niets. Een taak hoort bij hoogstens
+-- één context (vakantie óf plan); een onderdeel hoort bij hetzelfde plan; wie een plan oppakt, is een actief lid; niet
+-- koppelen aan een verwijderd plan; afvinken maakt Bezig leeg; geen delete-recht; een plan verwijderen laat de taken
+-- standaard los staan, of neemt ze mee; terugzetten zet precies dat terug; een onderdeel verwijderen houdt de taken in
+-- het plan; seintjes alleen {t, id, v, op}.
+do $$ declare ha uuid := current_setting('test.ha')::uuid; hb uuid := current_setting('test.hb')::uuid;
+  ms uuid := current_setting('test.m_sara')::uuid; mt uuid := current_setting('test.m_tim')::uuid; mb uuid := current_setting('test.m_bo')::uuid;
+  pl1 uuid := gen_random_uuid(); pl2 uuid := gen_random_uuid(); s1 uuid := gen_random_uuid(); s2 uuid := gen_random_uuid();
+  t1 uuid := gen_random_uuid(); t2 uuid := gen_random_uuid(); t3 uuid := gen_random_uuid(); trip uuid := gen_random_uuid();
+  pb uuid := gen_random_uuid(); v integer; r record; m record; begin
+  perform pg_temp.als('sara');
+  insert into public.plans (id, household_id, title, member_ids) values (pl1, ha, 'Zolder verbouwen', array[ms, mt]);
+  insert into public.plans (id, household_id, title) values (pl2, ha, 'Schuur opruimen');
+  insert into public.plan_sections (id, household_id, plan_id, name, position) values (s1, ha, pl1, 'Voorbereiding', 1), (s2, ha, pl2, 'Afvoeren', 1);
+  insert into public.tasks (id, household_id, title, plan_id, plan_section_id) values (t1, ha, 'Isolatie bestellen', pl1, s1);
+  insert into public.tasks (id, household_id, title, plan_id) values (t2, ha, 'Vloer leggen', pl1), (t3, ha, 'Planken weg', pl2);
+  insert into public.trips (id, household_id, name) values (trip, ha, 'Texel');
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, plan_id, plan_section_id) values (%L, %L, %L, %L)', ha, 'x', pl1, s2)) then raise exception 'KG-T98: een onderdeel van een ander plan'; end if;
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, plan_section_id) values (%L, %L, %L)', ha, 'x', s1)) then raise exception 'KG-T98: een onderdeel zonder plan'; end if;
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, plan_id, trip_id) values (%L, %L, %L, %L)', ha, 'x', pl1, trip)) then raise exception 'KG-T98: een taak in een vakantie en een plan tegelijk'; end if;
+  if not pg_temp.faalt(format('insert into public.plans (household_id, title, member_ids) values (%L, %L, %L)', ha, 'x', array[mb])) then raise exception 'KG-T98: een lid van een ander huishouden pakt een plan op'; end if;
+  if not pg_temp.faalt(format('delete from public.plans where id = %L', pl2)) then raise exception 'KG-T98: delete-recht op plannen'; end if;
+  -- Bezig en afvinken: afgerond is alleen done_on.
+  update public.tasks set started_on = current_date where id = t2;
+  if (select started_on from public.tasks where id = t2) is null then raise exception 'KG-T98: Bezig niet bewaard'; end if;
+  update public.tasks set done_on = current_date, done_by_member_id = ms where id = t2;
+  if (select started_on from public.tasks where id = t2) is not null then raise exception 'KG-T98: Bezig blijft staan na afvinken'; end if;
+  -- Tim (lid) leest en wijzigt.
+  perform pg_temp.als('tim');
+  if pg_temp.aantal(format('select 1 from public.plans where household_id = %L', ha)) <> 2 or pg_temp.aantal(format('select 1 from public.plan_sections where household_id = %L', ha)) <> 2 then raise exception 'KG-T98: Tim ziet de plannen niet'; end if;
+  if (select plan_section_id from public.tasks where id = t1) is distinct from s1 then raise exception 'KG-T98: Tim ziet het onderdeel van de taak niet'; end if;
+  if pg_temp.geraakt(format('update public.plans set title = %L where id = %L', 'Zolder', pl1)) <> 1 then raise exception 'KG-T98: Tim wijzigt een gedeeld plan niet'; end if;
+  -- Bo (ander huishouden) en anon: niets.
+  perform pg_temp.als('bo');
+  if pg_temp.aantal(format('select 1 from public.plans where household_id = %L', ha)) <> 0 or pg_temp.aantal(format('select 1 from public.plan_sections where household_id = %L', ha)) <> 0 then raise exception 'KG-T98: Bo ziet plannen van HA'; end if;
+  if pg_temp.geraakt(format('update public.plans set title = %L where id = %L', 'Gekaapt', pl1)) <> 0 then raise exception 'KG-T98: Bo wijzigt een plan van HA'; end if;
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, plan_id) values (%L, %L, %L)', hb, 'x', pl1)) then raise exception 'KG-T98: taak van HB in een plan van HA'; end if;
+  if not pg_temp.faalt(format('insert into public.plan_sections (household_id, plan_id, name) values (%L, %L, %L)', hb, pl1, 'x')) then raise exception 'KG-T98: onderdeel van HB in een plan van HA'; end if;
+  if not pg_temp.faalt(format('insert into public.plans (household_id, title) values (%L, %L)', ha, 'Indringer')) then raise exception 'KG-T98: Bo maakt een plan in HA'; end if;
+  if pg_temp.fout(format('select public.delete_plan(%L, %L, 1)', ha, pl2)) is distinct from '42501' then raise exception 'KG-T98: Bo verwijdert een plan van HA'; end if;
+  insert into public.plans (id, household_id, title) values (pb, hb, 'Buren');
+  reset role;
+  set local role anon;
+  if not pg_temp.faalt('select 1 from public.plans') then raise exception 'KG-T98: anon leest plannen'; end if;
+  reset role;
+  set local role authenticated;
+  -- Onderdeel verwijderen: de taak blijft in het plan.
+  perform pg_temp.als('sara');
+  perform public.delete_plan_section(ha, s1, (select version from public.plan_sections where id = s1));
+  if (select plan_id from public.tasks where id = t1) is distinct from pl1 or (select plan_section_id from public.tasks where id = t1) is not null then raise exception 'KG-T98: onderdeel verwijderen raakt de taak verkeerd'; end if;
+  -- Plan verwijderen, standaard: de taken blijven als losse taken; een verkeerde versie verandert niets.
+  if pg_temp.fout(format('select public.delete_plan(%L, %L, 999)', ha, pl1)) is distinct from 'PT409' then raise exception 'KG-T98: verwijderen met een oude versie'; end if;
+  perform public.delete_plan(ha, pl1, (select version from public.plans where id = pl1));
+  if (select deleted_at from public.plans where id = pl1) is null or exists (select 1 from public.tasks where id in (t1, t2) and (plan_id is not null or deleted_at is not null)) then raise exception 'KG-T98: plan verwijderen laat de taken niet los staan'; end if;
+  if not pg_temp.faalt(format('insert into public.tasks (household_id, title, plan_id) values (%L, %L, %L)', ha, 'x', pl1)) then raise exception 'KG-T98: een taak in een verwijderd plan'; end if;
+  -- Plan en taken: samen weg, en samen terug.
+  v := (select version from public.plans where id = pl2);
+  select * into r from public.delete_plan(ha, pl2, v, true);
+  if (select deleted_at from public.tasks where id = t3) is null or (select deleted_at from public.plan_sections where id = s2) is null then raise exception 'KG-T98: plan en taken niet samen verwijderd'; end if;
+  perform public.restore_plan(ha, pl2, r.version);
+  if (select deleted_at from public.plans where id = pl2) is not null or (select deleted_at from public.tasks where id = t3) is not null
+     or (select deleted_at from public.plan_sections where id = s2) is not null or (select plan_id from public.tasks where id = t3) is distinct from pl2 then raise exception 'KG-T98: terugzetten zet niet alles terug'; end if;
+  -- Seintjes: alleen {t, id, v, op}.
+  reset role;
+  for m in select payload from realtime.messages where payload->>'t' in ('plans', 'plan_sections') loop
+    if exists (select 1 from jsonb_object_keys(m.payload) k where k not in ('t', 'id', 'v', 'op')) then raise exception 'KG-T98: seintje bevat meer dan t/id/v/op'; end if;
+  end loop;
+  if not exists (select 1 from realtime.messages where payload->>'t' = 'plans' and payload->>'id' = pl1::text) then raise exception 'KG-T98: geen seintje over een plan'; end if;
+  set local role authenticated;
+  perform pg_temp.ok('KG-T98');
+end $$;
+set local role authenticated;
+
+-- KG-T94 Persoonlijk volgt het account, en de seintjes verraden niets: geen seintje over een persoonlijke rij; gedeelde
+-- seintjes alleen {t, id, v, op}; een gearchiveerd lid ziet niets; ontkoppelen, de bewaartermijn en een verwijderd
+-- account wissen de persoonlijke spullen en documenten.
+do $$ declare ha uuid := current_setting('test.ha')::uuid; m record; pt uuid := gen_random_uuid(); dt uuid := gen_random_uuid(); pg uuid := gen_random_uuid(); n integer; begin
+  reset role;
+  for m in select payload from realtime.messages where payload->>'t' in ('possessions', 'documents', 'document_links') loop
+    if exists (select 1 from jsonb_object_keys(m.payload) k where k not in ('t', 'id', 'v', 'op')) then raise exception 'KG-T94: seintje bevat meer dan t/id/v/op'; end if;
+    if m.payload->>'id' in (current_setting('test.p2'), current_setting('test.d2')) then raise exception 'KG-T94: seintje over een persoonlijke rij'; end if;
+  end loop;
+  if not exists (select 1 from realtime.messages where payload->>'t' = 'documents' and payload->>'id' = current_setting('test.d1')) then raise exception 'KG-T94: geen seintje over een gedeeld document'; end if;
+  if exists (select 1 from realtime.messages m2 join public.document_links l on l.id::text = m2.payload->>'id' where l.document_id = current_setting('test.d2')::uuid) then raise exception 'KG-T94: seintje over een koppeling met een persoonlijke kant'; end if;
+  -- Tim maakt een persoonlijk spul en document; Sara ziet ze niet.
+  set local role authenticated;
+  perform pg_temp.als('tim');
+  insert into public.possessions (id, household_id, name, owner_member_id, visibility) values (pt, ha, 'Tims horloge', current_setting('test.m_tim')::uuid, 'private');
+  insert into public.documents (id, household_id, title, kind, owner_member_id, mime, size_bytes, visibility) values (dt, ha, 'Tims contract', 'contract', current_setting('test.m_tim')::uuid, 'application/pdf', 5, 'private');
+  insert into public.possessions (id, household_id, name, owner_member_id) values (pg, ha, 'Tims gedeelde boor', current_setting('test.m_tim')::uuid);
+  perform pg_temp.als('sara');
+  if pg_temp.aantal(format('select 1 from public.possessions where id = %L', pt)) <> 0 then raise exception 'KG-T94: Sara ziet het persoonlijke spul van Tim'; end if;
+  -- Gearchiveerd: Tim ziet niets meer.
+  perform public.archive_member(ha, current_setting('test.m_tim')::uuid);
+  perform pg_temp.als('tim');
+  if pg_temp.aantal(format('select 1 from public.possessions where household_id = %L', ha)) <> 0 or pg_temp.aantal(format('select 1 from public.documents where household_id = %L', ha)) <> 0 then raise exception 'KG-T94: een gearchiveerd lid ziet spullen of documenten'; end if;
+  -- Een verwijderd account: de persoonlijke items van Tim gaan mee; het huishouden en de gedeelde items blijven.
+  reset role;
+  delete from auth.users where id = current_setting('test.tim')::uuid;
+  if exists (select 1 from public.possessions where id = pt) or exists (select 1 from public.documents where id = dt) then raise exception 'KG-T94: persoonlijke items van een verwijderd account blijven'; end if;
+  if not exists (select 1 from public.possessions where id = current_setting('test.p1')::uuid)
+     or not exists (select 1 from public.possessions where id = pg and owner_user_id is null) then raise exception 'KG-T94: gedeeld spul verdwijnt met een account'; end if;
+  -- De bewaartermijn (purge_member_private) wist ook persoonlijke spullen en documenten, en niets gedeelds.
+  n := private.purge_member_private(ha, current_setting('test.m_sara')::uuid);   -- eerst uitvoeren, dan controleren
+  if n < 2
+     or exists (select 1 from public.possessions where id = current_setting('test.p2')::uuid) or exists (select 1 from public.documents where id = current_setting('test.d2')::uuid) then raise exception 'KG-T94: bewaartermijn wist de persoonlijke items niet'; end if;
+  if not exists (select 1 from public.documents where id = current_setting('test.d1')::uuid) then raise exception 'KG-T94: bewaartermijn wist een gedeeld document'; end if;
+  perform pg_temp.ok('KG-T94');
+end $$;
 set local role authenticated;
 
 -- KG-T73 tot en met KG-T75: de poort als positieve eis (bouwverslag deel 2, §7.3). Niet "zoek verboden tekst", maar
@@ -2889,6 +3296,7 @@ insert into kg_zonder_poort values
   ('private.toegang_status', 'de poort zelf: leest het token en zegt of er toegang is'),
   ('public.mijn_toegang', 'zegt ook een wachtwoordsessie "code-nodig", zodat de app uitlegt wat er moet gebeuren; geeft geen gegevens'),
   ('private.clean_name', 'zuivere tekstfunctie, leest geen tabel'),
+  ('private.geldige_veldstatus', 'zuivere controle op een jsonb-waarde (check op possessions.field_status), leest geen tabel'),
   ('private.lock_household', 'alleen een rijslot, geeft niets terug; private is niet via de API bereikbaar (nacontrole)'),
   ('private.lock_household_shared', 'idem');
 do $$ declare r record; begin
@@ -2924,6 +3332,6 @@ do $$ declare r record; begin
 end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 88' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 98' as resultaat;
 
 rollback;

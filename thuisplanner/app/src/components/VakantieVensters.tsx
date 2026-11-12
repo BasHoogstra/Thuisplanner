@@ -2,10 +2,11 @@
 // onderdelen als de rest van de app (Venster, keuzes, knoppen).
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../lib/context';
+import { CONFLICT_IN_VENSTER } from '../lib/acties';
 import { isGeldigeDatum } from '../lib/datum';
 import type { Groep } from '../lib/store';
 import type { Boodschap, PakDoel, Pakitem, Paklijst, Vakantie, VakantieKoppeling } from '../lib/types';
-import { doelVan, groepNaam, overneemBronnen, pakGroepen, paklijstNaamFout, periode, zelfdeDoel } from '../lib/vakantie';
+import { doelVan, groepNaam, isVoorbij, overneemBronnen, pakGroepen, paklijstNaamFout, periode, zelfdeDoel } from '../lib/vakantie';
 import { IcLabel, IcVink } from './Iconen';
 import { Venster } from './Venster';
 
@@ -13,7 +14,7 @@ import { Venster } from './Venster';
  * Een melding (onderaan, boven de vensterlaag) mag geen knop van een venster bedekken, zoals "Ja, verwijderen" op een
  * kleine iPhone: bij het openen van een paklijstvenster gaat de melding van dat moment weg.
  */
-function useMeldingWegBijOpenen() {
+export function useMeldingWegBijOpenen() {
   const app = useApp();
   const bijOpenen = useRef(app.staat.melding?.id ?? null);
   useEffect(() => { if (bijOpenen.current != null) app.meldingWeg(bijOpenen.current); }, [app]);
@@ -29,6 +30,9 @@ export function VakantieVenster({ bestaand, sluit }: { bestaand?: Vakantie; slui
   const [fout, zetFout] = useState<string | null>(null);
   const [verwijderen, zetVerwijderen] = useState(false);
   const [bezig, zetBezig] = useState(false);
+  // De versie bij het openen; bij een conflict blijft het venster open met je invoer (P1, review PR #54).
+  const [beginVersie] = useState(() => bestaand?.versie);
+  const [conflict, zetConflict] = useState(false);
 
   async function bewaar(e: { preventDefault(): void }) {
     e.preventDefault();
@@ -39,7 +43,8 @@ export function VakantieVenster({ bestaand, sluit }: { bestaand?: Vakantie; slui
     if (vertrek && terug && terug < vertrek) { zetFout('De terugdatum ligt vóór het vertrek.'); return; }
     const velden = { naam: n, vertrek: vertrek || null, terug: (vertrek && terug) || null, bestemming: bestemming.trim() || undefined };
     if (bestaand) {
-      app.vakantieBijwerken({ ...bestaand, ...velden }, `${n} aangepast`);
+      const u = await app.vakantieBijwerken({ ...bestaand, ...velden, versie: conflict ? bestaand.versie : beginVersie }, `${n} aangepast`);
+      if (u === 'conflict') { zetConflict(true); return; }
       sluit();
       return;
     }
@@ -71,6 +76,7 @@ export function VakantieVenster({ bestaand, sluit }: { bestaand?: Vakantie; slui
           <input value={bestemming} maxLength={100} autoComplete="off" placeholder="Bijv. Ardèche" onChange={e => zetBestemming(e.target.value)} />
         </label>
         {fout && <p className="veld-fout" role="alert">{fout}</p>}
+        {conflict && <p className="veld-fout" role="alert">{CONFLICT_IN_VENSTER}</p>}
         <button type="submit" className="knop breed" disabled={bezig} onClick={bewaar}>{bestaand ? 'Opslaan' : 'Vakantie toevoegen'}</button>
       </form>
       {bestaand && !verwijderen && (
@@ -135,6 +141,18 @@ export function OvernemenVenster({ naar, sluit }: { naar: Vakantie; sluit: () =>
   const bronnen = overneemBronnen(staat.vakanties, naar.id, vandaag, id => aantal(id) > 0);
   const [bron, zetBron] = useState<string | null>(() => bronnen[0]?.id ?? null);
   const [groep, zetGroep] = useState<Groep>('iedereen');
+  // Review V-01: van een afgelopen vakantie haalt de lokale modus de paklijst pas op bij openen. Zolang je hem hier als
+  // bron kiest, is hij open; tot de lijsten er zijn, kan Overnemen nog niet (anders gaan de extra lijsten stil niet mee).
+  const { vakantieOpenen, vakantieSluiten } = app;
+  const bronVoorbij = (() => { const b = staat.vakanties.find(x => x.id === bron); return !!b && isVoorbij(b, vandaag); })();
+  const [laden, zetLaden] = useState(false);
+  useEffect(() => {
+    if (!bron || !bronVoorbij) return;
+    let actief = true;
+    zetLaden(true);
+    vakantieOpenen(bron).catch(() => {}).finally(() => { if (actief) zetLaden(false); });
+    return () => { actief = false; vakantieSluiten(bron); };
+  }, [bron, bronVoorbij, vakantieOpenen, vakantieSluiten]);
   // Extra lijsten van de gekozen bron: standaard allemaal mee (besluit 22 oktober 2026), elk uit te zetten.
   const bronLijsten = staat.paklijsten.filter(l => l.vakantieId === bron);
   const [uit, zetUit] = useState<Set<string>>(new Set());
@@ -201,7 +219,8 @@ export function OvernemenVenster({ naar, sluit }: { naar: Vakantie; sluit: () =>
           <p className="stil-tekst pak-uitleg">Bestaat zo'n lijst hier al, dan wordt hij aangevuld.</p>
         </>
       )}
-      <button type="button" className="knop breed" disabled={!bron} onClick={() => { if (bron) app.paklijstOvernemen(bron, naar.id, groep, groep === 'iedereen' ? mee : []); sluit(); }}>
+      {laden && <p className="stil-tekst pak-uitleg" role="status">Paklijst ophalen…</p>}
+      <button type="button" className="knop breed" disabled={!bron || laden} onClick={() => { if (bron) app.paklijstOvernemen(bron, naar.id, groep, groep === 'iedereen' ? mee : []); sluit(); }}>
         Overnemen
       </button>
     </Venster>
