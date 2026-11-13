@@ -7,7 +7,7 @@
 // Een paar tests stoppen of herstarten een container van de lokale stack (KG_PROJECT_ID, standaard "thuisplanner") om
 // storingen en herstarts na te spelen. Alleen lokaal.
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { createClient } from '@supabase/supabase-js';
@@ -44,6 +44,7 @@ before(async () => {
   aanbieder = await startTestaanbieder(Number(api.port) + 7);
 });
 after(async () => {
+  try { alsBeheerder('alter role authenticator login'); } catch { /* de stack is weg */ }
   await aanbieder?.stop();
   for (const h of huishoudens) await db.query('delete from public.households where id = $1', [h]);
   for (const id of accounts) await admin.auth.admin.deleteUser(id);
@@ -84,7 +85,43 @@ async function gepland(invite, n, wat) {
   await tot(async () => { [rij] = await rijen(invite); return rij?.status === 'wacht' && rij.pogingen === n; }, 20000, wat);
   return rij;
 }
-const klaarMet = (invite, ms) => tot(async () => (await rijen(invite)).every(r => !['wacht', 'bezig'].includes(r.status)), ms, 'mail verwerkt');
+// Bij een time-out de hele keten in één blik (cron → pg_net → functie → PostgREST → wachtrij), zonder adressen: zo
+// verklaart een mislukte run in CI zichzelf (tweede review PR #54).
+async function keten(invite) {
+  const q = async (sql, p = []) => { try { return (await db.query(sql, p)).rows; } catch (e) { return 'fout: ' + e.message; } };
+  const logs = (naam, filter) => {
+    const r = spawnSync('docker', ['logs', '--since', '4m', naam], { encoding: 'utf8' });
+    return `${r.stdout ?? ''}${r.stderr ?? ''}`.split('\n').filter(l => filter.test(l)).slice(-12).map(l => l.slice(0, 220));
+  };
+  return JSON.stringify({
+    mail: await q('select status, pogingen, volgende, bezig_tot, now() as nu from private.uitnodigingsmails where invite_id = $1 order by nummer', [invite]),
+    cron: await q(`select d.status, left(d.return_message, 80) as melding, d.start_time from cron.job_run_details d join cron.job j using (jobid)
+                   where j.jobname = 'thuisplanner-uitnodigingsmails-versturen' order by d.start_time desc limit 4`),
+    pgnet: await q('select id, status_code, left(error_msg, 120) as fout, timed_out, created from net._http_response order by id desc limit 4'),
+    pgnetWachtrij: await q('select count(*)::int as n from net.http_request_queue'),
+    functie: logs(`supabase_edge_runtime_${PROJECT}`, /stuur-uitnodiging/),
+    postgrest: logs(`supabase_rest_${PROJECT}`, /fail|retry|error|reconnect|connected/i),
+  }, null, 1);
+}
+const klaarMet = async (invite, ms) => {
+  try { await tot(async () => (await rijen(invite)).every(r => !['wacht', 'bezig'].includes(r.status)), ms, 'mail verwerkt'); }
+  catch (e) { e.message += '\nketen: ' + await keten(invite); throw e; }
+};
+// Zoals vlak na een herstart van de database: PostgREST draait, maar heeft (nog) geen verbinding en antwoordt 503
+// (PGRST001). Na te spelen door zijn inlogrol even te blokkeren en zijn verbindingen te sluiten (alleen lokaal, als
+// supabase_admin in de container). Kong vangt dit niet op: een draaiende PostgREST die 503 geeft, is een antwoord.
+const alsBeheerder = sql => execFileSync('docker', ['exec', `supabase_db_${PROJECT}`, 'psql', '-U', 'supabase_admin', '-d', 'postgres', '-Atq', '-c', sql], { stdio: 'ignore' });
+const restZonderDb = () => alsBeheerder(`alter role authenticator nologin; select pg_terminate_backend(pid) from pg_stat_activity where usename = 'authenticator'`);
+const restMetDb = async () => {
+  alsBeheerder('alter role authenticator login');
+  await tot(async () => !(await admin.rpc('mail_testaanbieder')).error, 60000, 'PostgREST weer verbonden');
+};
+// Zonder het vangnet van pg_cron: zo bewijst een test dat déze ronde het werk afmaakt, niet de volgende minuut.
+async function zonderCron(f) {
+  const job = `(select jobid from cron.job where jobname = 'thuisplanner-uitnodigingsmails-versturen')`;
+  await db.query(`select cron.alter_job(job_id := ${job}, active := false)`);
+  try { await f(); } finally { await db.query(`select cron.alter_job(job_id := ${job}, active := true)`); }
+}
 // De tijd vooruit zetten (de wachttijd is voorbij) en een ronde draaien, zoals het vangnet elke minuut doet.
 const vooruit = invite => db.query(`update private.uitnodigingsmails set volgende = now() - interval '1 second' where invite_id = $1 and status = 'wacht'`, [invite]);
 const ronde = () => db.query('select private.uitnodigingsmail_ronde()');
@@ -461,6 +498,56 @@ test('vangnet met de echte pg_cron (tot 90 s): een seintje dat verloren gaat, wo
   await klaarMet(inv, 90000);
   assert.deepEqual(await standen(inv), ['aangenomen']);
   assert.equal(aanbieder.voor(gast).length, 1);
+});
+
+// Tweede review PR #54 (CI: "niet op tijd: mail verwerkt" na de herstart van de database): vlak na een herstart geeft
+// PostgREST even 503 (nog geen verbinding). Dan gaf de functie de hele ronde meteen op, en wachtte de mail op het vangnet
+// van de volgende minuut; gebeurde dat tussen versturen en vastleggen, dan bleef de mail zelfs 2 minuten "bezig".
+// Nu probeert de functie het binnen dezelfde ronde opnieuw. Zonder pg_cron, zodat alleen deze ronde telt.
+test('PostgREST zonder databaseverbinding bij het begin van een ronde: de functie probeert opnieuw en verstuurt de mail in dezelfde ronde', { timeout: 120000 }, async () => {
+  const { c } = await codeSessie(adres('rest-weg'));
+  const h = await huishouden(c);
+  const gast = adres('rest-weg-gast');
+  await rust();
+  await zonderCron(async () => {
+    await hernoem('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_url_weg');
+    let inv;
+    try { inv = await uitnodigen(c, h, gast); } finally { await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url'); }
+    restZonderDb();
+    try {
+      assert.equal((await db.query('select private.uitnodigingsmail_ronde() r')).rows[0].r, true);
+      await wacht(3000);
+      assert.deepEqual(await standen(inv), ['wacht']);
+    } finally {
+      await restMetDb();
+    }
+    await klaarMet(inv, 25000);
+    assert.deepEqual(await standen(inv), ['aangenomen']);
+    assert.equal(aanbieder.voor(gast).length, 1);
+  });
+});
+
+test('PostgREST zonder databaseverbinding tussen versturen en vastleggen: de uitkomst komt alsnog vast, geen "bezig" en geen tweede mail', { timeout: 120000 }, async () => {
+  const { c } = await codeSessie(adres('rest-klaar'));
+  const h = await huishouden(c);
+  const gast = adres('rest-klaar-gast');
+  await rust();
+  await zonderCron(async () => {
+    await hernoem('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_url_weg');
+    let inv;
+    try { inv = await uitnodigen(c, h, gast); } finally { await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url'); }
+    // Op het moment dat de mail bij de aanbieder binnenkomt (de rij is dan al gepakt), verliest PostgREST zijn verbinding;
+    // na 3 s mag hij weer verbinden.
+    aanbieder.zet(() => { restZonderDb(); setTimeout(() => { try { alsBeheerder('alter role authenticator login'); } catch { /* restMetDb */ } }, 3000); });
+    try {
+      await ronde();
+      await klaarMet(inv, 30000);
+    } finally {
+      await restMetDb();
+    }
+    assert.deepEqual(await standen(inv), ['aangenomen']);
+    assert.equal(aanbieder.voor(gast).length, 1);
+  });
 });
 
 test('herstart van de database: de wachtrij blijft (de wachtrij van pg_net niet), en het vangnet verstuurt de mail daarna één keer', { timeout: 240000 }, async () => {

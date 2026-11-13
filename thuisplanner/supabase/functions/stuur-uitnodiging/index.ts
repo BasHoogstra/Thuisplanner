@@ -19,12 +19,33 @@ const datum = (iso: string) => new Intl.DateTimeFormat('nl-NL', { day: 'numeric'
 
 type Rij = { id: string; aan: string; huishouden: string | null; uitnodiger: string | null; geldig_tot: string };
 
+// Vlak na een herstart van de database heeft PostgREST even geen verbinding: dan antwoordt hij 503 (PGRST000/001), of
+// Kong 502. De opdracht is dan niet uitgevoerd. Zonder herhaling gaf de functie de hele ronde op en wachtte de mail op
+// het vangnet van de volgende minuut; gebeurde het na het versturen, dan bleef de mail 2 minuten "bezig" (tweede review
+// PR #54). Daarom binnen deze aanroep even opnieuw (samen hoogstens ~15 s). Wat idempotent is (lezen, en 'klaar': dat
+// werkt alleen een rij bij die nog "bezig" is) ook na een netwerkfout of een andere 5xx; 'pak' niet (een verloren
+// antwoord kan rijen al op "bezig" hebben gezet: die pakt de termijn later op).
+const HERHAAL_MS = [500, 1000, 2000, 4000, 8000];
+async function rpcHerhaal<T>(naam: string, args: Record<string, unknown>, idempotent: boolean): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await rpc<T>(naam, args);
+    } catch (e) {
+      const status = Number(/: (\d{3})$/.exec(String((e as Error)?.message ?? ''))?.[1] ?? NaN);
+      const tijdelijk = status === 502 || status === 503 || (idempotent && (Number.isNaN(status) || status >= 500));
+      if (!tijdelijk || i >= HERHAAL_MS.length) throw e;
+      log('stuur-uitnodiging', { opnieuw: naam, status: Number.isNaN(status) ? 'netwerk' : status, poging: i + 1 });
+      await new Promise(r => setTimeout(r, HERHAAL_MS[i]));
+    }
+  }
+}
+
 async function verwerk(): Promise<void> {
-  const aanbieder = kiesAanbieder(await rpc<string | null>('mail_testaanbieder', {}));
+  const aanbieder = kiesAanbieder(await rpcHerhaal<string | null>('mail_testaanbieder', {}, true));
   const telling = { aangenomen: 0, opnieuw: 0, onzeker: 0, mislukt: 0 };
   const start = Date.now();
   while (Date.now() - start < BUDGET_MS) {
-    const rijen = await rpc<Rij[]>('uitnodigingsmail_pak', { p_max: 10, p_idempotent: aanbieder.idempotent });
+    const rijen = await rpcHerhaal<Rij[]>('uitnodigingsmail_pak', { p_max: 10, p_idempotent: aanbieder.idempotent }, false);
     if (!rijen.length) break;
     for (const r of rijen) {
       let uitkomst: keyof typeof telling = 'aangenomen';
@@ -36,7 +57,7 @@ async function verwerk(): Promise<void> {
         if (e instanceof NietAangenomen) { uitkomst = e.opnieuw ? 'opnieuw' : 'mislukt'; wachtS = e.wachtS; }
         else uitkomst = 'onzeker';
       }
-      await rpc('uitnodigingsmail_klaar', { p_id: r.id, p_uitkomst: uitkomst, p_bericht: bericht, p_wacht_s: wachtS, p_idempotent: aanbieder.idempotent });
+      await rpcHerhaal('uitnodigingsmail_klaar', { p_id: r.id, p_uitkomst: uitkomst, p_bericht: bericht, p_wacht_s: wachtS, p_idempotent: aanbieder.idempotent }, true);
       telling[uitkomst]++;
     }
   }
@@ -49,7 +70,8 @@ Deno.serve(async req => {
   let verwacht: string;
   try { verwacht = instelling('WACHTRIJ_GEHEIM'); } catch { return json(503, {}); }
   if (verwacht.length < 32 || !geheimGelijk(geheim, verwacht)) return json(401, {});
-  const werk = verwerk().catch(() => log('stuur-uitnodiging', { uitkomst: 'storing' }));
+  // Bij een storing: welke stap en welke status (zonder adressen of inhoud), zodat de logs de oorzaak tonen.
+  const werk = verwerk().catch(e => log('stuur-uitnodiging', { uitkomst: 'storing', fout: String((e as Error)?.message ?? e).slice(0, 120) }));
   const rt = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;
   if (rt?.waitUntil) { rt.waitUntil(werk); return json(202, {}); }
   await werk;
