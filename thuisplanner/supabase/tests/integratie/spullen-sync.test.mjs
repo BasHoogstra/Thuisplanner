@@ -258,6 +258,98 @@ test('opnieuw bewaren na een fout of een verloren antwoord in elke fase: nooit e
   }
 });
 
+// P1 (tweede review PR #54): een eerdere poging maakte de rijen al aan (gedeeld), daarna mislukte iets en koos de gebruiker
+// "Alleen ik" (of iets anders). Opnieuw bewaren met dezelfde UUID's moet de laatst gekozen gegevens opleveren, ook bij een
+// nieuw spul en bij verloren antwoorden; de partner ziet daarna niets meer: geen rij, geen koppeling, geen bestand.
+async function zietNiets(wat, doc, spul) {
+  assert.equal(ok(await tim.c.from('documents').select('id').eq('id', doc)).length, 0, wat + ': Tim ziet het document');
+  assert.equal(ok(await tim.c.from('possessions').select('id').eq('id', spul)).length, 0, wat + ': Tim ziet het spul');
+  assert.equal(ok(await tim.c.from('document_links').select('id').eq('document_id', doc)).length, 0, wat + ': Tim ziet de koppeling');
+  assert.ok((await tim.c.storage.from('documenten').createSignedUrl(padVan(ha, doc), 60)).error, wat + ': Tim kan het bestand openen');
+  await sTim.vernieuw();
+  assert.ok(!JSON.stringify(sTim.toestand).includes(doc) && !JSON.stringify(sTim.toestand).includes(spul), wat + ': spoor bij Tim');
+}
+test('opnieuw bewaren na een mislukte poging met een andere zichtbaarheid: de laatste keuze geldt, ook voor het nieuwe spul', async () => {
+  const fasen = [
+    ['begin verloren', (u, m) => m === 'POST' && u.includes('/rest/v1/documents'), false],
+    ['upload fout', (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'), true],
+    ['upload verloren', (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'), false],
+    ['bevestigen verloren', (u, m) => m === 'POST' && u.includes('/functions/v1/bevestig-upload'), false],
+    ['koppelen fout', (u, m) => m === 'POST' && u.includes('/rest/v1/document_links'), true],
+  ];
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  for (const [wat, treft, voor] of fasen) {
+    const doc = randomUUID(), spul = randomUUID(), naam = `Zichtbaarheid ${wat} ${run}`;
+    const invoer = zichtbaarheid => ({
+      documentId: doc, bytes: PDF,
+      velden: docVelden(mSara, PDF, { visibility: zichtbaarheid, title: `${naam} (${zichtbaarheid})` }),
+      nieuwSpul: { id: spul, velden: { name: naam, owner_member_id: mSara, visibility: zichtbaarheid, field_status: {} } },
+    });
+    sara.verlies.wat = treft; sara.verlies.voor = voor;
+    const eerste = await o.bewaarDocument(invoer('household'));
+    sara.verlies.wat = null; sara.verlies.voor = false;
+    assert.equal(eerste.ok, false, `${wat}: de eerste poging hoort te mislukken`);
+    assert.equal(ok(await admin.from('documents').select('visibility').eq('id', doc)).at(0)?.visibility, 'household', `${wat}: de rij bestond al gedeeld`);
+    const tweede = await o.bewaarDocument(invoer('private'));
+    assert.equal(tweede.ok, true, `${wat}: opnieuw bewaren lukt niet (${tweede.fase}: ${tweede.tekst})`);
+    const d = ok(await admin.from('documents').select('visibility,title,upload_status').eq('id', doc).single());
+    assert.deepEqual(d, { visibility: 'private', title: `${naam} (private)`, upload_status: 'klaar' }, wat);
+    const s = ok(await admin.from('possessions').select('visibility').eq('name', naam));
+    assert.deepEqual(s, [{ visibility: 'private' }], `${wat}: precies één spul, persoonlijk`);
+    await zietNiets(wat, doc, spul);
+    // De eigenaar ziet alles, met de koppeling.
+    await sSara.vernieuw();
+    assert.equal(sSara.toestand.documenten.find(x => x.id === doc)?.visibility, 'private', wat);
+    assert.ok(sSara.toestand.documentKoppelingen.some(k => k.document_id === doc && k.possession_id === spul), wat);
+  }
+});
+
+test('opnieuw bewaren: het antwoord op het afstemmen zelf gaat verloren; de derde poging klopt, en andersom (persoonlijk naar gedeeld)', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const doc = randomUUID();
+  const invoer = zichtbaarheid => ({ documentId: doc, bytes: PDF, velden: docVelden(mSara, PDF, { visibility: zichtbaarheid }) });
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'); sara.verlies.voor = true;
+  assert.equal((await o.bewaarDocument(invoer('household'))).ok, false);
+  sara.verlies.wat = (u, m) => m === 'PATCH' && u.includes('/rest/v1/documents');           // uitgevoerd, antwoord weg
+  const tweede = await o.bewaarDocument(invoer('private'));
+  sara.verlies.wat = null;
+  assert.deepEqual([tweede.ok, tweede.fase, tweede.opnieuw], [false, 'begin', true]);
+  assert.equal((await admin.storage.from('documenten').list(`${ha}/${doc}`)).data.length, 0, 'geüpload vóór het afstemmen bevestigd was');
+  assert.equal((await o.bewaarDocument(invoer('private'))).ok, true);
+  assert.equal(ok(await admin.from('documents').select('visibility').eq('id', doc).single()).visibility, 'private');
+  await zietNiets('na verloren afstemmen', doc, randomUUID());
+  // Andersom: eerst persoonlijk, na een fout toch gedeeld; dan ziet Tim het wel.
+  const doc2 = randomUUID();
+  const invoer2 = zichtbaarheid => ({ documentId: doc2, bytes: PDF, velden: docVelden(mSara, PDF, { visibility: zichtbaarheid }) });
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/functions/v1/bevestig-upload'); sara.verlies.voor = true;
+  assert.equal((await o.bewaarDocument(invoer2('private'))).ok, false);
+  sara.verlies.wat = null; sara.verlies.voor = false;
+  assert.equal((await o.bewaarDocument(invoer2('household'))).ok, true);
+  await sTim.vernieuw();
+  assert.ok(sTim.toestand.documenten.some(x => x.id === doc2 && x.visibility === 'household'), 'Tim ziet het gedeelde document');
+});
+
+test('opnieuw bewaren met een ander bestand of vanuit een ander huishouden: niets geüpload, niets gewijzigd', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const doc = randomUUID();
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'); sara.verlies.voor = true;
+  assert.equal((await o.bewaarDocument({ documentId: doc, bytes: PDF, velden: docVelden(mSara) })).ok, false);
+  sara.verlies.wat = null; sara.verlies.voor = false;
+  // Een ander bestand (andere grootte) op dezelfde UUID: de database kan dat niet aanpassen; niet uploaden.
+  const groter = Buffer.concat([PDF, Buffer.from('% extra\n')]);
+  const r = await o.bewaarDocument({ documentId: doc, bytes: groter, velden: docVelden(mSara, groter) });
+  assert.deepEqual([r.ok, r.fase, r.opnieuw], [false, 'begin', false]);
+  assert.equal((await admin.storage.from('documenten').list(`${ha}/${doc}`)).data.length, 0);
+  // Bo (een ander huishouden) met dezelfde UUID: geen toegang tot de rij van Sara, en die blijft zoals hij was.
+  const sBo = await startSync('bo', hb);
+  const ob = maakSpullenOpslag({ supabase: bo.c, sync: sBo, huishoudenId: hb, nieuweId: randomUUID });
+  const rb = await ob.bewaarDocument({ documentId: doc, bytes: PDF, velden: docVelden(mBo, PDF, { title: 'Overgenomen', visibility: 'private' }) });
+  assert.equal(rb.ok, false);
+  assert.deepEqual(ok(await admin.from('documents').select('household_id,title,visibility').eq('id', doc)),
+    [{ household_id: ha, title: 'Factuur ' + run, visibility: 'household' }]);
+  assert.equal((await admin.storage.from('documenten').list(`${hb}/${doc}`)).data.length, 0);
+});
+
 test('bevestigen onderbroken: opnieuw proberen bevestigt; een vermomd bestand wordt geweigerd en blijft geweigerd', async () => {
   const doc = randomUUID();
   const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });

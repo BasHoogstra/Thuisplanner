@@ -78,7 +78,7 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
   const tRef = useRef(toestand);
   tRef.current = toestand;
   // Per invoer (poging) dezelfde UUID's, ook bij opnieuw bewaren na een fout of verloren antwoord (P2, review PR #54).
-  const pogingen = useRef(new Map<string, { documentId: string; spulId: string }>());
+  const pogingen = useRef(new Map<string, { documentId: string; spulId: string; bestand: string }>());
   const { gegevens, onvoltooid } = useMemo(() => gegevensUit(toestand), [toestand]);
   return useMemo(() => {
     const sync = sessie.syncObject;
@@ -127,8 +127,13 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
       spulTerugzetten: id => { const r = spulRij(id); if (r) void ok(a()?.spulTerugzetten(r), 'Teruggezet'); },
       documentBewaren: async n => {
         if (!bestanden || !n.bestand) throw new Error('Kies eerst een bestand.');
+        // Een ander bestand in hetzelfde venster is een andere invoer: nieuwe UUID's (bestand, type en grootte liggen bij een
+        // document vast). Gewijzigde gegevens (titel, zichtbaarheid, het nieuwe spul) stemt de opslag af vóór de upload.
+        const b = n.bestand as Blob & { name?: string; lastModified?: number };
+        const bestand = `${b.name ?? ''}|${b.size}|${b.type}|${b.lastModified ?? ''}`;
         let ids = n.poging ? pogingen.current.get(n.poging) : undefined;
-        if (!ids) { ids = { documentId: uuidV4(), spulId: uuidV4() }; if (n.poging) pogingen.current.set(n.poging, ids); }
+        if (ids && ids.bestand !== bestand) ids = undefined;
+        if (!ids) { ids = { documentId: uuidV4(), spulId: uuidV4(), bestand }; if (n.poging) pogingen.current.set(n.poging, ids); }
         const documentId = ids.documentId;
         const nieuwSpul = n.nieuwSpul ? { id: ids.spulId, velden: { ...spulKolommen(n.nieuwSpul), owner_member_id: ik } } : null;
         const r = await bestanden.bewaarDocument({
@@ -137,7 +142,11 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
             visibility: n.document.zichtbaarheid === 'persoonlijk' ? 'private' : 'household', owner_member_id: ik,
             mime: n.document.type, size_bytes: n.bestand.size, sha256: n.document.sha256 ?? null },
         });
-        if (!r.ok) throw new Error(r.tekst ?? 'Niet gelukt. Probeer het opnieuw.');
+        if (!r.ok) {
+          // Opnieuw proberen met deze UUID's heeft geen zin (geweigerd bestand, of de rij is weg): de volgende poging begint vers.
+          if (r.opnieuw === false && n.poging) pogingen.current.delete(n.poging);
+          throw new Error(r.tekst ?? 'Niet gelukt. Probeer het opnieuw.');
+        }
         meld('Bewaard');
         return { documentId, spulId: nieuwSpul?.id };
       },

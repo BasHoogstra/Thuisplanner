@@ -698,6 +698,10 @@ ingelicht.
   4. de koppelingen.
   - Mislukt een stap, dan noemt het resultaat de fase en of opnieuw proberen zin heeft. Opnieuw proberen gebruikt
     dezelfde UUID. Staat het bestand er al, dan wordt het niet overschreven, maar wel bevestigd.
+  - Bestaan de documentrij of het nieuwe spul al van een eerdere poging, dan krijgen ze eerst de gegevens van de nieuwe
+    poging (bijvoorbeeld "Alleen ik" na een mislukte upload), via de gewone bijwerkroute met versiecontrole, vóór de
+    upload en de koppelingen. Een ander bestand in hetzelfde venster krijgt een nieuwe UUID; een rij die weg is of bij
+    een ander bestand hoort, gaat niet verder (tweede review PR #54).
   - Openen gaat met een ondertekende link (60 s, als bijlage), opgehaald met `cache: 'no-store'`. Het bestand komt niet
     in de browsercache; de app maakt er een blob-adres in het geheugen van.
 - **App:** `lib/spullen/opslag-supabase.ts` implementeert dezelfde `SpullenOpslag` als de demo. De schermen en de + zijn

@@ -3,6 +3,8 @@
 //
 // Uploaden in twee fasen, met dezelfde regels als de rest van de sync:
 //  1. de rij op 'wacht' via de sync (vaste UUID van de app; de server zet de status, de client kan dat niet);
+//     Bestond de rij al (een eerdere poging met dezelfde UUID), dan krijgt hij eerst de gegevens van déze poging, via
+//     de gewone bijwerkroute met versiecontrole (zichtbaarheid, titel; ook bij een nieuw spul). Zie afstemmen().
 //  2. het bestand naar <household_id>/<document_id>/origineel in de privé-bucket "documenten" (nooit overschrijven;
 //     de policy staat alleen een eigen 'wacht'-document toe);
 //  3. de Edge Function bevestig-upload: magic bytes, grootte en type op de server, dan pas 'klaar';
@@ -27,7 +29,17 @@ const MELDING = {
   bevestigen: 'Het is nog niet bevestigd dat het bestand goed is aangekomen. Probeer het opnieuw.',
   openen: 'Het bestand kon niet worden geopend. Probeer het opnieuw.',
   fout: 'Er ging iets mis. Probeer het opnieuw.',
+  anders: 'Dit document of spul is intussen verwijderd of met een ander bestand bewaard. Begin opnieuw; er is niets geüpload.',
 };
+
+// Velden die na toevoegen vastliggen (de database weigert een wijziging, guard_spul_of_document).
+const VAST = { documents: ['owner_member_id', 'mime', 'size_bytes', 'sha256'], possessions: ['owner_member_id'] };
+// Vergelijken zoals de database het teruggeeft: undefined = null, objecten (jsonb) zonder volgorde van sleutels.
+const norm = v => (v === undefined || v === null ? null
+  : Array.isArray(v) ? v.map(norm)
+  : typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, norm(v[k])]))
+  : v);
+const gelijk = (a, b) => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
 
 /**
  * @param {object} o
@@ -72,6 +84,30 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
     return { ok: false, fase: 'bevestigen', opnieuw: true, tekst: MELDING.bevestigen };
   }
 
+  /**
+   * Na toevoegen met een vaste UUID (ook als de rij er al was van een eerdere poging, 23505): de rij moet de waarden van
+   * déze poging hebben, vóór er iets wordt geüpload of gekoppeld (P1, tweede review PR #54). Koos de gebruiker na een
+   * mislukte poging bijvoorbeeld "Alleen ik", dan gaat die keuze via de gewone, geautoriseerde bijwerkroute met de
+   * versie van de rij zoals die nu is (een gelijktijdige wijziging geeft een conflict, geen stille overschrijving).
+   * Een rij die weg is, of met een ander bestand of een andere eigenaar, is een andere invoer: dan gaat het niet verder.
+   */
+  async function afstemmen(tabel, id, velden, bijwerken) {
+    const gewenst = Object.fromEntries(Object.entries(velden).filter(([, v]) => v !== undefined));
+    const kolommen = [...new Set(['id', 'version', 'deleted_at', ...Object.keys(gewenst)])].join(',');
+    let r;
+    try { r = await supabase.from(tabel).select(kolommen).eq('id', id).eq('household_id', huishoudenId).maybeSingle(); }
+    catch { return { ok: false, opnieuw: true, tekst: MELDING.fout }; }
+    if (r.error) return { ok: false, opnieuw: true, tekst: MELDING.fout };
+    const rij = r.data;
+    if (!rij || rij.deleted_at || VAST[tabel].some(k => k in gewenst && !gelijk(rij[k], gewenst[k]))) {
+      return { ok: false, opnieuw: false, tekst: MELDING.anders };
+    }
+    const anders = Object.fromEntries(Object.entries(gewenst).filter(([k, v]) => !VAST[tabel].includes(k) && !gelijk(rij[k], v)));
+    if (!Object.keys(anders).length) return { ok: true };
+    const b = await bijwerken(rij, anders, rij.version);
+    return b.ok ? { ok: true } : { ok: false, opnieuw: true, tekst: b.melding?.tekst ?? MELDING.fout };
+  }
+
   return {
     padVan: id => padVan(huishoudenId, id),
 
@@ -84,9 +120,13 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
       if (nieuwSpul) {
         const s = await sync.acties.spulToevoegen(nieuwSpul.id, nieuwSpul.velden);
         if (!s.ok) return { ok: false, fase: 'spul', opnieuw: true, tekst: s.melding?.tekst ?? MELDING.fout };
+        const sa = await afstemmen('possessions', nieuwSpul.id, nieuwSpul.velden, sync.acties.spulBijwerken);
+        if (!sa.ok) { await sync.vernieuw(); return { fase: 'spul', ...sa }; }
       }
       const b = await sync.acties.documentBegin(documentId, velden);
       if (!b.ok) return { ok: false, fase: 'begin', opnieuw: true, tekst: b.melding?.tekst ?? MELDING.fout };
+      const da = await afstemmen('documents', documentId, velden, sync.acties.documentBijwerken);
+      if (!da.ok) { await sync.vernieuw(); return { fase: 'begin', ...da }; }
       const u = await uploadEnBevestig(documentId, bytes, velden.mime);
       if (!u.ok) { await sync.vernieuw(); return u; }
       for (const spulId of [...spullen, ...(nieuwSpul ? [nieuwSpul.id] : [])]) {

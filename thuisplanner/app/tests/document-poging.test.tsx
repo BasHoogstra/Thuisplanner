@@ -41,6 +41,35 @@ describe('document bewaren: opnieuw proberen gebruikt dezelfde UUID\x27s', () =>
     await act(async () => { await r.current.documentBewaren(invoer('p2')); });
     for (let i = 1; i < 6; i++) expect(ids(i)).toEqual(ids(0));
   });
+  it('gewijzigde gegevens na een fout (Alleen ik): dezelfde UUID\x27s, met de laatst gekozen zichtbaarheid voor document en nieuw spul', async () => {
+    const r = opzet();
+    bewaarDocument.mockResolvedValueOnce({ ok: false, fase: 'upload', opnieuw: true, tekst: 'Mislukt' }).mockResolvedValueOnce({ ok: true });
+    await act(async () => { await expect(r.current.documentBewaren(invoer('z'))).rejects.toThrow(); });
+    const prive = invoer('z');
+    prive.document.zichtbaarheid = 'persoonlijk';
+    prive.nieuwSpul = { ...prive.nieuwSpul!, zichtbaarheid: 'persoonlijk' };
+    await act(async () => { await r.current.documentBewaren(prive); });
+    expect(ids(1)).toEqual(ids(0));
+    const a = bewaarDocument.mock.calls[1][0];
+    expect(a.velden.visibility).toBe('private');
+    expect(a.nieuwSpul.velden.visibility).toBe('private');
+  });
+  it('een ander bestand in hetzelfde venster: nieuwe UUID\x27s (bestand, type en grootte liggen vast)', async () => {
+    const r = opzet();
+    bewaarDocument.mockResolvedValueOnce({ ok: false, fase: 'upload', opnieuw: true, tekst: 'Mislukt' }).mockResolvedValueOnce({ ok: true });
+    await act(async () => { await expect(r.current.documentBewaren(invoer('f'))).rejects.toThrow(); });
+    const ander = invoer('f');
+    ander.bestand = new Blob(['%PDF-1.4 een ander bestand']);
+    await act(async () => { await r.current.documentBewaren(ander); });
+    expect(ids(1).document).not.toBe(ids(0).document);
+  });
+  it('opnieuw proberen heeft geen zin (opnieuw: false): de volgende poging begint met nieuwe UUID\x27s', async () => {
+    const r = opzet();
+    bewaarDocument.mockResolvedValueOnce({ ok: false, fase: 'begin', opnieuw: false, tekst: 'Begin opnieuw' }).mockResolvedValueOnce({ ok: true });
+    await act(async () => { await expect(r.current.documentBewaren(invoer('w'))).rejects.toThrow('Begin opnieuw'); });
+    await act(async () => { await r.current.documentBewaren(invoer('w')); });
+    expect(ids(1).document).not.toBe(ids(0).document);
+  });
   it('tegenproef: een nieuwe invoer (andere sleutel) krijgt nieuwe UUID\x27s', async () => {
     const r = opzet();
     bewaarDocument.mockResolvedValue({ ok: true });
