@@ -144,6 +144,28 @@ test('vakanties realtime: seintjes van de drie vakantietabellen bevatten alleen 
   const k = wout.channel(kanaal, { config: { private: true } }).on('broadcast', { event: 'wijziging' }, m => ontvangen.push(m.payload));
   const r = await abonneer(k);
   assert.equal(r.status, 'SUBSCRIBED', `lid kan het huishoudkanaal niet openen (${r.status})`);
+  // Pas live als een seintje uit de database aantoonbaar binnenkomt (tweede review PR #54; deze test faalde in de
+  // CI-volgorde). Twee oorzaken, allebei van de lokale Realtime en niet van de app:
+  //  - na een (her)start bouwt Realtime de replicatie vanuit de database pas op bij het eerste privékanaal; wat vóór die
+  //    stream geschreven wordt, komt nooit aan (wachtOpRealtime bewijst dat niet: een openbaar kanaal raakt de replicatie
+  //    niet);
+  //  - node --test draait de bestanden op alfabet, dus vlak hiervoor schrijft vakanties-sync.test.mjs (V16, grote
+  //    overname) ~3700 inpakitems, elk een seintje; is Realtime dan verbonden, dan raakt de lokale tenant zijn limiet per
+  //    seconde en laat hij ongeveer een minuut lang seintjes vallen (gemeten: 57 s), en die limiet slaat pas na een paar
+  //    seconden aan.
+  // Daarom: een proefvakantie per poging, en pas verder als 5 proeven op rij (~10 s) aankomen (hoogstens 2 minuten).
+  // De controles hieronder blijven gelijk.
+  let opRij = 0;
+  for (let i = 0; i < 60 && opRij < 5; i++) {
+    const proef = randomUUID();
+    ok(await vera.from('trips').insert({ id: proef, household_id: h, name: 'Proef ' + i }));
+    let kwam = false;
+    for (let j = 0; j < 20 && !kwam; j++) { kwam = ontvangen.some(p => p.t === 'trips' && p.id === proef); if (!kwam) await wacht(100); }
+    opRij = kwam ? opRij + 1 : 0;
+    if (kwam) await wacht(1000);
+  }
+  assert.ok(opRij >= 5, 'het huishoudkanaal ontvangt geen betrouwbare seintjes uit de database');
+  ontvangen.length = 0;
   const v = randomUUID();
   ok(await vera.from('trips').insert({ id: v, household_id: h, name: 'Geheime-bestemming-' + run }));
   ok(await vera.from('trip_packing_items').insert({ household_id: h, trip_id: v, name: 'Geheim-item-' + run }));
@@ -157,6 +179,7 @@ test('vakanties realtime: seintjes van de drie vakantietabellen bevatten alleen 
   }
   await wout.removeChannel(k);
 });
+
 
 test('extra inpaklijsten via de API: maken, items, verwijderen en herstellen, overnemen; buitenstaander niets; oude app-risico', async () => {
   const v1 = randomUUID(), v2 = randomUUID(), lijst = randomUUID();

@@ -567,4 +567,29 @@ test('herstart van de database: de wachtrij blijft (de wachtrij van pg_net niet)
   await klaarMet(inv, 100000);
   assert.deepEqual(await standen(inv), ['aangenomen']);
   assert.equal(aanbieder.voor(gast).length, 1);
+  // Deze test herstart gedeelde infrastructuur; hij eindigt pas als Realtime weer seintjes uit de database aflevert.
+  // Na een herstart bouwt Realtime die replicatie pas op bij het eerste privékanaal, en wat vóór die stream geschreven
+  // wordt, komt nooit aan: anders mist de eerste realtime-test hierna (in CI vakanties-sync en vakanties) zijn seintjes.
+  await realtimeWeerLive(c, h);
 });
+
+async function realtimeWeerLive(c, h) {
+  const kanaal = (await c.rpc('household_channel', { p_household: h })).data;
+  await c.realtime.setAuth();
+  for (let poging = 0; poging < 30; poging++) {
+    const ontvangen = [];
+    const k = c.channel(kanaal, { config: { private: true } }).on('broadcast', { event: 'wijziging' }, m => ontvangen.push(m.payload));
+    const status = await new Promise(r => { const t = setTimeout(() => r('GEEN_ANTWOORD'), 10000); k.subscribe(s => { clearTimeout(t); r(s); }); });
+    if (status === 'SUBSCRIBED') {
+      const id = randomUUID();
+      assert.ifError((await c.from('trips').insert({ id, household_id: h, name: 'Proef ' + poging })).error);
+      for (let j = 0; j < 30; j++) {
+        if (ontvangen.some(p => p.t === 'trips' && p.id === id)) { await c.removeChannel(k); return; }
+        await wacht(100);
+      }
+    }
+    await c.removeChannel(k);
+    await wacht(2000);
+  }
+  throw new Error('Realtime levert na de herstart geen seintjes meer af');
+}
