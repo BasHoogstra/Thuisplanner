@@ -18,12 +18,16 @@ export interface OpslagResultaat {
   spulId?: string;
   /** Bij een fout bij het koppelen: het document zelf is wel bewaard. */
   bewaard?: boolean;
+  /** Iemand anders paste het spul (fase 'spul') of document (fase 'begin') aan sinds de vorige poging. */
+  conflict?: boolean;
+  /** Bij een conflict: de versie van nu (opnieuw bewaren met deze versie zet de eigen waarden door). */
+  versie?: number;
 }
 
 export interface SpullenOpslagSupabase {
   padVan(documentId: string): string;
-  bewaarDocument(n: { documentId: string; velden: Record<string, unknown>; bytes: Blob | Uint8Array; spullen?: string[];
-    nieuwSpul?: { id: string; velden: Record<string, unknown> } | null }): Promise<OpslagResultaat>;
+  bewaarDocument(n: { documentId: string; documentVersie?: number; velden: Record<string, unknown>; bytes: Blob | Uint8Array;
+    spullen?: string[]; nieuwSpul?: { id: string; velden: Record<string, unknown>; versie?: number } | null }): Promise<OpslagResultaat>;
   opnieuwUploaden(documentId: string, bytes: Blob | Uint8Array, mime: string): Promise<OpslagResultaat>;
   openBestand(documentId: string): Promise<{ ok: true; blob: Blob } | { ok: false; tekst: string }>;
 }

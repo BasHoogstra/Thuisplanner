@@ -701,7 +701,7 @@ ingelicht.
   - Bestaan de documentrij of het nieuwe spul al van een eerdere poging, dan krijgen ze eerst de gegevens van de nieuwe
     poging (bijvoorbeeld "Alleen ik" na een mislukte upload), via de gewone bijwerkroute met versiecontrole, vóór de
     upload en de koppelingen. Een ander bestand in hetzelfde venster krijgt een nieuwe UUID; een rij die weg is of bij
-    een ander bestand hoort, gaat niet verder (tweede review PR #54).
+    een ander bestand hoort, gaat niet verder (tweede review PR #54). Begint de app daarna vers, dan houdt het nieuwe spul zijn UUID en gaat de oude, onvoltooide documentrij naar de prullenbak. Het afstemmen gebruikt de versie die de app na de vorige poging kende: paste iemand anders het spul of document tussendoor aan, dan volgt de gewone conflictmelding, en pas opnieuw bewaren zet de eigen waarden door. "Niet afgerond" toont alleen eigen uploads (eigen review van de herstelcommits).
   - Openen gaat met een ondertekende link (60 s, als bijlage), opgehaald met `cache: 'no-store'`. Het bestand komt niet
     in de browsercache; de app maakt er een blob-adres in het geheugen van.
 - **App:** `lib/spullen/opslag-supabase.ts` implementeert dezelfde `SpullenOpslag` als de demo. De schermen en de + zijn

@@ -30,6 +30,7 @@ const MELDING = {
   openen: 'Het bestand kon niet worden geopend. Probeer het opnieuw.',
   fout: 'Er ging iets mis. Probeer het opnieuw.',
   anders: 'Dit document of spul is intussen verwijderd of met een ander bestand bewaard. Begin opnieuw; er is niets geüpload.',
+  conflict: 'Iemand anders heeft dit net aangepast. Je invoer staat er nog: kijk hem na en bewaar opnieuw, dan gaan jouw waarden voor.',
 };
 
 // Velden die na toevoegen vastliggen (de database weigert een wijziging, guard_spul_of_document).
@@ -91,7 +92,7 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
    * versie van de rij zoals die nu is (een gelijktijdige wijziging geeft een conflict, geen stille overschrijving).
    * Een rij die weg is, of met een ander bestand of een andere eigenaar, is een andere invoer: dan gaat het niet verder.
    */
-  async function afstemmen(tabel, id, velden, bijwerken) {
+  async function afstemmen(tabel, id, velden, bijwerken, verwacht) {
     const gewenst = Object.fromEntries(Object.entries(velden).filter(([, v]) => v !== undefined));
     const kolommen = [...new Set(['id', 'version', 'deleted_at', ...Object.keys(gewenst)])].join(',');
     let r;
@@ -104,8 +105,14 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
     }
     const anders = Object.fromEntries(Object.entries(gewenst).filter(([k, v]) => !VAST[tabel].includes(k) && !gelijk(rij[k], v)));
     if (!Object.keys(anders).length) return { ok: true };
-    const b = await bijwerken(rij, anders, rij.version);
-    return b.ok ? { ok: true } : { ok: false, opnieuw: true, tekst: b.melding?.tekst ?? MELDING.fout };
+    // De versie die de app na de vorige poging van deze rij kende (tweede review PR #54, P1-b): heeft iemand de rij
+    // sindsdien aangepast, dan een conflict in plaats van een stille overschrijving. Zonder bekende versie (de vorige
+    // poging zag de rij nooit terug) de versie van nu: dan kon niemand anders de rij al kennen.
+    const b = await bijwerken(rij, anders, verwacht ?? rij.version);
+    if (b.ok) return { ok: true };
+    return b.melding?.soort === 'conflict'
+      ? { ok: false, opnieuw: true, conflict: true, versie: rij.version, tekst: MELDING.conflict }
+      : { ok: false, opnieuw: true, tekst: b.melding?.tekst ?? MELDING.fout };
   }
 
   return {
@@ -113,19 +120,22 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
 
     /**
      * Een document bewaren, eventueel met een nieuw spul en koppelingen.
-     * @param {{ documentId: string, velden: object, bytes: Blob | Uint8Array, spullen?: string[], nieuwSpul?: { id: string, velden: object } | null }} n
+     * Bij opnieuw proberen: `documentVersie` en `nieuwSpul.versie` zijn de versies die de app na de vorige poging kende;
+     * is de rij sindsdien door iemand anders aangepast, dan volgt een conflict (met `versie`: de versie van nu).
+     * @param {{ documentId: string, documentVersie?: number, velden: object, bytes: Blob | Uint8Array, spullen?: string[],
+     *   nieuwSpul?: { id: string, velden: object, versie?: number } | null }} n
      */
-    async bewaarDocument({ documentId, velden, bytes, spullen = [], nieuwSpul = null }) {
+    async bewaarDocument({ documentId, documentVersie, velden, bytes, spullen = [], nieuwSpul = null }) {
       if (geenVerbinding()) return { ok: false, fase: 'offline', opnieuw: true, tekst: MELDING.offline };
       if (nieuwSpul) {
         const s = await sync.acties.spulToevoegen(nieuwSpul.id, nieuwSpul.velden);
         if (!s.ok) return { ok: false, fase: 'spul', opnieuw: true, tekst: s.melding?.tekst ?? MELDING.fout };
-        const sa = await afstemmen('possessions', nieuwSpul.id, nieuwSpul.velden, sync.acties.spulBijwerken);
+        const sa = await afstemmen('possessions', nieuwSpul.id, nieuwSpul.velden, sync.acties.spulBijwerken, nieuwSpul.versie);
         if (!sa.ok) { await sync.vernieuw(); return { fase: 'spul', ...sa }; }
       }
       const b = await sync.acties.documentBegin(documentId, velden);
       if (!b.ok) return { ok: false, fase: 'begin', opnieuw: true, tekst: b.melding?.tekst ?? MELDING.fout };
-      const da = await afstemmen('documents', documentId, velden, sync.acties.documentBijwerken);
+      const da = await afstemmen('documents', documentId, velden, sync.acties.documentBijwerken, documentVersie);
       if (!da.ok) { await sync.vernieuw(); return { fase: 'begin', ...da }; }
       const u = await uploadEnBevestig(documentId, bytes, velden.mime);
       if (!u.ok) { await sync.vernieuw(); return u; }

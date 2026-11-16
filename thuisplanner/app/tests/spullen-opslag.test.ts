@@ -37,7 +37,8 @@ describe('spul ↔ rij', () => {
 
 describe('documenten', () => {
   it('alleen bevestigde documenten in de lijst; wachtend of geweigerd apart (niet in de prullenbak)', () => {
-    const t = { spullen: [rij], documentKoppelingen: [{ id: 'k1', household_id: 'h1', document_id: 'd1', possession_id: 's1', version: 1 }],
+    // Ingelogd als m1, de eigenaar: "Niet afgerond" toont alleen eigen uploads (P2-a, spullen-herpoging.test.tsx).
+    const t = { lid: { household_id: 'h1', member_id: 'm1' }, spullen: [rij], documentKoppelingen: [{ id: 'k1', household_id: 'h1', document_id: 'd1', possession_id: 's1', version: 1 }],
       documenten: [doc({}), doc({ id: 'd2', upload_status: 'wacht' }), doc({ id: 'd3', upload_status: 'mislukt' }),
         doc({ id: 'd4', upload_status: 'wacht', deleted_at: '2026-10-28T00:00:00Z' })] } as unknown as Toestand;
     const { gegevens, onvoltooid } = gegevensUit(t);

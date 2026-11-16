@@ -3,7 +3,7 @@
 // en bestanden via sync/spullen-opslag.js (uploaden in twee fasen, ondertekende links, no-store). Alleen actief met
 // VITE_SPULLEN=aan (LokaleConfig.spullen); de rest van de app merkt er dan niets van.
 import { useMemo, useRef } from 'react';
-import type { Opgeslagen } from '../acties';
+import { CONFLICT_IN_VENSTER, type Opgeslagen } from '../acties';
 import { maakSpullenOpslag } from '../../../../sync/spullen-opslag.js';
 import type { DocumentKoppelingRij, DocumentRij, SpulRij, Toestand } from '../../../../sync/thuisplanner-sync.js';
 import type { Sessie } from '../lokaal/sessie';
@@ -67,18 +67,23 @@ export function gegevensUit(t: Toestand | null): { gegevens: SpullenGegevens; on
       documenten: docs.filter(d => d.upload === 'klaar'),
       koppelingen: (t.documentKoppelingen ?? []).map((k): DocumentKoppeling => ({ documentId: k.document_id, spulId: k.possession_id })),
     },
-    onvoltooid: docs.filter(d => d.upload !== 'klaar' && !d.verwijderdOp),
+    // Alleen de eigen onvoltooide uploads (tweede review PR #54, P2-a): zo ziet de partner geen titel van een document
+    // dat (nog) niet bewaard is, en geen knoppen die alleen voor de eigenaar zin hebben.
+    onvoltooid: docs.filter(d => d.upload !== 'klaar' && !d.verwijderdOp && d.eigenaar === t.lid?.member_id),
   };
 }
 
 /** De echte opslag. `meld` toont een korte melding (die van de app); fouten van de server meldt de sync zelf. */
+type Poging = { documentId: string; spulId: string; bestand: string; documentVersie?: number; spulVersie?: number };
+
 export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, meld: (tekst: string) => void): SpullenOpslag & { onvoltooid: Document[] } {
   const huishouden = toestand?.lid?.household_id ?? '';
   const ik = toestand?.lid?.member_id ?? '';
   const tRef = useRef(toestand);
   tRef.current = toestand;
   // Per invoer (poging) dezelfde UUID's, ook bij opnieuw bewaren na een fout of verloren antwoord (P2, review PR #54).
-  const pogingen = useRef(new Map<string, { documentId: string; spulId: string; bestand: string }>());
+  // Met de versies die de app na de vorige poging van het spul en het document kende (P1-b, tweede review).
+  const pogingen = useRef(new Map<string, Poging>());
   const { gegevens, onvoltooid } = useMemo(() => gegevensUit(toestand), [toestand]);
   return useMemo(() => {
     const sync = sessie.syncObject;
@@ -131,20 +136,41 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
         // document vast). Gewijzigde gegevens (titel, zichtbaarheid, het nieuwe spul) stemt de opslag af vóór de upload.
         const b = n.bestand as Blob & { name?: string; lastModified?: number };
         const bestand = `${b.name ?? ''}|${b.size}|${b.type}|${b.lastModified ?? ''}`;
-        let ids = n.poging ? pogingen.current.get(n.poging) : undefined;
-        if (ids && ids.bestand !== bestand) ids = undefined;
-        if (!ids) { ids = { documentId: uuidV4(), spulId: uuidV4(), bestand }; if (n.poging) pogingen.current.set(n.poging, ids); }
-        const documentId = ids.documentId;
-        const nieuwSpul = n.nieuwSpul ? { id: ids.spulId, velden: { ...spulKolommen(n.nieuwSpul), owner_member_id: ik } } : null;
+        const p: Poging = (n.poging ? pogingen.current.get(n.poging) : undefined) ?? { documentId: uuidV4(), spulId: uuidV4(), bestand };
+        if (n.poging) pogingen.current.set(n.poging, p);
+        // Een document dat niet meer bruikbaar is (ander bestand, geweigerd, of weg): een nieuwe document-UUID, maar hetzelfde
+        // nieuwe spul (P1-a, tweede review: anders een tweede spul). De oude, onvoltooide rij gaat naar de prullenbak, zodat
+        // er geen gedeelde rij met de oude gegevens blijft staan.
+        const nieuwDocument = () => {
+          const oud = sync?.toestand?.documenten?.find(x => x.id === p.documentId) ?? docRij(p.documentId);
+          if (oud && !oud.deleted_at && oud.upload_status !== 'klaar' && (oud.version ?? 0) > 0) void a()?.documentVerwijderen(oud);
+          p.documentId = uuidV4();
+          p.documentVersie = undefined;
+        };
+        if (p.bestand !== bestand) { nieuwDocument(); p.bestand = bestand; }
+        const documentId = p.documentId;
+        const nieuwSpul = n.nieuwSpul ? { id: p.spulId, versie: p.spulVersie, velden: { ...spulKolommen(n.nieuwSpul), owner_member_id: ik } } : null;
         const r = await bestanden.bewaarDocument({
-          documentId, bytes: n.bestand, spullen: n.spullen, nieuwSpul,
+          documentId, documentVersie: p.documentVersie, bytes: n.bestand, spullen: n.spullen, nieuwSpul,
           velden: { title: n.document.titel, kind: n.document.soort, document_date: n.document.datum ?? null,
             visibility: n.document.zichtbaarheid === 'persoonlijk' ? 'private' : 'household', owner_member_id: ik,
             mime: n.document.type, size_bytes: n.bestand.size, sha256: n.document.sha256 ?? null },
         });
+        // De versies zoals de app ze nu kent (na het ophalen door de opslag): de volgende poging stuurt die mee.
+        const versieVan = (rij: { version?: number; wachtend?: boolean } | undefined, vorige?: number) =>
+          rij && !rij.wachtend && (rij.version ?? 0) > 0 ? rij.version : vorige;
+        p.spulVersie = versieVan(sync?.toestand?.spullen?.find(x => x.id === p.spulId), p.spulVersie);
+        p.documentVersie = versieVan(sync?.toestand?.documenten?.find(x => x.id === documentId), p.documentVersie);
         if (!r.ok) {
-          // Opnieuw proberen met deze UUID's heeft geen zin (geweigerd bestand, of de rij is weg): de volgende poging begint vers.
-          if (r.opnieuw === false && n.poging) pogingen.current.delete(n.poging);
+          if (r.conflict) {
+            // Iemand anders paste het aan: je invoer blijft staan; opnieuw bewaren zet bewust je eigen waarden door.
+            if (r.fase === 'spul') p.spulVersie = r.versie; else p.documentVersie = r.versie;
+            throw new Error(CONFLICT_IN_VENSTER);
+          }
+          if (r.opnieuw === false) {
+            if (r.fase === 'spul') { p.spulId = uuidV4(); p.spulVersie = undefined; }   // het spul is weg
+            else nieuwDocument();                                                        // geweigerd bestand of de rij is weg
+          }
           throw new Error(r.tekst ?? 'Niet gelukt. Probeer het opnieuw.');
         }
         meld('Bewaard');
