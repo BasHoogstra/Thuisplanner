@@ -74,7 +74,9 @@ export function gegevensUit(t: Toestand | null): { gegevens: SpullenGegevens; on
 }
 
 /** De echte opslag. `meld` toont een korte melding (die van de app); fouten van de server meldt de sync zelf. */
-type Poging = { documentId: string; spulId: string; bestand: string; documentVersie?: number; spulVersie?: number };
+type Poging = { documentId: string; spulId: string; bestand: string; documentVersie?: number; spulVersie?: number; vervang?: boolean;
+  /** De velden die deze invoer eerder instuurde: telt als "van ons" als de versie onbekend is (P2-3). */
+  documentEigen: Record<string, unknown>[]; spulEigen: Record<string, unknown>[] };
 
 export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, meld: (tekst: string) => void): SpullenOpslag & { onvoltooid: Document[] } {
   const huishouden = toestand?.lid?.household_id ?? '';
@@ -136,26 +138,33 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
         // document vast). Gewijzigde gegevens (titel, zichtbaarheid, het nieuwe spul) stemt de opslag af vóór de upload.
         const b = n.bestand as Blob & { name?: string; lastModified?: number };
         const bestand = `${b.name ?? ''}|${b.size}|${b.type}|${b.lastModified ?? ''}`;
-        const p: Poging = (n.poging ? pogingen.current.get(n.poging) : undefined) ?? { documentId: uuidV4(), spulId: uuidV4(), bestand };
+        const p: Poging = (n.poging ? pogingen.current.get(n.poging) : undefined) ?? { documentId: uuidV4(), spulId: uuidV4(), bestand, documentEigen: [], spulEigen: [] };
         if (n.poging) pogingen.current.set(n.poging, p);
         // Een document dat niet meer bruikbaar is (ander bestand, geweigerd, of weg): een nieuwe document-UUID, maar hetzelfde
-        // nieuwe spul (P1-a, tweede review: anders een tweede spul). De oude, onvoltooide rij gaat naar de prullenbak, zodat
-        // er geen gedeelde rij met de oude gegevens blijft staan.
-        const nieuwDocument = () => {
-          const oud = sync?.toestand?.documenten?.find(x => x.id === p.documentId) ?? docRij(p.documentId);
-          if (oud && !oud.deleted_at && oud.upload_status !== 'klaar' && (oud.version ?? 0) > 0) void a()?.documentVerwijderen(oud);
+        // nieuwe spul (P1-a: anders een tweede spul). Eerst de oude, onvoltooide rij opruimen (persoonlijk én prullenbak, op
+        // de server opgezocht; P2-4), en pas als dat lukt verder; anders blijft alles staan en probeert de volgende poging
+        // het opnieuw.
+        if (p.bestand !== bestand) p.vervang = true;
+        if (p.vervang) {
+          const op = await bestanden.ruimOnvoltooidOp(p.documentId);
+          if (!op.ok) throw new Error(op.tekst ?? 'Het vorige, niet afgeronde document kon niet worden opgeruimd. Probeer het opnieuw.');
           p.documentId = uuidV4();
           p.documentVersie = undefined;
-        };
-        if (p.bestand !== bestand) { nieuwDocument(); p.bestand = bestand; }
+          p.documentEigen = [];
+          p.vervang = false;
+          p.bestand = bestand;
+        }
         const documentId = p.documentId;
-        const nieuwSpul = n.nieuwSpul ? { id: p.spulId, versie: p.spulVersie, velden: { ...spulKolommen(n.nieuwSpul), owner_member_id: ik } } : null;
+        const nieuwSpul = n.nieuwSpul ? { id: p.spulId, versie: p.spulVersie, eigen: [...p.spulEigen], velden: { ...spulKolommen(n.nieuwSpul), owner_member_id: ik } } : null;
+        const velden = { title: n.document.titel, kind: n.document.soort, document_date: n.document.datum ?? null,
+          visibility: n.document.zichtbaarheid === 'persoonlijk' ? 'private' : 'household', owner_member_id: ik,
+          mime: n.document.type, size_bytes: n.bestand.size, sha256: n.document.sha256 ?? null };
         const r = await bestanden.bewaarDocument({
-          documentId, documentVersie: p.documentVersie, bytes: n.bestand, spullen: n.spullen, nieuwSpul,
-          velden: { title: n.document.titel, kind: n.document.soort, document_date: n.document.datum ?? null,
-            visibility: n.document.zichtbaarheid === 'persoonlijk' ? 'private' : 'household', owner_member_id: ik,
-            mime: n.document.type, size_bytes: n.bestand.size, sha256: n.document.sha256 ?? null },
+          documentId, documentVersie: p.documentVersie, documentEigen: [...p.documentEigen], bytes: n.bestand, spullen: n.spullen, nieuwSpul, velden,
         });
+        // Deze poging kan de rijen hebben geschreven: haar velden tellen voortaan als "van ons".
+        p.documentEigen.push(velden);
+        if (nieuwSpul) p.spulEigen.push(nieuwSpul.velden);
         // De versies zoals de app ze nu kent (na het ophalen door de opslag): de volgende poging stuurt die mee.
         const versieVan = (rij: { version?: number; wachtend?: boolean } | undefined, vorige?: number) =>
           rij && !rij.wachtend && (rij.version ?? 0) > 0 ? rij.version : vorige;
@@ -168,8 +177,8 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
             throw new Error(CONFLICT_IN_VENSTER);
           }
           if (r.opnieuw === false) {
-            if (r.fase === 'spul') { p.spulId = uuidV4(); p.spulVersie = undefined; }   // het spul is weg
-            else nieuwDocument();                                                        // geweigerd bestand of de rij is weg
+            if (r.fase === 'spul') { p.spulId = uuidV4(); p.spulVersie = undefined; p.spulEigen = []; }   // het spul is weg
+            else p.vervang = true;                                                       // geweigerd bestand of de rij is weg
           }
           throw new Error(r.tekst ?? 'Niet gelukt. Probeer het opnieuw.');
         }

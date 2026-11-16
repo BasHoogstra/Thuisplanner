@@ -26,9 +26,12 @@ export interface OpslagResultaat {
 
 export interface SpullenOpslagSupabase {
   padVan(documentId: string): string;
-  bewaarDocument(n: { documentId: string; documentVersie?: number; velden: Record<string, unknown>; bytes: Blob | Uint8Array;
-    spullen?: string[]; nieuwSpul?: { id: string; velden: Record<string, unknown>; versie?: number } | null }): Promise<OpslagResultaat>;
+  bewaarDocument(n: { documentId: string; documentVersie?: number; documentEigen?: Record<string, unknown>[]; velden: Record<string, unknown>;
+    bytes: Blob | Uint8Array; spullen?: string[];
+    nieuwSpul?: { id: string; velden: Record<string, unknown>; versie?: number; eigen?: Record<string, unknown>[] } | null }): Promise<OpslagResultaat>;
   opnieuwUploaden(documentId: string, bytes: Blob | Uint8Array, mime: string): Promise<OpslagResultaat>;
+  /** Een onvoltooid document van een eerdere poging persoonlijk maken én naar de prullenbak (niet als het 'klaar' is). */
+  ruimOnvoltooidOp(documentId: string): Promise<{ ok: boolean; tekst?: string }>;
   openBestand(documentId: string): Promise<{ ok: true; blob: Blob } | { ok: false; tekst: string }>;
 }
 

@@ -9,7 +9,8 @@ import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 const bewaarDocument = vi.fn();
-vi.mock('../../sync/spullen-opslag.js', () => ({ maakSpullenOpslag: () => ({ bewaarDocument, openBestand: vi.fn(), padVan: (id: string) => id }) }));
+const ruimOnvoltooidOp = vi.fn();
+vi.mock('../../sync/spullen-opslag.js', () => ({ maakSpullenOpslag: () => ({ bewaarDocument, ruimOnvoltooidOp, openBestand: vi.fn(), padVan: (id: string) => id }) }));
 
 import { CONFLICT_IN_VENSTER } from '../src/lib/acties';
 import { gegevensUit, useSupabaseSpullen } from '../src/lib/spullen/opslag-supabase';
@@ -27,8 +28,10 @@ const invoer = (o: { poging?: string; bestand?: Blob } = {}): NieuwDocument => (
 /** Een nagebootste sync: `syncToestand` is wat de sync na een poging kent (zoals na vernieuw()). */
 function opzet() {
   bewaarDocument.mockReset();
+  ruimOnvoltooidOp.mockReset();
+  ruimOnvoltooidOp.mockResolvedValue({ ok: true });
   const syncToestand = { lid: { household_id: 'h', member_id: 'm-eva' }, spullen: [] as Rij[], documenten: [] as Rij[], documentKoppelingen: [] };
-  const documentVerwijderen = vi.fn(async () => ({ ok: true }));
+  const documentVerwijderen = vi.fn(async () => ({ ok: true }));   // hoort niet meer gebruikt te worden (opruimen via de opslag)
   const sessie = { syncObject: { toestand: syncToestand }, acties: { documentVerwijderen }, client: {} } as unknown as Sessie;
   const { result } = renderHook(() => useSupabaseSpullen(sessie, syncToestand as unknown as Toestand, vi.fn()));
   // Een poging die op de server de rijen achterlaat (spul en document met deze versies) en dan mislukt of lukt.
@@ -57,27 +60,43 @@ describe('P1-a: vers beginnen maakt geen tweede spul en laat geen oude rij staan
     expect(await o.bewaar(invoer({ bestand: new Blob(['%PDF-1.4 ander']) }))).toBeNull();
     expect(o.oproep(1).nieuwSpul.id).toBe(o.oproep(0).nieuwSpul.id);
     expect(o.oproep(1).documentId).not.toBe(o.oproep(0).documentId);
-    expect(o.documentVerwijderen).toHaveBeenCalledWith(expect.objectContaining({ id: o.oproep(0).documentId }));
+    expect(ruimOnvoltooidOp).toHaveBeenCalledWith(o.oproep(0).documentId);
   });
-  it('ander bestand na een mislukte upload: hetzelfde spul, nieuw document, oude rij weg', async () => {
+  it('ander bestand na een mislukte upload: eerst de oude rij opruimen (afgewacht), dan hetzelfde spul met een nieuw document', async () => {
     const o = opzet();
+    const volgorde: string[] = [];
+    ruimOnvoltooidOp.mockImplementation(async (id: string) => { volgorde.push('opruimen ' + id); return { ok: true }; });
     o.server({ ok: false, fase: 'upload', opnieuw: true, tekst: 'Mislukt' }, { spul: 1, document: 1 });
-    o.server({ ok: true }, { spul: 1, document: 1, upload: 'klaar' });
     await o.bewaar(invoer());
+    bewaarDocument.mockImplementationOnce(async (a: { documentId: string }) => { volgorde.push('bewaren ' + a.documentId); return { ok: true }; });
     await o.bewaar(invoer({ bestand: new Blob(['%PDF-1.4 een ander bestand']) }));
     expect(o.oproep(1).nieuwSpul.id).toBe(o.oproep(0).nieuwSpul.id);
     expect(o.oproep(1).documentId).not.toBe(o.oproep(0).documentId);
-    expect(o.documentVerwijderen).toHaveBeenCalledWith(expect.objectContaining({ id: o.oproep(0).documentId }));
+    expect(volgorde).toEqual(['opruimen ' + o.oproep(0).documentId, 'bewaren ' + o.oproep(1).documentId]);
   });
-  it('een al bewaard (klaar) document wordt nooit weggegooid; een rij die nooit aankwam evenmin', async () => {
+  it('opruimen mislukt: niets bewaard, dezelfde UUID\x27s; de volgende poging ruimt eerst opnieuw op', async () => {
     const o = opzet();
-    o.server({ ok: false, fase: 'koppelen', opnieuw: true, tekst: 'Koppelen mislukt', bewaard: true }, { spul: 1, document: 2, upload: 'klaar' });
-    o.server({ ok: false, fase: 'begin', opnieuw: true, tekst: 'Geen verbinding' });
+    o.server({ ok: false, fase: 'upload', opnieuw: true, tekst: 'Mislukt' }, { spul: 1, document: 1 });
+    await o.bewaar(invoer());
+    ruimOnvoltooidOp.mockResolvedValueOnce({ ok: false, tekst: 'Geen verbinding' });
+    expect((await o.bewaar(invoer({ bestand: new Blob(['%PDF-1.4 ander']) })))?.message).toBe('Geen verbinding');
+    expect(bewaarDocument).toHaveBeenCalledTimes(1);
+    o.server({ ok: true });
+    await o.bewaar(invoer({ bestand: new Blob(['%PDF-1.4 ander']) }));
+    expect(ruimOnvoltooidOp).toHaveBeenCalledTimes(2);
+    expect(ruimOnvoltooidOp.mock.calls[1][0]).toBe(o.oproep(0).documentId);
+    expect(o.oproep(1).documentId).not.toBe(o.oproep(0).documentId);
+  });
+  it('ook als de app de oude rij nooit terugzag (verloren antwoord), vraagt ze de opslag op te ruimen; zonder vers begin niet', async () => {
+    const o = opzet();
+    o.server({ ok: false, fase: 'begin', opnieuw: true, tekst: 'Geen verbinding' });   // geen rij in de toestand
+    o.server({ ok: true });
     o.server({ ok: true });
     await o.bewaar(invoer());
-    await o.bewaar(invoer({ bestand: new Blob(['%PDF-1.4 ander']) }));     // klaar-document blijft staan
-    await o.bewaar(invoer({ bestand: new Blob(['%PDF-1.4 derde']) }));     // de vorige rij bestaat niet
-    expect(o.documentVerwijderen).not.toHaveBeenCalled();
+    await o.bewaar(invoer());                                                          // zelfde bestand: niets op te ruimen
+    expect(ruimOnvoltooidOp).not.toHaveBeenCalled();
+    await o.bewaar(invoer({ bestand: new Blob(['%PDF-1.4 ander']) }));
+    expect(ruimOnvoltooidOp).toHaveBeenCalledWith(o.oproep(0).documentId);
   });
   it('het spul is weg (opnieuw: false in de fase spul): dan wel een nieuw spul', async () => {
     const o = opzet();
@@ -112,6 +131,29 @@ describe('P1-b: de volgende poging stuurt de versies van na de vorige poging mee
     expect(await o.bewaar(invoer())).toBeNull();
     expect(o.oproep(2).nieuwSpul.versie).toBe(3);
     expect(o.oproep(2).nieuwSpul.id).toBe(o.oproep(0).nieuwSpul.id);
+  });
+});
+
+describe('P2-3: zonder bekende versie stuurt de app de velden mee die deze invoer eerder instuurde', () => {
+  it('een verloren antwoord (geen rij gezien): de tweede poging kent de velden van de eerste; een vers document begint zonder', async () => {
+    const o = opzet();
+    o.server({ ok: false, fase: 'spul', opnieuw: true, tekst: 'Geen antwoord' });           // de app ziet de rijen nooit terug
+    o.server({ ok: true });
+    o.server({ ok: true });
+    await o.bewaar(invoer());
+    const prive = invoer();
+    prive.document.zichtbaarheid = 'persoonlijk';
+    await o.bewaar(prive);
+    const a = bewaarDocument.mock.calls[1][0] as { documentVersie?: number; documentEigen: Record<string, unknown>[]; nieuwSpul: { versie?: number; eigen: Record<string, unknown>[] } };
+    expect(a.documentVersie).toBeUndefined();
+    expect(a.nieuwSpul.versie).toBeUndefined();
+    expect(a.documentEigen).toEqual([expect.objectContaining({ visibility: 'household' })]);
+    expect(a.nieuwSpul.eigen).toEqual([expect.objectContaining({ name: 'Vaatwasser' })]);
+    // Een ander bestand: een nieuw document zonder geschiedenis, het spul houdt de zijne.
+    await o.bewaar(invoer({ bestand: new Blob(['%PDF-1.4 ander']) }));
+    const b = bewaarDocument.mock.calls[2][0] as { documentEigen: unknown[]; nieuwSpul: { eigen: unknown[] } };
+    expect(b.documentEigen).toEqual([]);
+    expect(b.nieuwSpul.eigen).toHaveLength(2);
   });
 });
 

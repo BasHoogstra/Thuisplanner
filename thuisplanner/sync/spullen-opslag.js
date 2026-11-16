@@ -68,6 +68,8 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
       let st = null;
       try { st = (await supabase.from('documents').select('upload_status').eq('id', documentId).maybeSingle()).data?.upload_status ?? null; } catch { st = null; }
       if (st === 'klaar') return { ok: true };
+      // Al geweigerd door de server (het antwoord op bevestigen ging eerder verloren): opnieuw proberen heeft geen zin.
+      if (st === 'mislukt') return { ok: false, fase: 'controle', opnieuw: false, tekst: MELDING.controle };
       return { ok: false, fase: 'upload', opnieuw: true, tekst: MELDING.upload };
     }
     let r;
@@ -81,7 +83,7 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
     let body = null;
     try { body = r.error?.context ? await r.error.context.json() : null; } catch { body = null; }
     if (status === 409 && body?.status === 'klaar') return { ok: true };          // al eerder bevestigd
-    if (status === 422) return { ok: false, fase: 'controle', opnieuw: false, tekst: MELDING.controle };
+    if (status === 422 || (status === 409 && body?.status === 'mislukt')) return { ok: false, fase: 'controle', opnieuw: false, tekst: MELDING.controle };
     return { ok: false, fase: 'bevestigen', opnieuw: true, tekst: MELDING.bevestigen };
   }
 
@@ -92,7 +94,7 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
    * versie van de rij zoals die nu is (een gelijktijdige wijziging geeft een conflict, geen stille overschrijving).
    * Een rij die weg is, of met een ander bestand of een andere eigenaar, is een andere invoer: dan gaat het niet verder.
    */
-  async function afstemmen(tabel, id, velden, bijwerken, verwacht) {
+  async function afstemmen(tabel, id, velden, bijwerken, verwacht, eigen = []) {
     const gewenst = Object.fromEntries(Object.entries(velden).filter(([, v]) => v !== undefined));
     const kolommen = [...new Set(['id', 'version', 'deleted_at', ...Object.keys(gewenst)])].join(',');
     let r;
@@ -105,10 +107,19 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
     }
     const anders = Object.fromEntries(Object.entries(gewenst).filter(([k, v]) => !VAST[tabel].includes(k) && !gelijk(rij[k], v)));
     if (!Object.keys(anders).length) return { ok: true };
-    // De versie die de app na de vorige poging van deze rij kende (tweede review PR #54, P1-b): heeft iemand de rij
-    // sindsdien aangepast, dan een conflict in plaats van een stille overschrijving. Zonder bekende versie (de vorige
-    // poging zag de rij nooit terug) de versie van nu: dan kon niemand anders de rij al kennen.
-    const b = await bijwerken(rij, anders, verwacht ?? rij.version);
+    // De versie die de app na de vorige poging van deze rij kende (P1-b): heeft iemand de rij sindsdien aangepast, dan
+    // een conflict in plaats van een stille overschrijving. Kent de app geen versie (het antwoord ging verloren), dan
+    // telt de rij alleen als "van ons" als de veranderbare velden gelijk zijn aan wat deze invoer eerder zelf instuurde
+    // (`eigen`); anders paste iemand anders hem aan: conflict (review PR #54, P2-3). Niet de versie zelf: de server hoogt
+    // die ook op (bijvoorbeeld bevestig-upload bij 'klaar').
+    let versie = verwacht;
+    if (versie == null) {
+      const veranderlijk = Object.keys(gewenst).filter(k => !VAST[tabel].includes(k));
+      const vanOns = !eigen.length || eigen.some(e => veranderlijk.every(k => gelijk(rij[k], e[k])));
+      if (!vanOns) return { ok: false, opnieuw: true, conflict: true, versie: rij.version, tekst: MELDING.conflict };
+      versie = rij.version;
+    }
+    const b = await bijwerken(rij, anders, versie);
     if (b.ok) return { ok: true };
     return b.melding?.soort === 'conflict'
       ? { ok: false, opnieuw: true, conflict: true, versie: rij.version, tekst: MELDING.conflict }
@@ -120,31 +131,53 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
 
     /**
      * Een document bewaren, eventueel met een nieuw spul en koppelingen.
-     * Bij opnieuw proberen: `documentVersie` en `nieuwSpul.versie` zijn de versies die de app na de vorige poging kende;
+     * Bij opnieuw proberen: `documentVersie` en `nieuwSpul.versie` zijn de versies die de app na de vorige poging kende,
+     * en `documentEigen` / `nieuwSpul.eigen` de velden die deze invoer eerder instuurde (voor als de versie onbekend is);
      * is de rij sindsdien door iemand anders aangepast, dan volgt een conflict (met `versie`: de versie van nu).
-     * @param {{ documentId: string, documentVersie?: number, velden: object, bytes: Blob | Uint8Array, spullen?: string[],
-     *   nieuwSpul?: { id: string, velden: object, versie?: number } | null }} n
+     * @param {{ documentId: string, documentVersie?: number, documentEigen?: object[], velden: object, bytes: Blob | Uint8Array, spullen?: string[],
+     *   nieuwSpul?: { id: string, velden: object, versie?: number, eigen?: object[] } | null }} n
      */
-    async bewaarDocument({ documentId, documentVersie, velden, bytes, spullen = [], nieuwSpul = null }) {
+    async bewaarDocument({ documentId, documentVersie, documentEigen = [], velden, bytes, spullen = [], nieuwSpul = null }) {
       if (geenVerbinding()) return { ok: false, fase: 'offline', opnieuw: true, tekst: MELDING.offline };
       if (nieuwSpul) {
         const s = await sync.acties.spulToevoegen(nieuwSpul.id, nieuwSpul.velden);
-        if (!s.ok) return { ok: false, fase: 'spul', opnieuw: true, tekst: s.melding?.tekst ?? MELDING.fout };
-        const sa = await afstemmen('possessions', nieuwSpul.id, nieuwSpul.velden, sync.acties.spulBijwerken, nieuwSpul.versie);
+        // Bij elke fout eerst ophalen: zo kent de app daarna de echte versies (ook van een rij waarvan het antwoord
+        // verloren ging), en geeft de volgende poging geen vals conflict.
+        if (!s.ok) { await sync.vernieuw(); return { ok: false, fase: 'spul', opnieuw: true, tekst: s.melding?.tekst ?? MELDING.fout }; }
+        const sa = await afstemmen('possessions', nieuwSpul.id, nieuwSpul.velden, sync.acties.spulBijwerken, nieuwSpul.versie, nieuwSpul.eigen ?? []);
         if (!sa.ok) { await sync.vernieuw(); return { fase: 'spul', ...sa }; }
       }
       const b = await sync.acties.documentBegin(documentId, velden);
-      if (!b.ok) return { ok: false, fase: 'begin', opnieuw: true, tekst: b.melding?.tekst ?? MELDING.fout };
-      const da = await afstemmen('documents', documentId, velden, sync.acties.documentBijwerken, documentVersie);
+      if (!b.ok) { await sync.vernieuw(); return { ok: false, fase: 'begin', opnieuw: true, tekst: b.melding?.tekst ?? MELDING.fout }; }
+      const da = await afstemmen('documents', documentId, velden, sync.acties.documentBijwerken, documentVersie, documentEigen);
       if (!da.ok) { await sync.vernieuw(); return { fase: 'begin', ...da }; }
       const u = await uploadEnBevestig(documentId, bytes, velden.mime);
       if (!u.ok) { await sync.vernieuw(); return u; }
       for (const spulId of [...spullen, ...(nieuwSpul ? [nieuwSpul.id] : [])]) {
         const k = await sync.acties.documentKoppelen(documentId, spulId, nieuweId());
-        if (!k.ok) return { ok: false, fase: 'koppelen', opnieuw: true, tekst: k.melding?.tekst ?? MELDING.fout, bewaard: true };
+        if (!k.ok) { await sync.vernieuw(); return { ok: false, fase: 'koppelen', opnieuw: true, tekst: k.melding?.tekst ?? MELDING.fout, bewaard: true }; }
       }
       await sync.vernieuw();
       return { ok: true, documentId, spulId: nieuwSpul?.id };
+    },
+
+    /**
+     * Een onvoltooid document van een eerdere poging opruimen voordat de app vers begint (ander of geweigerd bestand):
+     * in één bijwerking persoonlijk én naar de prullenbak, zodat de partner de oude titel niet meer ziet (review PR #54,
+     * P2-4). Op de server opgezocht, ook als de app de rij nooit terugzag. Een bewaard ('klaar') document, een rij die er
+     * niet is en een rij die al persoonlijk in de prullenbak ligt, blijven zoals ze zijn.
+     */
+    async ruimOnvoltooidOp(documentId) {
+      let r;
+      try {
+        r = await supabase.from('documents').select('id,version,upload_status,deleted_at,visibility,title,kind,document_date')
+          .eq('id', documentId).eq('household_id', huishoudenId).maybeSingle();
+      } catch { return { ok: false, tekst: MELDING.fout }; }
+      if (r.error) return { ok: false, tekst: MELDING.fout };
+      const rij = r.data;
+      if (!rij || rij.upload_status === 'klaar' || (rij.deleted_at && rij.visibility === 'private')) return { ok: true };
+      const b = await sync.acties.documentBijwerken(rij, { visibility: 'private', deleted_at: rij.deleted_at ?? new Date().toISOString() }, rij.version);
+      return b.ok ? { ok: true } : { ok: false, tekst: b.melding?.tekst ?? MELDING.fout };
     },
 
     /** Opnieuw proberen na een mislukte upload of bevestiging: dezelfde UUID, nooit een tweede document. */

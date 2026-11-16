@@ -290,7 +290,10 @@ test('opnieuw bewaren na een mislukte poging met een andere zichtbaarheid: de la
     sara.verlies.wat = null; sara.verlies.voor = false;
     assert.equal(eerste.ok, false, `${wat}: de eerste poging hoort te mislukken`);
     assert.equal(ok(await admin.from('documents').select('visibility').eq('id', doc)).at(0)?.visibility, 'household', `${wat}: de rij bestond al gedeeld`);
-    const tweede = await o.bewaarDocument(invoer('private'));
+    // Zoals de app: met de velden die de eerste poging instuurde (de versie kan door de server zijn opgehoogd).
+    const vorige = invoer('household');
+    const tweede = await o.bewaarDocument({ ...invoer('private'), documentEigen: [vorige.velden],
+      nieuwSpul: { ...invoer('private').nieuwSpul, eigen: [vorige.nieuwSpul.velden] } });
     assert.equal(tweede.ok, true, `${wat}: opnieuw bewaren lukt niet (${tweede.fase}: ${tweede.tekst})`);
     const d = ok(await admin.from('documents').select('visibility,title,upload_status').eq('id', doc).single());
     assert.deepEqual(d, { visibility: 'private', title: `${naam} (private)`, upload_status: 'klaar' }, wat);
@@ -355,7 +358,7 @@ test('opnieuw bewaren met een ander bestand of vanuit een ander huishouden: niet
 // bewaren met die versie zet de eigen waarden bewust door.
 test('opnieuw bewaren na een wijziging van de partner tussendoor: conflict, niets overschreven; daarna bewust doorzetten', async () => {
   const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
-  const doc = randomUUID(), spul = randomUUID(), naam = 'Wasmachine ' + run;
+  const doc = randomUUID(), spul = randomUUID(), naam = 'Wasmachine tussendoor ' + run;
   const invoer = (titel, versies = {}) => ({
     documentId: doc, documentVersie: versies.doc, bytes: PDF, velden: docVelden(mSara, PDF, { title: titel }),
     nieuwSpul: { id: spul, versie: versies.spul, velden: { name: naam, owner_member_id: mSara, serial: null, field_status: {} } },
@@ -385,6 +388,57 @@ test('opnieuw bewaren na een wijziging van de partner tussendoor: conflict, niet
   assert.equal(r3.ok, true, `${r3.fase}: ${r3.tekst}`);
   assert.equal(ok(await admin.from('documents').select('title,upload_status').eq('id', doc).single()).title, 'Factuur wasmachine');
   assert.equal(ok(await admin.from('possessions').select('id').eq('name', naam)).length, 1, 'precies één spul');
+});
+
+// Review PR #54, P2-3: het antwoord op het toevoegen van het spul ging verloren (de app zag de rij nooit terug, en kent
+// dus geen versie). Past de partner het spul daarna aan, dan geeft opnieuw bewaren een conflict (beginversie 1), geen
+// stille overschrijving.
+test('verloren antwoord bij het toevoegen, daarna past de partner het spul aan: opnieuw bewaren geeft een conflict, niets gewist', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const doc = randomUUID(), spul = randomUUID(), naam = 'Droger ' + run;
+  // Zoals de app: de tweede poging weet welke velden de eerste instuurde (eigen), maar niet de versie.
+  const spulVelden = { name: naam, owner_member_id: mSara, serial: null, field_status: {} };
+  const invoer = (eigen = []) => ({ documentId: doc, bytes: PDF, velden: docVelden(mSara), documentEigen: eigen.length ? [docVelden(mSara)] : [],
+    nieuwSpul: { id: spul, velden: spulVelden, eigen } });
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/rest/v1/possessions');       // uitgevoerd, antwoord weg
+  const eerste = await o.bewaarDocument(invoer());
+  sara.verlies.wat = null;
+  assert.deepEqual([eerste.ok, eerste.fase], [false, 'spul']);
+  assert.equal(ok(await admin.from('possessions').select('version').eq('id', spul).single()).version, 1, 'het spul staat er wel');
+  await sTim.vernieuw();
+  assert.ok((await sTim.acties.spulBijwerken(sTim.toestand.spullen.find(x => x.id === spul), { serial: 'SN-777' })).ok);
+  // Opnieuw bewaren zonder bekende versie (zoals de app na een verloren antwoord): conflict, en Tims serienummer blijft.
+  const r = await o.bewaarDocument(invoer([spulVelden]));
+  assert.deepEqual([r.ok, r.fase, r.conflict], [false, 'spul', true]);
+  assert.equal(ok(await admin.from('possessions').select('serial').eq('id', spul).single()).serial, 'SN-777');
+  assert.equal(ok(await admin.from('documents').select('id').eq('id', doc)).length, 0, 'na een conflict toch verder gegaan');
+});
+
+// Review PR #54, P2-4: begint de app vers (ander of geweigerd bestand), dan ruimt de opslag de oude, onvoltooide rij op:
+// persoonlijk én naar de prullenbak, op de server opgezocht. De partner ziet hem daarna niet meer; een bewaard document
+// blijft staan.
+test('opruimen van een onvoltooid document: persoonlijk en in de prullenbak, onzichtbaar voor de partner; een bewaard document blijft', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const doc = randomUUID(), titel = 'Ontslagbrief ' + run;
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'); sara.verlies.voor = true;
+  assert.equal((await o.bewaarDocument({ documentId: doc, bytes: PDF, velden: docVelden(mSara, PDF, { title: titel }) })).ok, false);
+  sara.verlies.wat = null; sara.verlies.voor = false;
+  assert.equal(ok(await tim.c.from('documents').select('id').eq('id', doc)).length, 1, 'vooraf: gedeeld en wachtend, Tim ziet hem');
+  assert.equal((await o.ruimOnvoltooidOp(doc)).ok, true);
+  const rij = ok(await admin.from('documents').select('visibility,deleted_at,upload_status').eq('id', doc).single());
+  assert.equal(rij.visibility, 'private');
+  assert.ok(rij.deleted_at, 'niet in de prullenbak');
+  assert.equal(ok(await tim.c.from('documents').select('id').eq('id', doc)).length, 0, 'Tim ziet de oude rij nog');
+  await sTim.vernieuw();
+  assert.ok(!JSON.stringify(sTim.toestand).includes(titel), 'de oude titel staat nog in de toestand van Tim');
+  // Nog eens opruimen, een onbekende UUID en een bewaard document: niets veranderd, geen fout.
+  assert.equal((await o.ruimOnvoltooidOp(doc)).ok, true);
+  assert.equal((await o.ruimOnvoltooidOp(randomUUID())).ok, true);
+  const klaar = randomUUID();
+  assert.ok((await o.bewaarDocument({ documentId: klaar, bytes: PDF, velden: docVelden(mSara) })).ok);
+  assert.equal((await o.ruimOnvoltooidOp(klaar)).ok, true);
+  assert.deepEqual(ok(await admin.from('documents').select('visibility,deleted_at,upload_status').eq('id', klaar).single()),
+    { visibility: 'household', deleted_at: null, upload_status: 'klaar' });
 });
 
 test('bevestigen onderbroken: opnieuw proberen bevestigt; een vermomd bestand wordt geweigerd en blijft geweigerd', async () => {

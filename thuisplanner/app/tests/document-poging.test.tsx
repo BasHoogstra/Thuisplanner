@@ -5,7 +5,7 @@ import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 const bewaarDocument = vi.fn();
-vi.mock('../../sync/spullen-opslag.js', () => ({ maakSpullenOpslag: () => ({ bewaarDocument, openBestand: vi.fn(), padVan: (id: string) => id }) }));
+vi.mock('../../sync/spullen-opslag.js', () => ({ maakSpullenOpslag: () => ({ bewaarDocument, openBestand: vi.fn(), padVan: (id: string) => id, ruimOnvoltooidOp: async () => ({ ok: true }) }) }));
 
 import { useSupabaseSpullen } from '../src/lib/spullen/opslag-supabase';
 import type { Sessie } from '../src/lib/lokaal/sessie';
