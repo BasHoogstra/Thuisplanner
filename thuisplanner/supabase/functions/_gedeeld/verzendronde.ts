@@ -1,31 +1,35 @@
 // Thuisplanner D6: één verzendronde van de wachtrij met uitnodigingsmails (stuur-uitnodiging), zonder Deno- of
-// netwerkafhankelijkheden, zodat de regels rond herhalen en claimtermijnen zonder stack te testen zijn
-// (tests/functies/verzendronde.test.mjs). Herstelronde na de review van PR #54:
+// netwerkafhankelijkheden, zodat de regels rond herhalen, claims en termijnen zonder stack te testen zijn
+// (tests/functies/verzendronde.test.mjs). Herstelronde na de reviews van PR #54, met migratie 20261116120000:
 //
-// 1. Onbekende uitkomst. Alleen een 503 van PostgREST met een verbindingscode (PGRST000/001/002: geen verbinding met
-//    de database, of de schemacache is nog niet geladen) bewijst dat een aanroep niet is uitgevoerd. Een kale 502/503/504
-//    (van Kong of een proxy), een andere 5xx of een netwerkfout zegt dat niet: de database kan de opdracht al hebben
-//    uitgevoerd. 'pak' (zet rijen op "bezig") wordt dan NIET herhaald: de ronde stopt, en wat misschien geclaimd is,
-//    valt na de claimtermijn terug (uitnodigingsmail_pak), zoals bij elke onderbroken ronde. Lezen en 'klaar' (werkt
-//    alleen een rij bij die nog "bezig" is) zijn veilig te herhalen.
-// 2. Claimtermijn. 'pak' zet bezig_tot = now() + 2 minuten. De ronde pakt kleine porties (BATCH) en meet de termijn vanaf
-//    vóór het verzoek (de server claimt daarna, dus de echte termijn is minstens zo lang; klokverschil telt niet, alleen
-//    verstreken tijd). Een mail gaat alleen weg als versturen (hoogstens de tijdslimiet van de adapter) en het
-//    vastleggen nog ruim binnen de claim passen; herhalen van 'klaar' stopt bij het einde van de claim. Zo gaat er nooit
-//    een mail weg op een claim die al verlopen is (en die een andere ronde dus al kan hebben gepakt).
+// 1. Onbekende uitkomst. Geen enkele fout (een kale 502/503/504, een PostgREST-code, een verbroken verbinding, een
+//    tijdslimiet) bewijst dat een aanroep niet is uitgevoerd. Daarom pakt de ronde met een claimtoken
+//    (uitnodigingsmail_pak_ronde): herhalen met hetzelfde token geeft dezelfde, nog geldige claim terug, nooit een
+//    tweede. Zo is ook 'pak' veilig opnieuw te proberen. 'klaar' per ronde is idempotent (alleen een rij die deze ronde
+//    nog geclaimd heeft).
+// 2. Claimtermijn. 'pak' zet bezig_tot = now() + 2 minuten. De ronde meet de termijn vanaf vóór het eerste pak-verzoek
+//    (de server claimt daarna, dus de echte termijn is minstens zo lang; klokverschil telt niet, alleen verstreken tijd)
+//    en houdt een marge aan. Een mail gaat alleen weg als versturen (hoogstens de tijdslimiet van de adapter) en
+//    vastleggen nog binnen de claim passen. Elke aanroep heeft een tijdslimiet die nooit voorbij de claim reikt, en een
+//    nieuwe poging begint alleen als hij nog binnen de claim past.
+// 3. Teruggeven. Wat geclaimd maar nog niet aan de aanbieder gegeven is (te weinig claim over, een fout halverwege, of
+//    een pak waarvan het antwoord nooit kwam), geeft de ronde op elke uitweg terug (uitnodigingsmail_los): weer
+//    "wacht", zonder dat de poging telt. Anders werd het na de termijn "onzeker" en dus nooit verstuurd.
+//    Wat wél aan de aanbieder is gegeven maar niet vast te leggen was, blijft "bezig" en volgt na de termijn de regel
+//    voor een onzekere poging (alleen met een idempotente aanbieder nog eens, met dezelfde sleutel).
 
 export const CLAIM_MS = 120_000;          // bezig_tot = now() + interval '2 minutes' (uitnodigingsmail_pak)
 export const MARGE_MS = 15_000;           // reserve binnen de claim (vertraging van de server, afronding)
-export const VERSTUUR_MS = 2_500;         // TIJDSLIMIET_MS van de adapters (aanbieder.ts)
+export const VERSTUUR_MS = 2_500;         // TIJDSLIMIET_MS van de adapters (aanbieder.ts), inclusief de body
+export const RPC_MS = 5_000;              // tijdslimiet per databaseaanroep
 export const VASTLEG_MS = 20_000;         // tijd die na het versturen minstens over moet zijn om de uitkomst vast te leggen
 export const HERHAAL_MS = [500, 1000, 2000, 4000, 8000];
-export const BUDGET_MS = 20_000;          // hoogstens zo lang nieuwe rijen pakken per aanroep
-// Zoveel rijen per 'pak' dat ze in het slechtste geval (elke mail de volle tijdslimiet, elk 'klaar' alle herhalingen)
-// samen nog binnen de claim passen: 5 × (2,5 s + 15,5 s) = 90 s ≤ 120 s − 15 s. Niet 1: 'pak' slaat ingetrokken
-// uitnodigingen over ("vervallen") en geeft dan minder rijen terug; met één rij zou de ronde dan te vroeg stoppen.
-export const BATCH = Math.floor((CLAIM_MS - MARGE_MS) / (VERSTUUR_MS + HERHAAL_MS.reduce((a, b) => a + b, 0)));
+export const BUDGET_MS = 20_000;          // hoogstens zo lang nieuwe porties pakken per aanroep
+// Een kleine portie: in het gewone geval gaat ze ruim binnen de claim weg. Lukt dat niet (trage aanbieder, veel
+// herhalingen), dan geeft de ronde de rest netjes terug (punt 3); er gaat nooit iets weg op een verlopen claim.
+export const BATCH = 5;
 
-/** Een mislukte RPC: de HTTP-status (null = geen antwoord, netwerkfout) en de PostgREST-code als die er is. */
+/** Een mislukte RPC: de HTTP-status (null = geen of geen volledig antwoord) en de PostgREST-code als die er is. */
 export class RpcFout extends Error {
   naam: string;
   status: number | null;
@@ -36,68 +40,84 @@ export class RpcFout extends Error {
   }
 }
 
-/** Bewijst deze fout dat de aanroep NIET is uitgevoerd? Alleen PostgREST zonder databaseverbinding. */
-export function zekerNietUitgevoerd(e: unknown): boolean {
-  return e instanceof RpcFout && e.status === 503 && ['PGRST000', 'PGRST001', 'PGRST002'].includes(e.code ?? '');
-}
-
-/** Tijdelijk en veilig te herhalen voor een idempotente aanroep (lezen, 'klaar'). */
-function tijdelijk(e: unknown): boolean {
-  return zekerNietUitgevoerd(e) || (e instanceof RpcFout && (e.status === null || e.status >= 500));
+/** Tijdelijk (mogelijk later wel goed): geen antwoord of een 5xx. Een 4xx is een fout in de aanroep zelf. */
+export function tijdelijk(e: unknown): boolean {
+  return e instanceof RpcFout && (e.status === null || e.status >= 500);
 }
 
 export type Rij = { id: string; aan: string; huishouden: string | null; uitnodiger: string | null; geldig_tot: string };
 export type Uitkomst = 'aangenomen' | 'opnieuw' | 'onzeker' | 'mislukt';
 export interface Omgeving {
-  rpc: <T>(naam: string, args: Record<string, unknown>) => Promise<T>;
+  rpc: <T>(naam: string, args: Record<string, unknown>, opties?: { tijdslimietMs?: number }) => Promise<T>;
   /** Verstuurt één mail; geeft de uitkomst (de adapter beslist, met zijn eigen tijdslimiet). */
   verstuur: (r: Rij) => Promise<{ uitkomst: Uitkomst; bericht: string | null; wachtS: number | null }>;
   idempotent: boolean;
   log: (gegevens: Record<string, string | number | boolean | null>) => void;
+  nieuweId: () => string;
   nu?: () => number;
   wacht?: (ms: number) => Promise<void>;
 }
 
 /**
- * Herhaalt een aanroep zolang dat veilig is: 'pak' alleen als hij zeker niet is uitgevoerd, de rest ook bij een
- * onbekende uitkomst. Nooit voorbij `tot` (het einde van de claim).
+ * Een idempotente aanroep, herhaald bij een tijdelijke fout. Elke poging heeft een tijdslimiet die niet voorbij `tot`
+ * reikt, en een nieuwe poging begint alleen als hij (met wachten) nog voor `tot` kan eindigen.
  */
-export async function rpcHerhaal<T>(o: Omgeving, naam: string, args: Record<string, unknown>, soort: 'pak' | 'idempotent',
-  tot = Infinity): Promise<T> {
+export async function rpcHerhaal<T>(o: Pick<Omgeving, 'rpc' | 'log' | 'nu' | 'wacht'>, naam: string, args: Record<string, unknown>, tot = Infinity): Promise<T> {
   const nu = o.nu ?? Date.now, wacht = o.wacht ?? (ms => new Promise<void>(r => setTimeout(r, ms)));
   for (let i = 0; ; i++) {
+    const over = tot - nu();
+    if (over <= 0) throw new RpcFout(naam, null, 'TERMIJN');
     try {
-      return await o.rpc<T>(naam, args);
+      return await o.rpc<T>(naam, args, { tijdslimietMs: Math.min(RPC_MS, over) });
     } catch (e) {
-      const opnieuw = soort === 'pak' ? zekerNietUitgevoerd(e) : tijdelijk(e);
-      if (!opnieuw || i >= HERHAAL_MS.length || nu() + HERHAAL_MS[i] >= tot) throw e;
+      if (!tijdelijk(e) || i >= HERHAAL_MS.length || nu() + HERHAAL_MS[i] + 1_000 >= tot) throw e;
       o.log({ opnieuw: naam, status: e instanceof RpcFout ? e.status ?? 'netwerk' : 'onbekend', code: e instanceof RpcFout ? e.code : null, poging: i + 1 });
       await wacht(HERHAAL_MS[i]);
     }
   }
 }
 
-/** Eén ronde: rij voor rij pakken, versturen en vastleggen, binnen het budget en altijd binnen de claim. */
+/** Eén ronde: porties pakken, versturen en vastleggen, binnen het budget en altijd binnen de claim van elke rij. */
 export async function verzendronde(o: Omgeving): Promise<Record<Uitkomst, number>> {
   const nu = o.nu ?? Date.now;
   const telling: Record<Uitkomst, number> = { aangenomen: 0, opnieuw: 0, onzeker: 0, mislukt: 0 };
   const start = nu();
   while (nu() - start < BUDGET_MS) {
+    const ronde = o.nieuweId();
     const vanaf = nu();                                           // vóór het verzoek: de claim begint later
-    const rijen = await rpcHerhaal<Rij[]>(o, 'uitnodigingsmail_pak', { p_max: BATCH, p_idempotent: o.idempotent }, 'pak');
-    if (!rijen.length) break;
     const claimTot = vanaf + CLAIM_MS - MARGE_MS;
-    for (const r of rijen) {
-      if (nu() + VERSTUUR_MS + VASTLEG_MS > claimTot) {
-        // Te weinig claim over om te versturen én vast te leggen: niet versturen. De rij valt na de termijn terug.
-        o.log({ uitkomst: 'claim te kort', over_ms: claimTot - nu() });
-        return telling;
-      }
-      const v = await o.verstuur(r);
-      await rpcHerhaal(o, 'uitnodigingsmail_klaar',
-        { p_id: r.id, p_uitkomst: v.uitkomst, p_bericht: v.bericht, p_wacht_s: v.wachtS, p_idempotent: o.idempotent }, 'idempotent', claimTot);
-      telling[v.uitkomst]++;
+    // Teruggeven kan tot het echte einde van de claim (de database controleert dat zelf ook).
+    const los = async (ids: string[] | null) => {
+      try { await rpcHerhaal(o, 'uitnodigingsmail_los', { p_ronde: ronde, p_ids: ids }, vanaf + CLAIM_MS - 1_000); }
+      catch (e) { o.log({ uitkomst: 'teruggeven mislukt', fout: String((e as Error)?.message ?? e).slice(0, 80) }); }
+    };
+    let rijen: Rij[];
+    try {
+      rijen = await rpcHerhaal<Rij[]>(o, 'uitnodigingsmail_pak_ronde', { p_max: BATCH, p_idempotent: o.idempotent, p_ronde: ronde }, claimTot);
+    } catch (e) {
+      await los(null);                                            // misschien toch geclaimd: terug
+      throw e;
     }
+    if (!rijen.length) break;
+    const open = new Set(rijen.map(r => r.id));
+    let stop = false;
+    try {
+      for (const r of rijen) {
+        if (nu() + VERSTUUR_MS + VASTLEG_MS > claimTot) {
+          o.log({ uitkomst: 'claim te kort', over_ms: claimTot - nu(), terug: open.size });
+          stop = true;
+          break;
+        }
+        open.delete(r.id);                                        // vanaf hier aan de aanbieder gegeven
+        const v = await o.verstuur(r);
+        await rpcHerhaal(o, 'uitnodigingsmail_klaar_ronde', { p_id: r.id, p_ronde: ronde, p_uitkomst: v.uitkomst, p_bericht: v.bericht,
+          p_wacht_s: v.wachtS, p_idempotent: o.idempotent }, claimTot);
+        telling[v.uitkomst]++;
+      }
+    } finally {
+      if (open.size) await los([...open]);
+    }
+    if (stop) break;
   }
   return telling;
 }

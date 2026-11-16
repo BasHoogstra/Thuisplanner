@@ -550,6 +550,54 @@ test('PostgREST zonder databaseverbinding tussen versturen en vastleggen: de uit
   });
 });
 
+// Claimronde (migratie 20261116120000, herstelronde review PR #54): de databasefuncties zelf. Zonder pg_cron en zonder
+// seintje, zodat alleen deze aanroepen de rij raken.
+test('claimronde: pak met hetzelfde token geeft dezelfde claim; los geeft terug zonder poging; klaar alleen voor de eigen ronde', { timeout: 60000 }, async () => {
+  const { c } = await codeSessie(adres('ronde'));
+  const h = await huishouden(c);
+  await rust();
+  await zonderCron(async () => {
+    await hernoem('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_url_weg');
+    let inv;
+    try { inv = await uitnodigen(c, h, adres('ronde-gast')); } finally { await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url'); }
+    const mail = (await rijen(inv))[0].id;
+    const pak = async ronde => (await db.query('select id from public.uitnodigingsmail_pak_ronde(50, false, $1)', [ronde])).rows.map(r => r.id);
+    const rij = async () => (await db.query('select status, pogingen, ronde from private.uitnodigingsmails where id = $1', [mail])).rows[0];
+    const a = randomUUID(), b = randomUUID();
+    // Eerste claim, en de herhaling met hetzelfde token (verloren antwoord): dezelfde rij, geen tweede poging.
+    assert.ok((await pak(a)).includes(mail));
+    assert.deepEqual(await pak(a), (await db.query(`select id from private.uitnodigingsmails where ronde = $1 and status = 'bezig'`, [a])).rows.map(r => r.id));
+    assert.deepEqual(await rij(), { status: 'bezig', pogingen: 1, ronde: a });
+    // Een andere ronde krijgt deze rij niet.
+    assert.ok(!(await pak(b)).includes(mail));
+    // (Wat ronde b eventueel van andere tests pakte, meteen terug.)
+    const vanB = (await db.query(`select id from private.uitnodigingsmails where ronde = $1 and status = 'bezig'`, [b])).rows.map(r => r.id);
+    if (vanB.length) await db.query('select public.uitnodigingsmail_los($1, $2)', [b, vanB]);
+    // klaar met het verkeerde token: niets; los met het verkeerde token: niets.
+    assert.equal((await db.query(`select public.uitnodigingsmail_klaar_ronde($1, $2, 'aangenomen', 'x') r`, [mail, b])).rows[0].r, false);
+    assert.equal((await db.query('select public.uitnodigingsmail_los($1, $2) n', [b, [mail]])).rows[0].n, 0);
+    assert.equal((await rij()).status, 'bezig');
+    // Teruggeven: weer "wacht", de poging telt niet; daarna te pakken door een nieuwe ronde.
+    assert.equal((await db.query('select public.uitnodigingsmail_los($1, $2) n', [a, [mail]])).rows[0].n, 1);
+    assert.deepEqual(await rij(), { status: 'wacht', pogingen: 0, ronde: null });
+    const d = randomUUID();
+    assert.ok((await pak(d)).includes(mail));
+    // klaar met het juiste token: vastgelegd; daarna kan los niets meer.
+    assert.equal((await db.query(`select public.uitnodigingsmail_klaar_ronde($1, $2, 'aangenomen', 'proef-1') r`, [mail, d])).rows[0].r, true);
+    assert.equal((await rij()).status, 'aangenomen');
+    assert.equal((await db.query('select public.uitnodigingsmail_los($1, null) n', [d])).rows[0].n, 0);
+    // Een verlopen claim geeft los niet meer terug (dan geldt de termijnregel van pak).
+    await db.query(`update private.uitnodigingsmails set status = 'bezig', bezig_tot = now() - interval '1 second', ronde = $2 where id = $1`, [mail, d]);
+    assert.equal((await db.query('select public.uitnodigingsmail_los($1, null) n', [d])).rows[0].n, 0);
+    await db.query(`update private.uitnodigingsmails set status = 'aangenomen', bezig_tot = null where id = $1`, [mail]);
+    // Alleen de service-rol: een gebruiker kan de nieuwe functies niet aanroepen.
+    for (const [f, args] of [['uitnodigingsmail_pak_ronde', { p_max: 1, p_idempotent: false, p_ronde: a }], ['uitnodigingsmail_los', { p_ronde: a }],
+      ['uitnodigingsmail_klaar_ronde', { p_id: mail, p_ronde: a, p_uitkomst: 'aangenomen' }]]) {
+      assert.ok((await c.rpc(f, args)).error, `${f} aan te roepen door een gebruiker`);
+    }
+  });
+});
+
 test('herstart van de database: de wachtrij blijft (de wachtrij van pg_net niet), en het vangnet verstuurt de mail daarna één keer', { timeout: 240000 }, async () => {
   const { c } = await codeSessie(adres('dbherstart'));
   const h = await huishouden(c);

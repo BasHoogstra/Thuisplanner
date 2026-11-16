@@ -99,27 +99,30 @@ export async function webhookGeldig(geheim: string, kop: Headers, body: string):
 }
 
 /** Een RPC met de service-rol (alleen in de Edge Functions). */
-export async function rpc<T>(naam: string, args: Record<string, unknown>): Promise<T> {
+export async function rpc<T>(naam: string, args: Record<string, unknown>, opties: { tijdslimietMs?: number } = {}): Promise<T> {
   const sleutel = instelling('SUPABASE_SERVICE_ROLE_KEY');
-  let r: Response;
+  // Met een tijdslimiet (ook voor het lezen van de body): daarna is de uitkomst onbekend, net als zonder antwoord.
+  const signal = opties.tijdslimietMs ? AbortSignal.timeout(opties.tijdslimietMs) : undefined;
   try {
-    r = await fetch(`${instelling('SUPABASE_URL')}/rest/v1/rpc/${naam}`, {
+    const r = await fetch(`${instelling('SUPABASE_URL')}/rest/v1/rpc/${naam}`, {
       method: 'POST',
       headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(args),
+      signal,
     });
-  } catch {
-    throw new RpcFout(naam, null, null);                                   // geen antwoord: uitkomst onbekend
+    const tekst = await r.text();
+    if (!r.ok) {
+      // Met de PostgREST-code als die er is (alleen voor de logs en de aanroeper; geen bewijs dat er niets is uitgevoerd).
+      let code: string | null = null;
+      try { const b = JSON.parse(tekst); code = typeof b?.code === 'string' ? b.code.slice(0, 20) : null; } catch { code = null; }
+      throw new RpcFout(naam, r.status, code);
+    }
+    // Een functie zonder resultaat (void) geeft 204 zonder body.
+    return (tekst ? JSON.parse(tekst) : null) as T;
+  } catch (e) {
+    if (e instanceof RpcFout) throw e;
+    throw new RpcFout(naam, null, null);                                   // geen (volledig) antwoord: uitkomst onbekend
   }
-  if (!r.ok) {
-    // Met de PostgREST-code (bijv. PGRST001: geen databaseverbinding), zodat de aanroeper weet of er iets is uitgevoerd.
-    let code: string | null = null;
-    try { const b = JSON.parse(await r.text()); code = typeof b?.code === 'string' ? b.code.slice(0, 20) : null; } catch { code = null; }
-    throw new RpcFout(naam, r.status, code);
-  }
-  // Een functie zonder resultaat (void) geeft 204 zonder body.
-  const tekst = await r.text();
-  return (tekst ? JSON.parse(tekst) : null) as T;
 }
 
 export interface Mail { aan: string; onderwerp: string; tekst: string; html: string }

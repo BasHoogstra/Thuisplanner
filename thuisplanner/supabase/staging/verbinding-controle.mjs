@@ -206,6 +206,14 @@ export const SCHEMA_PER_STAND = Object.freeze({
     Object.freeze({ schema: 'private', relaties: 10, functies: 130, policies: 0 }),
     Object.freeze({ schema: 'public', relaties: 20, functies: 44, policies: 45 }),
   ]),
+  // Plus de claimronde voor uitnodigingsmails (migratie 20261116120000, herstelronde review PR #54; nog niet online):
+  // +3 functies in private (uitnodigingsmail_pak_ronde, uitnodigingsmail_los, uitnodigingsmail_klaar_ronde) en +3 in
+  // public (de wrappers); een kolom erbij (telt hier niet). Gemeten op een lege geïsoleerde lokale database met alle 24
+  // migraties (16 november 2026).
+  '20261116120000': Object.freeze([
+    Object.freeze({ schema: 'private', relaties: 10, functies: 133, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 20, functies: 47, policies: 45 }),
+  ]),
 });
 
 // De opslag (Storage) per stand: tot en met migratie 27 niets; vanaf migratie 29 precies de privé-bucket "documenten" en

@@ -4,9 +4,10 @@
 // route voor gebruikers of de app.
 //
 // De functie antwoordt meteen (202) en werkt op de achtergrond verder (EdgeRuntime.waitUntil), zodat een korte
-// time-out van pg_net de verwerking niet afbreekt. Hoogstens 20 seconden per aanroep, in porties van 5 (zodat elke mail
-// in het slechtste geval nog binnen zijn claim van 2 minuten blijft); wat overblijft, pakt de volgende ronde op. Twee gelijktijdige aanroepen
-// pakken nooit dezelfde rij (SKIP LOCKED in de database).
+// time-out van pg_net de verwerking niet afbreekt. Hoogstens 20 seconden lang pakt hij nieuwe porties van 5, elk met een
+// claimtoken; een portie loopt hoogstens tot het einde van haar claim (zo'n 105 s) en geeft terug wat ze niet meer kan
+// versturen. Wat overblijft, pakt de volgende ronde op. Twee gelijktijdige aanroepen pakken nooit dezelfde rij (SKIP
+// LOCKED in de database).
 //
 // Per mail: de aanbieder neemt aan (aangenomen), weigert tijdelijk (opnieuw), weigert definitief (mislukt), of er komt
 // geen antwoord (onzeker; alleen met een bewezen idempotente aanbieder later nog eens, met dezelfde sleutel = de rij-id).
@@ -21,10 +22,10 @@ const datum = (iso: string) => new Intl.DateTimeFormat('nl-NL', { day: 'numeric'
 // Herhalen, onbekende uitkomsten en de claimtermijn: zie _gedeeld/verzendronde.ts (en tests/functies/verzendronde.test.mjs).
 async function verwerk(): Promise<void> {
   const logR = (g: Record<string, string | number | boolean | null>) => log('stuur-uitnodiging', g);
-  const lezen = { rpc, verstuur: async () => ({ uitkomst: 'onzeker' as const, bericht: null, wachtS: null }), idempotent: false, log: logR };
-  const aanbieder = kiesAanbieder(await rpcHerhaal<string | null>(lezen, 'mail_testaanbieder', {}, 'idempotent'));
+  const basis = { rpc, log: logR, nieuweId: () => crypto.randomUUID() };
+  const aanbieder = kiesAanbieder(await rpcHerhaal<string | null>(basis, 'mail_testaanbieder', {}));
   const telling = await verzendronde({
-    rpc, idempotent: aanbieder.idempotent, log: logR,
+    ...basis, idempotent: aanbieder.idempotent,
     verstuur: async (r: Rij) => {
       try {
         const bericht = (await aanbieder.verstuur(uitnodiging(r.aan, r.uitnodiger, r.huishouden, instelling('APP_URL'), datum(r.geldig_tot)), r.id)).berichtId;

@@ -50,6 +50,10 @@ test('de referenties per stand: staging (16 migraties) ongewijzigd; Vakanties pr
   const [p5, u5] = SCHEMA_PER_STAND['20261111120000'];
   assert.deepEqual([p5.relaties - p4.relaties, p5.functies - p4.functies, p5.policies - p4.policies], [0, 7, 0]);
   assert.deepEqual([u5.relaties - u4.relaties, u5.functies - u4.functies, u5.policies - u4.policies], [2, 3, 6]);
+  // Claimronde uitnodigingsmails: private +3 functies, public +3 wrappers.
+  const [p6, u6] = SCHEMA_PER_STAND['20261116120000'];
+  assert.deepEqual([p6.relaties - p5.relaties, p6.functies - p5.functies, p6.policies - p5.policies], [0, 3, 0]);
+  assert.deepEqual([u6.relaties - u5.relaties, u6.functies - u5.functies, u6.policies - u5.policies], [0, 3, 0]);
   // Elke referentie hoort bij een migratie die in de repository staat, en een onbekende stand is een fout.
   for (const v of Object.keys(SCHEMA_PER_STAND)) assert.ok(repoVersies().includes(v), `referentie voor onbekende migratie ${v}`);
   assert.throws(() => verwachtSchemaVoor(['20261009120000']), /geen schemareferentie/);
