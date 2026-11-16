@@ -7,6 +7,7 @@
 //   K1_HOOK_SECRET   "v1,whsec_<base64>" (Standard Webhooks; hetzelfde als in de hookinstelling van Supabase Auth)
 // Verder: MAIL_ADAPTER (lokaal: mailpit), MAILPIT_URL, MAIL_AFZENDER, K1_CAPTCHA ("aan" of "uit"), TURNSTILE_SECRET,
 // APP_URL.
+import { RpcFout } from './verzendronde.ts';
 
 const tekst = new TextEncoder();
 
@@ -100,12 +101,22 @@ export async function webhookGeldig(geheim: string, kop: Headers, body: string):
 /** Een RPC met de service-rol (alleen in de Edge Functions). */
 export async function rpc<T>(naam: string, args: Record<string, unknown>): Promise<T> {
   const sleutel = instelling('SUPABASE_SERVICE_ROLE_KEY');
-  const r = await fetch(`${instelling('SUPABASE_URL')}/rest/v1/rpc/${naam}`, {
-    method: 'POST',
-    headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(args),
-  });
-  if (!r.ok) throw new Error(`rpc ${naam}: ${r.status}`);
+  let r: Response;
+  try {
+    r = await fetch(`${instelling('SUPABASE_URL')}/rest/v1/rpc/${naam}`, {
+      method: 'POST',
+      headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+    });
+  } catch {
+    throw new RpcFout(naam, null, null);                                   // geen antwoord: uitkomst onbekend
+  }
+  if (!r.ok) {
+    // Met de PostgREST-code (bijv. PGRST001: geen databaseverbinding), zodat de aanroeper weet of er iets is uitgevoerd.
+    let code: string | null = null;
+    try { const b = JSON.parse(await r.text()); code = typeof b?.code === 'string' ? b.code.slice(0, 20) : null; } catch { code = null; }
+    throw new RpcFout(naam, r.status, code);
+  }
   // Een functie zonder resultaat (void) geeft 204 zonder body.
   const tekst = await r.text();
   return (tekst ? JSON.parse(tekst) : null) as T;
