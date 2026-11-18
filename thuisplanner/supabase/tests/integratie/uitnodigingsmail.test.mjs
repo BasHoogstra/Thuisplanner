@@ -38,6 +38,8 @@ async function tot(fn, ms = 15000, wat = 'voorwaarde') {
 const docker = (...a) => execFileSync('docker', a, { stdio: 'ignore' });
 
 before(async () => {
+  // Een eerder afgebroken run (Ctrl-C, een gestopt proces) kan de inlogrol van PostgREST geblokkeerd hebben achtergelaten.
+  try { alsBeheerder('alter role authenticator login'); } catch { /* de stack is er nog niet */ }
   await db.connect();
   vorige = (await db.query('select * from private.instellingen')).rows[0];
   await db.query(`update private.instellingen set wachtwoordsessies_toegestaan = false, huishouden_open = true, mail_testaanbieder = 'gewoon'`);
@@ -543,6 +545,8 @@ test('PostgREST zonder databaseverbinding tussen versturen en vastleggen: de uit
       await ronde();
       await klaarMet(inv, 30000);
     } finally {
+      // Ook als de mail nooit bij de aanbieder kwam: het klaargezette gedrag weg, anders raakt het de volgende test.
+      aanbieder.gedrag.length = 0;
       await restMetDb();
     }
     assert.deepEqual(await standen(inv), ['aangenomen']);
@@ -598,46 +602,71 @@ test('claimronde: pak met hetzelfde token geeft dezelfde claim; los geeft terug 
   });
 });
 
-test('herstart van de database: de wachtrij blijft (de wachtrij van pg_net niet), en het vangnet verstuurt de mail daarna één keer', { timeout: 240000 }, async () => {
+// Review PR #54, R4: deze test herstart gedeelde infrastructuur en ruimt daarom op elke uitweg op: de Vault-waarde
+// terug, een verbinding met de database, en Realtime weer aantoonbaar live (ook als een controle faalde, zodat één fout
+// niet de realtime-tests hierna meesleept). De tijdslimiet ligt boven de som van de wachttijden (database terug 120 s,
+// mail 100 s, Realtime 90 s), zodat een fout altijd met een eigen melding eindigt.
+test('herstart van de database: de wachtrij blijft (de wachtrij van pg_net niet), en het vangnet verstuurt de mail daarna één keer', { timeout: 420000 }, async () => {
   const { c } = await codeSessie(adres('dbherstart'));
   const h = await huishouden(c);
   const gast = adres('dbherstart-gast');
-  await hernoem('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_url_weg');
-  const inv = await uitnodigen(c, h, gast);
-  await db.end();
-  docker('restart', `supabase_db_${PROJECT}`);
-  await tot(async () => {
-    try { const t = new pg.Client({ connectionString: DB_URL }); await t.connect(); await t.query('select 1'); db = t; return true; }
-    catch { return false; }
-  }, 120000, 'database terug');
-  await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url');
-  assert.deepEqual(await standen(inv), ['wacht']);
-  await klaarMet(inv, 100000);
-  assert.deepEqual(await standen(inv), ['aangenomen']);
-  assert.equal(aanbieder.voor(gast).length, 1);
-  // Deze test herstart gedeelde infrastructuur; hij eindigt pas als Realtime weer seintjes uit de database aflevert.
-  // Na een herstart bouwt Realtime die replicatie pas op bij het eerste privékanaal, en wat vóór die stream geschreven
-  // wordt, komt nooit aan: anders mist de eerste realtime-test hierna (in CI vakanties-sync en vakanties) zijn seintjes.
-  await realtimeWeerLive(c, h);
+  let fout = null;
+  let hernoemd = false;
+  try {
+    await hernoem('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_url_weg');
+    hernoemd = true;
+    const inv = await uitnodigen(c, h, gast);
+    await db.end();
+    docker('restart', `supabase_db_${PROJECT}`);
+    await tot(async () => {
+      try { const t = new pg.Client({ connectionString: DB_URL }); await t.connect(); await t.query('select 1'); db = t; return true; }
+      catch { return false; }
+    }, 120000, 'database terug');
+    await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url');
+    hernoemd = false;
+    assert.deepEqual(await standen(inv), ['wacht']);
+    await klaarMet(inv, 100000);
+    assert.deepEqual(await standen(inv), ['aangenomen']);
+    assert.equal(aanbieder.voor(gast).length, 1);
+  } catch (e) { fout = e; }
+  // Opruimen, ook na een fout: zonder verbinding eerst opnieuw verbinden; de Vault-waarde terug; Realtime live.
+  const opruimfouten = [];
+  try { await db.query('select 1'); } catch {
+    try { const t = new pg.Client({ connectionString: DB_URL }); await t.connect(); db = t; } catch (e) { opruimfouten.push('database: ' + e.message); }
+  }
+  if (hernoemd) { try { await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url'); } catch (e) { opruimfouten.push('Vault: ' + e.message); } }
+  try { await realtimeWeerLive(c, h, 90000); } catch (e) { opruimfouten.push(e.message); }
+  if (fout) { if (opruimfouten.length) fout.message += String.fromCharCode(10) + 'bij het opruimen: ' + opruimfouten.join('; '); throw fout; }
+  if (opruimfouten.length) throw new Error('opruimen na de herstart: ' + opruimfouten.join('; '));
 });
 
-async function realtimeWeerLive(c, h) {
+// Realtime na een herstart: pas klaar als een seintje uit de database aantoonbaar binnenkomt op een privékanaal (na een
+// herstart bouwt Realtime de replicatie pas op bij het eerste privékanaal; wat daarvóór geschreven wordt, komt nooit
+// aan). Met een vaste eindtijd, en elk kanaal gaat dicht, ook bij een fout of als de tijd op is.
+async function realtimeWeerLive(c, h, maxMs) {
   const kanaal = (await c.rpc('household_channel', { p_household: h })).data;
   await c.realtime.setAuth();
-  for (let poging = 0; poging < 30; poging++) {
+  const eind = Date.now() + maxMs;
+  for (let poging = 0; Date.now() < eind; poging++) {
     const ontvangen = [];
     const k = c.channel(kanaal, { config: { private: true } }).on('broadcast', { event: 'wijziging' }, m => ontvangen.push(m.payload));
-    const status = await new Promise(r => { const t = setTimeout(() => r('GEEN_ANTWOORD'), 10000); k.subscribe(s => { clearTimeout(t); r(s); }); });
-    if (status === 'SUBSCRIBED') {
-      const id = randomUUID();
-      assert.ifError((await c.from('trips').insert({ id, household_id: h, name: 'Proef ' + poging })).error);
-      for (let j = 0; j < 30; j++) {
-        if (ontvangen.some(p => p.t === 'trips' && p.id === id)) { await c.removeChannel(k); return; }
-        await wacht(100);
+    try {
+      const status = await new Promise(r => {
+        const t = setTimeout(() => r('GEEN_ANTWOORD'), Math.max(1000, Math.min(10000, eind - Date.now())));
+        k.subscribe(s => { clearTimeout(t); r(s); });
+      });
+      if (status === 'SUBSCRIBED') {
+        const id = randomUUID();
+        assert.ifError((await c.from('trips').insert({ id, household_id: h, name: 'Proef ' + poging })).error);
+        for (let j = 0; j < 30 && Date.now() < eind; j++) {
+          if (ontvangen.some(p => p.t === 'trips' && p.id === id)) return;
+          await wacht(100);
+        }
       }
+    } finally {
+      await c.removeChannel(k);
     }
-    await c.removeChannel(k);
-    await wacht(2000);
+    if (Date.now() + 2000 < eind) await wacht(2000);
   }
-  throw new Error('Realtime levert na de herstart geen seintjes meer af');
+  throw new Error(`Realtime levert na de herstart binnen ${Math.round(maxMs / 1000)} s geen seintjes uit de database af`);
 }
