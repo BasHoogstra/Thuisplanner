@@ -165,11 +165,11 @@ export function useSupabaseSpullen(sessie: Sessie, toestand: Toestand | null, me
         // Deze poging kan de rijen hebben geschreven: haar velden tellen voortaan als "van ons".
         p.documentEigen.push(velden);
         if (nieuwSpul) p.spulEigen.push(nieuwSpul.velden);
-        // De versies zoals de app ze nu kent (na het ophalen door de opslag): de volgende poging stuurt die mee.
-        const versieVan = (rij: { version?: number; wachtend?: boolean } | undefined, vorige?: number) =>
-          rij && !rij.wachtend && (rij.version ?? 0) > 0 ? rij.version : vorige;
-        p.spulVersie = versieVan(sync?.toestand?.spullen?.find(x => x.id === p.spulId), p.spulVersie);
-        p.documentVersie = versieVan(sync?.toestand?.documenten?.find(x => x.id === documentId), p.documentVersie);
+        // Een versie gaat alleen mee om na een getoonde conflictmelding bewust door te zetten, en maar voor één poging.
+        // Nooit een versie uit de toestand: die werkt Realtime ook bij, dan zou de wijziging van de partner als "bekend"
+        // gelden en stil worden overschreven (review PR #54, R1).
+        p.spulVersie = undefined;
+        p.documentVersie = undefined;
         if (!r.ok) {
           if (r.conflict) {
             // Iemand anders paste het aan: je invoer blijft staan; opnieuw bewaren zet bewust je eigen waarden door.

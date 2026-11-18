@@ -353,41 +353,80 @@ test('opnieuw bewaren met een ander bestand of vanuit een ander huishouden: niet
   assert.equal((await admin.storage.from('documenten').list(`${hb}/${doc}`)).data.length, 0);
 });
 
-// Eigen review (P1-b): een wijziging van de partner tussen twee pogingen wordt niet stil overschreven. De app stuurt de
-// versies mee die ze na de vorige poging kende; afstemmen geeft dan een conflict (met de versie van nu), en pas opnieuw
-// bewaren met die versie zet de eigen waarden bewust door.
-test('opnieuw bewaren na een wijziging van de partner tussendoor: conflict, niets overschreven; daarna bewust doorzetten', async () => {
+// Review PR #54, R1: een wijziging van de partner tussen twee pogingen wordt nooit stil overschreven, ook niet als de app
+// die wijziging al via Realtime binnenkreeg. Zoals de app: elke poging stuurt de velden mee die deze invoer eerder
+// instuurde (eigen); een versie alleen om na een getoonde conflictmelding bewust door te zetten.
+test('opnieuw bewaren na een wijziging van de partner tussendoor (twee accounts, via Realtime binnen): conflict, niets overschreven; daarna bewust doorzetten', async () => {
   const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
   const doc = randomUUID(), spul = randomUUID(), naam = 'Wasmachine tussendoor ' + run;
-  const invoer = (titel, versies = {}) => ({
-    documentId: doc, documentVersie: versies.doc, bytes: PDF, velden: docVelden(mSara, PDF, { title: titel }),
-    nieuwSpul: { id: spul, versie: versies.spul, velden: { name: naam, owner_member_id: mSara, serial: null, field_status: {} } },
-  });
+  const spulVelden = { name: naam, owner_member_id: mSara, serial: null, field_status: {} };
+  const docV = docVelden(mSara, PDF, { title: 'Factuur wasmachine' });
+  const eigen = { doc: [], spul: [] };
+  const poging = async (doorzetten = {}) => {
+    const r = await o.bewaarDocument({ documentId: doc, documentVersie: doorzetten.doc, documentEigen: [...eigen.doc], bytes: PDF, velden: docV,
+      nieuwSpul: { id: spul, versie: doorzetten.spul, eigen: [...eigen.spul], velden: spulVelden } });
+    eigen.doc.push(docV); eigen.spul.push(spulVelden);
+    return r;
+  };
   sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'); sara.verlies.voor = true;
-  assert.equal((await o.bewaarDocument(invoer('Factuur wasmachine'))).ok, false);
+  assert.equal((await poging()).ok, false);
   sara.verlies.wat = null; sara.verlies.voor = false;
-  await sSara.vernieuw();
-  const gekend = { spul: sSara.toestand.spullen.find(x => x.id === spul).version, doc: sSara.toestand.documenten.find(x => x.id === doc).version };
-  // De partner vult intussen het serienummer in en past de titel van het (gedeelde, wachtende) document aan.
+  // Tim vult het serienummer in en past de titel van het (gedeelde, wachtende) document aan; Sara krijgt het binnen.
   await sTim.vernieuw();
   assert.ok((await sTim.acties.spulBijwerken(sTim.toestand.spullen.find(x => x.id === spul), { serial: 'SN-123' })).ok);
   assert.ok((await sTim.acties.documentBijwerken(sTim.toestand.documenten.find(x => x.id === doc), { title: 'Factuur (Tim)' })).ok);
-  // Opnieuw bewaren met de versies van na de eerste poging: conflict op het spul, en niets overschreven of geüpload.
-  const r = await o.bewaarDocument(invoer('Factuur wasmachine', gekend));
+  await totdat(async () => { await sSara.vernieuw(); return sSara.toestand.spullen.find(x => x.id === spul)?.serial === 'SN-123'; }, 15000, 'Sara kent de wijziging van Tim');
+  // Opnieuw bewaren: conflict op het spul; niets overschreven, niets geüpload.
+  const r = await poging();
   assert.deepEqual([r.ok, r.fase, r.conflict, r.opnieuw], [false, 'spul', true, true]);
   assert.equal(ok(await admin.from('possessions').select('serial').eq('id', spul).single()).serial, 'SN-123');
   assert.equal(ok(await admin.from('documents').select('title').eq('id', doc).single()).title, 'Factuur (Tim)');
   assert.equal((await admin.storage.from('documenten').list(`${ha}/${doc}`)).data.length, 0, 'geüpload ondanks het conflict');
   // Bewust doorzetten voor het spul: nu conflict op het document (ook dat paste Tim aan).
-  const r2 = await o.bewaarDocument(invoer('Factuur wasmachine', { spul: r.versie, doc: gekend.doc }));
+  const r2 = await poging({ spul: r.versie });
   assert.deepEqual([r2.ok, r2.fase, r2.conflict], [false, 'begin', true]);
   assert.equal(ok(await admin.from('documents').select('title').eq('id', doc).single()).title, 'Factuur (Tim)');
-  // En ook voor het document doorzetten: dan de eigen waarden, en het document is bewaard.
-  await sSara.vernieuw();
-  const r3 = await o.bewaarDocument(invoer('Factuur wasmachine', { spul: sSara.toestand.spullen.find(x => x.id === spul).version, doc: r2.versie }));
+  // Ook voor het document doorzetten: dan de eigen waarden, het document is bewaard, en er is één spul.
+  const r3 = await poging({ doc: r2.versie });
   assert.equal(r3.ok, true, `${r3.fase}: ${r3.tekst}`);
-  assert.equal(ok(await admin.from('documents').select('title,upload_status').eq('id', doc).single()).title, 'Factuur wasmachine');
-  assert.equal(ok(await admin.from('possessions').select('id').eq('name', naam)).length, 1, 'precies één spul');
+  assert.deepEqual(ok(await admin.from('documents').select('title,upload_status').eq('id', doc).single()), { title: 'Factuur wasmachine', upload_status: 'klaar' });
+  assert.equal(ok(await admin.from('possessions').select('serial').eq('name', naam)).length, 1, 'precies één spul');
+});
+
+// R1, verloren antwoorden: het antwoord op de eigen bijwerking van het spul ging verloren (wel uitgevoerd). Zonder
+// wijziging van een ander lukt de volgende poging (de waarden zijn "van ons"); paste de partner daarna iets aan, dan
+// conflict.
+test('verloren antwoord op de eigen bijwerking, daarna past de partner aan: conflict; zonder partner lukt het gewoon', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  for (const metPartner of [false, true]) {
+    const doc = randomUUID(), spul = randomUUID(), basis = `Koelkast ${metPartner ? 'partner' : 'alleen'} ${run}`;
+    const eigen = [];
+    const poging = async naam => {
+      const velden = { name: naam, owner_member_id: mSara, serial: null, field_status: {} };
+      const r = await o.bewaarDocument({ documentId: doc, documentEigen: [], bytes: PDF, velden: docVelden(mSara),
+        nieuwSpul: { id: spul, eigen: [...eigen], velden } });
+      eigen.push(velden);
+      return r;
+    };
+    sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'); sara.verlies.voor = true;
+    assert.equal((await poging(basis)).ok, false);
+    sara.verlies.wat = (u, m) => m === 'PATCH' && u.includes('/rest/v1/possessions'); sara.verlies.voor = false;   // uitgevoerd, antwoord weg
+    assert.equal((await poging(basis + ' (nieuw)')).ok, false);
+    sara.verlies.wat = null;
+    assert.equal(ok(await admin.from('possessions').select('name').eq('id', spul).single()).name, basis + ' (nieuw)');
+    if (metPartner) {
+      await sTim.vernieuw();
+      assert.ok((await sTim.acties.spulBijwerken(sTim.toestand.spullen.find(x => x.id === spul), { serial: 'SN-9' })).ok);
+    }
+    const r = await poging(basis + ' (nieuw)');
+    if (metPartner) {
+      assert.deepEqual([r.ok, r.fase, r.conflict], [false, 'spul', true]);
+      assert.equal(ok(await admin.from('possessions').select('serial').eq('id', spul).single()).serial, 'SN-9');
+    } else {
+      assert.equal(r.ok, true, `${r.fase}: ${r.tekst}`);
+      assert.equal(ok(await admin.from('possessions').select('id').eq('id', spul)).length, 1);
+    }
+  }
 });
 
 // Review PR #54, P2-3: het antwoord op het toevoegen van het spul ging verloren (de app zag de rij nooit terug, en kent

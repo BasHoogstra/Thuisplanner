@@ -108,29 +108,34 @@ describe('P1-a: vers beginnen maakt geen tweede spul en laat geen oude rij staan
   });
 });
 
-describe('P1-b: de volgende poging stuurt de versies van na de vorige poging mee', () => {
-  it('na een mislukte upload: versie van spul en document zoals de app ze toen kende', async () => {
+describe('R1: geen stille overschrijving van de partner; een versie alleen om na een conflict bewust door te zetten', () => {
+  it('na een mislukte poging stuurt de app geen versie uit de toestand mee, ook niet als Realtime daar een nieuwere versie bracht', async () => {
     const o = opzet();
     o.server({ ok: false, fase: 'upload', opnieuw: true, tekst: 'Mislukt' }, { spul: 1, document: 1 });
     o.server({ ok: true });
     await o.bewaar(invoer());
-    // Intussen paste de partner het spul aan; de app kent (via realtime) versie 2, maar de poging verwacht 1.
+    // Intussen paste de partner het spul aan, en de app kreeg dat via Realtime binnen (versie 2 in de toestand).
     o.syncToestand.spullen = o.syncToestand.spullen.map(s => ({ ...s, version: 2 }));
     await o.bewaar(invoer());
-    expect(o.oproep(0).nieuwSpul.versie).toBeUndefined();
-    expect(o.oproep(1).nieuwSpul.versie).toBe(1);
-    expect(o.oproep(1).documentVersie).toBe(1);
+    const a = bewaarDocument.mock.calls[1][0] as { documentVersie?: number; documentEigen: unknown[]; nieuwSpul: { versie?: number; eigen: unknown[] } };
+    expect(a.nieuwSpul.versie).toBeUndefined();               // de opslag beslist op de eerder ingestuurde velden
+    expect(a.documentVersie).toBeUndefined();
+    expect(a.nieuwSpul.eigen).toHaveLength(1);
+    expect(a.documentEigen).toHaveLength(1);
   });
-  it('conflict: de melding van het venster; opnieuw bewaren gebruikt de versie van nu (bewust doorzetten)', async () => {
+  it('conflict: de melding van het venster; alleen de volgende poging zet door met de versie van de melding, daarna niet meer', async () => {
     const o = opzet();
     o.server({ ok: false, fase: 'upload', opnieuw: true, tekst: 'Mislukt' }, { spul: 1, document: 1 });
     o.server({ ok: false, fase: 'spul', opnieuw: true, conflict: true, versie: 3, tekst: 'conflict' });
+    o.server({ ok: false, fase: 'upload', opnieuw: true, tekst: 'Mislukt' });
     o.server({ ok: true });
     await o.bewaar(invoer());
     expect((await o.bewaar(invoer()))?.message).toBe(CONFLICT_IN_VENSTER);
-    expect(await o.bewaar(invoer())).toBeNull();
+    await o.bewaar(invoer());
+    await o.bewaar(invoer());
     expect(o.oproep(2).nieuwSpul.versie).toBe(3);
     expect(o.oproep(2).nieuwSpul.id).toBe(o.oproep(0).nieuwSpul.id);
+    expect(o.oproep(3).nieuwSpul.versie).toBeUndefined();
   });
 });
 

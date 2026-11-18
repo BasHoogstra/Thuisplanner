@@ -107,11 +107,13 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
     }
     const anders = Object.fromEntries(Object.entries(gewenst).filter(([k, v]) => !VAST[tabel].includes(k) && !gelijk(rij[k], v)));
     if (!Object.keys(anders).length) return { ok: true };
-    // De versie die de app na de vorige poging van deze rij kende (P1-b): heeft iemand de rij sindsdien aangepast, dan
-    // een conflict in plaats van een stille overschrijving. Kent de app geen versie (het antwoord ging verloren), dan
-    // telt de rij alleen als "van ons" als de veranderbare velden gelijk zijn aan wat deze invoer eerder zelf instuurde
-    // (`eigen`); anders paste iemand anders hem aan: conflict (review PR #54, P2-3). Niet de versie zelf: de server hoogt
-    // die ook op (bijvoorbeeld bevestig-upload bij 'klaar').
+    // Geen stille overschrijving van iemand anders (review PR #54, R1). De rij telt alleen als "van ons" als de
+    // veranderbare velden gelijk zijn aan wat deze invoer eerder zelf instuurde (`eigen`); anders paste iemand anders
+    // hem aan: conflict. Bewust op inhoud en niet op een versie die de app ergens "kende": die toestand werkt Realtime
+    // ook bij (dan zou de versie van de partner als bekend gelden), en de server hoogt de versie zelf op (bevestig-upload
+    // bij 'klaar'). Alleen na een getoonde conflictmelding stuurt de app de versie van die melding mee (`verwacht`):
+    // dan zet de gebruiker bewust door, en een nieuwe wijziging sindsdien geeft opnieuw een conflict. Het bijwerken zelf
+    // gebeurt altijd met een versie, dus ook een wijziging tussen lezen en schrijven geeft een conflict.
     let versie = verwacht;
     if (versie == null) {
       const veranderlijk = Object.keys(gewenst).filter(k => !VAST[tabel].includes(k));
@@ -131,8 +133,9 @@ export function maakSpullenOpslag({ supabase, sync, huishoudenId, nieuweId }) {
 
     /**
      * Een document bewaren, eventueel met een nieuw spul en koppelingen.
-     * Bij opnieuw proberen: `documentVersie` en `nieuwSpul.versie` zijn de versies die de app na de vorige poging kende,
-     * en `documentEigen` / `nieuwSpul.eigen` de velden die deze invoer eerder instuurde (voor als de versie onbekend is);
+     * Bij opnieuw proberen: `documentEigen` / `nieuwSpul.eigen` zijn de velden die deze invoer eerder instuurde (een rij
+     * met andere waarden paste iemand anders aan: conflict). `documentVersie` / `nieuwSpul.versie` alleen na een getoonde
+     * conflictmelding: de versie van die melding, om bewust door te zetten;
      * is de rij sindsdien door iemand anders aangepast, dan volgt een conflict (met `versie`: de versie van nu).
      * @param {{ documentId: string, documentVersie?: number, documentEigen?: object[], velden: object, bytes: Blob | Uint8Array, spullen?: string[],
      *   nieuwSpul?: { id: string, velden: object, versie?: number, eigen?: object[] } | null }} n
