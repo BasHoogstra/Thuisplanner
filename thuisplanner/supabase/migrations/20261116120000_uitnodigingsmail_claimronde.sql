@@ -5,7 +5,8 @@
 -- 1. Een claimtoken per portie (kolom ronde). uitnodigingsmail_pak_ronde(p_max, p_idempotent, p_ronde) geeft bij een
 --    herhaling met hetzelfde token dezelfde, nog geldige claim terug in plaats van nieuwe rijen. Een verloren antwoord
 --    (onbekende uitkomst: een kale 502/503, een verbroken verbinding) is dan veilig opnieuw te proberen: er blijft geen
---    geclaimde rij achter die niemand meer verstuurt.
+--    geclaimde rij achter die niemand meer verstuurt. Aanroepen met hetzelfde token lopen na elkaar (een slot per token),
+--    ook als de herhaling op de server tegelijk met de eerste aanroep loopt.
 -- 2. Teruggeven: uitnodigingsmail_los(p_ronde, p_ids) zet geclaimde rijen die nog NIET aan de aanbieder zijn gegeven
 --    terug op "wacht", zonder dat de poging telt, zolang de claim nog geldt. Zo worden ze niet na de termijn "onzeker"
 --    (wat bij een niet-idempotente aanbieder betekent: nooit verstuurd, en de uitnodiger denkt "misschien wel").
@@ -24,6 +25,12 @@ declare
   r record;
 begin
   if p_ronde is null then raise exception 'Een ronde is verplicht' using errcode = '22023'; end if;
+  -- Aanroepen met hetzelfde token na elkaar (review PR #54, R2): een herhaling na een tijdslimiet kan op de server
+  -- tegelijk lopen met de eerste aanroep. Zonder dit slot ziet de herhaling de nog niet vastgelegde claim niet, slaat
+  -- ze die vergrendelde rijen over (SKIP LOCKED) en pakt ze andere: dan houdt het token rijen die niemand verstuurt.
+  -- Met het slot wacht de herhaling, en krijgt ze precies de claim van de eerste terug. Verschillende tokens wachten
+  -- niet op elkaar; die sluiten elkaar uit via FOR UPDATE SKIP LOCKED in uitnodigingsmail_pak.
+  perform pg_advisory_xact_lock(hashtextextended('thuisplanner:uitnodigingsmail_ronde:' || p_ronde::text, 0));
   if exists (select 1 from private.uitnodigingsmails m where m.ronde = p_ronde and m.status = 'bezig' and m.bezig_tot > now()) then
     return query
       select m.id, i.invited_email::text, h.name::text,
