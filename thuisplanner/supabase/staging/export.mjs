@@ -20,6 +20,7 @@
 //   DB_URL=postgresql://postgres:postgres@127.0.0.1:<poort>/postgres node export.mjs herstel <map>
 //   DB_URL=... node export.mjs vergelijk <map>   alleen vergelijken, niets terugzetten
 //   OPSLAG_URL=http://127.0.0.1:<poort> OPSLAG_SLEUTEL=<lokale service-rolsleutel> node export.mjs herstel-bestanden <map>
+//   DB_URL=... OPSLAG_URL=... OPSLAG_SLEUTEL=... node export.mjs vergelijk-bestanden <map>   elk bestand op inhoud, niets extra
 //
 // Bestanden (Mijn spullen & Documenten, migratie 29): de Supabase-back-ups bevatten geen Storage-bestanden, dus de export
 // neemt ze zelf mee. De lijst komt uit dezelfde momentopname (storage.objects in de bucket "documenten"); de bestanden
@@ -231,6 +232,33 @@ export async function herstelBestanden(map, { url, sleutel, haal = fetch }) {
   return n;
 }
 
+/**
+ * Na het terugzetten van de bestanden: staat elk bestand uit de export er, met precies dezelfde bytes (SHA-256), en staat
+ * er in de bucket niets anders (met `client`: de paden in storage.objects). Geeft de verschillen; leeg = gelijk.
+ */
+export async function vergelijkBestanden(map, { url, sleutel, haal = fetch, client = null }) {
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(url || '')) throw new Error('OPSLAG_URL moet een Supabase op deze computer zijn');
+  const { fouten, manifest } = controleerExport(map);
+  if (fouten.length) throw new Error('de export klopt niet: ' + fouten.join('; '));
+  const basis = url.replace(/\/$/, '');
+  const kop = { apikey: sleutel, Authorization: `Bearer ${sleutel}` };
+  const verschil = [];
+  const verwacht = manifest.bestanden ?? [];
+  for (const b of verwacht) {
+    const r = await haal(`${basis}/storage/v1/object/${BUCKET}/${b.pad}`, { headers: kop, cache: 'no-store' });
+    if (!r.ok) { verschil.push(`${b.pad}: ontbreekt (status ${r.status})`); continue; }
+    const bytes = Buffer.from(await r.arrayBuffer());
+    if (bytes.length !== b.grootte || sha256(bytes) !== b.sha256) verschil.push(`${b.pad}: andere inhoud (grootte of SHA-256)`);
+  }
+  if (client) {
+    const paden = (await client.query('select name from storage.objects where bucket_id = $1 order by name', [BUCKET])).rows.map(r => r.name);
+    const bekend = new Set(verwacht.map(b => b.pad));
+    for (const p of paden) if (!bekend.has(p)) verschil.push(`${p}: staat in de bucket maar niet in de export`);
+    if (paden.length !== verwacht.length && !verschil.length) verschil.push(`aantal bestanden ${paden.length} in plaats van ${verwacht.length}`);
+  }
+  return verschil;
+}
+
 /** Alleen een database op deze computer. */
 export function lokaalFouten(url) {
   if (!/^postgres(ql)?:\/\/[^@/]*@(127\.0\.0\.1|localhost):\d+\/postgres$/.test(url || '')) return ['DB_URL moet een database op deze computer zijn (127.0.0.1 of localhost).'];
@@ -329,6 +357,19 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (opdracht === 'herstel-bestanden' && map) {
       const n = await herstelBestanden(map, { url: process.env.OPSLAG_URL, sleutel: process.env.OPSLAG_SLEUTEL });
       console.log(`BESTANDEN TERUGGEZET: ${n}`);
+      return;
+    }
+    if (opdracht === 'vergelijk-bestanden' && map) {
+      const f = lokaalFouten(process.env.DB_URL);
+      if (f.length) { console.log('GEWEIGERD: ' + f.join(' ')); process.exit(2); }
+      const { Client } = createRequire(path.join(HIER, '../tests/integratie/package.json'))('pg');
+      const client = new Client({ connectionString: process.env.DB_URL, application_name: 'thuisplanner-herstel' });
+      await client.connect();
+      try {
+        const verschil = await vergelijkBestanden(map, { url: process.env.OPSLAG_URL, sleutel: process.env.OPSLAG_SLEUTEL, client });
+        if (verschil.length) { console.log('VERSCHIL IN DE BESTANDEN:\n- ' + verschil.join('\n- ')); process.exit(1); }
+        console.log(`BESTANDEN GELIJK aan de export (${controleerExport(map).manifest.bestanden?.length ?? 0}, op inhoud, en niets extra in de bucket).`);
+      } finally { await client.end(); }
       return;
     }
     if (!['herstel', 'vergelijk'].includes(opdracht) || !map) { console.log('gebruik: controleer <map> | herstel <map> | vergelijk <map>  (herstel en vergelijk met DB_URL naar een lokale database)'); process.exit(2); }

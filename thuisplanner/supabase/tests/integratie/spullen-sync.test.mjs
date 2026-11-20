@@ -12,7 +12,7 @@ import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 import { maakSync } from '../../../sync/thuisplanner-sync.js';
 import { maakSpullenOpslag, padVan } from '../../../sync/spullen-opslag.js';
-import { bestandenLijst, controleerExport, haalBestanden, herstelBestanden, leesExport, schrijfExport } from '../../staging/export.mjs';
+import { bestandenLijst, controleerExport, haalBestanden, herstelBestanden, leesExport, schrijfExport, vergelijkBestanden } from '../../staging/export.mjs';
 
 const { API_URL, ANON_KEY, SERVICE_ROLE_KEY, DB_URL } = process.env;
 for (const u of [API_URL, DB_URL]) {
@@ -573,6 +573,22 @@ test('export met bestanden: in het manifest, met controlesom; een gewijzigd best
     assert.ok((await herstelBestanden(map, { url: API_URL, sleutel: SERVICE_ROLE_KEY })) >= 1);
     const terug = ok(await admin.storage.from('documenten').download(padVan(ha, doc)));
     assert.deepEqual(Buffer.from(await terug.arrayBuffer()), PDF);
+    // De vergelijking na het terugzetten (zoals de hersteltoets): elk bestand op inhoud gelijk, niets extra in de bucket.
+    const dbv = new pg.Client({ connectionString: DB_URL });
+    await dbv.connect();
+    try {
+      const vergelijk = () => vergelijkBestanden(map, { url: API_URL, sleutel: SERVICE_ROLE_KEY, client: dbv });
+      assert.deepEqual(await vergelijk(), []);
+      // Tegenproef: een ander bestand op hetzelfde pad valt op, en een bestand dat niet in de export staat ook.
+      ok(await admin.storage.from('documenten').update(padVan(ha, doc), NEP, { contentType: 'application/pdf', upsert: true }));
+      assert.match((await vergelijk()).join(), new RegExp(`${padVan(ha, doc)}: andere inhoud`));
+      ok(await admin.storage.from('documenten').update(padVan(ha, doc), PDF, { contentType: 'application/pdf', upsert: true }));
+      const extra = padVan(ha, randomUUID());
+      ok(await admin.storage.from('documenten').upload(extra, PDF, { contentType: 'application/pdf' }));
+      try { assert.match((await vergelijk()).join(), new RegExp(`${extra}: staat in de bucket maar niet in de export`)); }
+      finally { ok(await admin.storage.from('documenten').remove([extra])); }
+      assert.deepEqual(await vergelijk(), []);
+    } finally { await dbv.end(); }
     // Tegenproef: een gewijzigd bestand in de export valt op.
     writeFileSync(path.join(map, 'bestanden', ha, doc, 'origineel'), NEP);
     assert.match(controleerExport(map).fouten.join(), /controlesom of grootte/);

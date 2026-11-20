@@ -41,8 +41,10 @@ Elke stap noemt wat er gebeurt, de controle, en de terugval. Online stappen alle
 **U1 · Online, alleen lezend: export en hersteltoets**
 - `verbinding.ps1 -Ref <staging> -Export -ExportMap <nieuwe lege map>`. Er zijn nog geen bestanden, dus zonder
   `-MetBestanden`.
-- `hersteltoets.sh` met die export.
-- **Controle:** manifest en controlesommen in orde; terugzetten gelijk aan de export.
+- `hersteltoets.sh` met die export. Met bestanden (na Spullen, `-MetBestanden`) zet de toets ook de bestanden terug en
+  vergelijkt ze op inhoud (`export.mjs vergelijk-bestanden`).
+- **Controle:** manifest en controlesommen in orde; terugzetten gelijk aan de export; met bestanden elk bestand op
+  SHA-256 gelijk en niets extra in de bucket.
 
 **U2 · Lokaal: de repetitie**
 - `generale.sh` met de export van U1: de migraties zoals online, daarna 28 en 29 met `db push`.

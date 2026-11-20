@@ -9,7 +9,7 @@ MAP="${1:?gebruik: hersteltoets.sh <exportmap> <sha256 van manifest.json>}"
 VERWACHT_MANIFEST="${2:?geef de SHA-256 van manifest.json die de export toonde}"
 HIER="$(cd "$(dirname "$0")" && pwd)"
 KG="$(cd "$HIER/.." && pwd)"
-SUPA="${SUPABASE:-npx --yes supabase@2.120.0}"
+SUPA="${SUPABASE:-npx --yes supabase@2.117.0}"   # dezelfde versie als verbinding.ps1 en generale.sh
 POORT_BASIS=5443   # 54430–54434: API, database, schaduw, Studio, mail
 
 echo "== 1. De export zelf (het manifest, de controlesommen en de tellingen)"
@@ -45,8 +45,21 @@ done
 if [ "$GEKOPIEERD" != "$VERWACHT" ]; then
   echo "GESTOPT: de migraties in de repository ($GEKOPIEERD) zijn niet die van de export ($VERWACHT)."; exit 1
 fi
-(cd "$WERK" && $SUPA start --workdir . -x realtime,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >/dev/null)
+# Bestanden in de export (Mijn spullen & Documenten): dan ook de opslag en Kong (de opslag is alleen via Kong bereikbaar).
+BESTANDEN="$(node -e "console.log((JSON.parse(require('fs').readFileSync(process.argv[1] + '/manifest.json','utf8')).bestanden ?? []).length)" "$MAP")"
+if [ "$BESTANDEN" -gt 0 ]; then ZONDER="realtime,imgproxy,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+else ZONDER="realtime,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"; fi
+(cd "$WERK" && $SUPA start --workdir . -x "$ZONDER" >/dev/null)
 
 echo "== 3. Terugzetten en vergelijken"
-DB_URL="postgresql://postgres:postgres@127.0.0.1:${POORT_BASIS}2/postgres" node "$HIER/export.mjs" herstel "$MAP"
-echo "HERSTELTOETS GESLAAGD: de export is volledig terug te zetten in een lege database met dezelfde migraties."
+DB="postgresql://postgres:postgres@127.0.0.1:${POORT_BASIS}2/postgres"
+DB_URL="$DB" node "$HIER/export.mjs" herstel "$MAP"
+if [ "$BESTANDEN" -gt 0 ]; then
+  echo "== 4. De bestanden terug ($BESTANDEN), en elk bestand op inhoud vergeleken (niets extra in de bucket)"
+  # De lokale service-rolsleutel van deze aparte stack (alleen in de omgeving van deze aanroepen, nooit in een bestand).
+  OPSLAG_SLEUTEL="$(cd "$WERK" && $SUPA status --workdir . -o env 2>/dev/null | grep '^SERVICE_ROLE_KEY=' | cut -d= -f2- | tr -d '"')"
+  if [ -z "$OPSLAG_SLEUTEL" ]; then echo "GESTOPT: geen service-rolsleutel van de aparte stack."; exit 1; fi
+  OPSLAG_URL="http://127.0.0.1:${POORT_BASIS}1" OPSLAG_SLEUTEL="$OPSLAG_SLEUTEL" node "$HIER/export.mjs" herstel-bestanden "$MAP"
+  DB_URL="$DB" OPSLAG_URL="http://127.0.0.1:${POORT_BASIS}1" OPSLAG_SLEUTEL="$OPSLAG_SLEUTEL" node "$HIER/export.mjs" vergelijk-bestanden "$MAP"
+fi
+echo "HERSTELTOETS GESLAAGD: de export is volledig terug te zetten in een lege database met dezelfde migraties$([ "$BESTANDEN" -gt 0 ] && echo ", met alle $BESTANDEN bestanden op inhoud gelijk")."
