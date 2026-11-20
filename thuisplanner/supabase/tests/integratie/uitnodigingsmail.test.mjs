@@ -137,7 +137,23 @@ async function rust() {
   await tot(async () => Number((await db.query('select count(*) from net.http_request_queue')).rows[0].count) === 0, 30000, 'pg_net leeg');
   await wacht(3000);
 }
-const wachtrij = (kop = {}) => fetch(`${FUNCTIES}/stuur-uitnodiging`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...kop }, body: '{}' }).then(r => r.status);
+// Met een eigen tijdslimiet: de functie antwoordt meteen (202 of 401). Hangt ze (een Edge Runtime die niet reageert),
+// dan wacht Kong tot 60 s; zonder grens liep een test dan zonder enige aanwijzing in zijn eigen time-out (CI 77e1fa3).
+const wachtrij = (kop = {}) => fetch(`${FUNCTIES}/stuur-uitnodiging`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...kop }, body: '{}',
+  signal: AbortSignal.timeout(15000) }).then(async r => { await r.body?.cancel(); return r.status; })
+  .catch(e => { throw new Error(`stuur-uitnodiging gaf binnen 15 s geen antwoord (${e?.name ?? e})`); });
+// Eén fase van een test met een eigen termijn (kleiner dan de time-out van de test): bij overschrijding een fout met de
+// naam van de fase en een momentopname van de keten, in plaats van een kale time-out zonder aanwijzing. De timer wordt
+// altijd opgeruimd.
+async function binnen(fase, ms, f, momentopname) {
+  let timer;
+  const grens = new Promise((_, nee) => { timer = setTimeout(() => nee(new Error(`fase "${fase}" niet binnen ${ms} ms`)), ms); });
+  try { return await Promise.race([f(), grens]); }
+  catch (e) {
+    if (momentopname) { try { e.message += '\nstand: ' + await Promise.race([momentopname(), wacht(5000).then(() => '(momentopname niet binnen 5 s)')]); } catch (m) { e.message += '\nstand: fout ' + m.message; } }
+    throw e;
+  } finally { clearTimeout(timer); }
+}
 async function mailpit(email) {
   const r = await (await fetch(`${MAIL}/api/v1/search?query=${encodeURIComponent('to:' + email)}&limit=50`)).json();
   return Promise.all((r.messages ?? []).map(async m => {
@@ -373,26 +389,57 @@ test('een ingetrokken uitnodiging (of opnieuw uitnodigen) krijgt geen mail meer;
   assert.ok(!kol.rows.some(k => /mail|adres|^aan$|token/.test(k.column_name)), JSON.stringify(kol.rows));
 });
 
+// Momentopname van de keten voor de gelijktijdigheidstest, met een eigen, kortlevende databaseverbinding (zodat een
+// vastgelopen gedeelde verbinding de diagnose niet ook blokkeert). Zonder adressen.
+async function standDruk(hs, gasten) {
+  const c = new pg.Client({ connectionString: DB_URL, statement_timeout: 4000 });
+  const q = async (sql, p = []) => { try { return (await c.query(sql, p)).rows; } catch (e) { return 'fout: ' + e.message; } };
+  const logs = (naam, filter) => {
+    const r = spawnSync('docker', ['logs', '--since', '3m', naam], { encoding: 'utf8', timeout: 4000 });
+    return `${r.stdout ?? ''}${r.stderr ?? ''}`.split('\n').filter(l => filter.test(l)).slice(-10).map(l => l.slice(0, 200));
+  };
+  try {
+    await c.connect();
+    return JSON.stringify({
+      mails: await q(`select status, count(*)::int n, max(pogingen) max_pogingen from private.uitnodigingsmails where household_id = any ($1) group by status`, [hs]),
+      verstuurd: { verzoeken: aanbieder.verzoeken, aan_gasten: gasten.filter(g => aanbieder.voor(g).length).length, dubbel: gasten.filter(g => aanbieder.voor(g).length > 1).length },
+      pgnetWachtrij: await q('select count(*)::int as n from net.http_request_queue'),
+      pgnet: await q('select status_code, left(error_msg, 100) as fout, timed_out from net._http_response order by id desc limit 5'),
+      wachtend: await q(`select left(query, 80) q, wait_event_type, round(extract(epoch from now() - query_start))::int s from pg_stat_activity
+                         where state <> 'idle' and backend_type = 'client backend' and now() - query_start > interval '2 seconds' and pid <> pg_backend_pid()`),
+      functie: logs(`supabase_edge_runtime_${PROJECT}`, /stuur-uitnodiging|worker|error/i),
+    }, null, 1);
+  } catch (e) { return 'geen databaseverbinding: ' + e.message; }
+  finally { await c.end().catch(() => {}); }
+}
+
+// Elke fase heeft een eigen termijn (samen onder de time-out van 120 s): een fase die hangt, faalt met haar naam en een
+// momentopname, in plaats van een kale time-out (CI 77e1fa3: "test timed out after 120000ms", zonder aanwijzing). De
+// controle zelf is ongewijzigd: elke mail precies één keer, met 30 verschillende sleutels.
 test('gelijktijdig: 30 uitnodigingen in 3 huishoudens en 5 extra aanroepen tegelijk: elke mail precies één keer', { timeout: 120000 }, async () => {
-  const groepen = await Promise.all([0, 1, 2].map(async i => {
+  const gasten = [];
+  let hs = [];
+  const stand = () => standDruk(hs, gasten);
+  const groepen = await binnen('aanmelden en huishoudens', 15000, () => Promise.all([0, 1, 2].map(async i => {
     const { c } = await codeSessie(adres(`druk-${i}`));
     return { c, h: await huishouden(c, `Druk ${i} ${run}`) };
-  }));
-  const gasten = [];
-  await Promise.all([
+  })), stand);
+  hs = groepen.map(g => g.h);
+  await binnen('30 uitnodigingen en 5 extra aanroepen', 20000, () => Promise.all([
     ...groepen.flatMap(({ c, h }, i) => Array.from({ length: 10 }, async (_, j) => {
       const gast = adres(`druk-${i}-${j}`);
       gasten.push(gast);
       const r = await c.rpc('create_invite', { p_household: h, p_role: 'member', p_email: gast });
       assert.ifError(r.error);
     })),
-    ...Array.from({ length: 5 }, () => wachtrij({ 'X-Thuisplanner-Wachtrij': GEHEIM })),
-  ]);
-  await ronde();
-  await tot(async () => gasten.every(g => aanbieder.voor(g).length >= 1), 45000, '30 mails');
-  await tot(async () => Number((await db.query(`select count(*) n from private.uitnodigingsmails where household_id = any ($1) and status in ('wacht', 'bezig')`,
-    [groepen.map(g => g.h)])).rows[0].n) === 0, 20000, 'wachtrij leeg');
-  await ronde(); await wacht(2000);
+    ...Array.from({ length: 5 }, async () => assert.equal(await wachtrij({ 'X-Thuisplanner-Wachtrij': GEHEIM }), 202)),
+  ]), stand);
+  await binnen('ronde', 5000, ronde, stand);
+  await binnen('30 mails verstuurd', 47000, () => tot(async () => gasten.every(g => aanbieder.voor(g).length >= 1), 45000, '30 mails'), stand);
+  await binnen('wachtrij leeg', 22000, () => tot(async () => Number((await db.query(`select count(*) n from private.uitnodigingsmails
+    where household_id = any ($1) and status in ('wacht', 'bezig')`, [hs])).rows[0].n) === 0, 20000, 'wachtrij leeg'), stand);
+  await binnen('laatste ronde', 5000, ronde, stand);
+  await wacht(2000);
   for (const g of gasten) assert.equal(aanbieder.voor(g).length, 1, g);
   const sleutels = gasten.map(g => aanbieder.voor(g)[0].sleutel);
   assert.equal(new Set(sleutels).size, 30);
