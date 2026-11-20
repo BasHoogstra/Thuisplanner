@@ -39,6 +39,8 @@ const PROEVEN = [
     ['      if (!r.data.length) return rijen;\n      rijen.push(...r.data);', '      return r.data;']]],
   ['4', '^B4c', 'pagineren met offset in plaats van op id', [
     ["if (na !== null) q = q.gt('id', na);", 'if (na !== null) q = q.range(rijen.length, rijen.length + paginaGrootte - 1);']]],
+  ['4', '^B4d', 'geen eigen herstel na een mislukte ronde (de cache blijft de oude stand)', [
+    ['          planHerverbinden();\n          return;\n        }\n        if (!geldig(g)) return;\n        if (r.geenToegang)', '          return;\n        }\n        if (!geldig(g)) return;\n        if (r.geenToegang)']]],
   ['2', '^B2 ', 'client stapt niet over naar het nieuwe kanaal', [
     ['if (wasVerbonden) verbind();', '']]],
   // Herstelronde 2 (herstel2.test.mjs)

@@ -26,7 +26,7 @@ export function Vakanties() {
 }
 
 /** Een rustige voortgangsbalk (alleen tokens; de breedte is het enige vaste gegeven). */
-function Voortgang({ klaar, totaal, label, klein }: { klaar: number; totaal: number; label: string; klein?: boolean }) {
+export function Voortgang({ klaar, totaal, label, klein }: { klaar: number; totaal: number; label: string; klein?: boolean }) {
   const pct = totaal ? Math.round((klaar / totaal) * 100) : 0;
   return (
     <span className={'voortgang' + (klein ? ' klein' : '') + (totaal && klaar === totaal ? ' vol' : '')} role="progressbar"
@@ -199,7 +199,7 @@ function VakantiePagina({ v }: { v: Vakantie }) {
 // ---------------------------------------------------------------- Regelen: voorbereidingen (taken) en boodschappen
 
 /** De kop van een inklapbaar blok: titel en voortgang blijven altijd zichtbaar; de hele kop is de knop. */
-function BlokKop({ id, titel, tel, open, wissel }: { id: string; titel: string; tel?: string; open: boolean; wissel: () => void }) {
+export function BlokKop({ id, titel, tel, open, wissel }: { id: string; titel: string; tel?: string; open: boolean; wissel: () => void }) {
   return (
     <div className="vak-blok-kop">
       <h2 id={id}>
@@ -386,8 +386,18 @@ function Inpakken({ v }: { v: Vakantie }) {
   const ingepakt = hier.filter(p => p.ingepakt);
   const naam = groepInfo.naam;
   const extra = groepInfo.lijst;
-  // Een rustige suggestie bij een lege paklijst: de laatste vakantie waar je geweest bent.
-  const bron = !alle.length ? overneemBronnen(staat.vakanties, v.id, vandaag, id => staat.pakitems.some(p => p.vakantieId === id))[0] : undefined;
+  // Een rustige suggestie bij een lege paklijst: de laatste vakantie waar je geweest bent. Review V-01: van een afgelopen
+  // vakantie is de paklijst in de lokale modus pas bekend na openen; dus eerst openen, en de suggestie alleen tonen als
+  // die paklijst er echt is (en dan met haar extra lijsten). Is hij leeg, dan blijft alleen "Overnemen van een eerdere vakantie".
+  const kandidaat = !alle.length ? overneemBronnen(staat.vakanties, v.id, vandaag, id => staat.pakitems.some(p => p.vakantieId === id))[0] : undefined;
+  const kandidaatId = kandidaat?.id, kandidaatVoorbij = !!kandidaat && isVoorbij(kandidaat, vandaag);
+  const { vakantieOpenen, vakantieSluiten } = app;
+  useEffect(() => {
+    if (!kandidaatId || !kandidaatVoorbij) return;
+    vakantieOpenen(kandidaatId).catch(() => {});
+    return () => vakantieSluiten(kandidaatId);
+  }, [kandidaatId, kandidaatVoorbij, vakantieOpenen, vakantieSluiten]);
+  const bron = kandidaat && staat.pakitems.some(p => p.vakantieId === kandidaat.id) ? kandidaat : undefined;
 
   function voegToe(e: { preventDefault(): void }) {
     e.preventDefault();

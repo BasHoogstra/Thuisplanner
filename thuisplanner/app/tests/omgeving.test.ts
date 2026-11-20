@@ -85,7 +85,7 @@ describe('beveiligingsheaders (_headers voor Cloudflare Pages)', () => {
     const h = headersBestand(REF);
     const csp = /Content-Security-Policy: (.*)/.exec(h)![1];
     expect(csp).toContain(`connect-src 'self' https://${REF}.supabase.co wss://${REF}.supabase.co;`);
-    for (const regel of [`default-src 'self'`, `script-src 'self'`, `style-src 'self'`, `img-src 'self' data:`, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`]) {
+    for (const regel of [`default-src 'self'`, `script-src 'self'`, `style-src 'self'`, `img-src 'self' data: blob:`, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`]) {
       expect(csp).toContain(regel);
     }
     expect(csp).not.toMatch(/unsafe-inline|unsafe-eval|\*/);

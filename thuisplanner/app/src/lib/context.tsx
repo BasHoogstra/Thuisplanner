@@ -2,11 +2,12 @@ import { createContext, useContext } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LidRij, Melding as SyncMelding, SyncStatus } from '../../../sync/thuisplanner-sync.js';
 import type { Lidmaatschap, UitnodigingVoorMij, Uitkomst } from './lokaal/sessie';
-import type { DemoActies, Staat } from './store';
+import type { Acties, DemoExtra, Staat } from './acties';
 import type { GezinsFilter } from './filter';
 import type { Datum, Huishouden, Item, Lid, LidId, Tijd } from './types';
 
-export type AgendaWeergave = 'dag' | 'week' | 'maand';
+/** taken: de takenweergave binnen de Agenda (besluit Bas, 10 november 2026), geen eigen hoofdknop. */
+export type AgendaWeergave = 'dag' | 'week' | 'maand' | 'taken';
 
 /** Waar je in de agenda bent; blijft staan als je even naar een ander scherm gaat. */
 export interface AgendaStand {
@@ -15,12 +16,17 @@ export interface AgendaStand {
   filter: GezinsFilter;
   /** Taken zonder datum uitgeklapt (A8); leeg of false is dicht. Blijft staan tijdens het navigeren, niet na herladen. */
   zonderDatumOpen?: boolean;
+  /** De groep "Taken uit plannen" binnen Zonder datum uitgeklapt (besluit 18); dezelfde regels als hierboven. */
+  planTakenOpen?: boolean;
 }
 
 export type Soort = 'afspraak' | 'taak' | 'boodschap';
 
-export interface AppContext extends DemoActies {
+/** De schermen: één staat en één set handelingen, in de demo en online gelijk (acties.ts, KG-5E licht). */
+export interface AppContext extends Acties {
   staat: Staat;
+  /** Alleen in de demo: een andere voorbeelddag kiezen (Meer). Online undefined. */
+  demo?: Pick<DemoExtra, 'scenario' | 'kiesScenario'>;
   huishouden: Huishouden;
   vandaag: Datum;
   nu: Tijd;
@@ -35,6 +41,12 @@ export interface AppContext extends DemoActies {
   vakantie: string | null;
   /** Opent een vakantie (of het overzicht met null) op het scherm Vakanties. */
   openVakantie: (id: string | null) => void;
+  /** Spullen & documenten: waar je bent ("", "documenten", "spul/<id>" of "document/<id>"). */
+  spullenPad: string;
+  openSpullen: (pad?: string) => void;
+  /** Besluit 18: het geopende plan op het scherm Plannen (null: het overzicht). Alleen in de demo. */
+  plan: string | null;
+  openPlan: (id: string | null) => void;
   agenda: AgendaStand;
   zetAgenda: (stand: Partial<AgendaStand>) => void;
   lokaal?: LokaalContext;
@@ -47,6 +59,8 @@ export interface AppContext extends DemoActies {
 export interface LokaalContext {
   /** lokaal (fictief, eigen netwerk) of staging (de testomgeving online). */
   omgeving: 'lokaal' | 'staging';
+  /** Plannen aan (VITE_PLANNEN=aan, met migratie 20261111120000). Anders is Plannen online niet zichtbaar. */
+  plannen?: boolean;
   /** Huishoudbeheer (KG-5H): het huidige huishouden met je rol, je andere huishoudens en de leden. */
   beheer: {
     client: SupabaseClient;
@@ -69,8 +83,11 @@ export interface LokaalContext {
     /** wissen: na de waarschuwing gekozen om onbevestigde opdrachten van dit toestel te wissen (P2). */
     uitloggenOveral: (opties?: { wissen?: boolean }) => Promise<void>;
     wijzigAdres: (nieuw: string) => Promise<Uitkomst>;
-    bevestigAdres: (email: string, code: string) => Promise<Uitkomst<'gewijzigd' | 'nog-een'>>;
+    /** captchaToken: een vers Turnstile-token, na TPK06 (eerst een captcha). */
+    bevestigAdres: (email: string, code: string, captchaToken?: string | null) => Promise<Uitkomst<'gewijzigd' | 'nog-een'>>;
     wijziging: { nieuw: string } | null;
+    /** De Turnstile-sitekey van deze omgeving (null: geen captcha, bijvoorbeeld lokaal). */
+    captchaSitekey: string | null;
   };
   status: SyncStatus;
   /** false: deze browser bewaart niets; onbevestigde opdrachten gaan verloren bij sluiten. */
@@ -91,7 +108,7 @@ export interface LokaalContext {
   uitloggen: (opties?: { wissen?: boolean }) => void;
 }
 
-export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer' | 'vakanties';
+export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer' | 'vakanties' | 'spullen' | 'plannen';
 
 export const Ctx = createContext<AppContext | null>(null);
 

@@ -3,9 +3,9 @@
 //   thuisplanner/supabase/tests/integratie/run.sh
 //   KG_SYNC_MODULE=/pad/naar/gesaboteerde/thuisplanner-sync.js node --test vakanties-sync.test.mjs   (moet falen;
 //   zie vakanties-sync-tegenproeven.mjs)
+import { psql } from './psql.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -18,7 +18,7 @@ const { API_URL, ANON_KEY, SERVICE_ROLE_KEY, DB_URL } = process.env;
 for (const u of [API_URL, DB_URL]) {
   if (!u || !/\/\/([^@/]*@)?(127\.0\.0\.1|localhost)[:/]/.test(u)) throw new Error('Weigering: alleen een lokale Supabase');
 }
-const sql = q => execFileSync(process.env.PSQL || 'psql', ['-X', '-q', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-d', DB_URL, '-c', q]).toString().trim();
+const sql = q => psql(DB_URL, q);
 const wacht = ms => new Promise(r => setTimeout(r, ms));
 async function totdat(f, ms = 10000, wat = 'voorwaarde') {
   const eind = Date.now() + ms;
@@ -204,7 +204,7 @@ test('V4 overnemen: aanvullend, dezelfde opdracht geeft dezelfde items (U2), ong
   // Bram vinkt intussen Knuffel af; Anna maakt de overname ongedaan.
   await totdat(() => pak(b, v, 'Knuffel'), 10000, 'Bram ziet Knuffel');
   assert.ok((await b.acties.pakitemAfvinken(pak(b, v, 'Knuffel'))).ok);
-  const o = await a.acties.overnemenOngedaanMaken(r1.items.map(x => x.id));
+  const o = await a.acties.overnemenOngedaanMaken(r1.overname);
   assert.ok(o.ok);
   assert.equal(o.verwijderd, 2);
   assert.equal(o.gebleven, 1);
@@ -445,7 +445,7 @@ test('V14 overnemen met extra lijsten: aanvullen, nieuwe lijst, herhalen geeft h
   assert.equal(a.toestand.pakitems.filter(x => x.list_id === bestaand).length, 2, 'Paard niet aangevuld (of overschreven)');
   assert.equal(a.toestand.pakitems.filter(x => x.trip_id === doel && !x.list_id && !x.member_id).map(x => x.name).join(), 'Paspoorten');
   // Ongedaan maken: de items van die overname weg, de nieuwe (nu lege) lijst Oma ook; Paard blijft met Zadel.
-  const o = await a.acties.overnemenOngedaanMaken(r.items.map(x => x.id), r.nieuweLijsten);
+  const o = await a.acties.overnemenOngedaanMaken(r.overname, r.nieuweLijsten);
   assert.ok(o.ok);
   await a.vernieuw();
   assert.deepEqual(a.toestand.paklijsten.filter(x => x.trip_id === doel).map(x => x.id), [bestaand]);
@@ -519,4 +519,36 @@ test('V9 toegang kwijt: vakanties, pakitems, extra lijsten en koppelingen verdwi
   assert.ifError((await personen.anna.c.rpc('archive_member', { p_household: h, p_member: mBram })).error);
   await totdat(() => b.toestand.status === STATUS.GEEN_TOEGANG, 20000, 'Bram verliest toegang');
   assert.equal(b.toestand.vakanties.length + b.toestand.pakitems.length + b.toestand.paklijsten.length + b.toestand.vakantieKoppelingen.length, 0);
+});
+
+test('V16 grote overname (review V-04): 1200 items; het aantal klopt boven 1000; ongedaan maken in één keer zonder lange adresregel, alles of niets, en alleen deze overname', { timeout: 180000 }, async () => {
+  const a = await startSync('anna', h);
+  await totdat(() => a.toestand.status === STATUS.VERBONDEN, 30000, 'Anna verbonden');
+  const bron = await nieuweVakantie(a, 'Groot 2025', { start_date: '2025-08-01', end_date: '2025-08-10' });
+  const doel = await nieuweVakantie(a, 'Groot doel');
+  for (let i = 0; i < 1200; i += 300) {
+    const rijen = Array.from({ length: 300 }, (_, k) => ({ household_id: h, trip_id: bron, name: `Ding ${i + k + 1}` }));
+    assert.ifError((await personen.anna.c.from('trip_packing_items').insert(rijen)).error);
+  }
+  assert.ok((await a.acties.pakitemToevoegen(doel, null, 'Al hier')).ok);   // stond er al: blijft na ongedaan maken
+  const r = await a.acties.paklijstOvernemen({ van: bron, naar: doel });
+  assert.ok(r.ok, JSON.stringify(r.melding));
+  assert.equal(r.items.length, 1000, 'de API geeft hoogstens 1000 rijen terug (max_rows)');
+  assert.equal(r.aantal, 1200, 'het aantal komt van de server');
+  assert.ok(r.overname?.moment, 'geen aanmaakmoment van de overname');
+  const actief = () => Number(sql(`select count(*) from public.trip_packing_items where trip_id = '${doel}' and deleted_at is null`));
+  assert.equal(actief(), 1201);
+  // Mislukt ongedaan maken (de verbinding valt weg vóór het verzoek aankomt): er verandert niets, ook niet half.
+  personen.anna.verlies.voor = true;
+  personen.anna.verlies.wat = (u, m) => m === 'PATCH' && new URL(u).pathname === '/rest/v1/trip_packing_items';
+  const mis = await a.acties.overnemenOngedaanMaken(r.overname, r.nieuweLijsten);
+  assert.ok(!mis.ok, 'mislukt ongedaan maken gaf ok');
+  assert.equal(actief(), 1201, 'mislukt ongedaan maken liet een gedeeltelijk resultaat achter');
+  // Opnieuw, nu met verbinding: alles van deze overname in één keer weg; het item dat er al stond, blijft.
+  const o = await a.acties.overnemenOngedaanMaken(r.overname, r.nieuweLijsten);
+  assert.ok(o.ok, JSON.stringify(o.melding));
+  assert.equal(o.verwijderd, 1200);
+  assert.equal(o.gebleven, 0);
+  assert.equal(actief(), 1);
+  assert.equal(sql(`select name from public.trip_packing_items where trip_id = '${doel}' and deleted_at is null`), 'Al hier');
 });

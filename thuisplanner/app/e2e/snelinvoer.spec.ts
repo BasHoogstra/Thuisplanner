@@ -195,3 +195,12 @@ test('Formulier opent het formulier met wat er al herkend is', async ({ page }) 
   await expect(venster(page).getByLabel('Wat?')).toHaveValue('Zwemles');
   await expect(venster(page).getByLabel(/Waar/)).toHaveValue('het Sportfondsenbad');
 });
+
+test('een verjaardag in de +: een afspraak voor de hele dag, elk jaar (besluit 10 november 2026)', async ({ page }) => {
+  await zin(page, 'Oma jarig 12 maart');
+  await expect(venster(page)).toContainText('Oma jarig');
+  await expect(regel(page)).toHaveText('Elk jaar op 12 maart, hele dag');
+  await verstuur(page).click();
+  await expect(venster(page)).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('Oma jarig');
+});

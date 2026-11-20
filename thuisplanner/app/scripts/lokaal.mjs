@@ -151,8 +151,8 @@ async function controleerProxy(basis, anonKey, pogingen = 60) {
 
 /**
  * Schrijft .env.lokaal.local (genegeerd door git): wat de app in de modus "lokaal" leest. Met een proxypoort
- * praat de browser alleen met de app zelf (http://<host>:<poort>) en stuurt Vite Auth, REST en Realtime door
- * naar de lokale Supabase (KG_SUPABASE_DOEL: alleen voor vite.config.ts, niet voor de browser).
+ * praat de browser alleen met de app zelf (http://<host>:<poort>) en stuurt Vite Auth, REST, Realtime, Storage en
+ * de Edge Functions door naar de lokale Supabase (KG_SUPABASE_DOEL: alleen voor vite.config.ts, niet voor de browser).
  */
 export function schrijfEnv(omg, host = '127.0.0.1', proxyPoort) {
   const url = proxyPoort ? `http://${host}:${proxyPoort}` : omg.API_URL.replace(/\/\/(127\.0\.0\.1|localhost)/, `//${host}`).replace(/\/$/, '');

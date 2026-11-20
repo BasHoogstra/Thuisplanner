@@ -1,8 +1,9 @@
+import { taakMensen } from '../lib/mensen';
 import type { CSSProperties } from 'react';
 import { useApp } from '../lib/context';
 import { isBezetVanAnder } from '../lib/rechten';
-import type { Afspraak, Boodschap, LidId, Taak, Vakantie } from '../lib/types';
-import { IcHerhaal, IcKoffer, IcPijl, IcSlot, IcVink } from './Iconen';
+import type { Afspraak, Boodschap, LidId, Plan, Taak, Vakantie } from '../lib/types';
+import { IcHerhaal, IcKoffer, IcPijl, IcPlan, IcSlot, IcVink } from './Iconen';
 import { SyncLabel } from './Lokaal';
 
 export function Wie({ ids, klein }: { ids: LidId[]; klein?: boolean }) {
@@ -73,10 +74,22 @@ function useTaakVakantie(t: Taak): Vakantie[] {
   return v ? [v] : [];
 }
 
+/** Besluit 18: "Bezig" op de rij. */
+function BezigLabel({ t }: { t: Taak }) {
+  return t.bezig && !t.klaar ? <span className="plek taak-bezig">Bezig</span> : null;
+}
+
+/** Besluit 18: een klein label met het plan waar een taak bij hoort (als dat bestaat). */
+function PlanLabel({ t }: { t: Taak }) {
+  const { staat } = useApp();
+  const p: Plan | undefined = t.planId ? staat.plannen?.find(x => x.id === t.planId) : undefined;
+  return p ? <span className="plek vakantie-label"><IcPlan width={14} height={14} /> {p.titel}</span> : null;
+}
+
 /** kleur: de rand van het rondje in de kleur van het lid (Agenda, A6); zonder kleur de gewone rand. */
-export function Vinkje({ aan, kleur }: { aan: boolean; kleur?: string }) {
+export function Vinkje({ aan, half, kleur }: { aan: boolean; half?: boolean; kleur?: string }) {
   return (
-    <span className={'vinkje' + (aan ? ' aan' : '')} style={kleur ? { '--ring': kleur } as CSSProperties : undefined} aria-hidden="true">
+    <span className={'vinkje' + (aan ? ' aan' : half ? ' half' : '')} style={kleur ? { '--ring': kleur } as CSSProperties : undefined} aria-hidden="true">
       {aan && <IcVink />}
     </span>
   );
@@ -129,16 +142,17 @@ export function WeekAfspraakRij({ a, voorbij }: { a: Afspraak; voorbij?: boolean
 export function WeekTaakRij({ t }: { t: Taak }) {
   const { wissel, openItem, lid } = useApp();
   const vak = useTaakVakantie(t);
+  const mensen = taakMensen(t);
   return (
     <li className={'week-rij taak' + (t.klaar ? ' klaar' : '')}>
-      <button type="button" className="vink-knop" role="checkbox" aria-checked={t.klaar} disabled={!!t.sync}
+      <button type="button" className="vink-knop" role="checkbox" aria-checked={t.klaar ? true : t.bezig ? 'mixed' : false} disabled={!!t.sync}
         aria-label={t.titel} onClick={() => wissel(t.id, t.klaar ? `${t.titel} weer open` : `${t.titel} afgerond`)}>
-        <Vinkje aan={t.klaar} kleur={t.voor ? lid(t.voor)?.kleur : undefined} />
+        <Vinkje aan={t.klaar} half={t.bezig} kleur={lidKleur(mensen, lid)} />
       </button>
       <button type="button" className="week-rij-knop" onClick={() => openItem(t.id)} aria-label={`${t.titel} openen`}>
         <span className="week-inhoud">
           <span className="week-rij-titel">{t.titel}</span>
-          {(t.voor || t.sync || vak.length > 0) && <span className="week-sub">{t.voor && <WeekWie ids={[t.voor]} />}<VakantieLabel vakanties={vak} /><SyncLabel sync={t.sync} /></span>}
+          {(mensen.length > 0 || t.sync || vak.length > 0 || t.planId) && <span className="week-sub">{mensen.length > 0 && <WeekWie ids={mensen} />}<BezigLabel t={t} /><VakantieLabel vakanties={vak} /><PlanLabel t={t} /><SyncLabel sync={t.sync} /></span>}
         </span>
       </button>
     </li>
@@ -148,27 +162,30 @@ export function WeekTaakRij({ t }: { t: Taak }) {
 /**
  * Afvinken en openen zijn twee aparte knoppen, zodat je niet per ongeluk afvinkt als je wilt aanpassen. Het
  * rondje in de kleur van het lid (Agenda, A6); metLidKleur zet dat aan. zonderVakantie: geen vakantielabel (op de
- * vakantiepagina zelf).
+ * vakantiepagina zelf). zonderPlan: geen planlabel (op de planpagina zelf).
  */
-export function TaakRij({ t, extra, zonderVakantie, metLidKleur }: { t: Taak; extra?: string; zonderVakantie?: boolean; metLidKleur?: boolean }) {
+export function TaakRij({ t, extra, zonderVakantie, zonderPlan, metLidKleur }: { t: Taak; extra?: string; zonderVakantie?: boolean; zonderPlan?: boolean; metLidKleur?: boolean }) {
   const { wissel, openItem, lid } = useApp();
   const taakVak = useTaakVakantie(t);
   const vak = zonderVakantie ? [] : taakVak;
+  const mensen = taakMensen(t);
   return (
     <li className={'rij taak' + (t.klaar ? ' klaar' : '')}>
       {/* Afvinken kan pas als de server de taak kent (zie de sync-module); tot dan staat het vinkje stil. */}
-      <button type="button" className="vink-knop" role="checkbox" aria-checked={t.klaar} disabled={!!t.sync}
+      <button type="button" className="vink-knop" role="checkbox" aria-checked={t.klaar ? true : t.bezig ? 'mixed' : false} disabled={!!t.sync}
         aria-label={t.titel} onClick={() => wissel(t.id, t.klaar ? `${t.titel} weer open` : `${t.titel} afgerond`)}>
-        <Vinkje aan={t.klaar} kleur={metLidKleur && t.voor ? lid(t.voor)?.kleur : undefined} />
+        <Vinkje aan={t.klaar} half={t.bezig} kleur={metLidKleur ? lidKleur(mensen, lid) : undefined} />
       </button>
       <button type="button" className="rij-open" onClick={() => openItem(t.id)} aria-label={`${t.titel} openen`}>
         <span className="rij-inhoud">
           <span className="rij-titel">{t.titel}</span>
-          {(t.voor || extra || t.sync || vak.length > 0) && (
+          {(mensen.length > 0 || extra || t.sync || t.bezig || vak.length > 0 || (t.planId && !zonderPlan)) && (
             <span className="rij-sub">
-              {t.voor && <Wie ids={[t.voor]} klein />}
+              {mensen.length > 0 && <Wie ids={mensen} klein />}
+              <BezigLabel t={t} />
               {extra && <span className="plek">{extra}</span>}
               <VakantieLabel vakanties={vak} />
+              {!zonderPlan && <PlanLabel t={t} />}
               <SyncLabel sync={t.sync} />
             </span>
           )}

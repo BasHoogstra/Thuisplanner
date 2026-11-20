@@ -2,10 +2,11 @@
 // en je e-mailadres wijzigen. Wijzigen vraagt een code van het oude én van het nieuwe adres (Supabase: secure email
 // change, via de codelaag). Daarna gaan de andere sessies en bekende toestellen uit; huishoudens en gegevens blijven,
 // want het account blijft hetzelfde.
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useApp } from '../lib/context';
 import { geldigAdres, geldigeCode } from '../lib/lokaal/code';
 import { UitlogKnop } from './Lokaal';
+import { Captcha } from './Captcha';
 
 export function Account() {
   const { lokaal } = useApp();
@@ -69,6 +70,8 @@ function AdresWijzigen({ sluit }: { sluit: () => void }) {
   );
 }
 
+type Welk = 'oud' | 'nieuw';
+
 function AdresBevestigen() {
   const { lokaal } = useApp();
   const a = lokaal!.accountBeheer;
@@ -78,24 +81,45 @@ function AdresBevestigen() {
   const [fout, zetFout] = useState<string | null>(null);
   const [bezig, zetBezig] = useState(false);
   const [gedaan, zetGedaan] = useState(false);
-  const bevestig = async (welk: 'oud' | 'nieuw') => {
+  // TPK06 (eerst een captcha) geldt per adres: dat adres krijgt een eigen widget. Een Turnstile-token werkt één keer,
+  // dus na elke poging een nieuwe widget (nieuwe key) en een leeg token, zodat de volgende poging een vers token heeft.
+  const [captchaNodig, zetCaptchaNodig] = useState<Record<Welk, boolean>>({ oud: false, nieuw: false });
+  const [tokens, zetTokens] = useState<Record<Welk, string | null>>({ oud: null, nieuw: null });
+  const [rondes, zetRondes] = useState<Record<Welk, number>>({ oud: 0, nieuw: 0 });
+  const verbruikt = (welk: Welk) => { zetTokens(t => ({ ...t, [welk]: null })); zetRondes(r => ({ ...r, [welk]: r[welk] + 1 })); };
+  // Stabiele callbacks: Captcha gebruikt opToken als effectafhankelijkheid. Een nieuwe functie bij elke render zou de widget
+  // bij elk token, elke toetsaanslag en elke wijziging aan het andere adres verwijderen en opnieuw maken.
+  const tokenOud = useCallback((t: string | null) => zetTokens(x => ({ ...x, oud: t })), []);
+  const tokenNieuw = useCallback((t: string | null) => zetTokens(x => ({ ...x, nieuw: t })), []);
+  const bevestig = async (welk: Welk) => {
     const code = codes[welk];
     if (!geldigeCode(code)) { zetFout('Vul de zes cijfers in.'); return; }
+    if (captchaNodig[welk] && a.captchaSitekey && !tokens[welk]) { zetFout('Bevestig eerst dat je geen robot bent.'); return; }
     zetBezig(true); zetFout(null);
-    const r = await a.bevestigAdres(welk === 'oud' ? lokaal!.account : nieuw, code);
+    const token = captchaNodig[welk] ? tokens[welk] : null;
+    const r = await a.bevestigAdres(welk === 'oud' ? lokaal!.account : nieuw, code, token);
     zetBezig(false);
-    if (!r.ok) { zetFout(r.fout); return; }
+    if (token) verbruikt(welk);
+    if (!r.ok) {
+      zetFout(r.fout);
+      if (r.code === 'TPK06') { zetCaptchaNodig(n => ({ ...n, [welk]: true })); if (!token) verbruikt(welk); }
+      return;
+    }
     zetKlaar(k => ({ ...k, [welk]: true }));
     if (r.waarde === 'gewijzigd') zetGedaan(true);
   };
   if (gedaan) return <p className="stil-tekst" role="status">Je e-mailadres is gewijzigd. Op andere toestellen log je opnieuw in met een code.</p>;
-  const veld = (welk: 'oud' | 'nieuw', adres: string) => (
+  const veld = (welk: Welk, adres: string) => (
     <div className="blok">
       <label className="veld">
         <span className="veld-label">Code naar {adres}</span>
         <input id={`adres-code-${welk}`} inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={codes[welk]}
           disabled={klaar[welk] || bezig} onChange={e => zetCodes(c => ({ ...c, [welk]: e.target.value.replace(/\D/g, '').slice(0, 6) }))} />
       </label>
+      {!klaar[welk] && captchaNodig[welk] && a.captchaSitekey && (
+        <Captcha key={`${welk}-${rondes[welk]}`} sitekey={a.captchaSitekey} heeftToken={!!tokens[welk]} opnieuwTonen
+          opToken={welk === 'oud' ? tokenOud : tokenNieuw} />
+      )}
       {klaar[welk]
         ? <p className="stil-tekst">Bevestigd.</p>
         : <button type="button" className="knop stil" disabled={bezig} onClick={() => void bevestig(welk)}>Bevestigen</button>}

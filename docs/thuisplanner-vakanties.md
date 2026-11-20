@@ -1058,3 +1058,33 @@ uitrol (`docs/thuisplanner-staging-overstap.md`, stap 9b), vóór Sanne erbij ko
 nu op staging staat, kent helemaal geen pakitems, en een app die paklijsten kent zonder `list_id` heeft nooit online
 gestaan. Er bestaat dus geen oude app die een item van een extra lijst als Gezamenlijk kan tonen. Punt 2 en 3 blijven
 open vóór de bèta (een eigen omgeving met externe testers en toestellen die we niet zelf bijwerken).
+
+## 23. Herstel na de onafhankelijke review: V-01, V-04 en V-10 (akkoord 30 oktober 2026; lokaal, nog niet gecommit)
+
+Bevindingen uit de review van Vakanties V1 (stand `488f347`), bevestigd met uitvoeringstests op geïsoleerde stacks.
+Geen databasewijziging en geen migratie 28 (de reservering vervalt; zie de review, §4).
+
+- **V-01 overnemen van een afgelopen vakantie:** het overnamevenster opent de gekozen bron (`vakantieOpenen`) zolang
+  hij gekozen is, toont "Paklijst ophalen…" en laat Overnemen pas toe als de lijsten er zijn; de extra lijsten staan dan
+  bij "Ook meenemen" (standaard aan). De suggestie "Begin met de paklijst van …" opent de bron eerst en verschijnt alleen
+  als die paklijst er echt is. In de sync telt `geopend` nu (Map met teller), zodat het venster en het scherm van een
+  vakantie elkaar niet sluiten. Alleen app en sync.
+- **V-04 ongedaan maken van een grote overname:** een overname is "deze vakantie + dit aanmaakmoment". De database zet
+  `created_at` zelf (`guard_content`, `now()` = het moment van de transactie), dus alle items en nieuwe lijsten van één
+  overname delen dat moment, en een app kan het niet zetten. Ongedaan maken is één PATCH met een korte adresregel
+  (`trip_id`, `created_at`, `version = 1`, niet verwijderd) met alleen een telling terug: alles of niets, zonder de
+  grens van ±205 ID's in de adresregel (414) en zonder de grens van 1000 teruggegeven rijen (`max_rows`). Het aantal in de
+  melding komt van de server. Lukt het opvragen van het moment niet, dan geen "Ongedaan maken" (alleen de melding).
+  Restrisico: een ander item dat in precies dezelfde microseconde in dezelfde vakantie wordt aangemaakt en nog versie 1
+  heeft, zou meegaan; praktisch uitgesloten. Luchtdicht kan later met een functie op de server (een migratie na 29/30).
+- **V-10 ontbrekende tegenproeven:** RLS-scenario's **KG-T95** (een gearchiveerd lid als aanroeper van
+  `copy_packing_items`, `set_packed`, `delete_packing_list` en `restore_packing_list`: 42501, niets veranderd) en
+  **KG-T96** (`packed_by_member_id` via de API naar een lid van een ander huishouden of een onbestaand lid: geweigerd; de
+  samengestelde FK is daar de enige grens), met 5 tegenproeven. De matrix telt nu 90 scenario's (`run.sh`,
+  `statisch.js`). Nummers afgestemd met Mijn spullen (KG-T89–T94); na samenvoegen 96.
+- **Tests:** sync-integratietest V16 (1200 items: aantal boven 1000, mislukt ongedaan maken laat niets half achter, daarna
+  alles van deze overname weg en een bestaand item blijft) met 3 tegenproeven; de tegenproef van V4 op de nieuwe code;
+  app-tests in `vakanties-lokaal.test.tsx`; lokale e2e `e2e-lokaal/vakanties-overnemen.spec.ts` (venster en suggestie).
+- **Bekend:** op de gedeelde lokale stack vangen de RLS-tegenproeven 1, 2, 3 (KG-T05) en 7 (KG-T12) eerder, bij KG-T01,
+  T03 of T04, omdat daar testgegevens van andere werkmappen staan. Op een schone database worden alle tegenproeven door
+  het bedoelde scenario gevangen.

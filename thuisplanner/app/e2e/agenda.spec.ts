@@ -112,12 +112,12 @@ test('lidkleur: een afspraak heeft een streepje, een taak een rondje, en er staa
 
 test('maand: geen legenda; mobiel één drukte-streepje, desktop titels met "nog" en "taken" (A5)', async ({ page }) => {
   await weergave(page, 'Maand');
-  const dag = page.getByRole('cell').filter({ has: page.getByRole('button', { name: /^zaterdag 10 oktober \(vandaag\): 4 afspraken, 2 taken$/ }) });
+  const dag = page.getByRole('cell').filter({ has: page.getByRole('button', { name: /^zaterdag 10 oktober \(vandaag\): 4 afspraken, 3 taken$/ }) });
   await expect(page.locator('.maand-legenda')).toHaveCount(0);
   await expect(page.locator('.maand-stip')).toHaveCount(0);
   if (isDesktop(page)) {
     await expect(dag.locator('.maand-titels')).toContainText('nog 2');
-    await expect(dag.locator('.maand-titels')).toContainText('2 taken');
+    await expect(dag.locator('.maand-titels')).toContainText('3 taken');
     await expect(dag.locator('.maand-drukte')).toBeHidden();
   } else {
     await expect(dag.locator('.maand-drukte.n3')).toBeVisible();
@@ -155,7 +155,7 @@ test('Dag: één blok, afspraken vóór taken, zonder kopjes; een lege dag is é
   const taken = dag(page).getByRole('list', { name: 'Taken' });
   await expect(afspraken.getByRole('listitem')).toHaveCount(4);
   await expect(afspraken).toContainText('Bezet');
-  await expect(taken.getByRole('checkbox')).toHaveCount(2);
+  await expect(taken.getByRole('checkbox')).toHaveCount(3);
   const [a, t] = await Promise.all([afspraken.boundingBox(), taken.boundingBox()]);
   expect(a!.y, 'afspraken staan boven de taken').toBeLessThan(t!.y);
   await expect(dag(page).locator('.dagblok-scheiding')).toBeVisible();
@@ -218,8 +218,8 @@ const zdLijst = (p: Page) => p.getByRole('list', { name: 'Taken zonder datum' })
 
 test('Zonder datum: standaard ingeklapt met een zichtbare telling; de stand blijft staan tijdens het navigeren (A8)', async ({ page }) => {
   await weergave(page, 'Week');
-  await expect(page.getByRole('heading', { name: /^Zonder datum · 2 open/ })).toBeVisible();
-  await expect(zdKnop(page)).toHaveText('Zonder datum · 2 open');
+  await expect(page.getByRole('heading', { name: /^Zonder datum · 2 open · 9 uit plannen/ })).toBeVisible();
+  await expect(zdKnop(page)).toHaveText('Zonder datum · 2 open · 9 uit plannen');
   await expect(zdKnop(page)).toHaveAttribute('aria-expanded', 'false');
   await expect(zdLijst(page)).toBeHidden();
   await zdKnop(page).click();
@@ -252,7 +252,7 @@ test('Zonder datum op de Dag: laptop in een zijkolom, altijd open; mobiel en tab
   if (isDesktop(page)) {
     await expect(zdLijst(page)).toBeVisible();
     await expect(zdKnop(page)).toBeHidden();
-    await expect(page.getByRole('heading', { name: /^Zonder datum · 2 open/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Zonder datum · 2 open · 9 uit plannen/ })).toBeVisible();
     const zij = await page.locator('.zonder-datum.zij').boundingBox();
     expect(zij!.x, 'de zijkolom staat rechts van de dag').toBeGreaterThan(blok!.x + blok!.width);
   } else {
@@ -269,19 +269,19 @@ test('Zonder datum: afvinken gaat naar een eigen ingeklapte groep afgerond; de t
   await weergave(page, 'Week');
   await zdKnop(page).click();
   await zdLijst(page).getByRole('checkbox', { name: 'Aanslag gemeentebelasting nakijken' }).click();
-  await expect(zdKnop(page)).toHaveText('Zonder datum · 1 open');
+  await expect(zdKnop(page)).toHaveText('Zonder datum · 1 open · 9 uit plannen');
   const sectie = page.locator('section.zonder-datum');
   const afgerond = sectie.getByRole('button', { name: '2 afgerond · tonen' });
   await expect(afgerond).toHaveAttribute('aria-expanded', 'false');
   await afgerond.click();
   const lijst = page.getByRole('list', { name: 'Afgerond zonder datum' });
   await lijst.getByRole('checkbox', { name: 'Aanslag gemeentebelasting nakijken' }).click();
-  await expect(zdKnop(page)).toHaveText('Zonder datum · 2 open');
+  await expect(zdKnop(page)).toHaveText('Zonder datum · 2 open · 9 uit plannen');
   // Het filter werkt zoals voorheen (taakPast): met één lid gekozen vallen taken zonder persoon weg, met Iedereen komen ze terug.
-  await kiesFilter(page, 'Thomas');
+  await kiesFilter(page, 'Daan');
   await expect(page.getByRole('heading', { name: /^Zonder datum/ })).toHaveCount(0);
   await kiesFilter(page, 'Iedereen');
-  await expect(zdKnop(page)).toHaveText('Zonder datum · 2 open');
+  await expect(zdKnop(page)).toHaveText('Zonder datum · 2 open · 9 uit plannen');
 });
 
 // ---------- Stap 4: de weekstrip (A2), de rest van de week (A3) en de filterknop op mobiel (A6) ----------
@@ -296,7 +296,7 @@ test('iPhone en tablet: weekstrip met zeven dagen; vandaag gekozen; een tik kies
     return;
   }
   await expect(strip(page).getByRole('button')).toHaveCount(7);
-  await expect(strip(page).getByRole('button', { name: 'zaterdag 10 oktober, vandaag: 4 afspraken, 2 taken' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(strip(page).getByRole('button', { name: 'zaterdag 10 oktober, vandaag: 4 afspraken, 3 taken' })).toHaveAttribute('aria-pressed', 'true');
   await expect(stripDag(page, 'maandag 5 oktober')).toHaveAccessibleName('maandag 5 oktober: niets gepland');
   await expect(stripDag(page, 'zaterdag 10 oktober').locator('.strip-drukte')).toHaveClass(/n3/);
   await expect(stripDag(page, 'maandag 5 oktober').locator('.strip-drukte')).toHaveClass(/n0/);

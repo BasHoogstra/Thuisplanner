@@ -70,7 +70,7 @@ test.describe('Agenda: weekweergave', () => {
     await expect(page.getByText('Aanslag gemeentebelasting nakijken')).toHaveCount(0);
     await nav(page, 'Agenda');
     // Agenda A8: standaard ingeklapt, met een telling; openklappen toont de taak.
-    await page.getByRole('button', { name: 'Zonder datum · 2 open' }).click();
+    await page.getByRole('button', { name: 'Zonder datum · 2 open · 9 uit plannen' }).click();
     await expect(page.getByRole('list', { name: 'Taken zonder datum' })).toContainText('Aanslag gemeentebelasting nakijken');
   });
 });
@@ -99,7 +99,7 @@ test.describe('Afspraken openen, bewerken en verwijderen', () => {
     await venster(page).getByLabel('Datum').fill('2026-10-14');
     await venster(page).getByRole('button', { name: 'Opslaan' }).click();
     await expect(page.locator('.straks')).not.toContainText('Voetbal');
-    await expect(page.getByText('Vandaag: 3 afspraken en 3 taken.')).toBeVisible();
+    await expect(page.getByText('Vandaag: 3 afspraken en 4 taken.')).toBeVisible();
     await nav(page, 'Agenda');
     await page.getByRole('button', { name: 'Volgende week' }).click();
     await kiesDag(page, 'woensdag 14 oktober');
@@ -166,12 +166,12 @@ test.describe('Taken', () => {
     const teDoen = sectie(page, 'Te doen');
     await teDoen.getByRole('checkbox', { name: 'Plantenbak water geven' }).click();
     await expect(teDoen.getByRole('button', { name: '2 afgerond vandaag · tonen' })).toBeVisible();
-    await expect(page.getByText('Vandaag: 4 afspraken en 2 taken.')).toBeVisible();
+    await expect(page.getByText('Vandaag: 4 afspraken en 3 taken.')).toBeVisible();
     await teDoen.getByRole('button', { name: /afgerond vandaag/ }).click();
     const afgerond = page.getByRole('list', { name: 'Afgerond vandaag' });
     await expect(afgerond).toContainText('Plantenbak water geven');
     await afgerond.getByRole('checkbox', { name: 'Plantenbak water geven' }).click();
-    await expect(page.getByText('Vandaag: 4 afspraken en 3 taken.')).toBeVisible();
+    await expect(page.getByText('Vandaag: 4 afspraken en 4 taken.')).toBeVisible();
     await expect(teDoen.getByRole('button', { name: /1 afgerond vandaag/ })).toBeVisible();
   });
 
@@ -180,6 +180,8 @@ test.describe('Taken', () => {
     await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Meer… → Alles bewerken)
     await expect(venster(page).getByRole('heading', { name: 'Taak' })).toBeVisible();
     await expect(venster(page).getByRole('button', { name: 'Eva' })).toHaveAttribute('aria-pressed', 'true');
+    // In de demo kan een taak meer personen hebben: een tik voegt toe, dus Eva gaat er eerst af.
+    await venster(page).getByRole('button', { name: 'Eva' }).click();
     await venster(page).getByRole('button', { name: 'Daan' }).click();
     await expect(venster(page).getByRole('button', { name: 'Eva' })).toHaveAttribute('aria-pressed', 'false');
     await venster(page).getByRole('button', { name: 'Morgen', exact: true }).click();
@@ -202,7 +204,7 @@ test.describe('Taken', () => {
 
   test('alles van vandaag af: rustige melding, afgerond blijft ingeklapt', async ({ page }) => {
     const teDoen = sectie(page, 'Te doen');
-    for (const naam of ['Toestemmingsformulier schoolreis', 'Plantenbak water geven', 'Cadeautje voor Noor kopen']) {
+    for (const naam of ['Toestemmingsformulier schoolreis', 'Plantenbak water geven', 'Cadeautje voor Noor kopen', 'Spullen naar de kringloop']) {
       await teDoen.getByRole('checkbox', { name: naam }).click();
     }
     await expect(teDoen).toContainText('Alles van vandaag is gedaan.');

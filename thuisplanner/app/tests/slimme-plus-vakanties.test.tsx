@@ -5,7 +5,22 @@ import userEvent from '@testing-library/user-event';
 import { App } from '../src/App';
 
 const naar = (hash: string) => window.history.replaceState(null, '', `/?nu=2026-10-21T10:00${hash}`);
+// Typen zonder wachtmoment na elke toets: dezelfde toetsaanslagen en gebeurtenissen, maar niet afhankelijk van hoe snel
+// de testomgeving timers afhandelt. Die timers maakten deze tests in een volle ronde twee tot vier keer zo traag.
+const gebruiker = () => userEvent.setup({ delay: null });
 beforeEach(() => { naar('#/vandaag'); try { localStorage.clear(); } catch { /* geen opslag */ } });
+
+// Eenmalige opstartfase: de eerste weergave van de hele app met de + is in een volle testronde veel trager dan de rest
+// (koude start van jsdom en de app), en kwam dan dicht bij de tijdslimiet. Daarom één keer vooraf, met een eigen ruime
+// limiet; de tests zelf houden de gewone limiet. Hier wordt niets getoetst, en niets blijft achter.
+beforeAll(async () => {
+  naar('#/boodschappen');
+  const user = gebruiker();
+  const { unmount } = render(<App />);
+  await plus(user, 'Opwarmen kopen voor Frankrijk');
+  unmount();
+  try { localStorage.clear(); } catch { /* geen opslag */ }
+}, 60_000);
 
 type Gebruiker = ReturnType<typeof userEvent.setup>;
 async function plus(user: Gebruiker, zin: string) {
@@ -26,7 +41,7 @@ const nuTeKopen = () => screen.getByRole('heading', { name: /^Nu te kopen/ }).cl
 
 it('"Zonnebrand kopen voor Frankrijk": één boodschap, gekoppeld, bij Later nodig; geen "Zonnebrand voor Frankrijk"', async () => {
   naar('#/boodschappen');
-  const user = userEvent.setup();
+  const user = gebruiker();
   render(<App />);
   const d = await plus(user, 'Zonnebrand kopen voor Frankrijk');
   expect(regel()).toHaveTextContent('Voor Frankrijk · bij Later nodig');
@@ -43,7 +58,7 @@ it('"Zonnebrand kopen voor Frankrijk": één boodschap, gekoppeld, bij Later nod
 
 it('vóór opslaan corrigeren: een andere vakantie, Nu te kopen, of Geen vakantie', async () => {
   naar('#/boodschappen');
-  const user = userEvent.setup();
+  const user = gebruiker();
   render(<App />);
   let d = await plus(user, 'Pleisters kopen voor Frankrijk');
   await user.click(d.getByRole('button', { name: 'Aanpassen' }));
@@ -73,7 +88,7 @@ it('vóór opslaan corrigeren: een andere vakantie, Nu te kopen, of Geen vakanti
 });
 
 it('"Paspoorten controleren voor Frankrijk": een voorbereiding; een gelijknamige geeft een waarschuwing, toevoegen kan toch', async () => {
-  const user = userEvent.setup();
+  const user = gebruiker();
   render(<App />);
   let d = await plus(user, 'Paspoorten controleren voor Frankrijk');
   expect(regel()).toHaveTextContent('Voorbereiding voor Frankrijk');
@@ -91,7 +106,7 @@ it('"Paspoorten controleren voor Frankrijk": een voorbereiding; een gelijknamige
 });
 
 it('"Muggenspray kopen" terwijl hij bij Later nodig staat: vooraf en na afloop een duidelijke melding, één item', async () => {
-  const user = userEvent.setup();
+  const user = gebruiker();
   render(<App />);
   const d = await plus(user, 'Muggenspray kopen');
   expect(d.queryByRole('button', { name: /^Vakantie:/ })).not.toBeInTheDocument();
@@ -104,7 +119,7 @@ it('"Muggenspray kopen" terwijl hij bij Later nodig staat: vooraf en na afloop e
 });
 
 it('meerdere vakanties: een bestaande boodschap krijgt er een koppeling bij en blijft één item', async () => {
-  const user = userEvent.setup();
+  const user = gebruiker();
   render(<App />);
   const d = await plus(user, 'Zonnebrand factor 50 kopen voor Kerst op Texel');
   expect(d.getByText('Zonnebrand factor 50 staat al bij Later nodig voor Frankrijk; hij komt er ook voor Kerst op Texel bij.')).toBeInTheDocument();
@@ -116,7 +131,7 @@ it('meerdere vakanties: een bestaande boodschap krijgt er een koppeling bij en b
 });
 
 it('"Formulier" houdt de vakantie en Later nodig vast, en ze zijn daar te wijzigen', async () => {
-  const user = userEvent.setup();
+  const user = gebruiker();
   render(<App />);
   let d = await plus(user, 'Kerstkransjes en glühwein kopen voor Kerst op Texel');
   await user.click(d.getByRole('button', { name: 'Formulier' }));
@@ -138,7 +153,7 @@ it('"Formulier" houdt de vakantie en Later nodig vast, en ze zijn daar te wijzig
 });
 
 it('een gewone boodschap of taak via Formulier: het formulier zoals altijd (geen vakantie- of lijstkeuze)', async () => {
-  const user = userEvent.setup();
+  const user = gebruiker();
   render(<App />);
   for (const zin of ['Wc-papier kopen', 'Fietsband plakken']) {
     const d = await plus(user, zin);
@@ -151,7 +166,7 @@ it('een gewone boodschap of taak via Formulier: het formulier zoals altijd (geen
 });
 
 it('een afspraak met "voor Frankrijk": niet gekoppeld, de tekst blijft in de titel, met uitleg', async () => {
-  const user = userEvent.setup();
+  const user = gebruiker();
   render(<App />);
   const d = await plus(user, 'Ferry boeken om 10:00 voor Frankrijk');
   expect(d.queryByRole('button', { name: /^Vakantie:/ })).not.toBeInTheDocument();
@@ -161,7 +176,7 @@ it('een afspraak met "voor Frankrijk": niet gekoppeld, de tekst blijft in de tit
 
 it('twee vakanties met dezelfde naam: niets vanzelf koppelen; eerst kiezen', async () => {
   naar('#/vakanties');
-  const user = userEvent.setup();
+  const user = gebruiker();
   render(<App />);
   await user.click(screen.getByRole('button', { name: 'Nieuwe vakantie' }));
   const v = within(screen.getByRole('dialog', { name: 'Nieuwe vakantie' }));

@@ -7,7 +7,7 @@
 // Een paar tests stoppen of herstarten een container van de lokale stack (KG_PROJECT_ID, standaard "thuisplanner") om
 // storingen en herstarts na te spelen. Alleen lokaal.
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { createClient } from '@supabase/supabase-js';
@@ -38,12 +38,15 @@ async function tot(fn, ms = 15000, wat = 'voorwaarde') {
 const docker = (...a) => execFileSync('docker', a, { stdio: 'ignore' });
 
 before(async () => {
+  // Een eerder afgebroken run (Ctrl-C, een gestopt proces) kan de inlogrol van PostgREST geblokkeerd hebben achtergelaten.
+  try { alsBeheerder('alter role authenticator login'); } catch { /* de stack is er nog niet */ }
   await db.connect();
   vorige = (await db.query('select * from private.instellingen')).rows[0];
   await db.query(`update private.instellingen set wachtwoordsessies_toegestaan = false, huishouden_open = true, mail_testaanbieder = 'gewoon'`);
   aanbieder = await startTestaanbieder(Number(api.port) + 7);
 });
 after(async () => {
+  try { alsBeheerder('alter role authenticator login'); } catch { /* de stack is weg */ }
   await aanbieder?.stop();
   for (const h of huishoudens) await db.query('delete from public.households where id = $1', [h]);
   for (const id of accounts) await admin.auth.admin.deleteUser(id);
@@ -84,7 +87,43 @@ async function gepland(invite, n, wat) {
   await tot(async () => { [rij] = await rijen(invite); return rij?.status === 'wacht' && rij.pogingen === n; }, 20000, wat);
   return rij;
 }
-const klaarMet = (invite, ms) => tot(async () => (await rijen(invite)).every(r => !['wacht', 'bezig'].includes(r.status)), ms, 'mail verwerkt');
+// Bij een time-out de hele keten in één blik (cron → pg_net → functie → PostgREST → wachtrij), zonder adressen: zo
+// verklaart een mislukte run in CI zichzelf (tweede review PR #54).
+async function keten(invite) {
+  const q = async (sql, p = []) => { try { return (await db.query(sql, p)).rows; } catch (e) { return 'fout: ' + e.message; } };
+  const logs = (naam, filter) => {
+    const r = spawnSync('docker', ['logs', '--since', '4m', naam], { encoding: 'utf8' });
+    return `${r.stdout ?? ''}${r.stderr ?? ''}`.split('\n').filter(l => filter.test(l)).slice(-12).map(l => l.slice(0, 220));
+  };
+  return JSON.stringify({
+    mail: await q('select status, pogingen, volgende, bezig_tot, now() as nu from private.uitnodigingsmails where invite_id = $1 order by nummer', [invite]),
+    cron: await q(`select d.status, left(d.return_message, 80) as melding, d.start_time from cron.job_run_details d join cron.job j using (jobid)
+                   where j.jobname = 'thuisplanner-uitnodigingsmails-versturen' order by d.start_time desc limit 4`),
+    pgnet: await q('select id, status_code, left(error_msg, 120) as fout, timed_out, created from net._http_response order by id desc limit 4'),
+    pgnetWachtrij: await q('select count(*)::int as n from net.http_request_queue'),
+    functie: logs(`supabase_edge_runtime_${PROJECT}`, /stuur-uitnodiging/),
+    postgrest: logs(`supabase_rest_${PROJECT}`, /fail|retry|error|reconnect|connected/i),
+  }, null, 1);
+}
+const klaarMet = async (invite, ms) => {
+  try { await tot(async () => (await rijen(invite)).every(r => !['wacht', 'bezig'].includes(r.status)), ms, 'mail verwerkt'); }
+  catch (e) { e.message += '\nketen: ' + await keten(invite); throw e; }
+};
+// Zoals vlak na een herstart van de database: PostgREST draait, maar heeft (nog) geen verbinding en antwoordt 503
+// (PGRST001). Na te spelen door zijn inlogrol even te blokkeren en zijn verbindingen te sluiten (alleen lokaal, als
+// supabase_admin in de container). Kong vangt dit niet op: een draaiende PostgREST die 503 geeft, is een antwoord.
+const alsBeheerder = sql => execFileSync('docker', ['exec', `supabase_db_${PROJECT}`, 'psql', '-U', 'supabase_admin', '-d', 'postgres', '-Atq', '-c', sql], { stdio: 'ignore' });
+const restZonderDb = () => alsBeheerder(`alter role authenticator nologin; select pg_terminate_backend(pid) from pg_stat_activity where usename = 'authenticator'`);
+const restMetDb = async () => {
+  alsBeheerder('alter role authenticator login');
+  await tot(async () => !(await admin.rpc('mail_testaanbieder')).error, 60000, 'PostgREST weer verbonden');
+};
+// Zonder het vangnet van pg_cron: zo bewijst een test dat déze ronde het werk afmaakt, niet de volgende minuut.
+async function zonderCron(f) {
+  const job = `(select jobid from cron.job where jobname = 'thuisplanner-uitnodigingsmails-versturen')`;
+  await db.query(`select cron.alter_job(job_id := ${job}, active := false)`);
+  try { await f(); } finally { await db.query(`select cron.alter_job(job_id := ${job}, active := true)`); }
+}
 // De tijd vooruit zetten (de wachttijd is voorbij) en een ronde draaien, zoals het vangnet elke minuut doet.
 const vooruit = invite => db.query(`update private.uitnodigingsmails set volgende = now() - interval '1 second' where invite_id = $1 and status = 'wacht'`, [invite]);
 const ronde = () => db.query('select private.uitnodigingsmail_ronde()');
@@ -98,7 +137,23 @@ async function rust() {
   await tot(async () => Number((await db.query('select count(*) from net.http_request_queue')).rows[0].count) === 0, 30000, 'pg_net leeg');
   await wacht(3000);
 }
-const wachtrij = (kop = {}) => fetch(`${FUNCTIES}/stuur-uitnodiging`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...kop }, body: '{}' }).then(r => r.status);
+// Met een eigen tijdslimiet: de functie antwoordt meteen (202 of 401). Hangt ze (een Edge Runtime die niet reageert),
+// dan wacht Kong tot 60 s; zonder grens liep een test dan zonder enige aanwijzing in zijn eigen time-out (CI 77e1fa3).
+const wachtrij = (kop = {}) => fetch(`${FUNCTIES}/stuur-uitnodiging`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...kop }, body: '{}',
+  signal: AbortSignal.timeout(15000) }).then(async r => { await r.body?.cancel(); return r.status; })
+  .catch(e => { throw new Error(`stuur-uitnodiging gaf binnen 15 s geen antwoord (${e?.name ?? e})`); });
+// Eén fase van een test met een eigen termijn (kleiner dan de time-out van de test): bij overschrijding een fout met de
+// naam van de fase en een momentopname van de keten, in plaats van een kale time-out zonder aanwijzing. De timer wordt
+// altijd opgeruimd.
+async function binnen(fase, ms, f, momentopname) {
+  let timer;
+  const grens = new Promise((_, nee) => { timer = setTimeout(() => nee(new Error(`fase "${fase}" niet binnen ${ms} ms`)), ms); });
+  try { return await Promise.race([f(), grens]); }
+  catch (e) {
+    if (momentopname) { try { e.message += '\nstand: ' + await Promise.race([momentopname(), wacht(5000).then(() => '(momentopname niet binnen 5 s)')]); } catch (m) { e.message += '\nstand: fout ' + m.message; } }
+    throw e;
+  } finally { clearTimeout(timer); }
+}
 async function mailpit(email) {
   const r = await (await fetch(`${MAIL}/api/v1/search?query=${encodeURIComponent('to:' + email)}&limit=50`)).json();
   return Promise.all((r.messages ?? []).map(async m => {
@@ -334,26 +389,57 @@ test('een ingetrokken uitnodiging (of opnieuw uitnodigen) krijgt geen mail meer;
   assert.ok(!kol.rows.some(k => /mail|adres|^aan$|token/.test(k.column_name)), JSON.stringify(kol.rows));
 });
 
+// Momentopname van de keten voor de gelijktijdigheidstest, met een eigen, kortlevende databaseverbinding (zodat een
+// vastgelopen gedeelde verbinding de diagnose niet ook blokkeert). Zonder adressen.
+async function standDruk(hs, gasten) {
+  const c = new pg.Client({ connectionString: DB_URL, statement_timeout: 4000 });
+  const q = async (sql, p = []) => { try { return (await c.query(sql, p)).rows; } catch (e) { return 'fout: ' + e.message; } };
+  const logs = (naam, filter) => {
+    const r = spawnSync('docker', ['logs', '--since', '3m', naam], { encoding: 'utf8', timeout: 4000 });
+    return `${r.stdout ?? ''}${r.stderr ?? ''}`.split('\n').filter(l => filter.test(l)).slice(-10).map(l => l.slice(0, 200));
+  };
+  try {
+    await c.connect();
+    return JSON.stringify({
+      mails: await q(`select status, count(*)::int n, max(pogingen) max_pogingen from private.uitnodigingsmails where household_id = any ($1) group by status`, [hs]),
+      verstuurd: { verzoeken: aanbieder.verzoeken, aan_gasten: gasten.filter(g => aanbieder.voor(g).length).length, dubbel: gasten.filter(g => aanbieder.voor(g).length > 1).length },
+      pgnetWachtrij: await q('select count(*)::int as n from net.http_request_queue'),
+      pgnet: await q('select status_code, left(error_msg, 100) as fout, timed_out from net._http_response order by id desc limit 5'),
+      wachtend: await q(`select left(query, 80) q, wait_event_type, round(extract(epoch from now() - query_start))::int s from pg_stat_activity
+                         where state <> 'idle' and backend_type = 'client backend' and now() - query_start > interval '2 seconds' and pid <> pg_backend_pid()`),
+      functie: logs(`supabase_edge_runtime_${PROJECT}`, /stuur-uitnodiging|worker|error/i),
+    }, null, 1);
+  } catch (e) { return 'geen databaseverbinding: ' + e.message; }
+  finally { await c.end().catch(() => {}); }
+}
+
+// Elke fase heeft een eigen termijn (samen onder de time-out van 120 s): een fase die hangt, faalt met haar naam en een
+// momentopname, in plaats van een kale time-out (CI 77e1fa3: "test timed out after 120000ms", zonder aanwijzing). De
+// controle zelf is ongewijzigd: elke mail precies één keer, met 30 verschillende sleutels.
 test('gelijktijdig: 30 uitnodigingen in 3 huishoudens en 5 extra aanroepen tegelijk: elke mail precies één keer', { timeout: 120000 }, async () => {
-  const groepen = await Promise.all([0, 1, 2].map(async i => {
+  const gasten = [];
+  let hs = [];
+  const stand = () => standDruk(hs, gasten);
+  const groepen = await binnen('aanmelden en huishoudens', 15000, () => Promise.all([0, 1, 2].map(async i => {
     const { c } = await codeSessie(adres(`druk-${i}`));
     return { c, h: await huishouden(c, `Druk ${i} ${run}`) };
-  }));
-  const gasten = [];
-  await Promise.all([
+  })), stand);
+  hs = groepen.map(g => g.h);
+  await binnen('30 uitnodigingen en 5 extra aanroepen', 20000, () => Promise.all([
     ...groepen.flatMap(({ c, h }, i) => Array.from({ length: 10 }, async (_, j) => {
       const gast = adres(`druk-${i}-${j}`);
       gasten.push(gast);
       const r = await c.rpc('create_invite', { p_household: h, p_role: 'member', p_email: gast });
       assert.ifError(r.error);
     })),
-    ...Array.from({ length: 5 }, () => wachtrij({ 'X-Thuisplanner-Wachtrij': GEHEIM })),
-  ]);
-  await ronde();
-  await tot(async () => gasten.every(g => aanbieder.voor(g).length >= 1), 45000, '30 mails');
-  await tot(async () => Number((await db.query(`select count(*) n from private.uitnodigingsmails where household_id = any ($1) and status in ('wacht', 'bezig')`,
-    [groepen.map(g => g.h)])).rows[0].n) === 0, 20000, 'wachtrij leeg');
-  await ronde(); await wacht(2000);
+    ...Array.from({ length: 5 }, async () => assert.equal(await wachtrij({ 'X-Thuisplanner-Wachtrij': GEHEIM }), 202)),
+  ]), stand);
+  await binnen('ronde', 5000, ronde, stand);
+  await binnen('30 mails verstuurd', 47000, () => tot(async () => gasten.every(g => aanbieder.voor(g).length >= 1), 45000, '30 mails'), stand);
+  await binnen('wachtrij leeg', 22000, () => tot(async () => Number((await db.query(`select count(*) n from private.uitnodigingsmails
+    where household_id = any ($1) and status in ('wacht', 'bezig')`, [hs])).rows[0].n) === 0, 20000, 'wachtrij leeg'), stand);
+  await binnen('laatste ronde', 5000, ronde, stand);
+  await wacht(2000);
   for (const g of gasten) assert.equal(aanbieder.voor(g).length, 1, g);
   const sleutels = gasten.map(g => aanbieder.voor(g)[0].sleutel);
   assert.equal(new Set(sleutels).size, 30);
@@ -463,21 +549,171 @@ test('vangnet met de echte pg_cron (tot 90 s): een seintje dat verloren gaat, wo
   assert.equal(aanbieder.voor(gast).length, 1);
 });
 
-test('herstart van de database: de wachtrij blijft (de wachtrij van pg_net niet), en het vangnet verstuurt de mail daarna één keer', { timeout: 240000 }, async () => {
+// Tweede review PR #54 (CI: "niet op tijd: mail verwerkt" na de herstart van de database): vlak na een herstart geeft
+// PostgREST even 503 (nog geen verbinding). Dan gaf de functie de hele ronde meteen op, en wachtte de mail op het vangnet
+// van de volgende minuut; gebeurde dat tussen versturen en vastleggen, dan bleef de mail zelfs 2 minuten "bezig".
+// Nu probeert de functie het binnen dezelfde ronde opnieuw. Zonder pg_cron, zodat alleen deze ronde telt.
+test('PostgREST zonder databaseverbinding bij het begin van een ronde: de functie probeert opnieuw en verstuurt de mail in dezelfde ronde', { timeout: 120000 }, async () => {
+  const { c } = await codeSessie(adres('rest-weg'));
+  const h = await huishouden(c);
+  const gast = adres('rest-weg-gast');
+  await rust();
+  await zonderCron(async () => {
+    await hernoem('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_url_weg');
+    let inv;
+    try { inv = await uitnodigen(c, h, gast); } finally { await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url'); }
+    restZonderDb();
+    try {
+      assert.equal((await db.query('select private.uitnodigingsmail_ronde() r')).rows[0].r, true);
+      await wacht(3000);
+      assert.deepEqual(await standen(inv), ['wacht']);
+    } finally {
+      await restMetDb();
+    }
+    await klaarMet(inv, 25000);
+    assert.deepEqual(await standen(inv), ['aangenomen']);
+    assert.equal(aanbieder.voor(gast).length, 1);
+  });
+});
+
+test('PostgREST zonder databaseverbinding tussen versturen en vastleggen: de uitkomst komt alsnog vast, geen "bezig" en geen tweede mail', { timeout: 120000 }, async () => {
+  const { c } = await codeSessie(adres('rest-klaar'));
+  const h = await huishouden(c);
+  const gast = adres('rest-klaar-gast');
+  await rust();
+  await zonderCron(async () => {
+    await hernoem('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_url_weg');
+    let inv;
+    try { inv = await uitnodigen(c, h, gast); } finally { await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url'); }
+    // Op het moment dat de mail bij de aanbieder binnenkomt (de rij is dan al gepakt), verliest PostgREST zijn verbinding;
+    // na 3 s mag hij weer verbinden.
+    aanbieder.zet(() => { restZonderDb(); setTimeout(() => { try { alsBeheerder('alter role authenticator login'); } catch { /* restMetDb */ } }, 3000); });
+    try {
+      await ronde();
+      await klaarMet(inv, 30000);
+    } finally {
+      // Ook als de mail nooit bij de aanbieder kwam: het klaargezette gedrag weg, anders raakt het de volgende test.
+      aanbieder.gedrag.length = 0;
+      await restMetDb();
+    }
+    assert.deepEqual(await standen(inv), ['aangenomen']);
+    assert.equal(aanbieder.voor(gast).length, 1);
+  });
+});
+
+// Claimronde (migratie 20261116120000, herstelronde review PR #54): de databasefuncties zelf. Zonder pg_cron en zonder
+// seintje, zodat alleen deze aanroepen de rij raken.
+test('claimronde: pak met hetzelfde token geeft dezelfde claim; los geeft terug zonder poging; klaar alleen voor de eigen ronde', { timeout: 60000 }, async () => {
+  const { c } = await codeSessie(adres('ronde'));
+  const h = await huishouden(c);
+  await rust();
+  await zonderCron(async () => {
+    await hernoem('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_url_weg');
+    let inv;
+    try { inv = await uitnodigen(c, h, adres('ronde-gast')); } finally { await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url'); }
+    const mail = (await rijen(inv))[0].id;
+    const pak = async ronde => (await db.query('select id from public.uitnodigingsmail_pak_ronde(50, false, $1)', [ronde])).rows.map(r => r.id);
+    const rij = async () => (await db.query('select status, pogingen, ronde from private.uitnodigingsmails where id = $1', [mail])).rows[0];
+    const a = randomUUID(), b = randomUUID();
+    // Eerste claim, en de herhaling met hetzelfde token (verloren antwoord): dezelfde rij, geen tweede poging.
+    assert.ok((await pak(a)).includes(mail));
+    assert.deepEqual(await pak(a), (await db.query(`select id from private.uitnodigingsmails where ronde = $1 and status = 'bezig'`, [a])).rows.map(r => r.id));
+    assert.deepEqual(await rij(), { status: 'bezig', pogingen: 1, ronde: a });
+    // Een andere ronde krijgt deze rij niet.
+    assert.ok(!(await pak(b)).includes(mail));
+    // (Wat ronde b eventueel van andere tests pakte, meteen terug.)
+    const vanB = (await db.query(`select id from private.uitnodigingsmails where ronde = $1 and status = 'bezig'`, [b])).rows.map(r => r.id);
+    if (vanB.length) await db.query('select public.uitnodigingsmail_los($1, $2)', [b, vanB]);
+    // klaar met het verkeerde token: niets; los met het verkeerde token: niets.
+    assert.equal((await db.query(`select public.uitnodigingsmail_klaar_ronde($1, $2, 'aangenomen', 'x') r`, [mail, b])).rows[0].r, false);
+    assert.equal((await db.query('select public.uitnodigingsmail_los($1, $2) n', [b, [mail]])).rows[0].n, 0);
+    assert.equal((await rij()).status, 'bezig');
+    // Teruggeven: weer "wacht", de poging telt niet; daarna te pakken door een nieuwe ronde.
+    assert.equal((await db.query('select public.uitnodigingsmail_los($1, $2) n', [a, [mail]])).rows[0].n, 1);
+    assert.deepEqual(await rij(), { status: 'wacht', pogingen: 0, ronde: null });
+    const d = randomUUID();
+    assert.ok((await pak(d)).includes(mail));
+    // klaar met het juiste token: vastgelegd; daarna kan los niets meer.
+    assert.equal((await db.query(`select public.uitnodigingsmail_klaar_ronde($1, $2, 'aangenomen', 'proef-1') r`, [mail, d])).rows[0].r, true);
+    assert.equal((await rij()).status, 'aangenomen');
+    assert.equal((await db.query('select public.uitnodigingsmail_los($1, null) n', [d])).rows[0].n, 0);
+    // Een verlopen claim geeft los niet meer terug (dan geldt de termijnregel van pak).
+    await db.query(`update private.uitnodigingsmails set status = 'bezig', bezig_tot = now() - interval '1 second', ronde = $2 where id = $1`, [mail, d]);
+    assert.equal((await db.query('select public.uitnodigingsmail_los($1, null) n', [d])).rows[0].n, 0);
+    await db.query(`update private.uitnodigingsmails set status = 'aangenomen', bezig_tot = null where id = $1`, [mail]);
+    // Alleen de service-rol: een gebruiker kan de nieuwe functies niet aanroepen.
+    for (const [f, args] of [['uitnodigingsmail_pak_ronde', { p_max: 1, p_idempotent: false, p_ronde: a }], ['uitnodigingsmail_los', { p_ronde: a }],
+      ['uitnodigingsmail_klaar_ronde', { p_id: mail, p_ronde: a, p_uitkomst: 'aangenomen' }]]) {
+      assert.ok((await c.rpc(f, args)).error, `${f} aan te roepen door een gebruiker`);
+    }
+  });
+});
+
+// Review PR #54, R4: deze test herstart gedeelde infrastructuur en ruimt daarom op elke uitweg op: de Vault-waarde
+// terug, een verbinding met de database, en Realtime weer aantoonbaar live (ook als een controle faalde, zodat één fout
+// niet de realtime-tests hierna meesleept). De tijdslimiet ligt boven de som van de wachttijden (database terug 120 s,
+// mail 100 s, Realtime 90 s), zodat een fout altijd met een eigen melding eindigt.
+test('herstart van de database: de wachtrij blijft (de wachtrij van pg_net niet), en het vangnet verstuurt de mail daarna één keer', { timeout: 420000 }, async () => {
   const { c } = await codeSessie(adres('dbherstart'));
   const h = await huishouden(c);
   const gast = adres('dbherstart-gast');
-  await hernoem('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_url_weg');
-  const inv = await uitnodigen(c, h, gast);
-  await db.end();
-  docker('restart', `supabase_db_${PROJECT}`);
-  await tot(async () => {
-    try { const t = new pg.Client({ connectionString: DB_URL }); await t.connect(); await t.query('select 1'); db = t; return true; }
-    catch { return false; }
-  }, 120000, 'database terug');
-  await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url');
-  assert.deepEqual(await standen(inv), ['wacht']);
-  await klaarMet(inv, 100000);
-  assert.deepEqual(await standen(inv), ['aangenomen']);
-  assert.equal(aanbieder.voor(gast).length, 1);
+  let fout = null;
+  let hernoemd = false;
+  try {
+    await hernoem('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_url_weg');
+    hernoemd = true;
+    const inv = await uitnodigen(c, h, gast);
+    await db.end();
+    docker('restart', `supabase_db_${PROJECT}`);
+    await tot(async () => {
+      try { const t = new pg.Client({ connectionString: DB_URL }); await t.connect(); await t.query('select 1'); db = t; return true; }
+      catch { return false; }
+    }, 120000, 'database terug');
+    await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url');
+    hernoemd = false;
+    assert.deepEqual(await standen(inv), ['wacht']);
+    await klaarMet(inv, 100000);
+    assert.deepEqual(await standen(inv), ['aangenomen']);
+    assert.equal(aanbieder.voor(gast).length, 1);
+  } catch (e) { fout = e; }
+  // Opruimen, ook na een fout: zonder verbinding eerst opnieuw verbinden; de Vault-waarde terug; Realtime live.
+  const opruimfouten = [];
+  try { await db.query('select 1'); } catch {
+    try { const t = new pg.Client({ connectionString: DB_URL }); await t.connect(); db = t; } catch (e) { opruimfouten.push('database: ' + e.message); }
+  }
+  if (hernoemd) { try { await hernoem('thuisplanner_wachtrij_url_weg', 'thuisplanner_wachtrij_url'); } catch (e) { opruimfouten.push('Vault: ' + e.message); } }
+  try { await realtimeWeerLive(c, h, 90000); } catch (e) { opruimfouten.push(e.message); }
+  if (fout) { if (opruimfouten.length) fout.message += String.fromCharCode(10) + 'bij het opruimen: ' + opruimfouten.join('; '); throw fout; }
+  if (opruimfouten.length) throw new Error('opruimen na de herstart: ' + opruimfouten.join('; '));
 });
+
+// Realtime na een herstart: pas klaar als een seintje uit de database aantoonbaar binnenkomt op een privékanaal (na een
+// herstart bouwt Realtime de replicatie pas op bij het eerste privékanaal; wat daarvóór geschreven wordt, komt nooit
+// aan). Met een vaste eindtijd, en elk kanaal gaat dicht, ook bij een fout of als de tijd op is.
+async function realtimeWeerLive(c, h, maxMs) {
+  const kanaal = (await c.rpc('household_channel', { p_household: h })).data;
+  await c.realtime.setAuth();
+  const eind = Date.now() + maxMs;
+  for (let poging = 0; Date.now() < eind; poging++) {
+    const ontvangen = [];
+    const k = c.channel(kanaal, { config: { private: true } }).on('broadcast', { event: 'wijziging' }, m => ontvangen.push(m.payload));
+    try {
+      const status = await new Promise(r => {
+        const t = setTimeout(() => r('GEEN_ANTWOORD'), Math.max(1000, Math.min(10000, eind - Date.now())));
+        k.subscribe(s => { clearTimeout(t); r(s); });
+      });
+      if (status === 'SUBSCRIBED') {
+        const id = randomUUID();
+        assert.ifError((await c.from('trips').insert({ id, household_id: h, name: 'Proef ' + poging })).error);
+        for (let j = 0; j < 30 && Date.now() < eind; j++) {
+          if (ontvangen.some(p => p.t === 'trips' && p.id === id)) return;
+          await wacht(100);
+        }
+      }
+    } finally {
+      await c.removeChannel(k);
+    }
+    if (Date.now() + 2000 < eind) await wacht(2000);
+  }
+  throw new Error(`Realtime levert na de herstart binnen ${Math.round(maxMs / 1000)} s geen seintjes uit de database af`);
+}

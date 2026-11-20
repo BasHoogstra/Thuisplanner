@@ -114,6 +114,35 @@ test('versieconflict: een gelijktijdige wijziging wordt niet stil overschreven',
   await expect(thomas.getByText('Melk (halfvol)')).toHaveCount(0);
 });
 
+// P1 (review PR #54): een venster bewaart met de versie van het moment waarop het openging. Past de partner intussen iets
+// aan, dan wordt dat niet stil overschreven: het venster blijft open met je invoer en een uitleg. Opnieuw opslaan zet dan
+// bewust jouw waarde door.
+test('P1: een oud venster overschrijft geen nieuwere wijziging van de partner; je invoer blijft staan', async () => {
+  await toevoegen(eva, 'Taak', 'Lampen vervangen');
+  await expect(thomas.getByRole('button', { name: 'Lampen vervangen openen' })).toBeVisible(SYNC);
+  // Eva opent de taak en begint te typen...
+  await eva.getByRole('button', { name: 'Lampen vervangen openen' }).click();
+  await venster(eva).getByLabel('Wat?').fill('Lampen vervangen in de gang');
+  // ...intussen past Thomas dezelfde taak aan en bewaart.
+  await thomas.getByRole('button', { name: 'Lampen vervangen openen' }).click();
+  await venster(thomas).getByLabel('Wat?').fill('Lampen vervangen (LED)');
+  await venster(thomas).getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(venster(thomas)).toHaveCount(0);
+  await expect(eva.getByRole('button', { name: 'Lampen vervangen (LED) openen' })).toBeAttached(SYNC);
+  // Eva bewaart haar oude venster: geweigerd, het venster blijft open met haar tekst, en die van Thomas blijft staan.
+  await venster(eva).getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(venster(eva).getByRole('alert').filter({ hasText: 'Iemand anders heeft dit net aangepast' })).toBeVisible(SYNC);
+  await expect(venster(eva).getByLabel('Wat?')).toHaveValue('Lampen vervangen in de gang');
+  const db = await alsEva();
+  const titel = async () => ((await db.from('tasks').select('title').ilike('title', 'Lampen vervangen%').is('deleted_at', null)).data ?? []).map(r => r.title as string);
+  expect(await titel()).toEqual(['Lampen vervangen (LED)']);
+  // Bewust opnieuw opslaan: nu gaat haar waarde voor.
+  await venster(eva).getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(venster(eva)).toHaveCount(0, SYNC);
+  await expect.poll(titel, SYNC).toEqual(['Lampen vervangen in de gang']);
+  await expect(thomas.getByRole('button', { name: 'Lampen vervangen in de gang openen' })).toBeAttached(SYNC);
+});
+
 // De verbinding valt weg tijdens het versturen. Met bereikt: de server voert het uit, maar het antwoord komt
 // nooit aan; zonder: het verzoek komt niet aan. In beide gevallen weet de app niet of het is opgeslagen.
 const TAKEN = '**/rest/v1/tasks*';

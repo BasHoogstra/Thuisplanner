@@ -1,15 +1,16 @@
 import { useState, type CSSProperties } from 'react';
 import { useApp, type AgendaWeergave } from '../lib/context';
 import {
-  langeDatum, langeDatumHoofdletter, maandagVan, plusDagen, vanDatum, weekBereik, weekdagKort, weekNummer,
+  dagLabel, langeDatum, langeDatumHoofdletter, maandagVan, plusDagen, vanDatum, weekBereik, weekdagKort, weekNummer,
 } from '../lib/datum';
 import { useBreed } from '../lib/breedte';
 import { beschrijfDag, dagInhoud, drukte, maandBegin, maandRaster, plusMaanden } from '../lib/kalender';
 import { titelVoor } from '../lib/rechten';
-import { isVoorbij } from '../lib/vandaag';
+import { isTaak, isVoorbij } from '../lib/vandaag';
+import { taakPast } from '../lib/filter';
 import type { Datum } from '../lib/types';
-import { DagBlok } from '../components/DagBlok';
-import { lidKleur, WeekAfspraakRij, WeekTaakRij } from '../components/Rijen';
+import { Afgerond, DagBlok } from '../components/DagBlok';
+import { lidKleur, TaakRij, WeekAfspraakRij, WeekTaakRij } from '../components/Rijen';
 import { RestVanDeWeek, Weekstrip } from '../components/Weekstrip';
 import { ZonderDatum } from '../components/ZonderDatum';
 import { IcKoffer, IcLinks, IcPijl, IcPlus } from '../components/Iconen';
@@ -38,7 +39,7 @@ function VakantieRegel({ datum }: { datum: Datum }) {
 const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september',
   'oktober', 'november', 'december'];
 const WEERGAVEN: { id: AgendaWeergave; label: string }[] = [
-  { id: 'dag', label: 'Dag' }, { id: 'week', label: 'Week' }, { id: 'maand', label: 'Maand' },
+  { id: 'dag', label: 'Dag' }, { id: 'week', label: 'Week' }, { id: 'maand', label: 'Maand' }, { id: 'taken', label: 'Taken' },
 ];
 
 export function Agenda() {
@@ -98,7 +99,7 @@ export function Agenda() {
             </div>
           )}
         </div>
-        <div className="week-balk">
+        {weergave !== 'taken' && <div className="week-balk">
           <button type="button" className="icoonknop" onClick={() => stap(-1)} aria-label={`Vorige ${eenheid}`}><IcLinks /></button>
           <p className="week-titel" aria-live="polite">
             <span>{titel}</span>
@@ -106,13 +107,49 @@ export function Agenda() {
           </p>
           <button type="button" className="icoonknop" onClick={() => stap(1)} aria-label={`Volgende ${eenheid}`}><IcPijl /></button>
           {!isNu && <button type="button" className="link" onClick={() => zetAgenda({ datum: vandaag })}>Naar vandaag</button>}
-        </div>
+        </div>}
       </header>
 
       {weergave === 'dag' && <div className="dag-raster"><DagWeergave /><ZonderDatum zij /></div>}
       {weergave === 'week' && <><WeekWeergave /><ZonderDatum /></>}
       {weergave === 'maand' && <MaandWeergave />}
+      {weergave === 'taken' && <TakenWeergave />}
       <p className="demo-noot">{lokaal ? 'Nog niet' : 'Demo'}: delen met mensen buiten het gezin en uitnodigingen komen in een latere fase.</p>
+    </div>
+  );
+}
+
+/**
+ * Taken als weergave binnen de Agenda (besluit Bas, 10 november 2026): dezelfde taken als op Vandaag en in plannen, met
+ * dezelfde rij en hetzelfde vinkje; geen eigen lijst en geen eigen opslag. Te laat, vandaag en de komende dagen, dan
+ * "Zonder datum" (met de taken uit plannen) zoals in Dag en Week. Afgerond van de afgelopen week staat ingeklapt. Het
+ * gezinsfilter geldt ook hier.
+ */
+function TakenWeergave() {
+  const { staat, agenda, vandaag } = useApp();
+  const taken = staat.items.filter(isTaak).filter(t => taakPast(t, agenda.filter));
+  const metDatum = taken.filter(t => t.datum).sort((a, b) => a.datum!.localeCompare(b.datum!));
+  const open = metDatum.filter(t => !t.klaar);
+  const teLaat = open.filter(t => t.datum! < vandaag), nu = open.filter(t => t.datum === vandaag), later = open.filter(t => t.datum! > vandaag);
+  const weekGeleden = plusDagen(vandaag, -7);
+  const klaar = metDatum.filter(t => t.klaar && (t.klaarOp ?? t.datum!) >= weekGeleden);
+  const zonderOpen = taken.some(t => !t.datum && !t.klaar);
+  const groep = (id: string, kop: string, lijst: typeof open, metDag: boolean) => lijst.length > 0 && (
+    <section aria-labelledby={id} className="blok taken-groep">
+      <h2 id={id} className="sectie-kop">{kop}</h2>
+      <ul className="lijst" aria-label={kop}>
+        {lijst.map(t => <TaakRij key={t.id} t={t} metLidKleur extra={metDag ? dagLabel(t.datum!, vandaag) : undefined} />)}
+      </ul>
+    </section>
+  );
+  return (
+    <div className="taken-weergave">
+      {!open.length && !zonderOpen && <p className="stil-tekst taken-leeg">Geen open taken.</p>}
+      {groep('h-taken-te-laat', 'Te laat', teLaat, true)}
+      {groep('h-taken-vandaag', 'Vandaag', nu, false)}
+      {groep('h-taken-later', 'Komende dagen', later, true)}
+      <Afgerond taken={klaar} naam="Afgerond, afgelopen week" />
+      <ZonderDatum />
     </div>
   );
 }

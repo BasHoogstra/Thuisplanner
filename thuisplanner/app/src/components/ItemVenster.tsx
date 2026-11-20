@@ -1,5 +1,7 @@
+import { metMensen, taakMensen } from '../lib/mensen';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useApp, type Soort } from '../lib/context';
+import { CONFLICT_IN_VENSTER, type Opgeslagen } from '../lib/acties';
 import { dagLabel, isGeldigeDatum, langeDatum, langeDatumHoofdletter, plusDagen, verschilInDagen } from '../lib/datum';
 import { FREQUENTIES, herhalingTekst, vindAfspraak, wordtDubbel } from '../lib/herhaling';
 import { splitsBoodschappen } from '../lib/boodschappen';
@@ -56,7 +58,10 @@ export function ItemVenster({ opdracht, sluit }: { opdracht: VensterOpdracht; sl
     const prive = item.soort === 'afspraak' && item.zichtbaarheid === 'prive';
     return <Formulier key="herinvoer" herinvoerId={item.id} herinvoerPrive={prive} soortBegin={item.soort} sluit={sluit} />;
   }
-  if (item.sync) {
+  // Een bevestigd item (versie > 0) dat nu wordt bijgewerkt, is even "wachtend": dan blijft het bewerkvenster staan, anders
+  // verdwijnt je invoer bij een conflict (P1, review PR #54). Alleen een nog niet bevestigde toevoeging gaat naar dit venster.
+  const bijwerkenBezig = item.sync === 'wachtend' && (item.versie ?? 0) > 0;
+  if (item.sync && !bijwerkenBezig) {
     const naam = item.soort === 'boodschap' ? item.naam : item.titel ?? '';
     return <OnbevestigdVenster id={item.soort === 'afspraak' ? item.voorkomenVan ?? item.id : item.id} naam={naam} sync={item.sync} sluit={sluit} />;
   }
@@ -110,7 +115,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
   const [eind, zetEind] = useState(bestaand?.soort === 'afspraak' ? bestaand.eind ?? '' : vi?.eind ?? '');
   const [plek, zetPlek] = useState(bestaand?.soort === 'afspraak' ? bestaand.plek ?? '' : vi?.plek ?? '');
   const [wie, zetWie] = useState<LidId[]>(
-    bestaand?.soort === 'afspraak' ? bestaand.wie : bestaand?.soort === 'taak' && bestaand.voor ? [bestaand.voor] : vi?.wie ?? []);
+    bestaand?.soort === 'afspraak' ? bestaand.wie : bestaand?.soort === 'taak' ? taakMensen(bestaand) : vi?.wie ?? []);
   const [prive, zetPrive] = useState(herinvoerPrive || (bestaand?.soort === 'afspraak' && bestaand.zichtbaarheid === 'prive') || !!vi?.prive);
   // F8: uit de slimme + ("Alles invullen"): de gekozen vakantie en Later nodig / Nu te kopen gaan mee en blijven te wijzigen.
   const metVakantie = !bestaand && !herinvoerId && (!!vi?.vakantieId || vi?.later !== undefined);
@@ -126,6 +131,11 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
   // (versieconflict) in plaats van diens wijziging stil te overschrijven. In de demo-modus ongebruikt.
   const [beginVersie] = useState(() => bestaand?.versie);
   const [reeksVersie] = useState(() => reeks?.versie);
+  // Na een versieconflict blijft het venster open met je invoer; opnieuw opslaan zet dan bewust jouw waarden door, met de
+  // versie die nu bekend is (P1, review PR #54).
+  const [conflict, zetConflict] = useState(false);
+  const versieNu = conflict ? bestaand?.versie : beginVersie;
+  const reeksVersieNu = conflict ? reeks?.versie : reeksVersie;
   const [freq, zetFreq] = useState<Frequentie | 'geen'>(voorkomen?.herhaling?.freq ?? vi?.herhaling?.freq ?? 'geen');
   const [herhaalTot, zetHerhaalTot] = useState(voorkomen?.herhaling?.tot ?? vi?.herhaling?.tot ?? '');
   const [fout, zetFout] = useState<{ veld: 'titel' | 'tijd' | 'dag' | 'herhaling'; tekst: string } | null>(null);
@@ -167,7 +177,8 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
 
   // Via de klik op de knop (ook Enter in een veld "klikt" die knop), niet via het verzenden van het formulier:
   // zo werkt het ook in een afgeschermd frame waar formulieren verzenden niet mag.
-  function bewaar(e: { preventDefault(): void }) {
+  async function bewaar(e: { preventDefault(): void }) {
+    let uitkomst: Opgeslagen | void = undefined;
     e.preventDefault();
     const t = titel.trim().replace(/\s+/g, ' ');
     if (!t) {
@@ -219,23 +230,25 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
       } else if (reeks && vorig && bereik === 'deze') {
         app.wijzigVoorkomen(reeks.id, vorig.datum, { ...a, id: nieuwId('a') }, `${t} aangepast (${wanneer})`);
       } else if (reeks && bereik === 'reeks') {
-        app.bijwerken({ ...a, id: reeks.id, versie: reeksVersie }, herhaling ? `Hele reeks ${t} aangepast` : `${t} herhaalt niet meer`);
+        uitkomst = await app.bijwerken({ ...a, id: reeks.id, versie: reeksVersieNu }, herhaling ? `Hele reeks ${t} aangepast` : `${t} herhaalt niet meer`);
       } else if (vorig) {
-        app.bijwerken({ ...a, versie: beginVersie }, `${t} aangepast (${wanneer})`);
+        uitkomst = await app.bijwerken({ ...a, versie: versieNu }, `${t} aangepast (${wanneer})`);
       } else {
         app.toevoegen([a], herhaling ? `${t} staat in de agenda (${herhalingTekst(datum, herhaling).toLowerCase()})`
           : `${t} staat in de agenda (${wanneer})`);
       }
     } else if (soort === 'taak') {
       const vorig = bestaand?.soort === 'taak' ? bestaand : undefined;
+      // De oude taak gaat mee: wat dit formulier niet toont (plan, onderdeel, Bezig), blijft staan.
       const taak = {
+        ...(vorig ?? {}),
         id: vorig?.id ?? nieuwId('t'), soort: 'taak' as const, titel: t, datum: dag === 'ooit' ? null : dag,
-        voor: wie[0] ?? null, klaar: vorig?.klaar ?? false, klaarOp: vorig?.klaarOp ?? null, versie: beginVersie,
+        ...metMensen(vorig, wie), klaar: vorig?.klaar ?? false, klaarOp: vorig?.klaarOp ?? null, versie: versieNu,
         // Dit formulier toont de vakantie niet; een bestaande koppeling blijft staan (F8). Uit de slimme +: de gekozen.
         vakantieId: vorig ? vorig.vakantieId : metVakantie && vakantieKeuze ? vakantieKeuze : undefined,
       };
       if (herinvoerId && app.lokaal) app.lokaal.herinvoeren(herinvoerId, { ...taak, id: herinvoerId }, `${t} staat op de takenlijst`);
-      else if (vorig) app.bijwerken(taak, `${t} aangepast`);
+      else if (vorig) uitkomst = await app.bijwerken(taak, `${t} aangepast`);
       else {
         const v = taak.vakantieId ? staat.vakanties?.find(x => x.id === taak.vakantieId) : undefined;
         app.toevoegen([taak], v ? `${t} staat bij de voorbereidingen van ${v.naam}` : dag === 'ooit' ? `${t} staat op de lijst voor later` : `${t} staat op de takenlijst`);
@@ -245,12 +258,13 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
       const naam = t.charAt(0).toUpperCase() + t.slice(1);
       app.lokaal.herinvoeren(herinvoerId, { id: herinvoerId, soort: 'boodschap', naam, afgevinkt: false }, `${naam} staat op de lijst`);
     } else if (bestaand?.soort === 'boodschap') {
-      app.bijwerken({ ...bestaand, naam: t.charAt(0).toUpperCase() + t.slice(1), versie: beginVersie }, `${t} aangepast`);
+      uitkomst = await app.bijwerken({ ...bestaand, naam: t.charAt(0).toUpperCase() + t.slice(1), versie: versieNu }, `${t} aangepast`);
     } else if (metVakantie) {
       app.voegBoodschappenToe(splitsBoodschappen(t), vakantieKeuze ?? undefined, laterKeuze);
     } else {
       app.voegBoodschappenToe(splitsBoodschappen(t));
     }
+    if (uitkomst === 'conflict') { zetConflict(true); return; }
     sluit();
   }
 
@@ -268,7 +282,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
   }
 
   const keuzeWie = (enkel: boolean) => (
-    <div className="keuzes" role="group" aria-label={enkel ? 'Wie pakt het op' : 'Voor wie'}>
+    <div className="keuzes" role="group" aria-label={soort === 'taak' ? 'Wie pakt het op' : 'Voor wie'}>
       {huishouden.leden.map(l => {
         const aan = wie.includes(l.id);
         return (
@@ -364,6 +378,7 @@ function Formulier({ bestaand, soortBegin, datumBegin, herinvoerId, herinvoerPri
             aria-invalid={fout?.veld === 'titel'} aria-describedby={fout?.veld === 'titel' ? 'item-fout' : undefined} />
           {soort === 'boodschap' && !bestaand && <span className="veld-hulp">Meerdere tegelijk? Scheid ze met komma's.</span>}
           {fout?.veld === 'titel' && <span className="veld-fout" id="item-fout">{fout.tekst}</span>}
+          {conflict && <span className="veld-fout" role="alert">{CONFLICT_IN_VENSTER}</span>}
         </label>
 
         {soort !== 'boodschap' && (

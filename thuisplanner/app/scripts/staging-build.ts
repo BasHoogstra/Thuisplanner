@@ -56,11 +56,14 @@ export function controleerOmgeving(mode: string, env: Record<string, string | un
 /** Cloudflare Turnstile (de captcha bij het aanvragen van een code), alleen als er een sitekey is ingesteld. */
 const TURNSTILE = 'https://challenges.cloudflare.com';
 
-/** De _headers voor Cloudflare Pages. */
+/**
+ * De _headers voor Cloudflare Pages. img-src staat ook blob: toe: Mijn spullen toont een foto van een document als
+ * blob-adres in het geheugen (opgehaald met een ondertekende link, no-store), nooit als publieke URL. De rest blijft dicht.
+ */
 export function headersBestand(ref: string | null, turnstile = false): string {
   const connect = (ref ? `'self' https://${ref}.supabase.co wss://${ref}.supabase.co` : `'self'`) + (turnstile ? ` ${TURNSTILE}` : '');
   const csp = [
-    `default-src 'self'`, `script-src 'self'${turnstile ? ' ' + TURNSTILE : ''}`, `style-src 'self'`, `img-src 'self' data:`, `font-src 'self'`,
+    `default-src 'self'`, `script-src 'self'${turnstile ? ' ' + TURNSTILE : ''}`, `style-src 'self'`, `img-src 'self' data: blob:`, `font-src 'self'`,
     `connect-src ${connect}`, `frame-src ${turnstile ? TURNSTILE : "'none'"}`, `worker-src 'self'`, `manifest-src 'self'`, `object-src 'none'`,
     `base-uri 'none'`, `form-action 'self'`, `frame-ancestors 'none'`,
   ].join('; ');

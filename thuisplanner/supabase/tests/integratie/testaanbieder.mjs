@@ -7,6 +7,7 @@
 //   verlies      WEL versturen, maar het antwoord pas na 4 s geven (de adapter geeft na 2,5 s op): "mogelijk verstuurd,
 //                antwoord verloren"
 //   traag        NIET versturen en pas na 4 s weigeren: onzeker voor de adapter, maar er ging niets weg
+//   () => {...}  eerst die (synchrone) functie uitvoeren, dan aannemen zoals 'ok'
 // Met een Idempotency-Key die hij al kent, verstuurt hij niets opnieuw en geeft hij hetzelfde bericht-id (zoals een
 // idempotente aanbieder). Bezorgmeldingen ondertekent hij met TESTAANBIEDER_GEHEIM (HMAC-SHA256, hex).
 import { createHmac, randomUUID } from 'node:crypto';
@@ -52,7 +53,9 @@ export async function startTestaanbieder(poort) {
       const sleutel = req.headers['idempotency-key'] ?? null;
       const antwoord = (status, body, kop = {}) => res.writeHead(status, { 'Content-Type': 'application/json', ...kop }).end(JSON.stringify(body));
       if (sleutel && t.sleutels.has(sleutel)) { t.herhaald++; antwoord(200, { id: t.sleutels.get(sleutel) }); return; }
-      const g = t.gedrag.shift() ?? 'ok';
+      let g = t.gedrag.shift() ?? 'ok';
+      // Een functie als gedrag: eerst iets doen op het moment dat de mail binnenkomt (bijv. PostgREST stoppen), dan 'ok'.
+      if (typeof g === 'function') { try { g(); } finally { g = 'ok'; } }
       const verstuur = () => {
         const id = 'test-' + randomUUID();
         t.verstuurd.push({ id, aan: m.aan, sleutel: m.sleutel, onderwerp: m.onderwerp, tekst: m.tekst });

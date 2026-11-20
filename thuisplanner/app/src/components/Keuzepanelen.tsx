@@ -54,12 +54,15 @@ export function TijdKeuze({ start, eind, kies, metEind = false }: {
   );
 }
 
-/** Wie: bij een taak één persoon, bij een afspraak meer (of iedereen). */
-export function WieKeuze({ leden, wie, enkel, kies }: { leden: Lid[]; wie: LidId[]; enkel: boolean; kies: (wie: LidId[]) => void }) {
+/**
+ * Wie: bij een afspraak meer (of iedereen); bij een taak meer (of niemand). enkel: één persoon, want de server in lokaal en staging kent
+ * er bij een taak maar één (besluit 18, gate "Meerdere verantwoordelijken").
+ */
+export function WieKeuze({ leden, wie, enkel, taak, kies }: { leden: Lid[]; wie: LidId[]; enkel: boolean; taak?: boolean; kies: (wie: LidId[]) => void }) {
   return (
-    <div className="keuzes" role="group" aria-label={enkel ? 'Wie pakt het op' : 'Voor wie'}>
+    <div className="keuzes" role="group" aria-label={enkel || taak ? 'Wie pakt het op' : 'Voor wie'}>
       {!enkel && (
-        <button type="button" className={'keuze' + (!wie.length ? ' aan' : '')} aria-pressed={!wie.length} onClick={() => kies([])}>Iedereen</button>
+        <button type="button" className={'keuze' + (!wie.length ? ' aan' : '')} aria-pressed={!wie.length} onClick={() => kies([])}>{taak ? 'Niemand' : 'Iedereen'}</button>
       )}
       {leden.map(l => {
         const aan = wie.includes(l.id);

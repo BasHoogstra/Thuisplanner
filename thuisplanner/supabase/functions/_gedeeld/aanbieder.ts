@@ -48,17 +48,33 @@ function afzender(): { naam: string; email: string } {
   return { naam, email };
 }
 
-const wachtTijd = (r: Response) => {
+/** Het antwoord van de aanbieder, met de body al helemaal gelezen (binnen de tijdslimiet). */
+interface Antwoord { status: number; ok: boolean; headers: Headers; json: Record<string, unknown> }
+
+const wachtTijd = (r: Antwoord) => {
   const w = Number(r.headers.get('retry-after'));
   return Number.isFinite(w) && w > 0 ? Math.min(w, 3600) : null;
 };
 
-/** Eén POST met een harde tijdslimiet. Een time-out geeft een gewone (onzekere) fout, nooit NietAangenomen. */
-async function post(url: string, kop: Record<string, string>, body: unknown): Promise<Response> {
+/**
+ * Eén POST met een harde tijdslimiet, die geldt tot de body helemaal binnen is (herstelronde review): een aanbieder die
+ * de kop snel stuurt en de body laat hangen, blokkeert de verwerking niet. Een time-out, ook tijdens de body, geeft een
+ * gewone (onzekere) fout, nooit NietAangenomen: de mail kan al aangenomen zijn. Bij een foutstatus is alleen de kop nodig
+ * (status en Retry-After); die body wordt niet afgewacht maar afgebroken.
+ */
+async function post(url: string, kop: Record<string, string>, body: unknown): Promise<Antwoord> {
   const ctl = new AbortController();
   const klok = setTimeout(() => ctl.abort(), TIJDSLIMIET_MS);
   try {
-    return await fetch(url, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', ...kop }, body: JSON.stringify(body) });
+    const r = await fetch(url, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', ...kop }, body: JSON.stringify(body) });
+    if (!r.ok) {
+      await r.body?.cancel().catch(() => undefined);
+      return { status: r.status, ok: false, headers: r.headers, json: {} };
+    }
+    const tekst = await r.text();   // valt onder dezelfde tijdslimiet (signal)
+    let json: Record<string, unknown> = {};
+    try { const b = JSON.parse(tekst); if (b && typeof b === 'object') json = b; } catch { /* geen JSON: geen bericht-id */ }
+    return { status: r.status, ok: true, headers: r.headers, json };
   } finally {
     clearTimeout(klok);
   }
@@ -75,8 +91,7 @@ function mailpit(): Aanbieder {
         ...(sleutel ? { Headers: { 'X-Thuisplanner-Sleutel': sleutel } } : {}),
       });
       if (!r.ok) throw new NietAangenomen(r.status, wachtTijd(r));
-      const b = await r.json().catch(() => ({}));
-      return { berichtId: typeof b.ID === 'string' ? b.ID : null };
+      return { berichtId: typeof r.json.ID === 'string' ? r.json.ID : null };
     },
     async bezorging() { return null; },
   };
@@ -93,8 +108,7 @@ function testaanbieder(idempotent: boolean): Aanbieder {
       const r = await post(`${basis}/send`, idempotent && sleutel ? { 'Idempotency-Key': sleutel } : {},
         { van: `${naam} <${email}>`, aan: m.aan, onderwerp: m.onderwerp, tekst: m.tekst, html: m.html, sleutel: sleutel ?? null });
       if (!r.ok) throw new NietAangenomen(r.status, wachtTijd(r));
-      const b = await r.json().catch(() => ({}));
-      return { berichtId: typeof b.id === 'string' ? b.id : null };
+      return { berichtId: typeof r.json.id === 'string' ? r.json.id : null };
     },
     async bezorging(req, body) {
       const verwacht = await hmacHex(instelling('TESTAANBIEDER_GEHEIM'), body);
@@ -132,8 +146,7 @@ export function lettermint(): Aanbieder {
       const r = await post(`${basis}/v1/send`, { 'x-lettermint-token': instelling('LETTERMINT_TOKEN'), ...(sleutel ? { 'Idempotency-Key': sleutel } : {}) },
         { from: `${naam} <${email}>`, to: [m.aan], subject: m.onderwerp, text: m.tekst, html: m.html, ...(route ? { route } : {}) });
       if (r.status === 202 || r.status === 200) {
-        const b = await r.json().catch(() => ({}));
-        return { berichtId: typeof b.message_id === 'string' ? b.message_id : null };
+        return { berichtId: typeof r.json.message_id === 'string' ? r.json.message_id : null };
       }
       // 409: de sleutel is al gebruikt (misschien is de mail al weg). Dat is geen weigering: onzeker.
       if (r.status === 409) throw new Error('lettermint: 409, uitkomst onbekend');

@@ -6,9 +6,9 @@
 //
 // De sleutels komen tijdens het draaien uit `supabase status -o env` (lokale demosleutels); ze staan
 // nergens in de repository. Alle accounts zijn synthetisch (@test.invalid) en worden na afloop verwijderd.
+import { psql } from './psql.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -30,7 +30,7 @@ const wacht = ms => new Promise(r => setTimeout(r, ms));
 
 // Controle als postgres (buiten RLS), alleen om de uitkomst te verifiëren.
 function sql(q) {
-  return execFileSync(process.env.PSQL || 'psql', ['-X', '-q', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-d', DB_URL, '-c', q]).toString().trim();
+  return psql(DB_URL, q);
 }
 
 async function account(naam) {

@@ -8,8 +8,8 @@ import { ontwerp } from './scripts/ontwerp';
 // Relatieve paden: de build werkt ook vanuit een willekeurige map of als los bestand.
 export default defineConfig(({ mode }) => {
   // Telefoonproef: alleen als scripts/lokaal.mjs een proxy-doel heeft gezet (KG_SUPABASE_DOEL in
-  // .env.lokaal.local; zonder VITE_-voorvoegsel, dus nooit in de browser) stuurt Vite Auth, REST en Realtime
-  // door naar de lokale Supabase. Anders geen proxy, zoals voorheen.
+  // .env.lokaal.local; zonder VITE_-voorvoegsel, dus nooit in de browser) stuurt Vite Auth, REST, Realtime,
+  // Storage en de Edge Functions door naar de lokale Supabase. Anders geen proxy, zoals voorheen.
   const doel = loadEnv(mode, process.cwd(), 'KG_').KG_SUPABASE_DOEL;
   const proxy = doel ? supabaseProxy(doel) : undefined;
   // Omgeving bewaken (scripts/staging-build.ts): staging alleen met precies één online project en zonder

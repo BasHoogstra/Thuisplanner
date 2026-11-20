@@ -310,7 +310,7 @@ test('B4b een mislukte pagina: de cache blijft zoals hij was (geen halve vervang
   sql(`delete from public.shopping_items where household_id = '${h}' and name = 'B4b-nieuw'`);
 });
 
-test('B4c wijzigingen tijdens het ophalen: geen rij overgeslagen of dubbel; daarna gelijk aan de server', { skip: TEGENPROEF, timeout: 240000 }, async () => {
+test('B4c wijzigingen tijdens het ophalen: geen rij overgeslagen of dubbel; daarna gelijk aan de server', { skip: TEGENPROEF, timeout: 240000 }, async t => {
   const h = await grootHuishouden();
   const s = await sessie('anna');
   const a = maak(s, h, { debounceMs: 600000 });   // alleen de rondes van de test zelf
@@ -328,7 +328,8 @@ test('B4c wijzigingen tijdens het ophalen: geen rij overgeslagen of dubbel; daar
   // Tijdens het ophalen: een rij van pagina 1 verdwijnt (verwijderd) en er komt er één bij (achteraan in
   // de id-volgorde, zodat de verschuiving door het verwijderen niet toevallig wordt opgeheven).
   sql(`update public.shopping_items set deleted_at = now() where id = '${ids[5]}'`);
-  sql(`insert into public.shopping_items (id, household_id, name) values ('ffffffff-ffff-4fff-8fff-${randomUUID().slice(-12)}', '${h}', 'B4c-tijdens')`);
+  const nieuw = `ffffffff-ffff-4fff-8fff-${randomUUID().slice(-12)}`;
+  sql(`insert into public.shopping_items (id, household_id, name) values ('${nieuw}', '${h}', 'B4c-tijdens')`);
   p.geefVrij();
   await ronde;
   const resultaat = a.meldingen.slice(voor).find(t => t.laatstOpgehaald && t.laatstOpgehaald !== a.meldingen[voor - 1]?.laatstOpgehaald);
@@ -337,11 +338,59 @@ test('B4c wijzigingen tijdens het ophalen: geen rij overgeslagen of dubbel; daar
   assert.equal(gezien.size, resultaat.boodschappen.length, 'dubbele rij');
   const gemist = ids.filter(id => id !== ids[5] && !gezien.has(id));
   assert.deepEqual(gemist, [], `rijen die er de hele tijd waren, ontbreken (o.a. de eerste van pagina 2: ${gemist.includes(eersteVanPagina2)})`);
-  // De volgende ronde (bijv. na het seintje) is gelijk aan de server.
+  // Alleen rijen die er waren of tijdens het ophalen bijkwamen: geen vreemde rij.
+  assert.deepEqual([...gezien].filter(id => !ids.includes(id) && id !== nieuw), [], 'onbekende rij in het resultaat');
+  // Daarna gelijk aan de server, op identiteit. Normaal al na de eerstvolgende ronde. Mislukt die ronde (in CI eens
+  // gezien: de cache bleef 1002, precies de vorige ronde met de verwijderde rij nog erin), dan moet de sync zelf
+  // herstellen (opnieuw verbinden en ophalen); dat wordt gemeld, en de eindstand moet precies kloppen.
+  const vorige = a.toestand.laatstOpgehaald;
   await a.vernieuw();
-  assert.deepEqual(inCache(a.toestand), telling(h));
-  assert.ok(!a.toestand.boodschappen.some(x => x.id === ids[5]));
-  assert.ok(a.toestand.boodschappen.some(x => x.name === 'B4c-tijdens'));
+  if (a.toestand.laatstOpgehaald === vorige || a.toestand.status === STATUS.OFFLINE) {
+    t.diagnostic(`B4c: de eerstvolgende ronde kwam niet door (status ${a.toestand.status}); wachten op het eigen herstel van de sync`);
+    await totdat(() => a.toestand.laatstOpgehaald !== vorige && a.toestand.status !== STATUS.OFFLINE, 60000, 'eigen herstel na een mislukte ronde');
+  }
+  gelijkAanServer(a.toestand, h, { weg: ids[5], nieuw });
+});
+
+// Cache precies gelijk aan de server (boodschappen op id; de andere soorten in aantallen) en zonder dubbele rij.
+function gelijkAanServer(t, h, { weg, nieuw }) {
+  const diag = `status ${t.status}, opgehaald ${t.laatstOpgehaald}`;
+  const opServer = sql(`select string_agg(id::text, ',') from public.shopping_items where household_id = '${h}' and deleted_at is null`).split(',').sort();
+  const inDeCache = t.boodschappen.map(x => x.id).sort();
+  assert.equal(new Set(inDeCache).size, inDeCache.length, `dubbele rij in de cache (${diag})`);
+  const teVeel = inDeCache.filter(id => !opServer.includes(id)), teWeinig = opServer.filter(id => !inDeCache.includes(id));
+  assert.deepEqual({ teVeel, teWeinig }, { teVeel: [], teWeinig: [] }, `boodschappen wijken af van de server (${diag}; verwijderd: ${weg})`);
+  assert.deepEqual(inCache(t), telling(h), diag);
+  assert.ok(!t.boodschappen.some(x => x.id === weg), 'de verwijderde rij staat nog in de cache');
+  assert.ok(t.boodschappen.some(x => x.id === nieuw), 'de nieuwe rij ontbreekt');
+}
+
+test('B4d de ronde na een wijziging mislukt: de cache houdt de vorige stand zonder dubbele rij, en de sync herstelt zelf naar precies de server', { skip: TEGENPROEF, timeout: 240000 }, async () => {
+  const h = await grootHuishouden();
+  const s = await sessie('anna');
+  const a = maak(s, h, { debounceMs: 600000 });   // geen ronde door een seintje; alleen de eigen rondes en het herstel
+  await a.start();
+  await totdat(() => a.toestand.lid && a.toestand.boodschappen.length > 1000 && a.toestand.status === STATUS.VERBONDEN, LAADTIJD, 'geladen en verbonden');
+  await wacht(1000);
+  await a.vernieuw();
+  const voor = a.toestand;
+  const ids = voor.boodschappen.map(x => x.id);
+  const weg = ids[7];
+  const nieuw = `ffffffff-ffff-4fff-8fff-${randomUUID().slice(-12)}`;
+  sql(`update public.shopping_items set deleted_at = now() where id = '${weg}'`);
+  sql(`insert into public.shopping_items (id, household_id, name) values ('${nieuw}', '${h}', 'B4d-nieuw')`);
+  // De eerstvolgende ronde: elke GET op boodschappen zonder antwoord (blijvend: ook de eigen herhalingen van supabase-js).
+  const p = s.poort((u, m) => m === 'GET' && new URL(u).pathname === '/rest/v1/shopping_items', { blijvend: true });
+  p.geefVrij({ antwoordWeg: true });
+  await a.vernieuw();
+  p.dicht = true;
+  assert.ok(p.aantal >= 1, 'boodschappen niet opgevraagd');
+  assert.equal(a.toestand.status, STATUS.OFFLINE);
+  assert.equal(a.toestand.boodschappen, voor.boodschappen, 'de cache veranderde na een mislukte ronde');
+  assert.equal(a.toestand.laatstOpgehaald, voor.laatstOpgehaald);
+  // Zonder verdere actie van de test: de sync verbindt opnieuw en haalt op; daarna precies de server.
+  await totdat(() => a.toestand.laatstOpgehaald !== voor.laatstOpgehaald && a.toestand.status === STATUS.VERBONDEN, 60000, 'eigen herstel');
+  gelijkAanServer(a.toestand, h, { weg, nieuw });
 });
 
 // ============================ Bevinding 2: realtime na intrekking ============================
