@@ -325,3 +325,16 @@ bestaande werking blijft); omlaag vegen om te sluiten zit er nog niet in (sluite
 `app.test.tsx` bijgewerkt; e2e `snelinvoer.spec.ts` met een nagebootst iPhone-toetsenbord (het zichtbare deel krimpt, de
 pagina niet) op 390 en 320 px, een lange zin, licht en donker. Een test met een echt iPhone-toetsenbord kan alleen op de
 telefoon zelf.
+
+## 11. Aanvulling: vragen herkennen en beantwoorden (28 oktober 2026, ontwerp)
+De producteigenaar besloot dat dezelfde + ook vragen herkent en beantwoordt uit de bestaande huishoudgegevens. Er komt
+geen aparte knop of apart veld. Het ontwerp:
+
+- Eén intentieherkenning vóór `begrijp()`, met vier uitkomsten: vraag, actie, vraag en actie, of onduidelijk. Bij
+  onduidelijk stelt de + één vervolgvraag.
+- Antwoorden komen alleen uit gestructureerde gegevens en hebben een aanklikbare bron.
+- De + verzint niets en wijzigt niets zonder bevestiging.
+- `zin.ts` verandert niet.
+
+Ontwerp, nulmeting en volgorde staan in `docs/thuisplanner-spullen-documenten.md` §13. Het aansluiten op
+`SnelInvoer.tsx` gebeurt pas na een afzonderlijk akkoord.

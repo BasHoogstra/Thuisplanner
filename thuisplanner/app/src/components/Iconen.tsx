@@ -48,6 +48,10 @@ export const IcLinks = (p: SVGProps<SVGSVGElement>) => (
   <svg {...basis({ width: 16, height: 16, ...p })}><path d="M15 6l-6 6 6 6" /></svg>
 );
 // F8 Vakanties: een koffer (vakantie) en drie puntjes (aanpassen).
+/** Een plan (besluit 18): een lijstje met vinkjes. */
+export const IcPlan = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis(p)}><path d="M10.5 6.5H20M10.5 12H20M10.5 17.5H20" /><path d="m4 6.5 1.3 1.3L7.6 5.2M4 12l1.3 1.3 2.3-2.6M4 17.5l1.3 1.3 2.3-2.6" /></svg>
+);
 export const IcKoffer = (p: SVGProps<SVGSVGElement>) => (
   <svg {...basis(p)}><rect x="4" y="7" width="16" height="13" rx="2.5" /><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M9 11v5M15 11v5" /></svg>
 );
@@ -57,4 +61,14 @@ export const IcLabel = (p: SVGProps<SVGSVGElement>) => (
 );
 export const IcPunten = (p: SVGProps<SVGSVGElement>) => (
   <svg {...basis(p)}><circle cx="6" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="18" cy="12" r="1.2" /></svg>
+);
+// Mijn spullen & Documenten: een map (de rij in Meer), een document en een paperclip (de bijlageknop in de +).
+export const IcMap = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis(p)}><path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h3.6l2 2.2h7.4a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2Z" /></svg>
+);
+export const IcDocument = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis(p)}><path d="M7 3.5h6.5L18 8v11.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1Z" /><path d="M13.5 3.5V8H18M9 12.5h6M9 16h6" /></svg>
+);
+export const IcBijlage = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...basis({ width: 22, height: 22, ...p })}><path d="M20 11.5 12.4 19a4.6 4.6 0 0 1-6.5-6.5l7.8-7.8a3.1 3.1 0 0 1 4.4 4.4l-7.8 7.7a1.5 1.5 0 0 1-2.2-2.1l7.2-7.2" /></svg>
 );

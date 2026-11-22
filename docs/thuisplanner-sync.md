@@ -269,9 +269,10 @@ Vier bevindingen uit de onafhankelijke review. Per bevinding: oorzaak, oplossing
 - **Bewijs:**
   - B4a: 1001 boodschappen, taken en afspraken en 1002 leden komen allemaal en één keer mee.
   - B4b: een mislukte tweede pagina (ook na de eigen herhalingen van supabase-js) laat de cache ongemoeid.
-  - B4c: een verwijdering en een toevoeging tijdens het ophalen; geen rij die er de hele tijd was, ontbreekt, en de volgende ronde is gelijk aan de server.
+  - B4c: een verwijdering en een toevoeging tijdens het ophalen; geen rij die er de hele tijd was, ontbreekt, en de volgende geslaagde ronde is op rij-id gelijk aan de server. Mislukt de eerstvolgende ronde (in CI eens gezien bij 42e6b1a: de cache bleef 1002, de vorige ronde met de verwijderde rij nog erin), dan meldt de test dat en moet de sync zelf herstellen.
+  - B4d: de ronde na een wijziging mislukt; de cache houdt de vorige stand zonder dubbele rij, en de sync verbindt zelf opnieuw en is daarna op rij-id gelijk aan de server.
   - Tegen de oude module faalt B4a (1000 in plaats van 1001); B4b en B4c komen daar niet voorbij het laden.
-  - Mutatie-tegenproeven 9 (één pagina) en 10 (offset in plaats van keyset: slaat een rij over).
+  - Mutatie-tegenproeven 9 (één pagina), 10 (offset in plaats van keyset: slaat een rij over) en B4d (geen eigen herstel na een mislukte ronde).
 - **Beperking:**
   - Een ronde is geen momentopname van de hele database. Een rij die tijdens de ronde wijzigt, kan in de oude of de nieuwe stand meekomen. Het seintje van die wijziging geeft een extra ronde die het rechtzet.
   - Grote lijsten kosten meerdere verzoeken per ronde (één extra lege pagina per soort).

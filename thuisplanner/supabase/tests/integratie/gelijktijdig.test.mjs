@@ -149,6 +149,14 @@ before(async () => {
     // toevallig ook een rijslot per huishouden. Dat hoort niet bij het vergrendelprotocol; om alleen dat
     // protocol te meten staat de kanaalwissel tijdens de tegenproef uit.
     await db.query('alter table public.household_members disable trigger household_members_rotate_channel');
+    // Herstelronde (review): het slot per bericht-id van de bezorgmeldingen (alleen als de herstelmigratie er is).
+    const slot = (await db.query(`select pg_get_functiondef(p.oid) as d from pg_proc p
+      where p.pronamespace = 'private'::regnamespace and p.proname = 'uitnodigingsmail_slot'`)).rows[0]?.d;
+    if (slot) {
+      bewaard.uitnodigingsmail_slot = slot;
+      await db.query(`create or replace function private.uitnodigingsmail_slot(p_bericht text) returns void
+        language sql security definer set search_path = '' as $$ select $$`);
+    }
   }
 });
 
@@ -466,4 +474,195 @@ test('Extra lijsten: twee keer tegelijk overnemen met lijsten: één lijst per n
   const lijsten = Number((await db.query(`select count(*) from public.trip_packing_lists where trip_id = $1 and name_key = 'oma' and deleted_at is null`, [doel])).rows[0].count);
   const items = Number((await db.query(`select count(*) from public.trip_packing_items where trip_id = $1 and list_id is not null and deleted_at is null`, [doel])).rows[0].count);
   toets('dubbel overnemen met lijsten', lijsten !== 1 || items !== 2, uitkomst, { weigering: false });
+});
+
+// Herstelronde (review): een bezorgmelding en het opslaan van het verzendantwoord tegelijk. Beide nemen het slot per
+// bericht-id (private.uitnodigingsmail_slot); de tweede moet wachten en daarna is de mail bezorgd, zonder achtergebleven
+// vroege melding. In de tegenproef is het slot een no-op en blijft de melding hangen (de mail blijft "aangenomen").
+async function mailInBehandeling(naam) {
+  const sam = await account(`bez-${naam}`);
+  const h = await huishouden(sam, `Bezorg ${naam}`);
+  await alsDoe(sam, 'select public.create_invite($1, null, $2, 7, $3)', [h, 'member', `gast-${naam}-${run}@test.invalid`]);
+  const id = (await db.query('select id from private.uitnodigingsmails where household_id = $1', [h])).rows[0].id;
+  await db.query(`update private.uitnodigingsmails set status = 'bezig', pogingen = 1, bezig_tot = now() + interval '2 minutes' where id = $1`, [id]);
+  return { id, bericht: `lm-${naam}-${run}` };
+}
+async function bezorgStand(id, bericht) {
+  const status = (await db.query('select status from private.uitnodigingsmails where id = $1', [id])).rows[0].status;
+  const vroeg = Number((await db.query('select count(*) from private.uitnodigingsmail_vroege_meldingen where bericht_id = $1', [bericht])).rows[0].count);
+  await db.query('delete from private.uitnodigingsmail_vroege_meldingen where bericht_id = $1', [bericht]);
+  return { status, vroeg };
+}
+const metHerstel = async () => (await db.query(`select to_regprocedure('private.uitnodigingsmail_slot(text)') is not null as er`)).rows[0].er;
+
+test('Bezorgmelding houdt het slot terwijl het verzendantwoord wordt opgeslagen: daarna bezorgd, niets achtergebleven', async t => {
+  if (!(await metHerstel())) return t.skip('herstelmigratie niet aanwezig');
+  const { id, bericht } = await mailInBehandeling('b1');
+  const uitkomst = await race(
+    async c1 => { await c1.query('select public.uitnodigingsmail_bezorging($1, $2)', [bericht, 'bezorgd']); },
+    async c2 => volg(c2.query('select public.uitnodigingsmail_klaar($1, $2, $3, null, false)', [id, 'aangenomen', bericht])));
+  const s = await bezorgStand(id, bericht);
+  toets('melding vóór het antwoord gemist', s.status !== 'bezorgd' || s.vroeg !== 0, uitkomst, { weigering: false });
+});
+
+test('Verzendantwoord houdt het slot terwijl de bezorgmelding binnenkomt: daarna bezorgd, niets achtergebleven', async t => {
+  if (!(await metHerstel())) return t.skip('herstelmigratie niet aanwezig');
+  const { id, bericht } = await mailInBehandeling('b2');
+  const uitkomst = await race(
+    async c1 => { await c1.query('select public.uitnodigingsmail_klaar($1, $2, $3, null, false)', [id, 'aangenomen', bericht]); },
+    async c2 => volg(c2.query('select public.uitnodigingsmail_bezorging($1, $2)', [bericht, 'bezorgd'])));
+  const s = await bezorgStand(id, bericht);
+  toets('melding tijdens het antwoord gemist', s.status !== 'bezorgd' || s.vroeg !== 0, uitkomst, { weigering: false });
+});
+
+// Review PR #54, R2: gelijktijdige claims van uitnodigingsmails (migratie 20261116120000). Twee rondes met een eigen
+// token pakken nooit dezelfde rij (FOR UPDATE SKIP LOCKED in uitnodigingsmail_pak); twee aanroepen met hetzelfde token
+// (een herhaling na een tijdslimiet) lopen na elkaar en geven dezelfde claim (het slot per token); een te late
+// vastlegging of teruggave raakt nooit de claim van een andere ronde. Zonder seintje en zonder pg_cron, en alleen de
+// eigen rijen zijn aan de beurt, zodat niets anders de rijen pakt.
+const metClaimronde = async () => (await db.query(`select to_regprocedure('private.uitnodigingsmail_pak_ronde(integer,boolean,uuid)') is not null as er`)).rows[0].er;
+async function claimMails(naam, n) {
+  const sam = await account(`claim-${naam}`);
+  const h = await huishouden(sam, `Claim ${naam}`);
+  await db.query('alter table private.uitnodigingsmails disable trigger uitnodigingsmails_seintje');
+  try {
+    for (let i = 0; i < n; i++) await alsDoe(sam, 'select public.create_invite($1, null, $2, 7, $3)', [h, 'member', `claim-${naam}-${i}-${run}@test.invalid`]);
+  } finally {
+    await db.query('alter table private.uitnodigingsmails enable trigger uitnodigingsmails_seintje');
+  }
+  return (await db.query('select id from private.uitnodigingsmails where household_id = $1 order by id', [h])).rows.map(r => r.id);
+}
+// Alleen deze rijen aan de beurt (de andere wachtende tijdelijk een dag later), zonder de geplande ronde; daarna terug.
+async function alleenDeze(ids, f) {
+  const cron = (await db.query(`select to_regclass('cron.job') is not null as er`)).rows[0].er;
+  const job = `(select jobid from cron.job where jobname = 'thuisplanner-uitnodigingsmails-versturen')`;
+  if (cron) await db.query(`select cron.alter_job(job_id := ${job}, active := false)`);
+  const later = (await db.query(`update private.uitnodigingsmails set volgende = volgende + interval '1 day'
+    where status = 'wacht' and id <> all($1::uuid[]) returning id`, [ids])).rows.map(r => r.id);
+  try { await f(); } finally {
+    await db.query(`update private.uitnodigingsmails set volgende = volgende - interval '1 day' where id = any($1::uuid[])`, [later]);
+    if (cron) await db.query(`select cron.alter_job(job_id := ${job}, active := true)`);
+  }
+}
+const pakSql = 'select id from public.uitnodigingsmail_pak_ronde(50, $1, $2)';
+const losAlles = async rondes => { for (const r of rondes) await db.query('select public.uitnodigingsmail_los($1, null)', [r]); };
+// Tegenproef: een functie tijdelijk vervangen (met de oorspronkelijke definitie terug, ook bij een fout).
+async function gesaboteerd(naam, vervang, f) {
+  const def = (await db.query(`select pg_get_functiondef(p.oid) as d from pg_proc p
+    where p.pronamespace = 'private'::regnamespace and p.proname = $1`, [naam])).rows[0].d;
+  const nieuw = vervang(def);
+  assert.notEqual(nieuw, def, `tegenproef ${naam}: niets vervangen`);
+  await db.query(nieuw);
+  try { await f(); } finally { await db.query(def); }
+}
+
+test('R2 claimronde: twee rondes tegelijk (eigen tokens): de tweede pakt nooit een rij die de eerste nog vasthoudt', async t => {
+  if (!(await metClaimronde())) return t.skip('claimronde-migratie niet aanwezig');
+  const ids = await claimMails('twee', 6);
+  const a = randomUUID(), b = randomUUID();
+  await alleenDeze(ids, async () => {
+    const meet = async () => {
+      let r1 = [], r2 = [];
+      const uitkomst = await race(
+        async c1 => { r1 = (await c1.query(pakSql, [false, a])).rows.map(r => r.id); },
+        async c2 => { const s = volg(c2.query(pakSql, [false, b])); s.p.then(x => { if (x.ok) r2 = x.r.rows.map(r => r.id); }); return s; });
+      await wacht(50);
+      const dubbel = r1.filter(id => r2.includes(id));
+      return { uitkomst, r1, r2, dubbel };
+    };
+    if (TEGENPROEF) {
+      // Zonder FOR UPDATE SKIP LOCKED pakt de tweede ronde dezelfde rijen opnieuw.
+      await gesaboteerd('uitnodigingsmail_pak', d => d.replace(/for update of m skip locked/i, ''), async () => {
+        const m = await meet();
+        assert.ok(m.dubbel.length > 0, 'tegenproef: zonder SKIP LOCKED werd geen rij dubbel geclaimd; de test meet niets');
+      });
+    } else {
+      const m = await meet();
+      assert.deepEqual(m.dubbel, [], 'een rij door twee rondes geclaimd');
+      for (const id of ids) assert.ok(m.r1.includes(id), 'de eerste ronde pakte niet al haar rijen');
+      assert.equal(m.r2.filter(id => ids.includes(id)).length, 0);
+      const st = (await db.query('select status, pogingen, ronde from private.uitnodigingsmails where id = any($1::uuid[])', [ids])).rows;
+      assert.ok(st.every(r => r.status === 'bezig' && r.pogingen === 1 && r.ronde === a), JSON.stringify(st));
+    }
+    await losAlles([a, b]);
+  });
+});
+
+test('R2 claimronde: twee aanroepen met hetzelfde token tegelijk (herhaling na een tijdslimiet): de tweede wacht en krijgt dezelfde claim', async t => {
+  if (!(await metClaimronde())) return t.skip('claimronde-migratie niet aanwezig');
+  const ids = await claimMails('token', 4);
+  const tok = randomUUID();
+  await alleenDeze(ids, async () => {
+    const meet = async () => {
+      let r1 = [], r2 = [];
+      const uitkomst = await race(
+        async c1 => { r1 = (await c1.query(pakSql, [false, tok])).rows.map(r => r.id); },
+        async c2 => { const s = volg(c2.query(pakSql, [false, tok])); s.p.then(x => { if (x.ok) r2 = x.r.rows.map(r => r.id); }); return s; });
+      await wacht(50);
+      const gehouden = (await db.query(`select id from private.uitnodigingsmails where ronde = $1 and status = 'bezig'`, [tok])).rows.map(r => r.id);
+      return { uitkomst, r1: [...r1].sort(), r2: [...r2].sort(), gehouden: gehouden.sort() };
+    };
+    if (TEGENPROEF) {
+      // Zonder het slot per token ziet de herhaling de lopende claim niet en geeft ze een andere (lege) uitkomst.
+      await gesaboteerd('uitnodigingsmail_pak_ronde', d => d.replace(/perform pg_advisory_xact_lock\([^;]*\);/i, ''), async () => {
+        const m = await meet();
+        assert.notDeepEqual(m.r2, m.gehouden, 'tegenproef: zonder slot gaf de herhaling toch de hele claim; de test meet niets');
+      });
+    } else {
+      const m = await meet();
+      assert.equal(m.uitkomst.toestand, 'wacht', 'de herhaling wachtte niet op de eerste aanroep');
+      assert.deepEqual(m.r2, m.r1, 'de herhaling kreeg niet dezelfde claim');
+      assert.deepEqual(m.gehouden, m.r1, 'het token houdt andere rijen dan de aanroeper kent');
+      const st = (await db.query('select pogingen from private.uitnodigingsmails where id = any($1::uuid[])', [ids])).rows;
+      assert.ok(st.every(r => r.pogingen === 1), 'een herhaling telde als nieuwe poging');
+    }
+    await losAlles([tok]);
+  });
+});
+
+test('R2 claimronde: zes werkers tegelijk tot de wachtrij leeg is: elke rij precies één keer geclaimd', zonderTegenproef, async t => {
+  if (!(await metClaimronde())) return t.skip('claimronde-migratie niet aanwezig');
+  const ids = [...await claimMails('zes-a', 10), ...await claimMails('zes-b', 10)];
+  const rondes = [];
+  await alleenDeze(ids, async () => {
+    const werker = async n => {
+      const c = verbinding('kg-werker-' + n); await c.connect();
+      const gepakt = [];
+      try {
+        for (;;) {
+          const r = randomUUID(); rondes.push(r);
+          const rij = (await c.query('select id from public.uitnodigingsmail_pak_ronde(2, false, $1)', [r])).rows.map(x => x.id);
+          if (!rij.length) break;
+          gepakt.push(...rij);
+        }
+      } finally { await c.end(); }
+      return gepakt;
+    };
+    const alle = (await Promise.all([0, 1, 2, 3, 4, 5].map(werker))).flat().filter(id => ids.includes(id));
+    assert.equal(alle.length, ids.length, `${alle.length} claims voor ${ids.length} rijen`);
+    assert.equal(new Set(alle).size, ids.length, 'een rij door twee werkers geclaimd');
+    const st = (await db.query('select status, pogingen from private.uitnodigingsmails where id = any($1::uuid[])', [ids])).rows;
+    assert.ok(st.every(r => r.status === 'bezig' && r.pogingen === 1), JSON.stringify(st));
+    await losAlles(rondes);
+  });
+});
+
+test('R2 claimronde: na het verlopen van de claim pakt een andere ronde de rij; de te late vastlegging en teruggave van de eerste raken haar niet', zonderTegenproef, async t => {
+  if (!(await metClaimronde())) return t.skip('claimronde-migratie niet aanwezig');
+  const ids = await claimMails('termijn', 1);
+  const a = randomUUID(), b = randomUUID();
+  await alleenDeze(ids, async () => {
+    assert.deepEqual((await db.query(pakSql, [true, a])).rows.map(r => r.id), ids);
+    await db.query(`update private.uitnodigingsmails set bezig_tot = now() - interval '1 second' where id = $1`, [ids[0]]);
+    // Een idempotente aanbieder: de verlopen claim gaat terug naar "wacht" (met wachttijd); nu meteen aan de beurt.
+    await db.query('select public.uitnodigingsmail_pak_ronde(50, true, $1)', [randomUUID()]);
+    await db.query(`update private.uitnodigingsmails set volgende = now() - interval '1 second' where id = $1`, [ids[0]]);
+    assert.deepEqual((await db.query(pakSql, [true, b])).rows.map(r => r.id), ids);
+    assert.equal((await db.query(`select public.uitnodigingsmail_klaar_ronde($1, $2, 'aangenomen', 'te-laat') r`, [ids[0], a])).rows[0].r, false);
+    assert.equal((await db.query('select public.uitnodigingsmail_los($1, null) n', [a])).rows[0].n, 0);
+    assert.deepEqual((await db.query('select status, ronde, pogingen from private.uitnodigingsmails where id = $1', [ids[0]])).rows[0],
+      { status: 'bezig', ronde: b, pogingen: 2 });
+    assert.equal((await db.query(`select public.uitnodigingsmail_klaar_ronde($1, $2, 'aangenomen', 'op-tijd') r`, [ids[0], b])).rows[0].r, true);
+    assert.equal((await db.query('select status from private.uitnodigingsmails where id = $1', [ids[0]])).rows[0].status, 'aangenomen');
+  });
 });

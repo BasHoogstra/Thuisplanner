@@ -4,9 +4,9 @@
 //     losgemaakte voorkomens niet meer toont;
 //   - één voorkomen wijzigen of verwijderen (edit_occurrence / delete_occurrence), zichtbaar bij de ander;
 //   - een taak bijwerken met versiecontrole (verouderde versie = conflict, niets overschreven).
+import { psql } from './psql.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { maakSync, STATUS } from '../../../sync/thuisplanner-sync.js';
@@ -15,7 +15,7 @@ const { API_URL, ANON_KEY, SERVICE_ROLE_KEY, DB_URL } = process.env;
 for (const u of [API_URL, DB_URL]) {
   if (!u || !/\/\/([^@/]*@)?(127\.0\.0\.1|localhost)[:/]/.test(u)) throw new Error('Weigering: alleen een lokale Supabase');
 }
-const sql = q => execFileSync(process.env.PSQL || 'psql', ['-X', '-q', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-d', DB_URL, '-c', q]).toString().trim();
+const sql = q => psql(DB_URL, q);
 const wacht = ms => new Promise(r => setTimeout(r, ms));
 async function totdat(f, ms = 10000, wat = 'voorwaarde') {
   const eind = Date.now() + ms;

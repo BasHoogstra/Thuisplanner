@@ -1,0 +1,623 @@
+// Mijn spullen & Documenten: de sync (spullen, documenten, koppelingen) en het uploaden in twee fasen tegen een echte,
+// LOKALE Supabase-stack met Storage, met twee telefoons in één huishouden (Sara en Tim) en een buitenstaander (Bo).
+// Zie docs/thuisplanner-spullen-documenten.md §14. Zonder psql: controle buiten RLS gaat via de service-rol.
+//   thuisplanner/supabase/tests/integratie/run.sh
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
+import { maakSync } from '../../../sync/thuisplanner-sync.js';
+import { maakSpullenOpslag, padVan } from '../../../sync/spullen-opslag.js';
+import { bestandenLijst, controleerExport, haalBestanden, herstelBestanden, leesExport, schrijfExport, vergelijkBestanden } from '../../staging/export.mjs';
+
+const { API_URL, ANON_KEY, SERVICE_ROLE_KEY, DB_URL } = process.env;
+for (const u of [API_URL, DB_URL]) {
+  if (!u || !/\/\/([^@/]*@)?(127\.0\.0\.1|localhost)[:/]/.test(u)) throw new Error('Weigering: alleen een lokale Supabase');
+}
+const wacht = ms => new Promise(r => setTimeout(r, ms));
+async function totdat(f, ms = 10000, wat = 'voorwaarde') {
+  const eind = Date.now() + ms;
+  while (Date.now() < eind) { if (await f()) return; await wacht(100); }
+  throw new Error('Niet binnen ' + ms + ' ms: ' + wat);
+}
+const opties = { auth: { persistSession: false, autoRefreshToken: false } };
+const admin = createClient(API_URL, SERVICE_ROLE_KEY, opties);
+const run = randomUUID().slice(0, 8);
+const wachtwoord = 'Sp-' + randomUUID();
+const personen = {};
+const syncs = [];
+const huishoudens = [];
+const ok = ({ data, error }) => { assert.ifError(error); return data; };
+
+// Een client waarvan één verzoek "wegvalt": vóór de server (voor: true) of na de server (het antwoord gaat verloren).
+function clientMetVerlies() {
+  const verlies = { wat: null, voor: false };
+  const f = async (url, o = {}) => {
+    const treft = verlies.wat && verlies.wat(String(url), (o.method || 'GET').toUpperCase());
+    if (treft && verlies.voor) { verlies.wat = null; verlies.voor = false; throw new TypeError('fetch failed (verbinding weg)'); }
+    const r = await fetch(url, o);
+    if (treft) { verlies.wat = null; throw new TypeError('fetch failed (antwoord verloren)'); }
+    return r;
+  };
+  return { c: createClient(API_URL, ANON_KEY, { ...opties, global: { fetch: f } }), verlies };
+}
+async function persoon(naam) {
+  const email = `${naam}-${run}@test.invalid`;
+  const { data, error } = await admin.auth.admin.createUser({ email, password: wachtwoord, email_confirm: true });
+  assert.ifError(error);
+  const { c, verlies } = clientMetVerlies();
+  ok(await c.auth.signInWithPassword({ email, password: wachtwoord }));
+  personen[naam] = { id: data.user.id, c, verlies };
+  return personen[naam];
+}
+async function startSync(naam, h, extra = {}) {
+  const s = maakSync({ supabase: personen[naam].c, huishoudenId: h, vangnetMs: 60000, spullen: true, ...extra });
+  syncs.push(s);
+  await s.start();
+  return s;
+}
+const PDF = Buffer.from('%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n');
+const NEP = Buffer.from('<!doctype html><script>alert(1)</script>');
+const docVelden = (lid, bytes = PDF, extra = {}) => ({ title: 'Factuur ' + run, kind: 'factuur', visibility: 'household', owner_member_id: lid,
+  mime: 'application/pdf', size_bytes: bytes.length, sha256: null, ...extra });
+
+let ha, hb, sara, tim, bo, mSara, mTim, mBo, sSara, sTim;
+before(async () => {
+  sara = await persoon('sara'); tim = await persoon('tim'); bo = await persoon('bo');
+  // Elk huishouden staat meteen op de opruimlijst van after(), zodat het ook verdwijnt als een latere stap faalt.
+  ha = ok(await sara.c.rpc('create_household', { p_name: 'Spullen ' + run, p_display_name: 'Sara' }));
+  huishoudens.push(ha);
+  hb = ok(await bo.c.rpc('create_household', { p_name: 'Buren ' + run, p_display_name: 'Bo' }));
+  huishoudens.push(hb);
+  ok(await tim.c.rpc('accept_invite', { p_token: ok(await sara.c.rpc('create_invite', { p_household: ha })), p_display_name: 'Tim' }));
+  const lid = async (p, h) => ok(await p.c.rpc('my_memberships')).find(m => m.household_id === h).member_id;
+  mSara = await lid(sara, ha); mTim = await lid(tim, ha); mBo = await lid(bo, hb);
+  sSara = await startSync('sara', ha);
+  sTim = await startSync('tim', ha);
+});
+after(async () => {
+  // Elke stap apart: een fout in één stap mag de rest van het opruimen niet overslaan.
+  const fouten = [];
+  const probeer = async (wat, f) => { try { await f(); } catch (e) { fouten.push(`${wat}: ${e.message}`); } };
+  for (const s of syncs) await probeer('sync stoppen', () => s.stop());
+  for (const h of huishoudens) {
+    await probeer('bestanden ' + h, async () => {
+      const { data: mappen } = await admin.storage.from('documenten').list(h);
+      for (const m of mappen ?? []) await admin.storage.from('documenten').remove([`${h}/${m.name}/origineel`]);
+    });
+  }
+  await probeer('huishoudens', async () => ok(await admin.from('households').delete().in('id', huishoudens)));
+  for (const { id } of Object.values(personen)) await probeer('gebruiker', async () => ok(await admin.auth.admin.deleteUser(id)));
+  if (fouten.length) throw new Error('Opruimen niet volledig gelukt: ' + fouten.join('; '));
+});
+
+test('zonder de optie spullen: precies de oude zoekopdrachten (geen spullentabellen, geen possession_id)', async () => {
+  const gevraagd = [];
+  const f = async (url, o) => { gevraagd.push(String(url)); return fetch(url, o); };
+  const c = createClient(API_URL, ANON_KEY, { ...opties, global: { fetch: f } });
+  ok(await c.auth.signInWithPassword({ email: `sara-${run}@test.invalid`, password: wachtwoord }));
+  const s = maakSync({ supabase: c, huishoudenId: ha, vangnetMs: 60000 });
+  syncs.push(s);
+  await s.start();
+  await s.vernieuw();
+  assert.ok(gevraagd.some(u => u.includes('/rest/v1/tasks')));
+  assert.ok(!gevraagd.some(u => /\/rest\/v1\/(possessions|documents|document_links)/.test(u)), 'spullentabellen gevraagd zonder de optie');
+  assert.ok(!gevraagd.some(u => u.includes('/rest/v1/tasks') && u.includes('possession_id')), 'possession_id gevraagd zonder de optie');
+  assert.deepEqual([s.toestand.spullen, s.toestand.documenten, s.toestand.documentKoppelingen], [[], [], []]);
+  await s.stop();
+});
+
+test('twee telefoons: een spul van Sara verschijnt bij Tim (seintje); een persoonlijk spul niet', async () => {
+  const id = randomUUID(), prive = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(id, { name: 'Vaatwasser ' + run, brand: 'Voorbeeldmerk', owner_member_id: mSara, field_status: { model: 'voorstel' } })).ok);
+  assert.ok((await sSara.acties.spulToevoegen(prive, { name: 'Sieraad ' + run, owner_member_id: mSara, visibility: 'private' })).ok);
+  await totdat(() => sTim.toestand.spullen.some(x => x.id === id), 15000, 'Tim ziet het spul');
+  await sTim.vernieuw();
+  assert.ok(!sTim.toestand.spullen.some(x => x.id === prive), 'Tim ziet het persoonlijke spul van Sara');
+  assert.ok(sSara.toestand.spullen.some(x => x.id === prive));
+  assert.deepEqual(sTim.toestand.spullen.find(x => x.id === id).field_status, { model: 'voorstel' });
+  // Opnieuw toevoegen met dezelfde UUID (na een onzekere uitkomst): geen tweede, geen fout.
+  assert.ok((await sSara.acties.spulToevoegen(id, { name: 'Vaatwasser ' + run, owner_member_id: mSara })).ok);
+  assert.equal((await admin.from('possessions').select('id').eq('id', id)).data.length, 1);
+});
+
+test('gelijktijdig bewerken: de tweede krijgt de conflictmelding, niets wordt overschreven', async () => {
+  const id = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(id, { name: 'Fiets ' + run, owner_member_id: mSara })).ok);
+  await sSara.vernieuw(); await sTim.vernieuw();
+  const a = sSara.toestand.spullen.find(x => x.id === id), b = sTim.toestand.spullen.find(x => x.id === id);
+  assert.ok((await sSara.acties.spulBijwerken(a, { shop: 'Winkel A' })).ok);
+  const r = await sTim.acties.spulBijwerken(b, { shop: 'Winkel B' });
+  assert.equal(r.ok, false); assert.equal(r.melding.soort, 'conflict');
+  await sTim.vernieuw();
+  assert.equal(sTim.toestand.spullen.find(x => x.id === id).shop, 'Winkel A');
+});
+
+test('alleen de eigenaar maakt iets persoonlijk; een lid zonder eigenaarschap krijgt "geen toegang"', async () => {
+  const id = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(id, { name: 'Boor ' + run, owner_member_id: mSara })).ok);
+  await sTim.vernieuw();
+  const r = await sTim.acties.spulBijwerken(sTim.toestand.spullen.find(x => x.id === id), { visibility: 'private' });
+  assert.equal(r.ok, false);
+  // Een spul op naam van een ander maken kan niet.
+  assert.equal((await sTim.acties.spulToevoegen(randomUUID(), { name: 'Vals', owner_member_id: mSara })).ok, false);
+});
+
+test('prullenbak: verwijderen en terugzetten, ook zichtbaar bij de ander', async () => {
+  const id = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(id, { name: 'Lamp ' + run, owner_member_id: mSara })).ok);
+  await sSara.vernieuw();
+  assert.ok((await sSara.acties.spulVerwijderen(sSara.toestand.spullen.find(x => x.id === id))).ok);
+  await sTim.vernieuw();
+  assert.ok(sTim.toestand.spullen.find(x => x.id === id).deleted_at, 'in de prullenbak (nog zichtbaar om terug te zetten)');
+  await sSara.vernieuw();
+  assert.ok((await sSara.acties.spulTerugzetten(sSara.toestand.spullen.find(x => x.id === id))).ok);
+  await sTim.vernieuw();
+  assert.equal(sTim.toestand.spullen.find(x => x.id === id).deleted_at, null);
+});
+
+test('realtime bewijst de sync: Tim ziet een gedeeld spul en document zonder zelf op te halen; persoonlijk geeft hem geen seintje', async () => {
+  // Het vangnet staat op 60 s: wat Tim binnen 15 s ziet, kwam via een seintje en de ophaalronde die daarop volgt.
+  const rondes = sTim.statistiek.rondes;
+  const gedeeld = randomUUID(), doc = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(gedeeld, { name: 'Wasmachine ' + run, owner_member_id: mSara })).ok);
+  await totdat(() => sTim.toestand.spullen.some(x => x.id === gedeeld), 15000, 'Tim ziet het gedeelde spul via een seintje');
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  assert.ok((await o.bewaarDocument({ documentId: doc, velden: docVelden(mSara), bytes: PDF, spullen: [gedeeld] })).ok);
+  await totdat(() => sTim.toestand.documenten.some(x => x.id === doc && x.upload_status === 'klaar')
+    && sTim.toestand.documentKoppelingen.some(k => k.document_id === doc), 15000, 'Tim ziet het document en de koppeling');
+  assert.ok(sTim.statistiek.rondes > rondes, 'Tim haalde opnieuw op (door seintjes)');
+  // Persoonlijk: geen seintje naar het huishouden, dus Tim hoort er niets van (en ziet het niet).
+  await wacht(1500);
+  const seintjes = sTim.statistiek.seintjes;
+  const prive = randomUUID(), priveDoc = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(prive, { name: 'Dagboek ' + run, owner_member_id: mSara, visibility: 'private' })).ok);
+  assert.ok((await o.bewaarDocument({ documentId: priveDoc, velden: docVelden(mSara, PDF, { visibility: 'private' }), bytes: PDF })).ok);
+  await wacht(3000);
+  assert.equal(sTim.statistiek.seintjes, seintjes, 'Tim kreeg een seintje over een persoonlijk item van Sara');
+  await sTim.vernieuw();
+  assert.ok(!sTim.toestand.spullen.some(x => x.id === prive) && !sTim.toestand.documenten.some(x => x.id === priveDoc));
+  // Tegenproef in dezelfde test: een gedeelde wijziging geeft Tim wél een seintje.
+  await sSara.vernieuw();
+  assert.ok((await sSara.acties.spulBijwerken(sSara.toestand.spullen.find(x => x.id === gedeeld), { shop: 'Winkel ' + run })).ok);
+  await totdat(() => sTim.statistiek.seintjes > seintjes, 15000, 'een seintje bij een gedeelde wijziging');
+});
+
+test('uploaden in twee fasen: bewaard, bij beide telefoons te openen, als bijlage; koppeling bij het spul', async () => {
+  const spul = randomUUID(); const doc = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(spul, { name: 'Oven ' + run, owner_member_id: mSara })).ok);
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const r = await o.bewaarDocument({ documentId: doc, velden: docVelden(mSara), bytes: PDF, spullen: [spul] });
+  assert.deepEqual(r, { ok: true, documentId: doc, spulId: undefined });
+  await sTim.vernieuw();
+  assert.equal(sTim.toestand.documenten.find(x => x.id === doc).upload_status, 'klaar');
+  assert.ok(sTim.toestand.documentKoppelingen.some(k => k.document_id === doc && k.possession_id === spul));
+  const t = maakSpullenOpslag({ supabase: tim.c, sync: sTim, huishoudenId: ha, nieuweId: randomUUID });
+  const open = await t.openBestand(doc);
+  assert.ok(open.ok);
+  assert.deepEqual(Buffer.from(await open.blob.arrayBuffer()), PDF);
+});
+
+test('onderbroken upload: het bestand komt niet aan; niets "bewaard"; opnieuw proberen met dezelfde UUID lukt', async () => {
+  const doc = randomUUID();
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes(`/storage/v1/object/documenten/${ha}/${doc}`); sara.verlies.voor = true;
+  const r = await o.bewaarDocument({ documentId: doc, velden: docVelden(mSara), bytes: PDF });
+  assert.equal(r.ok, false); assert.equal(r.fase, 'upload'); assert.equal(r.opnieuw, true);
+  assert.equal(sSara.toestand.documenten.find(x => x.id === doc).upload_status, 'wacht');
+  assert.ok((await sara.c.storage.from('documenten').createSignedUrl(padVan(ha, doc), 60)).error, 'een wachtend document is niet te openen');
+  const tweede = await o.opnieuwUploaden(doc, PDF, 'application/pdf');
+  assert.equal(tweede.ok, true);
+  await sSara.vernieuw();
+  assert.equal(sSara.toestand.documenten.find(x => x.id === doc).upload_status, 'klaar');
+  assert.equal((await admin.from('documents').select('id').eq('id', doc)).data.length, 1, 'geen tweede document');
+});
+
+test('antwoord van de upload verloren: opnieuw proberen ziet het bestaande object en bevestigt (niet overschreven)', async () => {
+  const doc = randomUUID();
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes(`/storage/v1/object/documenten/${ha}/${doc}`);
+  const r = await o.bewaarDocument({ documentId: doc, velden: docVelden(mSara), bytes: PDF });
+  assert.equal(r.fase, 'upload');
+  assert.equal((await o.opnieuwUploaden(doc, PDF, 'application/pdf')).ok, true);
+});
+
+// P2 (review PR #54): opnieuw bewaren met dezelfde UUID's na een fout (verzoek niet aangekomen) of een verloren antwoord
+// (wel uitgevoerd) in elke opslagfase: precies één spul, één document (klaar), één koppeling en één bestand.
+test('opnieuw bewaren na een fout of een verloren antwoord in elke fase: nooit een tweede spul, document, koppeling of bestand', async () => {
+  const fasen = [
+    ['spul', (u, m) => m === 'POST' && u.includes('/rest/v1/possessions')],
+    ['begin', (u, m) => m === 'POST' && u.includes('/rest/v1/documents')],
+    ['upload', (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/')],
+    ['bevestigen', (u, m) => m === 'POST' && u.includes('/functions/v1/bevestig-upload')],
+    ['koppelen', (u, m) => m === 'POST' && u.includes('/rest/v1/document_links')],
+  ];
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  for (const [fase, treft] of fasen) {
+    for (const voor of [true, false]) {
+      const doc = randomUUID(), spul = randomUUID(), naam = `Opnieuw ${fase} ${voor ? 'fout' : 'verloren'} ${run}`;
+      const n = { documentId: doc, velden: docVelden(mSara), bytes: PDF, nieuwSpul: { id: spul, velden: { name: naam, owner_member_id: mSara } } };
+      sara.verlies.wat = treft; sara.verlies.voor = voor;
+      const eerste = await o.bewaarDocument(n);
+      sara.verlies.wat = null; sara.verlies.voor = false;
+      assert.equal(eerste.ok, false, `${fase}/${voor}: de eerste poging hoort te mislukken`);
+      const tweede = await o.bewaarDocument(n);
+      assert.equal(tweede.ok, true, `${fase}/${voor}: opnieuw bewaren lukt niet (${tweede.fase})`);
+      const tel = async (tabel, kolom, waarde) => ok(await admin.from(tabel).select('id').eq(kolom, waarde)).length;
+      assert.equal(await tel('possessions', 'name', naam), 1, `${fase}/${voor}: spullen`);
+      assert.equal(await tel('documents', 'id', doc), 1, `${fase}/${voor}: documenten`);
+      assert.equal(ok(await admin.from('documents').select('upload_status').eq('id', doc).single()).upload_status, 'klaar');
+      assert.equal(ok(await admin.from('document_links').select('id').eq('document_id', doc).eq('possession_id', spul).is('deleted_at', null)).length, 1, `${fase}/${voor}: koppelingen`);
+      const { data: map } = await admin.storage.from('documenten').list(`${ha}/${doc}`);
+      assert.equal((map ?? []).length, 1, `${fase}/${voor}: bestanden`);
+    }
+  }
+});
+
+// P1 (tweede review PR #54): een eerdere poging maakte de rijen al aan (gedeeld), daarna mislukte iets en koos de gebruiker
+// "Alleen ik" (of iets anders). Opnieuw bewaren met dezelfde UUID's moet de laatst gekozen gegevens opleveren, ook bij een
+// nieuw spul en bij verloren antwoorden; de partner ziet daarna niets meer: geen rij, geen koppeling, geen bestand.
+async function zietNiets(wat, doc, spul) {
+  assert.equal(ok(await tim.c.from('documents').select('id').eq('id', doc)).length, 0, wat + ': Tim ziet het document');
+  assert.equal(ok(await tim.c.from('possessions').select('id').eq('id', spul)).length, 0, wat + ': Tim ziet het spul');
+  assert.equal(ok(await tim.c.from('document_links').select('id').eq('document_id', doc)).length, 0, wat + ': Tim ziet de koppeling');
+  assert.ok((await tim.c.storage.from('documenten').createSignedUrl(padVan(ha, doc), 60)).error, wat + ': Tim kan het bestand openen');
+  await sTim.vernieuw();
+  assert.ok(!JSON.stringify(sTim.toestand).includes(doc) && !JSON.stringify(sTim.toestand).includes(spul), wat + ': spoor bij Tim');
+}
+test('opnieuw bewaren na een mislukte poging met een andere zichtbaarheid: de laatste keuze geldt, ook voor het nieuwe spul', async () => {
+  const fasen = [
+    ['begin verloren', (u, m) => m === 'POST' && u.includes('/rest/v1/documents'), false],
+    ['upload fout', (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'), true],
+    ['upload verloren', (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'), false],
+    ['bevestigen verloren', (u, m) => m === 'POST' && u.includes('/functions/v1/bevestig-upload'), false],
+    ['koppelen fout', (u, m) => m === 'POST' && u.includes('/rest/v1/document_links'), true],
+  ];
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  for (const [wat, treft, voor] of fasen) {
+    const doc = randomUUID(), spul = randomUUID(), naam = `Zichtbaarheid ${wat} ${run}`;
+    const invoer = zichtbaarheid => ({
+      documentId: doc, bytes: PDF,
+      velden: docVelden(mSara, PDF, { visibility: zichtbaarheid, title: `${naam} (${zichtbaarheid})` }),
+      nieuwSpul: { id: spul, velden: { name: naam, owner_member_id: mSara, visibility: zichtbaarheid, field_status: {} } },
+    });
+    sara.verlies.wat = treft; sara.verlies.voor = voor;
+    const eerste = await o.bewaarDocument(invoer('household'));
+    sara.verlies.wat = null; sara.verlies.voor = false;
+    assert.equal(eerste.ok, false, `${wat}: de eerste poging hoort te mislukken`);
+    assert.equal(ok(await admin.from('documents').select('visibility').eq('id', doc)).at(0)?.visibility, 'household', `${wat}: de rij bestond al gedeeld`);
+    // Zoals de app: met de velden die de eerste poging instuurde (de versie kan door de server zijn opgehoogd).
+    const vorige = invoer('household');
+    const tweede = await o.bewaarDocument({ ...invoer('private'), documentEigen: [vorige.velden],
+      nieuwSpul: { ...invoer('private').nieuwSpul, eigen: [vorige.nieuwSpul.velden] } });
+    assert.equal(tweede.ok, true, `${wat}: opnieuw bewaren lukt niet (${tweede.fase}: ${tweede.tekst})`);
+    const d = ok(await admin.from('documents').select('visibility,title,upload_status').eq('id', doc).single());
+    assert.deepEqual(d, { visibility: 'private', title: `${naam} (private)`, upload_status: 'klaar' }, wat);
+    const s = ok(await admin.from('possessions').select('visibility').eq('name', naam));
+    assert.deepEqual(s, [{ visibility: 'private' }], `${wat}: precies één spul, persoonlijk`);
+    await zietNiets(wat, doc, spul);
+    // De eigenaar ziet alles, met de koppeling.
+    await sSara.vernieuw();
+    assert.equal(sSara.toestand.documenten.find(x => x.id === doc)?.visibility, 'private', wat);
+    assert.ok(sSara.toestand.documentKoppelingen.some(k => k.document_id === doc && k.possession_id === spul), wat);
+  }
+});
+
+test('opnieuw bewaren: het antwoord op het afstemmen zelf gaat verloren; de derde poging klopt, en andersom (persoonlijk naar gedeeld)', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const doc = randomUUID();
+  const invoer = zichtbaarheid => ({ documentId: doc, bytes: PDF, velden: docVelden(mSara, PDF, { visibility: zichtbaarheid }) });
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'); sara.verlies.voor = true;
+  assert.equal((await o.bewaarDocument(invoer('household'))).ok, false);
+  sara.verlies.wat = (u, m) => m === 'PATCH' && u.includes('/rest/v1/documents');           // uitgevoerd, antwoord weg
+  const tweede = await o.bewaarDocument(invoer('private'));
+  sara.verlies.wat = null;
+  assert.deepEqual([tweede.ok, tweede.fase, tweede.opnieuw], [false, 'begin', true]);
+  assert.equal((await admin.storage.from('documenten').list(`${ha}/${doc}`)).data.length, 0, 'geüpload vóór het afstemmen bevestigd was');
+  assert.equal((await o.bewaarDocument(invoer('private'))).ok, true);
+  assert.equal(ok(await admin.from('documents').select('visibility').eq('id', doc).single()).visibility, 'private');
+  await zietNiets('na verloren afstemmen', doc, randomUUID());
+  // Andersom: eerst persoonlijk, na een fout toch gedeeld; dan ziet Tim het wel.
+  const doc2 = randomUUID();
+  const invoer2 = zichtbaarheid => ({ documentId: doc2, bytes: PDF, velden: docVelden(mSara, PDF, { visibility: zichtbaarheid }) });
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/functions/v1/bevestig-upload'); sara.verlies.voor = true;
+  assert.equal((await o.bewaarDocument(invoer2('private'))).ok, false);
+  sara.verlies.wat = null; sara.verlies.voor = false;
+  assert.equal((await o.bewaarDocument(invoer2('household'))).ok, true);
+  await sTim.vernieuw();
+  assert.ok(sTim.toestand.documenten.some(x => x.id === doc2 && x.visibility === 'household'), 'Tim ziet het gedeelde document');
+});
+
+test('opnieuw bewaren met een ander bestand of vanuit een ander huishouden: niets geüpload, niets gewijzigd', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const doc = randomUUID();
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'); sara.verlies.voor = true;
+  assert.equal((await o.bewaarDocument({ documentId: doc, bytes: PDF, velden: docVelden(mSara) })).ok, false);
+  sara.verlies.wat = null; sara.verlies.voor = false;
+  // Een ander bestand (andere grootte) op dezelfde UUID: de database kan dat niet aanpassen; niet uploaden.
+  const groter = Buffer.concat([PDF, Buffer.from('% extra\n')]);
+  const r = await o.bewaarDocument({ documentId: doc, bytes: groter, velden: docVelden(mSara, groter) });
+  assert.deepEqual([r.ok, r.fase, r.opnieuw], [false, 'begin', false]);
+  assert.equal((await admin.storage.from('documenten').list(`${ha}/${doc}`)).data.length, 0);
+  // Bo (een ander huishouden) met dezelfde UUID: geen toegang tot de rij van Sara, en die blijft zoals hij was.
+  const sBo = await startSync('bo', hb);
+  const ob = maakSpullenOpslag({ supabase: bo.c, sync: sBo, huishoudenId: hb, nieuweId: randomUUID });
+  const rb = await ob.bewaarDocument({ documentId: doc, bytes: PDF, velden: docVelden(mBo, PDF, { title: 'Overgenomen', visibility: 'private' }) });
+  assert.equal(rb.ok, false);
+  assert.deepEqual(ok(await admin.from('documents').select('household_id,title,visibility').eq('id', doc)),
+    [{ household_id: ha, title: 'Factuur ' + run, visibility: 'household' }]);
+  assert.equal((await admin.storage.from('documenten').list(`${hb}/${doc}`)).data.length, 0);
+});
+
+// Review PR #54, R1: een wijziging van de partner tussen twee pogingen wordt nooit stil overschreven, ook niet als de app
+// die wijziging al via Realtime binnenkreeg. Zoals de app: elke poging stuurt de velden mee die deze invoer eerder
+// instuurde (eigen); een versie alleen om na een getoonde conflictmelding bewust door te zetten.
+test('opnieuw bewaren na een wijziging van de partner tussendoor (twee accounts, via Realtime binnen): conflict, niets overschreven; daarna bewust doorzetten', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const doc = randomUUID(), spul = randomUUID(), naam = 'Wasmachine tussendoor ' + run;
+  const spulVelden = { name: naam, owner_member_id: mSara, serial: null, field_status: {} };
+  const docV = docVelden(mSara, PDF, { title: 'Factuur wasmachine' });
+  const eigen = { doc: [], spul: [] };
+  const poging = async (doorzetten = {}) => {
+    const r = await o.bewaarDocument({ documentId: doc, documentVersie: doorzetten.doc, documentEigen: [...eigen.doc], bytes: PDF, velden: docV,
+      nieuwSpul: { id: spul, versie: doorzetten.spul, eigen: [...eigen.spul], velden: spulVelden } });
+    eigen.doc.push(docV); eigen.spul.push(spulVelden);
+    return r;
+  };
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'); sara.verlies.voor = true;
+  assert.equal((await poging()).ok, false);
+  sara.verlies.wat = null; sara.verlies.voor = false;
+  // Tim vult het serienummer in en past de titel van het (gedeelde, wachtende) document aan; Sara krijgt het binnen.
+  await sTim.vernieuw();
+  assert.ok((await sTim.acties.spulBijwerken(sTim.toestand.spullen.find(x => x.id === spul), { serial: 'SN-123' })).ok);
+  assert.ok((await sTim.acties.documentBijwerken(sTim.toestand.documenten.find(x => x.id === doc), { title: 'Factuur (Tim)' })).ok);
+  await totdat(async () => { await sSara.vernieuw(); return sSara.toestand.spullen.find(x => x.id === spul)?.serial === 'SN-123'; }, 15000, 'Sara kent de wijziging van Tim');
+  // Opnieuw bewaren: conflict op het spul; niets overschreven, niets geüpload.
+  const r = await poging();
+  assert.deepEqual([r.ok, r.fase, r.conflict, r.opnieuw], [false, 'spul', true, true]);
+  assert.equal(ok(await admin.from('possessions').select('serial').eq('id', spul).single()).serial, 'SN-123');
+  assert.equal(ok(await admin.from('documents').select('title').eq('id', doc).single()).title, 'Factuur (Tim)');
+  assert.equal((await admin.storage.from('documenten').list(`${ha}/${doc}`)).data.length, 0, 'geüpload ondanks het conflict');
+  // Bewust doorzetten voor het spul: nu conflict op het document (ook dat paste Tim aan).
+  const r2 = await poging({ spul: r.versie });
+  assert.deepEqual([r2.ok, r2.fase, r2.conflict], [false, 'begin', true]);
+  assert.equal(ok(await admin.from('documents').select('title').eq('id', doc).single()).title, 'Factuur (Tim)');
+  // Ook voor het document doorzetten: dan de eigen waarden, het document is bewaard, en er is één spul.
+  const r3 = await poging({ doc: r2.versie });
+  assert.equal(r3.ok, true, `${r3.fase}: ${r3.tekst}`);
+  assert.deepEqual(ok(await admin.from('documents').select('title,upload_status').eq('id', doc).single()), { title: 'Factuur wasmachine', upload_status: 'klaar' });
+  assert.equal(ok(await admin.from('possessions').select('serial').eq('name', naam)).length, 1, 'precies één spul');
+});
+
+// R1, verloren antwoorden: het antwoord op de eigen bijwerking van het spul ging verloren (wel uitgevoerd). Zonder
+// wijziging van een ander lukt de volgende poging (de waarden zijn "van ons"); paste de partner daarna iets aan, dan
+// conflict.
+test('verloren antwoord op de eigen bijwerking, daarna past de partner aan: conflict; zonder partner lukt het gewoon', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  for (const metPartner of [false, true]) {
+    const doc = randomUUID(), spul = randomUUID(), basis = `Koelkast ${metPartner ? 'partner' : 'alleen'} ${run}`;
+    const eigen = [];
+    const poging = async naam => {
+      const velden = { name: naam, owner_member_id: mSara, serial: null, field_status: {} };
+      const r = await o.bewaarDocument({ documentId: doc, documentEigen: [], bytes: PDF, velden: docVelden(mSara),
+        nieuwSpul: { id: spul, eigen: [...eigen], velden } });
+      eigen.push(velden);
+      return r;
+    };
+    sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'); sara.verlies.voor = true;
+    assert.equal((await poging(basis)).ok, false);
+    sara.verlies.wat = (u, m) => m === 'PATCH' && u.includes('/rest/v1/possessions'); sara.verlies.voor = false;   // uitgevoerd, antwoord weg
+    assert.equal((await poging(basis + ' (nieuw)')).ok, false);
+    sara.verlies.wat = null;
+    assert.equal(ok(await admin.from('possessions').select('name').eq('id', spul).single()).name, basis + ' (nieuw)');
+    if (metPartner) {
+      await sTim.vernieuw();
+      assert.ok((await sTim.acties.spulBijwerken(sTim.toestand.spullen.find(x => x.id === spul), { serial: 'SN-9' })).ok);
+    }
+    const r = await poging(basis + ' (nieuw)');
+    if (metPartner) {
+      assert.deepEqual([r.ok, r.fase, r.conflict], [false, 'spul', true]);
+      assert.equal(ok(await admin.from('possessions').select('serial').eq('id', spul).single()).serial, 'SN-9');
+    } else {
+      assert.equal(r.ok, true, `${r.fase}: ${r.tekst}`);
+      assert.equal(ok(await admin.from('possessions').select('id').eq('id', spul)).length, 1);
+    }
+  }
+});
+
+// Review PR #54, P2-3: het antwoord op het toevoegen van het spul ging verloren (de app zag de rij nooit terug, en kent
+// dus geen versie). Past de partner het spul daarna aan, dan geeft opnieuw bewaren een conflict (beginversie 1), geen
+// stille overschrijving.
+test('verloren antwoord bij het toevoegen, daarna past de partner het spul aan: opnieuw bewaren geeft een conflict, niets gewist', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const doc = randomUUID(), spul = randomUUID(), naam = 'Droger ' + run;
+  // Zoals de app: de tweede poging weet welke velden de eerste instuurde (eigen), maar niet de versie.
+  const spulVelden = { name: naam, owner_member_id: mSara, serial: null, field_status: {} };
+  const invoer = (eigen = []) => ({ documentId: doc, bytes: PDF, velden: docVelden(mSara), documentEigen: eigen.length ? [docVelden(mSara)] : [],
+    nieuwSpul: { id: spul, velden: spulVelden, eigen } });
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/rest/v1/possessions');       // uitgevoerd, antwoord weg
+  const eerste = await o.bewaarDocument(invoer());
+  sara.verlies.wat = null;
+  assert.deepEqual([eerste.ok, eerste.fase], [false, 'spul']);
+  assert.equal(ok(await admin.from('possessions').select('version').eq('id', spul).single()).version, 1, 'het spul staat er wel');
+  await sTim.vernieuw();
+  assert.ok((await sTim.acties.spulBijwerken(sTim.toestand.spullen.find(x => x.id === spul), { serial: 'SN-777' })).ok);
+  // Opnieuw bewaren zonder bekende versie (zoals de app na een verloren antwoord): conflict, en Tims serienummer blijft.
+  const r = await o.bewaarDocument(invoer([spulVelden]));
+  assert.deepEqual([r.ok, r.fase, r.conflict], [false, 'spul', true]);
+  assert.equal(ok(await admin.from('possessions').select('serial').eq('id', spul).single()).serial, 'SN-777');
+  assert.equal(ok(await admin.from('documents').select('id').eq('id', doc)).length, 0, 'na een conflict toch verder gegaan');
+});
+
+// Review PR #54, P2-4: begint de app vers (ander of geweigerd bestand), dan ruimt de opslag de oude, onvoltooide rij op:
+// persoonlijk én naar de prullenbak, op de server opgezocht. De partner ziet hem daarna niet meer; een bewaard document
+// blijft staan.
+test('opruimen van een onvoltooid document: persoonlijk en in de prullenbak, onzichtbaar voor de partner; een bewaard document blijft', async () => {
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const doc = randomUUID(), titel = 'Ontslagbrief ' + run;
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/storage/v1/object/documenten/'); sara.verlies.voor = true;
+  assert.equal((await o.bewaarDocument({ documentId: doc, bytes: PDF, velden: docVelden(mSara, PDF, { title: titel }) })).ok, false);
+  sara.verlies.wat = null; sara.verlies.voor = false;
+  assert.equal(ok(await tim.c.from('documents').select('id').eq('id', doc)).length, 1, 'vooraf: gedeeld en wachtend, Tim ziet hem');
+  assert.equal((await o.ruimOnvoltooidOp(doc)).ok, true);
+  const rij = ok(await admin.from('documents').select('visibility,deleted_at,upload_status').eq('id', doc).single());
+  assert.equal(rij.visibility, 'private');
+  assert.ok(rij.deleted_at, 'niet in de prullenbak');
+  assert.equal(ok(await tim.c.from('documents').select('id').eq('id', doc)).length, 0, 'Tim ziet de oude rij nog');
+  await sTim.vernieuw();
+  assert.ok(!JSON.stringify(sTim.toestand).includes(titel), 'de oude titel staat nog in de toestand van Tim');
+  // Nog eens opruimen, een onbekende UUID en een bewaard document: niets veranderd, geen fout.
+  assert.equal((await o.ruimOnvoltooidOp(doc)).ok, true);
+  assert.equal((await o.ruimOnvoltooidOp(randomUUID())).ok, true);
+  const klaar = randomUUID();
+  assert.ok((await o.bewaarDocument({ documentId: klaar, bytes: PDF, velden: docVelden(mSara) })).ok);
+  assert.equal((await o.ruimOnvoltooidOp(klaar)).ok, true);
+  assert.deepEqual(ok(await admin.from('documents').select('visibility,deleted_at,upload_status').eq('id', klaar).single()),
+    { visibility: 'household', deleted_at: null, upload_status: 'klaar' });
+});
+
+test('bevestigen onderbroken: opnieuw proberen bevestigt; een vermomd bestand wordt geweigerd en blijft geweigerd', async () => {
+  const doc = randomUUID();
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  sara.verlies.wat = (u, m) => m === 'POST' && u.includes('/functions/v1/bevestig-upload'); sara.verlies.voor = true;
+  const r = await o.bewaarDocument({ documentId: doc, velden: docVelden(mSara), bytes: PDF });
+  assert.equal(r.fase, 'bevestigen');
+  assert.equal((await o.opnieuwUploaden(doc, PDF, 'application/pdf')).ok, true);
+  const nep = randomUUID();
+  const n = await o.bewaarDocument({ documentId: nep, velden: docVelden(mSara, NEP), bytes: NEP });
+  assert.deepEqual([n.ok, n.fase, n.opnieuw], [false, 'controle', false]);
+  await sSara.vernieuw();
+  assert.equal(sSara.toestand.documenten.find(x => x.id === nep).upload_status, 'mislukt');
+  assert.equal((await o.opnieuwUploaden(nep, PDF, 'application/pdf')).ok, false, 'een geweigerd document opnieuw bevestigd');
+});
+
+test('offline: niets verstuurd, niets aangemaakt, een duidelijke melding', async () => {
+  const doc = randomUUID();
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  const oud = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true });
+  try {
+    const r = await o.bewaarDocument({ documentId: doc, velden: docVelden(mSara), bytes: PDF });
+    assert.deepEqual([r.ok, r.fase], [false, 'offline']);
+    assert.equal((await sSara.acties.spulToevoegen(randomUUID(), { name: 'Offline', owner_member_id: mSara })).melding.soort, 'offline');
+  } finally {
+    if (oud) Object.defineProperty(globalThis, 'navigator', oud); else delete globalThis.navigator;
+  }
+  assert.equal((await admin.from('documents').select('id').eq('id', doc)).data.length, 0);
+});
+
+test('taken bij een spul: possession_id via de sync; nooit aan een persoonlijk spul van de partner of een spul van een ander huishouden', async () => {
+  const spul = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(spul, { name: 'CV-ketel ' + run, owner_member_id: mSara })).ok);
+  const r = await sSara.acties.taakToevoegen('Ketel laten onderhouden', { due_date: null, assignee_member_id: null, possession_id: spul });
+  assert.ok(r.ok);
+  await sTim.vernieuw();
+  assert.equal(sTim.toestand.taken.find(t => t.title === 'Ketel laten onderhouden').possession_id, spul);
+  // Het persoonlijke spul van de partner: Tim kan er geen taak aan hangen (de trigger; anders zou de taak het verraden).
+  const prive = randomUUID();
+  assert.ok((await sSara.acties.spulToevoegen(prive, { name: 'Kluis ' + run, owner_member_id: mSara, visibility: 'private' })).ok);
+  assert.equal((await sTim.acties.taakToevoegen('Kluis openen', { due_date: null, assignee_member_id: null, possession_id: prive })).ok, false, 'taak aan een persoonlijk spul van een ander');
+  const sBo = await startSync('bo', hb);
+  const fout = await sBo.acties.taakToevoegen('Indringer', { due_date: null, assignee_member_id: null, possession_id: spul });
+  assert.equal(fout.ok, false);
+});
+
+test('gedeeld document bij een persoonlijk spul: lid en beheerder zien het document, maar niets van het spul', async () => {
+  const spul = randomUUID(), doc = randomUUID(), geheim = 'Trouwring ' + run;
+  assert.ok((await sSara.acties.spulToevoegen(spul, { name: geheim, owner_member_id: mSara, visibility: 'private' })).ok);
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  assert.ok((await o.bewaarDocument({ documentId: doc, spullen: [spul], velden: docVelden(mSara, PDF, { title: 'Bon van 1 november ' + run }), bytes: PDF })).ok);
+  const controleer = async wat => {
+    await sTim.vernieuw();
+    assert.ok(sTim.toestand.documenten.some(d => d.id === doc), wat + ': het gedeelde document ontbreekt');
+    // Via de sync en via een ruwe zoekopdracht op elke tabel: geen naam, geen id, geen koppeling.
+    assert.ok(!JSON.stringify(sTim.toestand).includes(spul) && !JSON.stringify(sTim.toestand).includes(geheim), wat + ': spoor in de toestand');
+    assert.equal(ok(await tim.c.from('possessions').select('id').eq('id', spul)).length, 0, wat);
+    assert.equal(ok(await tim.c.from('document_links').select('id').eq('possession_id', spul)).length, 0, wat);
+    assert.equal(ok(await tim.c.from('document_links').select('id').eq('document_id', doc)).length, 0, wat);
+  };
+  await controleer('lid');
+  // Een beheerder heeft geen uitzondering op persoonlijk.
+  ok(await sara.c.rpc('set_member_role', { p_household: ha, p_member: mTim, p_role: 'admin' }));
+  try { await controleer('beheerder'); } finally { ok(await sara.c.rpc('set_member_role', { p_household: ha, p_member: mTim, p_role: 'member' })); }
+  // De eigenaar ziet de koppeling wel.
+  await sSara.vernieuw();
+  assert.ok(sSara.toestand.documentKoppelingen.some(k => k.document_id === doc && k.possession_id === spul));
+});
+
+test('export met bestanden: in het manifest, met controlesom; een gewijzigd bestand valt op; terugzetten geeft dezelfde bytes', async () => {
+  const doc = randomUUID();
+  const o = maakSpullenOpslag({ supabase: sara.c, sync: sSara, huishoudenId: ha, nieuweId: randomUUID });
+  assert.ok((await o.bewaarDocument({ documentId: doc, velden: docVelden(mSara), bytes: PDF })).ok);
+  const db = new pg.Client({ connectionString: DB_URL });
+  await db.connect();
+  let exp;
+  try { exp = await leesExport(db); } finally { await db.end(); }
+  assert.ok(exp.bestanden.some(b => b.pad === padVan(ha, doc)));
+  // Zonder de bestanden: geen export.
+  const map0 = path.join(mkdtempSync(path.join(tmpdir(), 'tp-exp-')), 'x');
+  assert.throws(() => schrijfExport(map0, exp), /bestanden/);
+  exp.bestandenInhoud = await haalBestanden(exp.bestanden, { url: API_URL, sleutel: SERVICE_ROLE_KEY });
+  const map = path.join(mkdtempSync(path.join(tmpdir(), 'tp-exp-')), 'export');
+  try {
+    const { manifest } = schrijfExport(map, exp);
+    const b = manifest.bestanden.find(x => x.pad === padVan(ha, doc));
+    assert.equal(b.grootte, PDF.length);
+    assert.deepEqual(controleerExport(map).fouten, []);
+    // Terugzetten (na het verdwijnen van het object): dezelfde bytes.
+    ok(await admin.storage.from('documenten').remove([padVan(ha, doc)]));
+    assert.ok((await herstelBestanden(map, { url: API_URL, sleutel: SERVICE_ROLE_KEY })) >= 1);
+    const terug = ok(await admin.storage.from('documenten').download(padVan(ha, doc)));
+    assert.deepEqual(Buffer.from(await terug.arrayBuffer()), PDF);
+    // De vergelijking na het terugzetten (zoals de hersteltoets): elk bestand op inhoud gelijk, niets extra in de bucket.
+    const dbv = new pg.Client({ connectionString: DB_URL });
+    await dbv.connect();
+    try {
+      const vergelijk = () => vergelijkBestanden(map, { url: API_URL, sleutel: SERVICE_ROLE_KEY, client: dbv });
+      assert.deepEqual(await vergelijk(), []);
+      // Tegenproef: een ander bestand op hetzelfde pad valt op, en een bestand dat niet in de export staat ook.
+      ok(await admin.storage.from('documenten').update(padVan(ha, doc), NEP, { contentType: 'application/pdf', upsert: true }));
+      assert.match((await vergelijk()).join(), new RegExp(`${padVan(ha, doc)}: andere inhoud`));
+      ok(await admin.storage.from('documenten').update(padVan(ha, doc), PDF, { contentType: 'application/pdf', upsert: true }));
+      const extra = padVan(ha, randomUUID());
+      ok(await admin.storage.from('documenten').upload(extra, PDF, { contentType: 'application/pdf' }));
+      try { assert.match((await vergelijk()).join(), new RegExp(`${extra}: staat in de bucket maar niet in de export`)); }
+      finally { ok(await admin.storage.from('documenten').remove([extra])); }
+      assert.deepEqual(await vergelijk(), []);
+    } finally { await dbv.end(); }
+    // Tegenproef: een gewijzigd bestand in de export valt op.
+    writeFileSync(path.join(map, 'bestanden', ha, doc, 'origineel'), NEP);
+    assert.match(controleerExport(map).fouten.join(), /controlesom of grootte/);
+  } finally {
+    rmSync(path.dirname(map), { recursive: true, force: true });
+    rmSync(path.dirname(map0), { recursive: true, force: true });
+  }
+});
+
+test('verwijderen van een huishouden: rijen weg, bestanden wezen, en de lijst voor de opruimronde noemt ze', async () => {
+  const c = await persoon('cas');
+  const hc = ok(await c.c.rpc('create_household', { p_name: 'Weg ' + run, p_display_name: 'Cas' }));
+  // Ook dit huishouden (en zijn bestanden) ruimt after() op als de test halverwege faalt.
+  huishoudens.push(hc);
+  const mc = ok(await c.c.rpc('my_memberships')).find(m => m.household_id === hc).member_id;
+  const sCas = await startSync('cas', hc);
+  const doc = randomUUID();
+  const o = maakSpullenOpslag({ supabase: c.c, sync: sCas, huishoudenId: hc, nieuweId: randomUUID });
+  assert.ok((await o.bewaarDocument({ documentId: doc, velden: docVelden(mc), bytes: PDF })).ok);
+  await sCas.stop();
+  ok(await c.c.rpc('delete_household', { p_household: hc }));
+  assert.equal((await admin.from('documents').select('id').eq('household_id', hc)).data.length, 0, 'rijen weg');
+  const db = new pg.Client({ connectionString: DB_URL });
+  await db.connect();
+  try {
+    assert.ok((await bestandenLijst(db)).some(b => b.pad === padVan(hc, doc)), 'het bestand staat er nog (wees)');
+    const opruim = (await db.query('select pad from private.documenten_op_te_ruimen()')).rows.map(r => r.pad);
+    assert.ok(opruim.includes(padVan(hc, doc)), 'de opruimronde noemt de wees');
+  } finally { await db.end(); }
+  ok(await admin.storage.from('documenten').remove([padVan(hc, doc)]));
+  assert.equal((await admin.storage.from('documenten').list(hc)).data.length, 0, 'niets meer onder het huishouden');
+});

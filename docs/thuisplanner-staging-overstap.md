@@ -134,7 +134,10 @@ bewezen op 21 oktober 2026; de online export zelf heeft een eigen akkoord.
 3. Vergelijkt de vorm van het schema met het manifest, vóór er iets wordt teruggezet.
 4. Zet alle tabellen terug (triggers en sleutelcontroles staan daarbij uit, zodat versies en tijden niet veranderen) en
    vergelijkt per tabel elke rij met de export.
-5. Stopt de stack en verwijdert hem zonder back-up.
+5. Staan er bestanden in de export (Mijn spullen & Documenten, `-MetBestanden`), dan draaien ook Kong en de opslag mee:
+   de toets zet de bestanden terug en vergelijkt elk bestand op grootte en SHA-256, en meldt elk bestand in de bucket
+   dat niet in de export staat (`export.mjs vergelijk-bestanden`).
+6. Stopt de stack en verwijdert hem zonder back-up.
 
 Alleen als de hersteltoets "GESLAAGD" meldt, gaan we naar stap 4. Kolommen in `auth` die lokaal niet bestaan (het
 gehoste Supabase Auth kan nieuwer zijn dan de lokale stack), meldt de toets met "LET OP". Die worden niet vergeleken.

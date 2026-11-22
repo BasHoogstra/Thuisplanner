@@ -136,7 +136,9 @@ test('vakanties via de API: lid maakt, wijzigt, pakt in, neemt over en koppelt; 
   assert.equal(ok(await admin.from('trips').select('id').eq('id', v1)).length, 1, 'vakantie echt verwijderd via de API');
 });
 
-test('vakanties realtime: seintjes van de drie vakantietabellen bevatten alleen {t, id, v, op}', { timeout: 180000 }, async () => {
+// De tijdslimiet ligt boven de som van de wachttijden binnen de test (wachtOpRealtime ±270 s, proeven 120 s, controle
+// 10 s), zodat een fout altijd met een eigen melding eindigt en nooit als algemene time-out (review PR #54, R3/R4).
+test('vakanties realtime: seintjes van de drie vakantietabellen bevatten alleen {t, id, v, op}', { timeout: 420000 }, async () => {
   await wachtOpRealtime(wout);
   const kanaal = ok(await wout.rpc('household_channel', { p_household: h }));
   await wout.realtime.setAuth();
@@ -144,18 +146,51 @@ test('vakanties realtime: seintjes van de drie vakantietabellen bevatten alleen 
   const k = wout.channel(kanaal, { config: { private: true } }).on('broadcast', { event: 'wijziging' }, m => ontvangen.push(m.payload));
   const r = await abonneer(k);
   assert.equal(r.status, 'SUBSCRIBED', `lid kan het huishoudkanaal niet openen (${r.status})`);
-  const v = randomUUID();
-  ok(await vera.from('trips').insert({ id: v, household_id: h, name: 'Geheime-bestemming-' + run }));
-  ok(await vera.from('trip_packing_items').insert({ household_id: h, trip_id: v, name: 'Geheim-item-' + run }));
-  ok(await vera.rpc('add_shopping_items', { p_household: h, p_ids: [randomUUID()], p_names: ['Geheime-boodschap-' + run], p_trip: v }));
-  const tabellen = ['trips', 'trip_packing_items', 'trip_shopping_links'];
-  for (let i = 0; i < 100 && !tabellen.every(t => ontvangen.some(p => p.t === t)); i++) await wacht(100);
-  for (const t of tabellen) assert.ok(ontvangen.some(p => p.t === t), 'geen seintje voor ' + t);
-  for (const p of ontvangen) {
-    assert.deepEqual(Object.keys(p).sort(), ['id', 'op', 't', 'v'], 'seintje bevat meer dan t/id/v/op');
-    assert.doesNotMatch(JSON.stringify(p), /Geheim/, 'seintje bevat inhoud');
+  // Pas live als een seintje uit de database aantoonbaar binnenkomt (tweede review PR #54; deze test faalde in de
+  // CI-volgorde). Twee oorzaken, allebei van de lokale Realtime en niet van de app:
+  //  - na een (her)start bouwt Realtime de replicatie vanuit de database pas op bij het eerste privékanaal; wat vóór die
+  //    stream geschreven wordt, komt nooit aan (wachtOpRealtime bewijst dat niet: een openbaar kanaal raakt de replicatie
+  //    niet);
+  //  - node --test draait de bestanden op alfabet, dus vlak hiervoor schrijft vakanties-sync.test.mjs (V16, grote
+  //    overname) ~3700 inpakitems, elk een seintje; is Realtime dan verbonden, dan raakt de lokale tenant zijn limiet per
+  //    seconde en laat hij ongeveer een minuut lang seintjes vallen (gemeten: 57 s), en die limiet slaat pas na een paar
+  //    seconden aan.
+  // Daarom: een proefvakantie per poging, en pas verder als 5 proeven op rij (~10 s) aankomen (hoogstens 2 minuten,
+  // binnen de tijdslimiet van de test). De controles hieronder blijven gelijk.
+  // Review PR #54, R3: elke controle op de precieze rij (id) en de soort gebeurtenis (op 'I'), niet alleen op de tabel:
+  // een laat proefseintje of een seintje van een andere rij mag de test nooit laten slagen. Het kanaal gaat altijd dicht.
+  try {
+    const proefTot = Date.now() + 120000;
+    let opRij = 0;
+    for (let i = 0; opRij < 5 && Date.now() < proefTot; i++) {
+      const proef = randomUUID();
+      ok(await vera.from('trips').insert({ id: proef, household_id: h, name: 'Proef ' + i }));
+      let kwam = false;
+      for (let j = 0; j < 20 && !kwam; j++) { kwam = ontvangen.some(p => p.t === 'trips' && p.id === proef); if (!kwam) await wacht(100); }
+      opRij = kwam ? opRij + 1 : 0;
+      if (kwam) await wacht(1000);
+    }
+    assert.ok(opRij >= 5, 'het huishoudkanaal ontvangt geen betrouwbare seintjes uit de database');
+    ontvangen.length = 0;
+    const v = randomUUID();
+    ok(await vera.from('trips').insert({ id: v, household_id: h, name: 'Geheime-bestemming-' + run }));
+    const item = ok(await vera.from('trip_packing_items').insert({ household_id: h, trip_id: v, name: 'Geheim-item-' + run }).select('id'))[0].id;
+    ok(await vera.rpc('add_shopping_items', { p_household: h, p_ids: [randomUUID()], p_names: ['Geheime-boodschap-' + run], p_trip: v }));
+    const links = ok(await admin.from('trip_shopping_links').select('id').eq('trip_id', v)).map(x => x.id);
+    assert.equal(links.length, 1, 'precies één koppeling met deze vakantie');
+    const verwacht = [['trips', v], ['trip_packing_items', item], ['trip_shopping_links', links[0]]];
+    const binnen = (t, id) => ontvangen.some(p => p.t === t && p.id === id && p.op === 'I');
+    const tot = Date.now() + 10000;
+    while (!verwacht.every(([t, id]) => binnen(t, id)) && Date.now() < tot) await wacht(100);
+    for (const [t, id] of verwacht) assert.ok(binnen(t, id), `geen seintje (I) voor ${t} ${id}`);
+    assert.equal(ontvangen.find(p => p.t === 'trips' && p.id === v).v, 1, 'het seintje van de nieuwe vakantie noemt niet versie 1');
+    for (const p of ontvangen) {
+      assert.deepEqual(Object.keys(p).sort(), ['id', 'op', 't', 'v'], 'seintje bevat meer dan t/id/v/op');
+      assert.doesNotMatch(JSON.stringify(p), /Geheim/, 'seintje bevat inhoud');
+    }
+  } finally {
+    await wout.removeChannel(k);
   }
-  await wout.removeChannel(k);
 });
 
 test('extra inpaklijsten via de API: maken, items, verwijderen en herstellen, overnemen; buitenstaander niets; oude app-risico', async () => {

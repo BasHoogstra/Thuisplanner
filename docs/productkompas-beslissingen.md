@@ -18,6 +18,12 @@ wordt hier niet gewijzigd of aangevuld.
   twee nieuwe gates. De beslissingen 1–11 zijn daarbij niet herschreven.
 - Op 26 oktober 2026 zijn de besluiten 13–16 toegevoegd (slimme projecten, huishoudkennis en contacten, herhalende
   taken, minimale herinneringen), met vijf nieuwe gates. De beslissingen 1–12 zijn daarbij niet herschreven.
+- Op 28 oktober 2026 is besluit 17 toegevoegd (Mijn spullen & Documenten), met één nieuwe gate. De beslissingen 1–16
+  zijn daarbij niet herschreven.
+- Op 4 november 2026 is besluit 18 toegevoegd (Plannen), met twee nieuwe gates. Daarbij is de gate-rij van besluit 13
+  gesplitst en staat bij besluit 13 een verwijzing; de beslissingen 1–17 zijn verder niet herschreven.
+- Op 10 en 11 november 2026 is besluit 18 aangevuld (Plannen in de gezinsbèta, op het echte pad; v1 met één
+  verantwoordelijke en zonder bijlagen). De oorspronkelijke tekst blijft staan; de aanvulling staat erbij.
 - De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
@@ -32,10 +38,13 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 | De navigatie is getoetst aan werkelijk gebruik. | Fase 3.1 | Beslissing 2 |
 | Koppelingen tussen huishoudens: een gekoppeld huishouden, en een lid zonder toegang in de koppeling, ziet aantoonbaar niets buiten de expliciet gedeelde items; lid worden geeft geen toegang; intrekken werkt direct op de server; de bestaande RLS en huishoudgrenzen zijn niet verzwakt; de AVG-beoordeling voor het delen van kindgegevens is gedaan. Bewezen met testmatrix en tegenproeven (gate 9 voor het domein "koppelingen"). | De eerste migratie met een koppel- of deeltabel, en opnieuw voor ieder volgend gedeeld domein | Beslissing 12 |
 | Optie B (co-ouderschapsomgeving) start pas na een afzonderlijk productbesluit, op basis van werkelijk gebruik van optie A. | De eerste stap van optie B | Beslissing 12 |
-| Slimme projecten: gate 9 voor het domein "projecten"; een AVG-beoordeling van de AI-verwerker (inclusief verwerkingslocatie); de uitslag van de kwaliteitsproef op een vaste testset. Een betaalde AI-dienst of een abonnement alleen na een afzonderlijk akkoord van de producteigenaar, met een vast kostenplafond. | De eerste migratie voor projecten, en de eerste echte aanvraag aan een AI-dienst | Beslissing 13 |
+| Slimme projecten: een AVG-beoordeling van de AI-verwerker (inclusief verwerkingslocatie); de uitslag van de kwaliteitsproef op een vaste testset. Een betaalde AI-dienst of een abonnement alleen na een afzonderlijk akkoord van de producteigenaar, met een vast kostenplafond. | De eerste echte aanvraag aan een AI-dienst | Beslissing 13, gesplitst door beslissing 18 |
 | Huishoudkennis en contacten: de server dwingt persoonlijk en gedeeld af bij lezen, zoeken, koppelen aan taken en projecten, signalen, meldingen en de data-export; wie iets niet mag zien, krijgt geen aanwijzing dat het bestaat. Bewezen met testmatrix en tegenproeven per toegangsniveau en per pad (gate 9 voor het domein "kennis en contacten"). | De eerste migratie met een contact- of kennistabel | Beslissing 14 |
 | Herhalende taken: gate 9 voor het takendomein (herhaling, afvinken per keer, uitzonderingen). | De eerste migratie voor herhalende taken | Beslissing 15 |
 | Herinneringen: een pushproef op de testtelefoons; gate 9 voor het domein "meldingen" (voorkeuren, toestellen, verzendlog); de inhoud van een melding bevat nooit privé-details, "Bezet"-inhoud of huishoudkennis. | De eerste migratie voor meldingen | Beslissing 16 |
+| Spullen en documenten: gate 9 voor het domein "spullen en documenten", met negatieve tests op bestanden van andere huishoudens (ook via een bekende URL, bestands-id of pad, en een verlopen link); Storage alleen na een eigen akkoord, met een vaste lijst van verwachte buckets en policies in plaats van de controle "geen opslag"; een aantoonbare verwijderprocedure inclusief bestanden, en een eigen export die de bestanden meeneemt. | De eerste migratie of bucket voor spullen en documenten | Beslissing 17 |
+| Plannen: KG-5E licht is afgerond; gate 9 voor het domein "plannen" (plannen, onderdelen en de uitbreidingen van taken); plannen gaan nooit over een koppeling tussen huishoudens. Voor echte bijlagen geldt daarnaast de gate van beslissing 17. | De eerste migratie voor plannen | Beslissing 18 |
+| Meerdere verantwoordelijken: voor iedere bestaande bewerkingsroute is met tests en een tegenproef aangetoond dat er geen verantwoordelijke of ander taakveld stil verloren gaat. Waar de server maar één persoon kan bewaren, kan de gebruiker er ook maar één kiezen. | Het aanzetten van meerdere verantwoordelijken in de demo, en opnieuw vóór de eerste migratie daarvoor | Beslissing 18 |
 
 ## Beslissingen
 
@@ -250,6 +259,8 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   inclusief de verwerkingslocatie; de uitslag van de kwaliteitsproef; geen nieuwe migratie zonder uitleg en
   afzonderlijk akkoord (zie de tabel met gates).
 - **Wat niet verandert:** het Productkompas en de beslissingen 1–12.
+- **Aangevuld door besluit 18:** de migratie voor het domein valt nu onder de gate "Plannen"; de AVG-beoordeling en de
+  kwaliteitsproef gelden vóór de eerste echte aanvraag aan een AI-dienst.
 
 ### 14. Huishoudkennis en contacten (26 oktober 2026)
 
@@ -307,3 +318,80 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 - **Voorwaarden vóór implementatie:** een pushproef op de testtelefoons; gate 9 voor het domein "meldingen"; geen
   nieuwe migratie zonder uitleg en afzonderlijk akkoord (zie de tabel met gates).
 - **Wat niet verandert:** het Productkompas en de beslissingen 1–12.
+
+### 17. Mijn spullen & Documenten (28 oktober 2026)
+
+- **Besluit van de producteigenaar:** Thuisplanner krijgt, met hoge prioriteit, "Mijn spullen & Documenten":
+  aankoopdossiers van belangrijke spullen en huishoudelijke documenten (facturen, kassabonnen, garantiebewijzen,
+  handleidingen, polissen, contracten), gekoppeld aan de rest van Thuisplanner. Het beheer staat onder Meer; er komt
+  **geen extra hoofdmodule**. De centrale + is de belangrijkste ingang, ook voor bestanden en foto's, en kan straks ook
+  **vragen beantwoorden** over wat het huishouden heeft vastgelegd (bijvoorbeeld "Welk modelnummer heeft onze
+  vaatwasser?").
+- **Productkompas:** principes 1, 2, 3 en 6; de regel "Privacy volgt de situatie"; beslissingen 5, 13, 14, 15 en 16.
+  Dit besluit herprioriteert beslissing 5 voor documenten en foto's.
+- **Uitgangspunten:**
+  - **Eén onderliggend item, meerdere contexten.** Een document is één rij met één bestand, en kan aan meerdere spullen
+    gekoppeld zijn. Documenten en Mijn spullen zijn weergaven van dezelfde gegevens; er wordt niet gekopieerd.
+  - **Persoonlijk of gedeeld**, zoals besluit 14, door de server afgedwongen bij lezen, downloaden, zoeken, koppelen,
+    signalen, meldingen en export. Wie iets niet mag zien, krijgt geen aanwijzing dat het bestaat.
+  - **Privé-opslag:** geen publieke bestands-URL's; alleen kort geldige ondertekende links; de bestandstypen worden op
+    de server gecontroleerd. Echte facturen staan nooit in de browsercache of in publieke opslag.
+  - **De gebruiker bevestigt.** Herkende gegevens zijn een voorstel; er wordt niets stil opgeslagen. Alles werkt ook
+    zonder herkenning.
+  - **Vragen via de +** worden beantwoord uit de eigen, vastgelegde gegevens, binnen de rechten van de vrager, zonder
+    externe AI. Is er geen antwoord, dan zegt Thuisplanner dat.
+  - **Geen juridische einddatum.** De app berekent geen einde van de wettelijke garantie. Alleen ingevoerde
+    commerciële of aanvullende garanties krijgen een datum en eventueel een herinnering.
+  - **Minimale gegevens:** alleen bevestigde velden; geen volledige OCR-tekst als standaard; geen IBAN, BSN of
+    betaalgegevens.
+  - **Herkenning in stappen:** eerst handmatig en de tekstlaag van PDF's (zonder externe dienst); AI voor foto's alleen
+    na een kwaliteitsproef, een AVG-beoordeling, een opt-in en een kostenplafond (besluit 13).
+  - **Demo en echt gescheiden:** de demo laat nagespeelde herkenning en opslag duidelijk zien als nagespeeld.
+- **Voorwaarden vóór implementatie:** gate 9 voor het domein "spullen en documenten" (zie de tabel met gates); Storage
+  alleen na een eigen akkoord; geen nieuwe migratie, bucket, dienst of kostenpost zonder uitleg en afzonderlijk
+  akkoord. De uitwerking staat in `docs/thuisplanner-spullen-documenten.md`.
+- **Wat niet verandert:** het Productkompas en de beslissingen 1–16.
+
+### 18. Plannen (4 november 2026)
+
+- **Besluit van de producteigenaar:** het huishouden kan kleine en grote plannen vastleggen ("Schuur opruimen", "Zolder
+  verbouwen"), met taken, optionele onderdelen, bijlagen en een duidelijke weergave van wie wat doet. Eerst als demo met
+  fictieve gegevens, als hypothese om te testen.
+- **Productkompas:** principes 1, 2, 3, 7, 8 en 9; de regels "Fouten moeten goedkoop zijn" en "Privacy volgt de situatie";
+  beslissingen 2, 12, 13, 15, 16 en 17.
+- **Uitgangspunten:**
+  - **Geen tweede takensysteem.** Een taak in een plan is een gewone taak; afvinken geeft overal dezelfde status.
+    Voortgang en de status van een plan worden berekend, niet ingevuld. Alleen de titel is verplicht.
+  - **Eén begrip.** Een plan is ook waar een slim project (besluit 13) terechtkomt. De gate van besluit 13 is daarom
+    gesplitst: handmatige plannen vragen geen AI-proef.
+  - **Plek: voorlopig onder Meer.** Dit is **geen permanente navigatiekeuze**. Na gebruikerstesten beoordelen we de plek
+    opnieuw, samen met de navigatiegate (beslissing 2).
+  - **Taken blijven vindbaar.** Plan-taken zonder datum staan in de Agenda in een inklapbare groep "Taken uit plannen"
+    onder Zonder datum. Ook dit is een ontwerpkeuze om te toetsen.
+  - **Meer verantwoordelijken, één status.** Een taak kan meer verantwoordelijken hebben en heeft één gedeeld vinkje. Er
+    mag geen verantwoordelijke of ander taakveld stil verloren gaan. *(Voor v1 aangepast op 10 november: één
+    verantwoordelijke; zie de aanvulling.)*
+  - **Niet oordelen.** Geen scores, percentages of vergelijkingen per persoon (principe 9).
+  - **Gedeeld binnen het huishouden** in de eerste versie, en dat staat er ook bij. Plannen gaan niet over een koppeling
+    tussen huishoudens (besluit 12).
+  - **Bijlagen** gebruiken de opslag van besluit 17; er komt geen tweede bestandssysteem. *(Niet in v1; zie de aanvulling.)*
+  - **Demo en echt gescheiden.** In lokaal en staging is Plannen niet zichtbaar. Nagespeelde bijlagen en samenwerking
+    staan als nagespeeld aangeduid. *(Vervangen op 11 november; zie de aanvulling.)*
+- **Volgorde:** de demo mag vóór KG-5E licht, als uitzondering die alleen voor de demo geldt. De echte versie komt na
+  KG-5E licht en na bèta 1. *(Aangepast op 10 november: de echte versie hoort in de gezinsbèta; zie de aanvulling.)*
+- **Voorwaarden vóór implementatie:** de gates "Plannen" en "Meerdere verantwoordelijken" (zie de tabel met gates); geen
+  worktree, code, migratie, bucket, dienst, kostenpost of uitrol zonder afzonderlijk akkoord.
+- **Uitwerking:** `docs/thuisplanner-plannen.md`.
+- **Aanvulling (producteigenaar, 10 en 11 november 2026):**
+  - **Plannen hoort in de gezinsbèta** van Bas en Sanne, niet uitgesteld, en meteen op het echte pad (Supabase met RLS
+    en de bestaande sync). De volgorde wordt: KG-5E licht (afgerond), dan de echte versie, vóór de gezinsbèta.
+  - **V1: één verantwoordelijke per taak**, in de demo én online, zodat beide hetzelfde doen (één datapad, geen tweede
+    takensysteem). Meer verantwoordelijken (stap C) is een latere keuze, na de gezinsbèta; de gate "Meerdere
+    verantwoordelijken" geldt dan pas.
+  - **V1: geen bijlagen.** De gate van besluit 17 voor plan-bijlagen geldt pas als bijlagen terugkomen.
+  - **Demo en echt: één gedrag, wel een schakelaar.** Plannen is in de demo altijd zichtbaar; in lokaal en staging alleen
+    met `VITE_PLANNEN=aan` in de build en migratie `20261111120000` in de database. Zonder schakelaar werkt de app
+    precies zoals daarvoor. De gate "Plannen" (KG-5E licht en gate 9 voor het domein plannen) is lokaal aangetoond; de
+    migratie gaat alleen met een afzonderlijk akkoord naar staging.
+- **Wat niet verandert:** het Productkompas en de beslissingen 1–12 en 14–17. Bij besluit 13 verandert alleen wanneer de
+  gate geldt; de inhoud van het besluit blijft staan.

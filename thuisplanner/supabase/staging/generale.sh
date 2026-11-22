@@ -52,7 +52,7 @@ tr -d '\r' < "$KG/config.toml" | sed \
   | awk '/^\[/{sectie=$0} { if ((sectie=="[db.seed]" || sectie=="[auth.hook.send_email]") && $0 ~ /^enabled = true/) print "enabled = false"; else print }' \
   > "$WERK/supabase/config.toml"
 kopieer "$EXPORT_STAND"
-(cd "$WERK" && $SUPA start --workdir . -x realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >/dev/null)
+(cd "$WERK" && $SUPA start --workdir . -x realtime,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >/dev/null)
 DB_URL="$DB" node "$HIER/export.mjs" herstel "$MAP"
 
 if [[ "$STAGING_STAND" > "$EXPORT_STAND" ]]; then

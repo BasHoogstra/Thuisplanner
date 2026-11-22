@@ -52,10 +52,11 @@ describe('lokale modus: vakanties via de sync-module', () => {
     expect(result.current.staat.melding?.tekst).toBe('Staat al op de lijst van Eva');
   });
 
-  it('overnemen: onzeker → één keer dezelfde opdracht opnieuw; ongedaan maken alleen die items', async () => {
+  it('overnemen: onzeker → één keer dezelfde opdracht opnieuw; ongedaan maken alleen die overname', async () => {
+    const overname = { vakantie: 'v1', moment: '2026-10-30T10:00:00.123456+00:00' };
     const paklijstOvernemen = vi.fn()
       .mockResolvedValueOnce({ ok: false, opdracht: 'o1', melding: { soort: 'onzeker', tekst: '…' } })
-      .mockResolvedValueOnce({ ok: true, opdracht: 'o1', items: [{ id: 'n1' }, { id: 'n2' }] });
+      .mockResolvedValueOnce({ ok: true, opdracht: 'o1', items: [{ id: 'n1' }, { id: 'n2' }], aantal: 2, overname, nieuweLijsten: ['l1'] });
     const overnemenOngedaanMaken = vi.fn(async () => ({ ok: true, verwijderd: 2, gebleven: 0 }));
     const { result } = opzet({ paklijstOvernemen, overnemenOngedaanMaken });
     act(() => result.current.paklijstOvernemen('v-oud', 'v1', null));
@@ -65,7 +66,23 @@ describe('lokale modus: vakanties via de sync-module', () => {
     expect(result.current.staat.melding).toMatchObject({ tekst: '2 items overgenomen', ongedaan: true });
     act(() => result.current.ongedaan());
     await wacht();
-    expect(overnemenOngedaanMaken).toHaveBeenCalledWith(['n1', 'n2'], []);
+    // Review V-04: ongedaan maken per overname (vakantie + aanmaakmoment), niet met een lijst ID's.
+    expect(overnemenOngedaanMaken).toHaveBeenCalledWith(overname, ['l1']);
+  });
+
+  it('overnemen (review V-04): het aantal van de server boven de 1000 teruggegeven items; zonder aanmaakmoment geen ongedaan maken', async () => {
+    const items = Array.from({ length: 1000 }, (_, i) => ({ id: `n${i}` }));
+    const paklijstOvernemen = vi.fn()
+      .mockResolvedValueOnce({ ok: true, opdracht: 'o2', items, aantal: 1200, overname: { vakantie: 'v1', moment: '2026-10-30T10:00:00+00:00' } })
+      .mockResolvedValueOnce({ ok: true, opdracht: 'o3', items: [{ id: 'x1' }], aantal: 1 });
+    const { result } = opzet({ paklijstOvernemen, overnemenOngedaanMaken: vi.fn() });
+    act(() => result.current.paklijstOvernemen('v-oud', 'v1', 'iedereen', []));
+    await wacht();
+    expect(result.current.staat.melding).toMatchObject({ tekst: '1200 items overgenomen', ongedaan: true });
+    act(() => result.current.paklijstOvernemen('v-oud', 'v1', 'iedereen', []));
+    await wacht();
+    expect(result.current.staat.melding?.tekst).toBe('1 item overgenomen');
+    expect(result.current.staat.melding?.ongedaan).toBeFalsy();
   });
 
   it('vinkjes opnieuw en terugzetten; boodschap met vakantie; vakantie toevoegen geeft het id', async () => {

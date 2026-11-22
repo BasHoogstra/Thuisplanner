@@ -1,4 +1,4 @@
-# Thuisplanner-staging, stap 5: de vier Edge Functions naar het vastgelegde stagingproject. Verandert iets ONLINE: alleen
+# Thuisplanner-staging, stap 5: de zes Edge Functions naar het vastgelegde stagingproject. Verandert iets ONLINE: alleen
 # na een apart akkoord. docs/thuisplanner-staging-overstap.md, stap 5.
 #
 #   controle (lokaal, niets online):  powershell -NoProfile -ExecutionPolicy Bypass -File .\thuisplanner\supabase\staging\functies.ps1 -Ref <kenmerk>
@@ -11,7 +11,7 @@
 # - Altijd met --project-ref (nooit `supabase link`), en het kenmerk moet precies het vastgelegde stagingproject uit
 #   thuisplanner/omgevingen.json zijn; een Huisplan-project wordt geweigerd. Alles in functions/ en config.toml moet
 #   gecommit zijn. Bundelen gebeurt bij Supabase (--use-api), zonder Docker.
-# - Na het deployen leest het script de functielijst terug (alleen lezen) en controleert: precies de vier functies,
+# - Na het deployen leest het script de functielijst terug (alleen lezen) en controleert: precies de zes functies,
 #   actief, verify_jwt uit. Bij een fout stopt het meteen; het herstelt niets zelf en doet geen tweede poging.
 # - Geheimen (stap 6) zet dit script NIET: die zet de producteigenaar zelf in het dashboard.
 param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging')][string]$Omgeving = 'staging', [switch]$Deploy)
@@ -20,7 +20,7 @@ $hier = Split-Path -Parent $MyInvocation.MyCommand.Path
 $kg = (Resolve-Path (Join-Path $hier '..')).Path
 $controle = Join-Path $hier 'functies.mjs'
 $cli = 'supabase@2.117.0'
-$functies = @('controleer-code', 'mail-bezorging', 'stuur-code', 'stuur-uitnodiging')
+$functies = @('bevestig-upload', 'controleer-code', 'mail-bezorging', 'opruimen-documenten', 'stuur-code', 'stuur-uitnodiging')
 $script:uitkomst = 0
 
 function Stop-Hier([string]$reden) {
@@ -50,7 +50,7 @@ try {
     Stop-Hier ('dit is geen persoonlijk Supabase-token (verwacht: sbp_ en 40 tekens; ingevoerd: ' + $env:SUPABASE_ACCESS_TOKEN.Length + ' tekens). Er is niets online gedaan. Plak het token bij de verborgen vraag, niet daarna in PowerShell.')
   }
 
-  $ok = Read-Host "Typ precies 'deploy $Omgeving $Ref' om de vier functies te deployen (iets anders stopt)"
+  $ok = Read-Host "Typ precies 'deploy $Omgeving $Ref' om de zes functies te deployen (iets anders stopt)"
   if ($ok -cne "deploy $Omgeving $Ref") { Stop-Hier 'geen bevestiging gegeven. Er is niets online gedaan.' }
 
   Write-Host "`n== 2. Deployen naar $Omgeving ($Ref)" -ForegroundColor Yellow

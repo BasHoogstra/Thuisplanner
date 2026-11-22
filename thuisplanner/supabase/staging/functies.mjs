@@ -12,7 +12,7 @@ import { isHuisplanRef, omgevingFouten } from './verbinding-controle.mjs';
 const HIER = path.dirname(fileURLToPath(import.meta.url));
 const KG = path.resolve(HIER, '..');
 /** Precies deze functies, en geen andere (de map _gedeeld is geen functie). */
-export const FUNCTIES = ['controleer-code', 'mail-bezorging', 'stuur-code', 'stuur-uitnodiging'];
+export const FUNCTIES = ['bevestig-upload', 'controleer-code', 'mail-bezorging', 'opruimen-documenten', 'stuur-code', 'stuur-uitnodiging'];
 
 /** Het kenmerk en de omgeving: precies het vastgelegde project, nooit Huisplan. Leeg = in orde. */
 export function kenmerkFouten(ref, omgeving = 'staging') {
@@ -77,6 +77,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const f = lijstFouten(lijst);
     for (const x of Array.isArray(lijst) ? lijst : []) console.log(`  ${x.slug ?? x.name}: ${x.status}, versie ${x.version}, verify_jwt ${x.verify_jwt}`);
     if (f.length) { console.log('AFWIJKING na het deployen:\n- ' + f.join('\n- ')); process.exit(1); }
-    console.log('IN ORDE: precies de vier functies, actief, verify_jwt uit');
+    console.log(`IN ORDE: precies de ${FUNCTIES.length} functies, actief, verify_jwt uit`);
   } else { console.log('gebruik: vooraf <kenmerk> [omgeving] | na <kenmerk> [omgeving] (lijst via stdin)'); process.exit(2); }
 }

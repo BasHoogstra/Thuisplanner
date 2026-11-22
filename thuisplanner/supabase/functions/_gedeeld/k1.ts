@@ -7,6 +7,7 @@
 //   K1_HOOK_SECRET   "v1,whsec_<base64>" (Standard Webhooks; hetzelfde als in de hookinstelling van Supabase Auth)
 // Verder: MAIL_ADAPTER (lokaal: mailpit), MAILPIT_URL, MAIL_AFZENDER, K1_CAPTCHA ("aan" of "uit"), TURNSTILE_SECRET,
 // APP_URL.
+import { RpcFout } from './verzendronde.ts';
 
 const tekst = new TextEncoder();
 
@@ -98,17 +99,30 @@ export async function webhookGeldig(geheim: string, kop: Headers, body: string):
 }
 
 /** Een RPC met de service-rol (alleen in de Edge Functions). */
-export async function rpc<T>(naam: string, args: Record<string, unknown>): Promise<T> {
+export async function rpc<T>(naam: string, args: Record<string, unknown>, opties: { tijdslimietMs?: number } = {}): Promise<T> {
   const sleutel = instelling('SUPABASE_SERVICE_ROLE_KEY');
-  const r = await fetch(`${instelling('SUPABASE_URL')}/rest/v1/rpc/${naam}`, {
-    method: 'POST',
-    headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(args),
-  });
-  if (!r.ok) throw new Error(`rpc ${naam}: ${r.status}`);
-  // Een functie zonder resultaat (void) geeft 204 zonder body.
-  const tekst = await r.text();
-  return (tekst ? JSON.parse(tekst) : null) as T;
+  // Met een tijdslimiet (ook voor het lezen van de body): daarna is de uitkomst onbekend, net als zonder antwoord.
+  const signal = opties.tijdslimietMs ? AbortSignal.timeout(opties.tijdslimietMs) : undefined;
+  try {
+    const r = await fetch(`${instelling('SUPABASE_URL')}/rest/v1/rpc/${naam}`, {
+      method: 'POST',
+      headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+      signal,
+    });
+    const tekst = await r.text();
+    if (!r.ok) {
+      // Met de PostgREST-code als die er is (alleen voor de logs en de aanroeper; geen bewijs dat er niets is uitgevoerd).
+      let code: string | null = null;
+      try { const b = JSON.parse(tekst); code = typeof b?.code === 'string' ? b.code.slice(0, 20) : null; } catch { code = null; }
+      throw new RpcFout(naam, r.status, code);
+    }
+    // Een functie zonder resultaat (void) geeft 204 zonder body.
+    return (tekst ? JSON.parse(tekst) : null) as T;
+  } catch (e) {
+    if (e instanceof RpcFout) throw e;
+    throw new RpcFout(naam, null, null);                                   // geen (volledig) antwoord: uitkomst onbekend
+  }
 }
 
 export interface Mail { aan: string; onderwerp: string; tekst: string; html: string }
@@ -122,4 +136,28 @@ export function json(status: number, body: unknown, extra: Record<string, string
 /** Alleen wat nodig is voor bewaking: nooit een adres, code, token of token_hash. */
 export function log(functie: string, gegevens: Record<string, string | number | boolean | null>): void {
   console.log(JSON.stringify({ functie, ...gegevens }));
+}
+
+/**
+ * Mijn spullen & Documenten: een object in een privé-bucket lezen of wissen met de service-rol (bevestig-upload en
+ * opruimen-documenten). Alleen hier, zoals rpc: de service-rolsleutel staat nergens anders.
+ */
+export async function opslagObject(bucket: string, pad: string, methode: 'GET' | 'DELETE'): Promise<Response> {
+  const sleutel = instelling('SUPABASE_SERVICE_ROLE_KEY');
+  const veilig = pad.split('/').map(encodeURIComponent).join('/');
+  return fetch(`${instelling('SUPABASE_URL')}/storage/v1/object/${bucket}/${veilig}`, {
+    method: methode, headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}` },
+  });
+}
+
+/** Objecten in één keer wissen (opruimen); geeft het aantal gewiste objecten. */
+export async function opslagWissen(bucket: string, paden: string[]): Promise<number> {
+  if (!paden.length) return 0;
+  const sleutel = instelling('SUPABASE_SERVICE_ROLE_KEY');
+  const antwoord = await fetch(`${instelling('SUPABASE_URL')}/storage/v1/object/${bucket}`, {
+    method: 'DELETE', headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prefixes: paden }),
+  });
+  if (!antwoord.ok) throw new Error(`opslag wissen: ${antwoord.status}`);
+  return ((await antwoord.json()) as unknown[]).length;
 }

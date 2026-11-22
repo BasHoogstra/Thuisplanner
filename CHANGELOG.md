@@ -1042,3 +1042,9 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - **9b.5:** `thuisplanner-staging` als fast-forward naar `488f347` (23 commits); de Pages-build Success; nog steeds achter Cloudflare Access.
 - **9b.6:** de app op telefoon en laptop nagelopen door de producteigenaar: alles werkte.
 - Niet gedaan: Sanne uitnodigen (stap 10, eigen akkoord). Huisplan, de website en DNS ongemoeid.
+
+## Thuisplanner Vakanties: herstel na de onafhankelijke review (V-01, V-04, V-10) (30 oktober 2026, lokaal)
+- **V-01:** overnemen van een afgelopen, niet-geopende vakantie neemt de extra lijsten weer mee (venster en suggestie openen de bron eerst).
+- **V-04:** ongedaan maken van een overname via vakantie + aanmaakmoment: één opdracht, alles of niets, zonder de grens van de adresregel en van 1000 rijen; het aantal komt van de server.
+- **V-10:** RLS-scenario's KG-T95 en KG-T96 met 5 tegenproeven (matrix 90).
+- Geen databasewijziging, geen migratie 28. Details en tests: `docs/thuisplanner-vakanties.md` §23.
