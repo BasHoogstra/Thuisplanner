@@ -1,17 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { alsEva, nav, SYNC, telefoon, toevoegen, venster } from './hulp';
+import { alsEva, nav, SYNC, telefoon, toevoegen, toonVoorbij, venster } from './hulp';
 
 // Twee telefoons, één gezin: Eva en Thomas (fictief) in twee aparte browsercontexten, tegen de lokale
 // Supabase-stack. Wat de een toevoegt, wijzigt of afvinkt, verschijnt bij de ander via de sync-module.
 
 let eva: Page, thomas: Page;
 
-/** Vandaag klapt voorbije afspraken in (voorstel van 23 november); deze tests draaien op de echte klok, dus eerst openklappen. */
-async function toonVoorbij(p: Page) {
-  const knop = p.getByRole('button', { name: /voorbij · tonen/ });
-  if (await knop.count()) await knop.click();
-}
 const contexten: BrowserContext[] = [];
 
 test.beforeEach(async ({ browser }) => {

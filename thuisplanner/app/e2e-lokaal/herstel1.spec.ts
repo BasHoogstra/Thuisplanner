@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { alsEva, nav, SYNC, telefoon, venster } from './hulp';
+import { alsEva, nav, SYNC, telefoon, toonVoorbij, venster } from './hulp';
 
 // Herstelronde 1 (review PR #23), in de echte app tegen de lokale stack met twee accounts:
 //   bevinding 1: alleen de titel aanpassen laat notities, einddatum en de rest van een afspraak staan;
@@ -60,6 +60,7 @@ test('bevinding 1: alleen de titel van een meerdaagse afspraak met notities aanp
 });
 
 test('bevinding 1: één voorkomen van een reeks met notities aanpassen: het losse voorkomen houdt de notities', async () => {
+  await toonVoorbij(eva);   // na 10:00 staat de zwemles van vanochtend ingeklapt op Vandaag
   await eva.getByRole('button', { name: /^Zwemles, 09:15/ }).first().click();
   // W1: in het detailvenster; pas bij opslaan de vraag alleen deze of de hele reeks.
   await venster(eva).getByLabel('Wat?').fill('Zwemles (diploma A)');
