@@ -8,11 +8,12 @@ export const nav = (p: Page, naam: string) => p.getByRole('navigation', { name: 
 export const SYNC = { timeout: 15_000 };
 
 /**
- * Vandaag klapt voorbije afspraken in (voorstel van 23 november, PR #55). Deze tests draaien op de echte klok: klap ze
- * eerst open, zodat een afspraak van vanochtend (Zwemles 09:15) ook 's middags en in de CI te vinden is.
+ * Het Overzicht toont alleen de eerstvolgende afspraken (besluit 19). Deze tests draaien op de echte klok: kijk daarom in
+ * de Agenda bij vandaag, zodat een afspraak van vanochtend (Zwemles 09:15) ook 's middags en in de CI te vinden is.
  */
-export async function toonVoorbij(p: Page) {
-  const knop = p.getByRole('button', { name: /voorbij · tonen/ });
+export async function agendaVandaag(p: Page) {
+  await nav(p, 'Agenda');
+  const knop = p.getByRole('button', { name: 'Naar vandaag' });
   if (await knop.count()) await knop.click();
 }
 

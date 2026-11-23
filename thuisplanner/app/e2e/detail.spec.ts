@@ -40,7 +40,7 @@ test('één onderdeel wijzigen: een andere dag, en de afspraak verhuist', async 
   await venster(page).getByRole('group', { name: 'Wanneer' }).getByRole('button', { name: 'Morgen', exact: true }).click();
   await venster(page).getByRole('button', { name: 'Opslaan' }).click();
   await expect(venster(page)).toBeHidden();
-  await expect(sectie(page, 'Agenda vandaag')).not.toContainText('Pizza bakken');
+  await expect(sectie(page, 'Afspraken')).not.toContainText('Pizza bakken');
   await expect(page.getByRole('status')).toContainText('Pizza bakken met de buren aangepast (morgen 18:00)');
 });
 
@@ -51,9 +51,9 @@ test('verwijderen met bevestiging; "Nee, terug" laat hem staan, en ongedaan make
   await expect(venster(page)).toBeVisible();
   await venster(page).getByRole('button', { name: 'Verwijderen' }).click();
   await venster(page).getByRole('button', { name: 'Ja, verwijderen' }).click();
-  await expect(sectie(page, 'Agenda vandaag')).not.toContainText('Pizza bakken');
+  await expect(sectie(page, 'Afspraken')).not.toContainText('Pizza bakken');
   await page.getByRole('button', { name: 'Ongedaan maken' }).click();
-  await expect(sectie(page, 'Agenda vandaag')).toContainText('Pizza bakken');
+  await expect(sectie(page, 'Afspraken')).toContainText('Pizza bakken');
 });
 
 test('een taak: de status en "Afgerond" direct in het overzicht', async ({ page }) => {

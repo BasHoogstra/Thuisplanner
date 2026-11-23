@@ -28,7 +28,7 @@ test('twee toestellen via het netwerkadres: inloggen, toevoegen en afvinken sync
 
   // Thomas wisselt van scherm en weer terug: het kanaal (en dus Realtime) blijft werken.
   await nav(thomas, 'Agenda');
-  await nav(thomas, 'Vandaag');
+  await nav(thomas, 'Overzicht');
 
   await toevoegen(eva, 'Afspraak', 'Ouderavond via wifi');
   await toevoegen(eva, 'Taak', 'Fietsen nakijken via wifi');

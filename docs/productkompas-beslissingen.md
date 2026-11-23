@@ -395,3 +395,30 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
     migratie gaat alleen met een afzonderlijk akkoord naar staging.
 - **Wat niet verandert:** het Productkompas en de beslissingen 1–12 en 14–17. Bij besluit 13 verandert alleen wanneer de
   gate geldt; de inhoud van het besluit blijft staan.
+
+### 19. Overzicht als begrensd startscherm (23 november 2026)
+
+- **Besluit van de producteigenaar:** na de feedback van Sanne in de eerste gezinstest wordt het startscherm een compact
+  overzicht van wat er in het gezin speelt, en heet het **Overzicht** in plaats van Vandaag. Wat vandaag belangrijk is,
+  houdt de nadruk. Daarna volgen hoogstens 3 komende afspraken en 5 relevante open taken, een korte regel met de
+  boodschappen, en alleen als het speelt de vakantie en één suggestie. Elk onderdeel linkt naar de volledige lijst.
+- **Productkompas:** principe 2 ("Vandaag hoeft geen dashboard van het hele huishouden te zijn") staat hier op spanning.
+  De producteigenaar kiest bewust voor een **begrensd** overzicht. De voorwaarden die de rust bewaken:
+  - **Harde maxima.** 3 afspraken (afspraken van de hele dag op één eigen regel, niet meegeteld) en 5 taken. De rest
+    staat achter één telregel met een link.
+  - **Wat nu of dringend is, gaat voor.** De eerstvolgende afspraak van vandaag krijgt als enige de nadruk. Taken staan in
+    een vaste volgorde: te laat, vandaag, de komende 7 dagen, zonder datum, later. Te laat en vandaag worden nooit
+    weggedrukt door latere taken. Zijn het er meer dan 5, dan noemt de telregel de rest per groep.
+  - **Leeg verdwijnt.** Een onderdeel zonder inhoud staat er niet. Er komen geen nieuwe meldingen of badges.
+  - Principes 6 (aandacht) en 8 (werkelijk gebruik): dit is een hypothese die in de bèta wordt getoetst.
+- **Keuzes (23 november 2026):**
+  - "Bezet" (de privé-afspraak van een ander) telt mee in de 3, en toont alleen wie en wanneer.
+  - Afspraken kijken 7 dagen vooruit.
+  - Taken uit plannen zonder datum blijven in de Agenda ("Taken uit plannen") en staan niet op het Overzicht.
+  - Binnen een groep is de volgorde alleen op datum, niet eerst "voor jou".
+- **Privacy:** ongewijzigd. Privé-afspraken van anderen blijven "Bezet". Taken zijn in het model voor het hele huishouden
+  zichtbaar. Het Overzicht toont niets wat de Agenda niet al toont, en het gezinsfilter van de Agenda geldt er niet.
+- **Naam:** "Overzicht" in de navigatie, de paginatitel en de teksten. De interne schermnaam en het adres (`#/vandaag`)
+  blijven, zodat bestaande links blijven werken.
+- **Volgorde:** als vervolg op PR #55 (Vandaag en Agenda rustiger), in een eigen PR. Geen databasewijziging.
+  `PRODUCT_PRINCIPLES.md` is niet aangepast.

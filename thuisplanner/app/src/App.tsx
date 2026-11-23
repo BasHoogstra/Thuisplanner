@@ -30,7 +30,7 @@ import { Plannen } from './screens/Plannen';
 import { plannenAan, schermVoor } from './lib/plan';
 
 const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties', 'spullen', 'plannen'];
-const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', spullen: 'Spullen & documenten', plannen: 'Plannen' };
+const TITELS: Record<Scherm, string> = { vandaag: 'Overzicht', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', spullen: 'Spullen & documenten', plannen: 'Plannen' };
 
 /** "#/agenda" → agenda; "#/vakanties/<id>" → die vakantie (F8); "#/spullen/<pad>" → Spullen & documenten; "#/plannen/<id>" → dat plan (besluit 18). */
 function uitHash(): { scherm: Scherm; vakantie: string | null; spullen: string; plan: string | null } {

@@ -156,8 +156,8 @@ test.describe('Herhalende afspraken', () => {
     await expect(zaterdag.getByRole('button', { name: /^Zwemles, 10:30 – 11:15/ })).toBeVisible();
     await page.getByRole('button', { name: 'Volgende week' }).click();
     await expect(weekDag(page, /^zaterdag 24 oktober$/).getByRole('button', { name: /^Zwemles, 09:15/ })).toBeVisible();
-    await nav(page, 'Vandaag');
-    await page.getByRole('button', { name: /voorbij · tonen/ }).click();   // om 11:20 is de zwemles voorbij en ingeklapt
+    // De zwemles van vandaag blijft (om 11:20 voorbij, dus niet op het Overzicht maar wel in de Agenda).
+    await page.getByRole('button', { name: 'Naar vandaag' }).click();
     await expect(page.getByRole('button', { name: /^Zwemles, 09:15 – 10:00/ })).toBeVisible();
   });
 
@@ -208,8 +208,7 @@ test.describe('Herhalende afspraken', () => {
     await weergave(page, 'Maand');
     await maandDag(page, 'zaterdag 31 oktober').click();
     await expect(dagLijst(page)).toContainText('Zwemles diploma B');
-    await nav(page, 'Vandaag');
-    await page.getByRole('button', { name: /voorbij · tonen/ }).click();
+    await page.getByRole('button', { name: 'Naar vandaag' }).click();
     await expect(page.locator('main')).toContainText('Zwemles diploma B');
   });
 
@@ -233,7 +232,7 @@ test.describe('Herhalende afspraken', () => {
     await expect(maandDag(page, 'zaterdag 24 oktober: 1 afspraak')).toBeVisible();
     await maandDag(page, 'zaterdag 24 oktober').click();
     await expect(dagLijst(page)).not.toContainText('Zwemles');
-    await nav(page, 'Vandaag');
+    await nav(page, 'Overzicht');
     await expect(page.getByText('Vandaag: 3 afspraken en 4 taken.')).toBeVisible();
   });
 });
@@ -267,7 +266,7 @@ test.describe('Gezinsfilter en privacy', () => {
   test('het filter blijft staan als je even naar Vandaag gaat; Vandaag zelf blijft ongefilterd', async ({ page }) => {
     await filter(page, 'Daan');
     await weergave(page, 'Maand');
-    await nav(page, 'Vandaag');
+    await nav(page, 'Overzicht');
     await expect(page.getByText('Vandaag nog: 3 afspraken en 4 taken.')).toBeVisible();
     await expect(page.getByRole('group', { name: 'Wiens agenda' })).toHaveCount(0);
     await nav(page, 'Agenda');

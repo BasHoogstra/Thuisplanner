@@ -228,7 +228,7 @@ test('Zonder datum: standaard ingeklapt met een zichtbare telling; de stand blij
   // De voorbereiding van een vakantie zonder datum staat er ook, met de vakantie erbij (F8).
   await expect(zdLijst(page).getByRole('button', { name: 'Kattenoppas vragen openen' })).toContainText('Frankrijk');
   // Naar Vandaag en terug, en via de Dag terug naar de Week: nog steeds open.
-  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Vandaag' }).click();
+  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Overzicht' }).click();
   await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Agenda' }).click();
   await expect(zdKnop(page)).toHaveAttribute('aria-expanded', 'true');
   await weergave(page, 'Dag');

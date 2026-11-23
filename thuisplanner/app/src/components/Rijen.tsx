@@ -40,7 +40,8 @@ export function tijdTekst(a: Afspraak): string {
  * of privé, en één persoonsmarkering. Eindtijd en plek staan in het detail; metPlek toont de plek klein achter de titel.
  * De naam voor schermlezers blijft gelijk.
  */
-export function AfspraakRij({ a, voorbij, compact, metPlek }: { a: Afspraak; voorbij?: boolean; compact?: boolean; metPlek?: boolean }) {
+export function AfspraakRij({ a, voorbij, compact, metPlek, dag }: { a: Afspraak; voorbij?: boolean; compact?: boolean; metPlek?: boolean;
+  /** Overzicht (besluit 19): de dag boven de tijd ("Morgen", "vr 27"); voor een andere dag dan vandaag ook in de naam. */ dag?: string }) {
   const { lid, huishouden, openItem } = useApp();
   const bezet = isBezetVanAnder(a, huishouden.ik);
   const kleur = a.wie.length === 1 ? lid(a.wie[0])?.kleur : undefined;
@@ -49,8 +50,8 @@ export function AfspraakRij({ a, voorbij, compact, metPlek }: { a: Afspraak; voo
     const prive = !bezet && a.zichtbaarheid === 'prive';
     return (
       <li className={'rij afspraak compact' + (voorbij ? ' voorbij' : '')}>
-        <button type="button" className="rij-knop" onClick={() => openItem(a.id)} aria-label={`${naam}. Openen`}>
-          <span className="rij-tijd">{a.start ?? 'Hele dag'}</span>
+        <button type="button" className="rij-knop" onClick={() => openItem(a.id)} aria-label={`${naam}${dag && dag !== 'Vandaag' ? `, ${dag.toLowerCase()}` : ''}. Openen`}>
+          <span className={'rij-tijd' + (dag ? ' met-dag' : '')}>{dag && <span className="rij-dag">{dag}</span>}{a.start ?? 'Hele dag'}</span>
           <span className="rij-streep" style={{ background: kleur ?? (a.wie.length ? 'var(--lijn-sterk)' : 'transparent') }} aria-hidden="true" />
           <span className="rij-titel">
             {(bezet || prive) && <IcSlot className="rij-slot" />}

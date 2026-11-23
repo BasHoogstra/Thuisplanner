@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { alsEva, nav, SYNC, telefoon, toevoegen, toonVoorbij, venster } from './hulp';
+import { agendaVandaag, alsEva, nav, SYNC, telefoon, toevoegen, venster } from './hulp';
 
 // Twee telefoons, één gezin: Eva en Thomas (fictief) in twee aparte browsercontexten, tegen de lokale
 // Supabase-stack. Wat de een toevoegt, wijzigt of afvinkt, verschijnt bij de ander via de sync-module.
@@ -23,8 +23,8 @@ test.afterEach(async () => {
 });
 
 test('privé: Eva ziet de privé-afspraak van Thomas alleen als bezet, Thomas ziet de details', async () => {
-  // Tussen 15:00 en 16:00 staat de afspraak ook bovenaan ("Hierna"): dan twee keer op het scherm.
-  await toonVoorbij(thomas); await toonVoorbij(eva);
+  // In de Agenda bij vandaag: op het Overzicht staan alleen de eerstvolgende afspraken (besluit 19).
+  await agendaVandaag(thomas); await agendaVandaag(eva);
   await expect(thomas.getByText('Fysiotherapie').first()).toBeVisible();
   await expect(eva.getByRole('button', { name: /^Bezet, 15:00/ }).first()).toBeVisible();
   await expect(eva.locator('body')).not.toContainText('Fysiotherapie');
@@ -45,7 +45,7 @@ test('afspraak: toevoegen, aanpassen en één keer van een reeks verwijderen ver
   await expect(eva.getByText('Kapper Lotte en Daan')).toBeVisible(SYNC);
 
   // Herhalende afspraak: alleen het voorkomen van vandaag verwijderen.
-  await toonVoorbij(eva); await toonVoorbij(thomas);
+  await agendaVandaag(eva); await agendaVandaag(thomas);
   await eva.getByRole('button', { name: /^Zwemles, 09:15/ }).first().click();
   await venster(eva).getByRole('button', { name: 'Verwijderen' }).click();
   await venster(eva).getByRole('button', { name: 'Alleen deze verwijderen' }).click();
@@ -71,6 +71,8 @@ test('de centrale + in één zin (B2) en boodschappen per categorie (C1): Eva ty
   await eva.locator('.nav-plus').click();
   await venster(eva).getByLabel('Wat wil je regelen?').fill('vandaag om 19:00 met Lotte naar de bieb');
   await venster(eva).getByRole('button', { name: 'Toevoegen' }).click();
+  // In de Agenda bij vandaag: het Overzicht toont hoogstens 3 komende afspraken, en hoe vol het is hangt af van de klok.
+  await agendaVandaag(thomas);
   await expect(thomas.getByText('Naar de bieb').first()).toBeVisible(SYNC);
   await eva.locator('.nav-plus').click();
   await venster(eva).getByLabel('Wat wil je regelen?').fill('melk, bananen en luiers');
@@ -264,7 +266,7 @@ test('onbevestigd: "Vergeten op dit toestel" haalt hem alleen hier weg', async (
 });
 
 test('schermwissels en StrictMode stoppen de synchronisatie niet; uitloggen wel', async () => {
-  for (const s of ['Agenda', 'Boodschappen', 'Meer', 'Vandaag']) await nav(eva, s);
+  for (const s of ['Agenda', 'Boodschappen', 'Meer', 'Overzicht']) await nav(eva, s);
   await toevoegen(thomas, 'Taak', 'Sleutels bijmaken');
   await expect(eva.getByRole('checkbox', { name: 'Sleutels bijmaken' })).toBeVisible(SYNC);
 
@@ -313,7 +315,7 @@ test('screenshots @screenshot', async () => {
   await eva.locator('.sync-waarschuwing').getByRole('button', { name: 'Sluiten' }).click();
 
   // Onbevestigd: verbinding weg tijdens het versturen.
-  await nav(eva, 'Vandaag');
+  await nav(eva, 'Overzicht');
   await verbindingWeg(eva, { bereikt: false });
   await toevoegen(eva, 'Taak', 'Regenjassen opruimen');
   await expect(eva.getByText('niet bevestigd', { exact: true })).toBeVisible(SYNC);

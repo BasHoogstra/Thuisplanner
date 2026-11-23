@@ -2,7 +2,7 @@ import { useApp, type Scherm } from '../lib/context';
 import { IcAgenda, IcBoodschappen, IcMeer, IcPlus, IcVandaag } from './Iconen';
 
 const ITEMS: { id: Scherm; label: string; Icoon: typeof IcVandaag }[] = [
-  { id: 'vandaag', label: 'Vandaag', Icoon: IcVandaag },
+  { id: 'vandaag', label: 'Overzicht', Icoon: IcVandaag },   // besluit 19: het startscherm heet Overzicht
   { id: 'agenda', label: 'Agenda', Icoon: IcAgenda },
   { id: 'boodschappen', label: 'Boodschappen', Icoon: IcBoodschappen },
   { id: 'meer', label: 'Meer', Icoon: IcMeer },
