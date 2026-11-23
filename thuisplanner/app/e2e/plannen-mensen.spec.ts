@@ -25,7 +25,6 @@ test('één taak met twee personen: titel, formulier en Agenda laten niemand val
   await expect(rij('Muren verven')).toContainText('Lotte');
 
   await page.getByRole('button', { name: 'Muren verven openen' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Meer…' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Alles bewerken' }).click();
   await page.getByRole('dialog').getByLabel(/^Wat/).fill('Muren schilderen');
   await page.getByRole('dialog').getByRole('button', { name: 'Opslaan' }).click();

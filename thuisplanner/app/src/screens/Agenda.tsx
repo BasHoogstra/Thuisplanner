@@ -63,28 +63,51 @@ export function Agenda() {
     : weergave === 'week' ? maandagVan(datum) === maandagVan(vandaag) : maandBegin(datum) === maandBegin(vandaag);
   const eenheid = weergave === 'dag' ? 'dag' : weergave === 'week' ? 'week' : 'maand';
 
+  // Voorstel van 23 november (pakket 1): de kop in twee rijen. Boven de periode met de pijlen en het gezinsfilter, daaronder
+  // de vier weergaven op één regel met "Vandaag" ernaast. De zichtbare titel "Agenda" vervalt (de navigatie zegt het al);
+  // voor schermlezers blijft er een kop.
   return (
     <div className="scherm scherm-breed agenda">
       <header className="kop agenda-kop">
+        <h1 className="sr-only">Agenda</h1>
         <div className="agenda-titelrij">
-          <h1>Agenda</h1>
+          {weergave !== 'taken' ? (
+            <div className="week-balk">
+              <p className="week-titel" aria-live="polite">
+                <span>{titel}</span>
+                {sub && <small>{sub}</small>}
+              </p>
+              <button type="button" className="icoonknop" onClick={() => stap(-1)} aria-label={`Vorige ${eenheid}`}><IcLinks /></button>
+              <button type="button" className="icoonknop" onClick={() => stap(1)} aria-label={`Volgende ${eenheid}`}><IcPijl /></button>
+            </div>
+          ) : <p className="week-titel"><span>Taken</span></p>}
           {!breed && (
             <button type="button" className={'keuze klein filter-knop' + (gekozen ? ' aan' : '')} aria-expanded={filterOpen}
               aria-controls="agenda-filter" aria-label={`Wiens agenda: ${gekozen?.naam ?? 'Iedereen'}`} onClick={() => zetFilterOpen(!filterOpen)}>
-              {gekozen && <span className="stip" style={{ background: gekozen.kleur }} aria-hidden="true" />}
-              {gekozen?.naam ?? 'Iedereen'}
+              {gekozen ? (
+                <><span className="stip" style={{ background: gekozen.kleur }} aria-hidden="true" />{gekozen.naam}</>
+              ) : (
+                <span className="filter-stippen" aria-hidden="true">
+                  {huishouden.leden.map(l => <span key={l.id} className="stip" style={{ background: l.kleur }} />)}
+                </span>
+              )}
               <IcPijl className="filter-pijl" width={16} height={16} />
             </button>
           )}
         </div>
         <div className="agenda-balk">
-          <div className="segment klein" role="tablist" aria-label="Weergave">
-            {WEERGAVEN.map(w => (
-              <button key={w.id} type="button" role="tab" aria-selected={weergave === w.id}
-                className={'segment-knop' + (weergave === w.id ? ' aan' : '')} onClick={() => zetAgenda({ weergave: w.id })}>
-                {w.label}
-              </button>
-            ))}
+          <div className="agenda-weergaven">
+            <div className="segment klein vier" role="tablist" aria-label="Weergave">
+              {WEERGAVEN.map(w => (
+                <button key={w.id} type="button" role="tab" aria-selected={weergave === w.id}
+                  className={'segment-knop' + (weergave === w.id ? ' aan' : '')} onClick={() => { zetAgenda({ weergave: w.id }); zetFilterOpen(false); }}>
+                  {w.label}
+                </button>
+              ))}
+            </div>
+            {weergave !== 'taken' && !isNu && (
+              <button type="button" className="keuze klein naar-vandaag" onClick={() => zetAgenda({ datum: vandaag })} aria-label="Naar vandaag">Vandaag</button>
+            )}
           </div>
           {(breed || filterOpen) && (
             <div id="agenda-filter" className="filter-rij" role="group" aria-label="Wiens agenda">
@@ -99,15 +122,6 @@ export function Agenda() {
             </div>
           )}
         </div>
-        {weergave !== 'taken' && <div className="week-balk">
-          <button type="button" className="icoonknop" onClick={() => stap(-1)} aria-label={`Vorige ${eenheid}`}><IcLinks /></button>
-          <p className="week-titel" aria-live="polite">
-            <span>{titel}</span>
-            {sub && <small>{sub}</small>}
-          </p>
-          <button type="button" className="icoonknop" onClick={() => stap(1)} aria-label={`Volgende ${eenheid}`}><IcPijl /></button>
-          {!isNu && <button type="button" className="link" onClick={() => zetAgenda({ datum: vandaag })}>Naar vandaag</button>}
-        </div>}
       </header>
 
       {weergave === 'dag' && <div className="dag-raster"><DagWeergave /><ZonderDatum zij /></div>}

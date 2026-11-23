@@ -20,7 +20,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto(START);
 });
 
-test('eerst overzicht: titel, dag, tijd en wie; geen keuzes, geen Opslaan, verwijderen achter Meer…', async ({ page }) => {
+test('eerst overzicht: titel, dag, tijd en wie; geen keuzes, geen Opslaan; Alles bewerken en Verwijderen in beeld', async ({ page }) => {
   await pizza(page).click();
   await expect(venster(page).getByLabel('Wat?')).toHaveValue('Pizza bakken met de buren');
   await expect(venster(page).getByRole('button', { name: /^Dag Zaterdag 10 oktober/ })).toBeVisible();
@@ -28,7 +28,9 @@ test('eerst overzicht: titel, dag, tijd en wie; geen keuzes, geen Opslaan, verwi
   await expect(venster(page).getByRole('button', { name: /^Voor wie / })).toBeVisible();
   await expect(venster(page).getByRole('group', { name: 'Wanneer' })).toHaveCount(0);
   await expect(venster(page).getByRole('button', { name: 'Opslaan' })).toHaveCount(0);
-  await expect(venster(page).getByRole('button', { name: /Verwijderen/ })).toHaveCount(0);
+  await expect(venster(page).getByRole('button', { name: 'Alles bewerken' })).toBeVisible();
+  await expect(venster(page).getByRole('button', { name: 'Verwijderen', exact: true })).toBeVisible();
+  await expect(venster(page).getByRole('button', { name: 'Meer…' })).toHaveCount(0);
   await geenHorizontaleScroll(page);
 });
 
@@ -44,11 +46,9 @@ test('één onderdeel wijzigen: een andere dag, en de afspraak verhuist', async 
 
 test('verwijderen met bevestiging; "Nee, terug" laat hem staan, en ongedaan maken zet hem terug', async ({ page }) => {
   await pizza(page).click();
-  await venster(page).getByRole('button', { name: 'Meer…' }).click();
   await venster(page).getByRole('button', { name: 'Verwijderen' }).click();
   await venster(page).getByRole('button', { name: 'Nee, terug' }).click();
   await expect(venster(page)).toBeVisible();
-  await venster(page).getByRole('button', { name: 'Meer…' }).click();
   await venster(page).getByRole('button', { name: 'Verwijderen' }).click();
   await venster(page).getByRole('button', { name: 'Ja, verwijderen' }).click();
   await expect(sectie(page, 'Agenda vandaag')).not.toContainText('Pizza bakken');

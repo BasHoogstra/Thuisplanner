@@ -20,7 +20,7 @@ export function DagBlok({ datum }: { datum: Datum }) {
     <div className="dagblok">
       {afspraken.length > 0 && (
         <ul className="lijst" aria-label="Afspraken">
-          {afspraken.map(a => <AfspraakRij key={a.id} a={a} voorbij={datum < vandaag || (datum === vandaag && isVoorbij(a, nu))} />)}
+          {afspraken.map(a => <AfspraakRij key={a.id} a={a} compact metPlek voorbij={datum < vandaag || (datum === vandaag && isVoorbij(a, nu))} />)}
         </ul>
       )}
       {afspraken.length > 0 && taken.length > 0 && <div className="dagblok-scheiding" aria-hidden="true" />}

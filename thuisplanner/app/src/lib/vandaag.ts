@@ -113,11 +113,16 @@ export function achterstand(t: Taak, vandaag: Datum): string {
   return n === 1 ? 'sinds gisteren' : `sinds ${n} dagen`;
 }
 
-/** Eén zin die de dag samenvat, zonder oordeel of score. */
-export function samenvatting(afspraken: number, taken: number): string {
+/**
+ * Eén zin die de dag samenvat, zonder oordeel of score. voorbij: hoeveel afspraken van vandaag al geweest zijn; die tellen
+ * niet meer mee, zodat de zin 's avonds zegt wat er nog komt ("Vandaag nog: …") in plaats van wat er was.
+ */
+export function samenvatting(afspraken: number, taken: number, voorbij = 0): string {
   if (!afspraken && !taken) return 'Een rustige dag. Er staat niets voor je klaar.';
+  const nog = afspraken - voorbij;
+  if (!nog && !taken) return 'Voor vandaag staat er niets meer.';
   const delen: string[] = [];
-  if (afspraken) delen.push(afspraken === 1 ? '1 afspraak' : `${afspraken} afspraken`);
+  if (nog) delen.push(nog === 1 ? '1 afspraak' : `${nog} afspraken`);
   if (taken) delen.push(taken === 1 ? '1 taak' : `${taken} taken`);
-  return `Vandaag: ${delen.join(' en ')}.`;
+  return `${voorbij ? 'Vandaag nog' : 'Vandaag'}: ${delen.join(' en ')}.`;
 }

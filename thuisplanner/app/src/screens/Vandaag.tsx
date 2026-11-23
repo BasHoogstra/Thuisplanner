@@ -5,13 +5,23 @@ import { begroeting, korteDag, dagLabel, langeDatum } from '../lib/datum';
 import {
   achterstand, afgerondVandaag, afsprakenOp, binnenkort, eerstvolgende, isVoorbij, loopt, meedenker, openBoodschappen, samenvatting, takenVandaag,
 } from '../lib/vandaag';
-import { AfspraakRij, TaakRij, Wie, tijdTekst } from '../components/Rijen';
+import { AfspraakRij, TaakRij, Wie, afspraakNaam, tijdTekst } from '../components/Rijen';
 import { IcPijl } from '../components/Iconen';
 import { UitnodigingMelding } from '../components/Onboarding';
 import { nieuwId } from '../lib/store';
 import { isTaak } from '../lib/vandaag';
 import { vakantieVoorVandaag, wanneerKort } from '../lib/vakantie';
 import { IcKoffer } from '../components/Iconen';
+import type { AgendaStand } from '../lib/context';
+
+/**
+ * Hoeveel rijen een blok op Vandaag hoogstens toont (voorstel "rust vóór informatiedichtheid", 23 november 2026). Is het
+ * er meer, dan staan er vier en klapt de rest in achter één regel, zodat er nooit één rij achter een knop verdwijnt.
+ */
+const ZICHTBAAR = 5;
+function eerste<T>(lijst: T[]): T[] {
+  return lijst.length > ZICHTBAAR ? lijst.slice(0, ZICHTBAAR - 1) : lijst;
+}
 
 export function Vandaag() {
   const app = useApp();
@@ -20,21 +30,33 @@ export function Vandaag() {
   const afspraken = afsprakenOp(staat.items, vandaag);
   const eerst = eerstvolgende(afspraken, nu);
   const overig = afspraken.filter(a => a !== eerst);
+  // Wat voorbij is klapt in. "Daarna" (de volgende afspraak met een tijd) staat in de Straks-kaart en niet nog eens in de
+  // lijst. Van wat nog komt staan er hoogstens vijf in beeld.
+  const voorbij = overig.filter(a => isVoorbij(a, nu));
+  const daarna = eerst ? overig.find(a => a.start !== undefined && !isVoorbij(a, nu)) : undefined;
+  const komend = overig.filter(a => !isVoorbij(a, nu) && a !== daarna);
   const taken = takenVandaag(staat.items, vandaag);
   const klaar = afgerondVandaag(staat.items, vandaag);
   const [toonKlaar, zetToonKlaar] = useState(false);
+  const [toonVoorbij, zetToonVoorbij] = useState(false);
+  const [toonLater, zetToonLater] = useState(false);
+  const [toonTaken, zetToonTaken] = useState(false);
   const boodschappen = openBoodschappen(staat.items);
-  const vooruit = binnenkort(staat.items, vandaag);
+  const vooruit = binnenkort(staat.items, vandaag).slice(0, 3);
   const signaal = meedenker(staat.items, vandaag, staat.weggeklikt, huishouden.ik);
-  const rustig = !afspraken.length && !taken.length && !klaar.length;
   const vk = vakantieVoorVandaag(staat.vakanties, vandaag);
+  const komendZichtbaar = toonLater ? komend : eerste(komend);
+  const komendVerborgen = komend.slice(komendZichtbaar.length);
+  const takenZichtbaar = toonTaken ? taken : eerste(taken);
+  const takenVerborgen = taken.length - takenZichtbaar.length;
+  const naarAgenda = (stand: Partial<AgendaStand>) => { app.zetAgenda(stand); app.gaNaar('agenda'); };
 
   return (
     <div className="vandaag">
       <header className="kop">
         <p className="kop-datum">{langeDatum(vandaag)}</p>
         <h1>{begroeting(uur)}, {ik?.naam}</h1>
-        <p className="kop-samenvatting">{samenvatting(afspraken.length, taken.length)}</p>
+        <p className="kop-samenvatting">{samenvatting(afspraken.length, taken.length, voorbij.length)}</p>
       </header>
 
       <div className="vandaag-raster">
@@ -43,47 +65,75 @@ export function Vandaag() {
             <UitnodigingMelding lijst={app.lokaal.uitnodigingen.melding} opBekijk={app.lokaal.uitnodigingen.bekijk}
               opAlle={() => app.gaNaar('meer')} opLater={app.lokaal.uitnodigingen.later} />
           )}
-          {rustig && (
-            <section className="rust" aria-label="Rustige dag">
-              <div className="rust-cirkel" aria-hidden="true" />
-              <p className="rust-titel">Niets dat vandaag van je vraagt.</p>
-              <p className="rust-tekst">Geniet ervan. Wat eraan komt, staat bij Binnenkort.</p>
-            </section>
-          )}
 
           {eerst && (
             <section className="straks" aria-label="Straks">
               <button type="button" className="straks-knop" onClick={() => app.openItem(eerst.id)}
                 aria-label={`${titelVoor(eerst, huishouden.ik)}, ${tijdTekst(eerst)}. Openen`}>
-                <span className="sectie-label">{loopt(eerst, nu) ? 'Nu' : 'Straks'}</span>
-                <span className="straks-tijd">{tijdTekst(eerst)}</span>
+                <span className="straks-label">{loopt(eerst, nu) ? 'Nu' : 'Straks'} · {tijdTekst(eerst)}</span>
                 <span className="straks-titel">{titelVoor(eerst, huishouden.ik)}</span>
                 <span className="straks-sub">
                   <Wie ids={eerst.wie} />
                   {plekVoor(eerst, huishouden.ik) && <span className="plek">{plekVoor(eerst, huishouden.ik)}</span>}
                 </span>
               </button>
+              {daarna && (
+                <div role="group" aria-label="Daarna">
+                  <button type="button" className="straks-daarna" onClick={() => app.openItem(daarna.id)}
+                    aria-label={`${afspraakNaam(daarna, huishouden.ik)}. Openen`}>
+                    Daarna <strong>{daarna.start} {titelVoor(daarna, huishouden.ik)}</strong>
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
-          {overig.length > 0 && (
+          {(komend.length > 0 || voorbij.length > 0) && (
             <section aria-labelledby="h-agenda">
-              <h2 id="h-agenda" className="sectie-kop">Agenda vandaag</h2>
-              <ul className="lijst">
-                {overig.map(a => <AfspraakRij key={a.id} a={a} voorbij={isVoorbij(a, nu)} />)}
-              </ul>
+              <div className="blok-kop">
+                <h2 id="h-agenda" className="sectie-kop">Agenda vandaag</h2>
+                <button type="button" className="link blok-link" onClick={() => naarAgenda({ weergave: 'dag', datum: vandaag })}>
+                  Naar Agenda <IcPijl />
+                </button>
+              </div>
+              {voorbij.length > 0 && (
+                <button type="button" className="link uitklap-regel" aria-expanded={toonVoorbij} onClick={() => zetToonVoorbij(!toonVoorbij)}>
+                  {voorbij.length} voorbij {toonVoorbij ? '· verbergen' : '· tonen'}
+                </button>
+              )}
+              {(komendZichtbaar.length > 0 || toonVoorbij) && (
+                <ul className="lijst compact">
+                  {toonVoorbij && voorbij.map(a => <AfspraakRij key={a.id} a={a} voorbij compact />)}
+                  {komendZichtbaar.map(a => <AfspraakRij key={a.id} a={a} compact />)}
+                </ul>
+              )}
+              {komendVerborgen.length > 0 && (
+                <button type="button" className="link uitklap-regel" aria-expanded={false} onClick={() => zetToonLater(true)}>
+                  Nog {komendVerborgen.length} later: {komendVerborgen.map(a => titelVoor(a, huishouden.ik)).join(', ')}
+                </button>
+              )}
             </section>
           )}
 
           {(taken.length > 0 || klaar.length > 0) && (
             <section aria-labelledby="h-taken">
-              <h2 id="h-taken" className="sectie-kop">Te doen</h2>
+              <div className="blok-kop">
+                <h2 id="h-taken" className="sectie-kop">Te doen</h2>
+                <button type="button" className="link blok-link" onClick={() => naarAgenda({ weergave: 'taken' })}>
+                  Alle taken <IcPijl />
+                </button>
+              </div>
               {taken.length > 0 ? (
-                <ul className="lijst">
-                  {taken.map(t => <TaakRij key={t.id} t={t} extra={achterstand(t, vandaag)} />)}
+                <ul className="lijst compact">
+                  {takenZichtbaar.map(t => <TaakRij key={t.id} t={t} extra={achterstand(t, vandaag)} teLaat={!!achterstand(t, vandaag)} />)}
                 </ul>
               ) : (
                 <p className="stil-tekst klaar-alles">Alles van vandaag is gedaan.</p>
+              )}
+              {takenVerborgen > 0 && (
+                <button type="button" className="link uitklap-regel" aria-expanded={false} onClick={() => zetToonTaken(true)}>
+                  Nog {takenVerborgen} {takenVerborgen === 1 ? 'taak' : 'taken'} · tonen
+                </button>
               )}
               {klaar.length > 0 && (
                 <div className="afgerond">
@@ -92,7 +142,7 @@ export function Vandaag() {
                     {klaar.length} afgerond vandaag {toonKlaar ? '· verbergen' : '· tonen'}
                   </button>
                   {toonKlaar && (
-                    <ul className="lijst" aria-label="Afgerond vandaag">
+                    <ul className="lijst compact" aria-label="Afgerond vandaag">
                       {klaar.map(t => <TaakRij key={t.id} t={t} />)}
                     </ul>
                   )}
@@ -103,11 +153,13 @@ export function Vandaag() {
 
           {signaal && (
             <section className="meedenker" aria-label="Meegedacht">
-              <p>
-                <span className="meedenker-wanneer">Morgen {signaal.afspraak.start} · {signaal.afspraak.titel}</span>
-                <Wie ids={signaal.afspraak.wie} klein />
-              </p>
-              <p className="meedenker-vraag">{signaal.voorstel} vanavond?</p>
+              <div className="meedenker-tekst">
+                <p className="meedenker-vraag">{signaal.voorstel} vanavond?</p>
+                <p>
+                  <span className="meedenker-wanneer">Morgen {signaal.afspraak.start} · {signaal.afspraak.titel}</span>
+                  <Wie ids={signaal.afspraak.wie} klein />
+                </p>
+              </div>
               <div className="meedenker-knoppen">
                 <button className="knop klein" onClick={() => {
                   app.toevoegen([{ id: nieuwId('t'), soort: 'taak', titel: signaal.voorstel, datum: vandaag,
@@ -119,29 +171,26 @@ export function Vandaag() {
           )}
         </div>
 
-        <div className="kolom-zij">
-          {/* F8: rustig in de zijkolom, zodat "Straks" de enige nadruk blijft. */}
-          {vk && <VakantieKaart id={vk.id} />}
-          <section aria-labelledby="h-boodschappen" className="blok">
-            <div className="blok-kop">
-              <h2 id="h-boodschappen" className="sectie-kop">Boodschappen</h2>
-              <a className="link" href="#/boodschappen" onClick={e => { e.preventDefault(); app.gaNaar('boodschappen'); }}>
-                Lijst <IcPijl />
-              </a>
-            </div>
-            {boodschappen.length ? (
+        {/* F8 en het voorstel van 23 november: één rustige strook met korte regels; een leeg onderdeel verdwijnt. */}
+        <div className="kolom-zij verder">
+          {boodschappen.length > 0 && (
+            <section aria-labelledby="h-boodschappen" className="blok verder-blok">
+              <div className="blok-kop">
+                <h2 id="h-boodschappen" className="sectie-kop">Boodschappen</h2>
+                <a className="link blok-link" href="#/boodschappen" onClick={e => { e.preventDefault(); app.gaNaar('boodschappen'); }}>
+                  Lijst <IcPijl />
+                </a>
+              </div>
               <p className="boodschappen-kort">
                 {boodschappen.slice(0, 4).map(b => b.naam).join(', ')}
                 {boodschappen.length > 4 && <span className="nog"> en nog {boodschappen.length - 4}</span>}
               </p>
-            ) : (
-              <p className="stil-tekst">Niets nodig.</p>
-            )}
-          </section>
+            </section>
+          )}
 
-          <section aria-labelledby="h-binnenkort" className="blok">
-            <h2 id="h-binnenkort" className="sectie-kop">Binnenkort</h2>
-            {vooruit.length ? (
+          {vooruit.length > 0 && (
+            <section aria-labelledby="h-binnenkort" className="blok verder-blok">
+              <h2 id="h-binnenkort" className="sectie-kop">Binnenkort</h2>
               <ul className="vooruit">
                 {vooruit.map(d => (
                   <li key={d.datum}>
@@ -149,18 +198,16 @@ export function Vandaag() {
                       {dagLabel(d.datum, vandaag) === 'Morgen' ? 'Morgen' : korteDag(d.datum)}
                     </span>
                     <span className="vooruit-wat">
-                      {d.afspraken.slice(0, 2).map(a => (
-                        <span key={a.id}>{a.start ? `${a.start} ` : ''}{titelVoor(a, huishouden.ik)}</span>
-                      ))}
-                      {d.afspraken.length > 2 && <span className="nog">+{d.afspraken.length - 2}</span>}
+                      {d.afspraken.slice(0, 2).map(a => `${a.start ? `${a.start} ` : ''}${titelVoor(a, huishouden.ik)}`).join(' · ')}
+                      {d.afspraken.length > 2 && <span className="nog"> · +{d.afspraken.length - 2}</span>}
                     </span>
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="stil-tekst">De komende dagen staat er niets bijzonders.</p>
-            )}
-          </section>
+            </section>
+          )}
+
+          {vk && <VakantieKaart id={vk.id} />}
         </div>
       </div>
     </div>

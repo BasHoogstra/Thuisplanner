@@ -23,17 +23,47 @@ export function Wie({ ids, klein }: { ids: LidId[]; klein?: boolean }) {
   );
 }
 
+/** De naam van een afspraak voor schermlezers, overal gelijk: "Zwemles, 09:15 – 10:00, herhaalt" of "Bezet, 15:00 – 16:00". */
+export function afspraakNaam(a: Afspraak, ik: LidId): string {
+  const bezet = isBezetVanAnder(a, ik);
+  return (bezet ? `Bezet, ${tijdTekst(a)}` : `${a.titel ?? 'Afspraak'}, ${tijdTekst(a)}`) + (a.herhaling ? ', herhaalt' : '');
+}
+
 export function tijdTekst(a: Afspraak): string {
   if (!a.start) return 'Hele dag';
   return a.eind ? `${a.start} – ${a.eind}` : a.start;
 }
 
-/** Een afspraak als rij. De hele rij opent de afspraak; een privé-afspraak van een ander toont alleen "Bezet". */
-export function AfspraakRij({ a, voorbij }: { a: Afspraak; voorbij?: boolean }) {
+/**
+ * Een afspraak als rij. De hele rij opent de afspraak; een privé-afspraak van een ander toont alleen "Bezet".
+ * compact (rust vóór informatiedichtheid, voorstel van 23 november): één regel met begintijd, lidkleur, titel, herhaling
+ * of privé, en één persoonsmarkering. Eindtijd en plek staan in het detail; metPlek toont de plek klein achter de titel.
+ * De naam voor schermlezers blijft gelijk.
+ */
+export function AfspraakRij({ a, voorbij, compact, metPlek }: { a: Afspraak; voorbij?: boolean; compact?: boolean; metPlek?: boolean }) {
   const { lid, huishouden, openItem } = useApp();
   const bezet = isBezetVanAnder(a, huishouden.ik);
   const kleur = a.wie.length === 1 ? lid(a.wie[0])?.kleur : undefined;
   const naam = (bezet ? `Bezet, ${tijdTekst(a)}` : `${a.titel ?? 'Afspraak'}, ${tijdTekst(a)}`) + (a.herhaling ? ', herhaalt' : '');
+  if (compact) {
+    const prive = !bezet && a.zichtbaarheid === 'prive';
+    return (
+      <li className={'rij afspraak compact' + (voorbij ? ' voorbij' : '')}>
+        <button type="button" className="rij-knop" onClick={() => openItem(a.id)} aria-label={`${naam}. Openen`}>
+          <span className="rij-tijd">{a.start ?? 'Hele dag'}</span>
+          <span className="rij-streep" style={{ background: kleur ?? (a.wie.length ? 'var(--lijn-sterk)' : 'transparent') }} aria-hidden="true" />
+          <span className="rij-titel">
+            {(bezet || prive) && <IcSlot className="rij-slot" />}
+            <span className="rij-titel-tekst">{bezet ? 'Bezet' : a.titel}</span>
+            {a.herhaling && !bezet && <IcHerhaal className="rij-herhaal" />}
+            {prive && <span className="sr-only"> alleen voor jou</span>}
+            {metPlek && a.plek && !bezet && <span className="rij-plek">{a.plek}</span>}
+          </span>
+          <span className="rij-wie"><WeekWie ids={a.wie} /><SyncLabel sync={a.sync} /></span>
+        </button>
+      </li>
+    );
+  }
   return (
     <li className={'rij afspraak' + (voorbij ? ' voorbij' : '')}>
       <button type="button" className="rij-knop" onClick={() => openItem(a.id)} aria-label={`${naam}. Openen`}>
@@ -115,7 +145,7 @@ export function lidKleur(ids: LidId[], lid: (id: LidId) => { kleur: string } | u
 
 /**
  * Een afspraak in de week (W2): alleen de begintijd, de titel (hoogstens twee regels) en één persoonsmarkering. Plek,
- * eindtijd en herhaling staan in het detailvenster; "Bezet", privé en "niet bevestigd" blijven zichtbaar. De naam voor
+ * eindtijd en het herhaalschema staan in het detailvenster (een herhaalteken staat op de rij); "Bezet", privé en "niet bevestigd" blijven zichtbaar. De naam voor
  * schermlezers is dezelfde als in AfspraakRij.
  */
 export function WeekAfspraakRij({ a, voorbij }: { a: Afspraak; voorbij?: boolean }) {
@@ -130,6 +160,7 @@ export function WeekAfspraakRij({ a, voorbij }: { a: Afspraak; voorbij?: boolean
         <span className="week-inhoud">
           <span className={'week-rij-titel' + (bezet ? ' bezet' : '')}>
             {(bezet || a.zichtbaarheid === 'prive') && <IcSlot />}{bezet ? 'Bezet' : a.titel}
+            {a.herhaling && !bezet && <IcHerhaal className="rij-herhaal" />}
           </span>
           {(a.wie.length > 0 || a.sync) && <span className="week-sub"><WeekWie ids={a.wie} /><SyncLabel sync={a.sync} /></span>}
         </span>
@@ -164,7 +195,7 @@ export function WeekTaakRij({ t }: { t: Taak }) {
  * rondje in de kleur van het lid (Agenda, A6); metLidKleur zet dat aan. zonderVakantie: geen vakantielabel (op de
  * vakantiepagina zelf). zonderPlan: geen planlabel (op de planpagina zelf).
  */
-export function TaakRij({ t, extra, zonderVakantie, zonderPlan, metLidKleur }: { t: Taak; extra?: string; zonderVakantie?: boolean; zonderPlan?: boolean; metLidKleur?: boolean }) {
+export function TaakRij({ t, extra, teLaat, zonderVakantie, zonderPlan, metLidKleur }: { t: Taak; extra?: string; teLaat?: boolean; zonderVakantie?: boolean; zonderPlan?: boolean; metLidKleur?: boolean }) {
   const { wissel, openItem, lid } = useApp();
   const taakVak = useTaakVakantie(t);
   const vak = zonderVakantie ? [] : taakVak;
@@ -183,7 +214,7 @@ export function TaakRij({ t, extra, zonderVakantie, zonderPlan, metLidKleur }: {
             <span className="rij-sub">
               {mensen.length > 0 && <Wie ids={mensen} klein />}
               <BezigLabel t={t} />
-              {extra && <span className="plek">{extra}</span>}
+              {extra && <span className={'plek' + (teLaat ? ' te-laat' : '')}>{teLaat ? `te laat · ${extra}` : extra}</span>}
               <VakantieLabel vakanties={vak} />
               {!zonderPlan && <PlanLabel t={t} />}
               <SyncLabel sync={t.sync} />

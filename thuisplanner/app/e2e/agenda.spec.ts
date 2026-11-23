@@ -378,12 +378,12 @@ test('filter op iPhone en tablet achter één knop; alle leden zichtbaar; kiezen
   await groep.getByRole('button', { name: 'Lotte', exact: true }).click();
   await expect(groep).toHaveCount(0);
   await expect(knop).toHaveAccessibleName('Wiens agenda: Lotte');
+  const c = await laagsteContrast(page, '.filter-knop');   // met een gekozen lid staat er een naam in de knop
+  expect(c!.waarde).toBeGreaterThanOrEqual(4.5);
   await expect(page.getByRole('region', { name: 'zaterdag 10 oktober, vandaag' })).not.toContainText('Zwemles');
   await expect(page.getByRole('region', { name: 'zaterdag 10 oktober, vandaag' })).toContainText('Voetbal');
   await kiesFilter(page, 'Iedereen');
   await expect(knop).toHaveAccessibleName('Wiens agenda: Iedereen');
   await expect(page.getByRole('region', { name: 'zaterdag 10 oktober, vandaag' })).toContainText('Zwemles');
-  const c = await laagsteContrast(page, '.filter-knop');
-  expect(c!.waarde).toBeGreaterThanOrEqual(4.5);
   await geenHorizontaleScroll(page);
 });

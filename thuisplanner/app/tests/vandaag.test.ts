@@ -62,6 +62,10 @@ describe('Vandaag-selectie', () => {
     expect(samenvatting(0, 0)).toBe('Een rustige dag. Er staat niets voor je klaar.');
     expect(samenvatting(1, 0)).toBe('Vandaag: 1 afspraak.');
     expect(samenvatting(2, 1)).toBe('Vandaag: 2 afspraken en 1 taak.');
+    // Voorstel van 23 november: wat voorbij is telt niet meer mee.
+    expect(samenvatting(4, 2, 1)).toBe('Vandaag nog: 3 afspraken en 2 taken.');
+    expect(samenvatting(4, 1, 4)).toBe('Vandaag nog: 1 taak.');
+    expect(samenvatting(4, 0, 4)).toBe('Voor vandaag staat er niets meer.');
   });
 
   it('boodschappen: alleen wat nog niet is afgevinkt', () => {

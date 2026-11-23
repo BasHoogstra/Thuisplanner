@@ -1,6 +1,6 @@
 // W1: het rustige detailvenster voor een bestaande afspraak of taak (src/components/DetailVenster.tsx). Eerst overzicht;
 // een tik op één onderdeel opent alleen dat onderdeel; "Opslaan" pas na een wijziging; bestaande gegevens blijven behouden;
-// verwijderen onder "Meer…" met bevestiging; privé alleen voor de eigenaar; "Alles bewerken" opent het volledige formulier.
+// "Alles bewerken" en "Verwijderen" altijd in beeld, verwijderen met bevestiging (voorstel van 23 november); privé alleen voor de eigenaar; "Alles bewerken" opent het volledige formulier.
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ItemVenster } from '../src/components/ItemVenster';
@@ -41,8 +41,10 @@ it('eerst overzicht: titel, dag, tijd en wie; geen dag- of persoonsknoppen, geen
   expect(o.d().queryByRole('group', { name: 'Wanneer' })).not.toBeInTheDocument();
   expect(o.d().queryByRole('group', { name: 'Voor wie' })).not.toBeInTheDocument();
   expect(o.d().queryByRole('button', { name: 'Opslaan' })).not.toBeInTheDocument();
-  expect(o.d().queryByRole('button', { name: /Verwijderen/ })).not.toBeInTheDocument();
-  expect(o.d().getByRole('button', { name: 'Meer…' })).toBeInTheDocument();
+  // Voorstel van 23 november: de twee acties staan onderaan in beeld, niet meer achter "Meer…".
+  expect(o.d().getByRole('button', { name: 'Alles bewerken' })).toBeInTheDocument();
+  expect(o.d().getByRole('button', { name: 'Verwijderen' })).toBeInTheDocument();
+  expect(o.d().queryByRole('button', { name: 'Meer…' })).not.toBeInTheDocument();
   expect(o.d().getByText('Pasje mee')).toBeInTheDocument();   // notities: zichtbaar, niet weg
 });
 
@@ -97,7 +99,7 @@ it('wijzigingen weggooien: alles terug, en Opslaan verdwijnt weer', async () => 
   await o.user.clear(o.d().getByLabelText('Wat?'));
   await o.user.type(o.d().getByLabelText('Wat?'), 'Orthodontist');
   expect(o.d().getByRole('button', { name: 'Opslaan' })).toBeInTheDocument();
-  expect(o.d().queryByRole('button', { name: 'Meer…' })).not.toBeInTheDocument();   // eerst opslaan of weggooien
+  expect(o.d().queryByRole('button', { name: 'Verwijderen' })).not.toBeInTheDocument();   // eerst opslaan of weggooien
   await o.user.click(o.d().getByRole('button', { name: 'Wijzigingen weggooien' }));
   expect(o.d().getByLabelText('Wat?')).toHaveValue('Tandarts');
   expect(o.d().queryByRole('button', { name: 'Opslaan' })).not.toBeInTheDocument();
@@ -111,13 +113,11 @@ it('een lege titel wordt niet opgeslagen', async () => {
   expect(o.bijwerken).not.toHaveBeenCalled();
 });
 
-it('verwijderen staat onder Meer…, met bevestiging; "Nee, terug" verwijdert niets', async () => {
+it('verwijderen staat in beeld, met bevestiging; "Nee, terug" verwijdert niets', async () => {
   const o = opzet([afspraak()], 'a1');
-  await o.user.click(o.d().getByRole('button', { name: 'Meer…' }));
   await o.user.click(o.d().getByRole('button', { name: 'Verwijderen' }));
   await o.user.click(o.d().getByRole('button', { name: 'Nee, terug' }));
   expect(o.verwijder).not.toHaveBeenCalled();
-  await o.user.click(o.d().getByRole('button', { name: 'Meer…' }));
   await o.user.click(o.d().getByRole('button', { name: 'Verwijderen' }));
   await o.user.click(o.d().getByRole('button', { name: 'Ja, verwijderen' }));
   expect(o.verwijder).toHaveBeenCalledWith(['a1'], 'Tandarts verwijderd');
@@ -140,10 +140,20 @@ it('een voorkomen van een reeks: pas bij opslaan "alleen deze of de hele reeks";
 it('een reeks verwijderen: kiezen tussen alleen deze en de hele reeks', async () => {
   const reeks = afspraak({ id: 'r1', titel: 'Zwemles', datum: '2026-10-01', herhaling: { freq: 'wekelijks', tot: null, uitzonderingen: [] } });
   const o = opzet([reeks], voorkomenId('r1', '2026-10-22'));
-  await o.user.click(o.d().getByRole('button', { name: 'Meer…' }));
   await o.user.click(o.d().getByRole('button', { name: 'Verwijderen' }));
+  expect(o.d().getByText('Zwemles herhaalt. Wat wil je verwijderen?')).toBeInTheDocument();
   await o.user.click(o.d().getByRole('button', { name: 'Alleen deze verwijderen' }));
   expect(o.verwijderVoorkomen).toHaveBeenCalledWith('r1', '2026-10-22', 'Zwemles op donderdag 22 oktober verwijderd');
+});
+
+it('de regel "Herhaalt" biedt de reeks aan: herhaling wijzigen of de reeks verwijderen (voorstel van 23 november)', async () => {
+  const reeks = afspraak({ id: 'r1', titel: 'Zwemles', datum: '2026-10-01', herhaling: { freq: 'wekelijks', tot: null, uitzonderingen: [] } });
+  const o = opzet([reeks], voorkomenId('r1', '2026-10-22'));
+  await o.user.click(o.d().getByRole('button', { name: /^Herhaalt / }));
+  expect(o.d().getByRole('button', { name: 'Herhaling wijzigen' })).toBeInTheDocument();
+  await o.user.click(o.d().getByRole('button', { name: 'Reeks verwijderen…' }));
+  await o.user.click(o.d().getByRole('button', { name: 'Hele reeks verwijderen' }));
+  expect(o.verwijderReeks).toHaveBeenCalledWith('r1', 'Hele reeks Zwemles verwijderd');
 });
 
 it('privé kiest alleen de eigenaar; bij een gedeelde afspraak van een ander staat die regel er niet', async () => {
@@ -158,7 +168,6 @@ it('privé kiest alleen de eigenaar; bij een gedeelde afspraak van een ander sta
 
 it('Alles bewerken opent het volledige formulier voor hetzelfde item', async () => {
   const o = opzet([afspraak()], 'a1');
-  await o.user.click(o.d().getByRole('button', { name: 'Meer…' }));
   await o.user.click(o.d().getByRole('button', { name: 'Alles bewerken' }));
   const d = within(screen.getByRole('dialog'));
   expect(d.getByLabelText('Wat?')).toHaveValue('Tandarts');
