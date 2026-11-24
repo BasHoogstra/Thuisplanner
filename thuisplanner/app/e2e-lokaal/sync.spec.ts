@@ -38,10 +38,14 @@ test('afspraak: toevoegen, aanpassen en één keer van een reeks verwijderen ver
   await toevoegen(eva, 'Afspraak', 'Kapper Lotte');
   await expect(thomas.getByText('Kapper Lotte')).toBeVisible(SYNC);
 
+  // Zonder tijd is het een afspraak van de hele dag; op het Overzicht staan die samen op één regel (review PR #56).
+  // Openen gaat via de Agenda bij vandaag.
+  await agendaVandaag(thomas);
   await thomas.getByRole('button', { name: /^Kapper Lotte/ }).click();
   // W1: het detailvenster; de titel is direct te wijzigen, Opslaan verschijnt na de wijziging.
   await venster(thomas).getByLabel('Wat?').fill('Kapper Lotte en Daan');
   await venster(thomas).getByRole('button', { name: 'Opslaan' }).click();
+  await agendaVandaag(eva);
   await expect(eva.getByText('Kapper Lotte en Daan')).toBeVisible(SYNC);
 
   // Herhalende afspraak: alleen het voorkomen van vandaag verwijderen.

@@ -134,6 +134,8 @@ test('bevinding 4: privé-afspraak wél aangekomen (antwoord weg), herladen: de 
   const id = await priveToevoegenZonderAntwoord(eva, 'Fysio Eva', { bereikt: true });
   await eva.reload();
   await expect(eva.locator('.sync-status')).toHaveText('Verbonden', SYNC);
+  // Zonder tijd: een afspraak van de hele dag; op het Overzicht staan die samen op één regel (review PR #56).
+  await agendaVandaag(eva);
   await expect(eva.getByRole('button', { name: /^Fysio Eva/ })).toBeVisible(SYNC);
   await nav(eva, 'Meer');
   await expect(eva.getByText('Alles is door de server bevestigd.')).toBeVisible(SYNC);
