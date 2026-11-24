@@ -226,12 +226,16 @@ function Schil({ klok, data, demo, huishouden: hh, voorkeuren, balk, lokaal, tit
   // Besluit 20: het startscherm, één keer bij het openen en alleen zonder eigen adres; met de stand die bij het openen al op
   // dit toestel bekend was (anders het Overzicht, en de keuze geldt vanaf de volgende start).
   const [start] = useState(() => {
+    const zonderAdres = window.location.hash.replace(/^#\/?/, '') === '';
     const doel = startDoel(window.location.hash, voorkeuren?.bijStart ?? null);
-    if (!doel) return null;
-    const scherm: Scherm = doel === 'taken' ? 'agenda' : doel;
-    // Het adres meteen goed (zonder extra stap in de geschiedenis): herladen opent hetzelfde scherm.
-    try { window.history.replaceState(window.history.state, '', `#/${scherm}`); } catch { /* geen geschiedenis: alleen het scherm */ }
-    return { scherm, doel };
+    const scherm: Scherm | null = doel ? (doel === 'taken' ? 'agenda' : doel) : null;
+    // Het adres meteen vast (zonder extra stap in de geschiedenis), ook voor het Overzicht: zo opent herladen hetzelfde
+    // scherm, en springt een latere herstart van de schil (na een netwerkonderbreking of een ander huishouden) nooit
+    // alsnog naar een intussen gewijzigd startscherm terwijl iemand kijkt (review PR #58).
+    if (zonderAdres) {
+      try { window.history.replaceState(window.history.state, '', `#/${scherm ?? 'vandaag'}`); } catch { /* geen geschiedenis: alleen het scherm */ }
+    }
+    return scherm && doel ? { scherm, doel } : null;
   });
   const [schermKeuze, zetScherm] = useState<Scherm>(() => start?.scherm ?? schermUitHash());
   // Plannen (besluit 18): in de demo altijd; in lokaal en staging alleen met VITE_PLANNEN=aan (anders geen route).

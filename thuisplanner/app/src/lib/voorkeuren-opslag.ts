@@ -42,24 +42,40 @@ export function useServerVoorkeuren(client: SupabaseClient, account: string, onl
   const [bijStart] = useState<Voorkeuren | null>(() => (aan ? leesCache(account) : null));
   const [v, zetV] = useState<Voorkeuren>(() => bijStart ?? STANDAARD);
   const [opgehaald, zetOpgehaald] = useState(false);
+  const [ophaalFout, zetOphaalFout] = useState(false);
   const [bezig, zetBezig] = useState(false);
-  // Een antwoord van een ophaalronde die begon vóór de laatste wijziging, telt niet (anders springt een schakelaar terug).
+  // Elke ophaalronde en elke wijziging krijgt een nummer; alleen het antwoord op het laatste telt. Een ophaalronde die
+  // tijdens of vóór een wijziging begon, telt dus nooit (anders springt een schakelaar terug naar een oude stand).
   const teller = useRef(0);
+  const schrijvend = useRef(false);
+  // Na uitloggen (unmount) mag een laat antwoord de kopie op dit toestel niet terugzetten.
+  const actief = useRef(true);
+  const huidig = useRef(v);
+  huidig.current = v;
 
   const neem = useCallback((ruw: unknown) => {
+    if (!actief.current) return;
     const n = uitOpslag(ruw);
     zetV(n);
     bewaarCache(account, n);
   }, [account]);
 
   const haal = useCallback(async () => {
+    if (schrijvend.current) return;   // na de wijziging komt de stand van de server toch mee
     const ronde = ++teller.current;
     // Zonder filter op user_id (die kolom is niet leesbaar, P4): RLS geeft alleen de eigen rij.
     const r = await client.from('account_preferences').select('prefs').maybeSingle<Rij>();
-    if (ronde !== teller.current || r.error) return;
+    if (!actief.current || ronde !== teller.current) return;
+    if (r.error) { zetOphaalFout(true); return; }
     neem(r.data?.prefs ?? {});
+    zetOphaalFout(false);
     zetOpgehaald(true);
   }, [client, account, neem]);
+
+  useEffect(() => {
+    actief.current = true;
+    return () => { actief.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!aan) return;
@@ -79,36 +95,40 @@ export function useServerVoorkeuren(client: SupabaseClient, account: string, onl
   // Verbinding terug (status van de sync): direct de stand van een ander toestel ophalen.
   useEffect(() => { if (aan && online) void haal(); }, [aan, online, haal]);
 
-  const schrijf = useCallback(async (rpc: () => PromiseLike<{ data: unknown; error: unknown }>) => {
-    ++teller.current;
+  /**
+   * Meteen tonen (nieuw), dan opslaan. Lukt dat niet, dan komt de stand van vóór de wijziging direct terug (ook als de
+   * server dan ook niet te bereiken is), en daarna haalt de app de stand van de server opnieuw op.
+   */
+  const schrijf = useCallback(async (nieuw: Voorkeuren, rpc: () => PromiseLike<{ data: unknown; error: unknown }>) => {
+    const vorig = huidig.current;
+    ++teller.current;   // een lopende ophaalronde telt niet meer
+    schrijvend.current = true;
+    zetV(nieuw);
     zetBezig(true);
+    let ok = false;
     try {
       const r = await rpc();
       const rij = Array.isArray(r.data) ? (r.data[0] as Rij | undefined) : undefined;
-      if (r.error || !rij) { meld('Niet opgeslagen. Probeer het zo nog eens.'); void haal(); return false; }
-      neem(rij.prefs);
-      return true;
-    } catch {
+      if (!r.error && rij) { ++teller.current; neem(rij.prefs); ok = true; }
+    } catch { /* geen antwoord: hieronder terug naar de oude stand */ }
+    schrijvend.current = false;
+    if (actief.current) zetBezig(false);
+    if (!ok) {
+      if (actief.current) zetV(vorig);
       meld('Niet opgeslagen. Probeer het zo nog eens.');
-      return false;
-    } finally {
-      zetBezig(false);
+      void haal();
     }
+    return ok;
   }, [meld, neem, haal]);
 
-  const zet = useCallback((s: Sleutel, w: string | boolean) => {
-    // Meteen tonen; de server bevestigt of de oude stand komt terug (haal na een fout).
-    zetV(x => metWaarde(x, s, w));
-    return schrijf(() => client.rpc('set_preference', { p_key: s, p_value: w }));
-  }, [client, schrijf]);
-  const herstel = useCallback(() => {
-    zetV(STANDAARD);
-    return schrijf(() => client.rpc('reset_preferences', { p_scope: 'weergave' }));
-  }, [client, schrijf]);
+  const zet = useCallback((s: Sleutel, w: string | boolean) =>
+    schrijf(metWaarde(huidig.current, s, w), () => client.rpc('set_preference', { p_key: s, p_value: w })), [client, schrijf]);
+  const herstel = useCallback(() =>
+    schrijf(STANDAARD, () => client.rpc('reset_preferences', { p_scope: 'weergave' })), [client, schrijf]);
 
   const kanWijzigen = online && opgehaald && !bezig;
   const reden = !online ? 'Geen verbinding. Je kunt dit wijzigen zodra er weer verbinding is.'
-    : !opgehaald ? 'Even ophalen…' : null;
+    : !opgehaald ? (ophaalFout ? 'Je instellingen zijn nu niet op te halen. Probeer het later nog eens.' : 'Even ophalen…') : null;
   return useMemo(() => (aan ? { voorkeuren: v, bijStart, kanWijzigen, reden: kanWijzigen ? null : reden, zet, herstel } : null),
     [aan, v, bijStart, kanWijzigen, reden, zet, herstel]);
 }

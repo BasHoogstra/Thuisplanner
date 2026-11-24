@@ -172,3 +172,75 @@ describe('online opslag', () => {
     await waitFor(() => expect(result.current!.voorkeuren.startscherm).toBe('taken'));
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// Review PR #58: volgorde, terugdraaien en uitloggen.
+// ---------------------------------------------------------------------------------------------
+function uitgesteld<T>() {
+  let los!: (w: T) => void;
+  const p = new Promise<T>(r => { los = r; });
+  return { p, los };
+}
+
+describe('online opslag: volgorde en fouten (review PR #58)', () => {
+  it('een ophaalronde die tijdens het opslaan begint, zet daarna de oude stand niet terug', async () => {
+    const leesBezig = uitgesteld<{ data: unknown; error: null }>();
+    const opslaan = uitgesteld<{ data: unknown; error: null }>();
+    let vasthouden = false;
+    const client = {
+      rpc: () => opslaan.p,
+      from: () => ({ select: () => ({ maybeSingle: () => (vasthouden ? leesBezig.p : Promise.resolve({ data: null, error: null })) }) }),
+    } as unknown as SupabaseClient;
+    const { result } = renderHook(() => useServerVoorkeuren(client, 'acc', true, () => {}, true));
+    await waitFor(() => expect(result.current!.kanWijzigen).toBe(true));
+    vasthouden = true;
+    let bezig!: Promise<boolean>;
+    act(() => { bezig = result.current!.zet('agenda.weergave', 'maand'); });
+    // Terwijl het opslaan loopt, keert de gebruiker terug naar de app: een ophaalronde start (met de oude stand).
+    act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+    await act(async () => { opslaan.los({ data: [{ prefs: { 'agenda.weergave': 'maand' }, version: 2 }], error: null }); await bezig; });
+    await act(async () => { leesBezig.los({ data: { prefs: { 'agenda.weergave': 'week' } }, error: null }); await leesBezig.p; });
+    expect(result.current!.voorkeuren.agendaWeergave).toBe('maand');
+    expect(leesCache('acc')?.agendaWeergave).toBe('maand');
+  });
+
+  it('opslaan én ophalen mislukken: direct terug naar de oude stand, met een melding', async () => {
+    const meld = vi.fn();
+    let kapot = false;
+    const client = {
+      rpc: async () => { throw new Error('geen netwerk'); },
+      from: () => ({ select: () => ({ maybeSingle: async () => (kapot ? { data: null, error: { message: 'weg' } } : { data: { prefs: { 'agenda.weergave': 'dag' } }, error: null }) }) }),
+    } as unknown as SupabaseClient;
+    const { result } = renderHook(() => useServerVoorkeuren(client, 'acc', true, meld, true));
+    await waitFor(() => expect(result.current!.kanWijzigen).toBe(true));
+    kapot = true;
+    let ok = true;
+    await act(async () => { ok = await result.current!.zet('agenda.weergave', 'maand'); });
+    expect(ok).toBe(false);
+    expect(result.current!.voorkeuren.agendaWeergave).toBe('dag');
+    expect(meld).toHaveBeenCalledWith('Niet opgeslagen. Probeer het zo nog eens.');
+  });
+
+  it('ophalen mislukt steeds: een duidelijke reden in plaats van eeuwig "Even ophalen…"', async () => {
+    const client = { rpc: vi.fn(), from: () => ({ select: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'relation does not exist' } }) }) }) } as unknown as SupabaseClient;
+    const { result } = renderHook(() => useServerVoorkeuren(client, 'acc', true, () => {}, true));
+    await waitFor(() => expect(result.current!.reden).toMatch(/niet op te halen/));
+    expect(result.current!.kanWijzigen).toBe(false);
+  });
+
+  it('na uitloggen (unmount) zet een laat antwoord de kopie op dit toestel niet terug', async () => {
+    const laat = uitgesteld<{ data: unknown; error: null }>();
+    const client = { rpc: vi.fn(), from: () => ({ select: () => ({ maybeSingle: () => laat.p }) }) } as unknown as SupabaseClient;
+    const { unmount } = renderHook(() => useServerVoorkeuren(client, 'acc', true, () => {}, true));
+    unmount();
+    localStorage.clear();
+    await act(async () => { laat.los({ data: { prefs: { startscherm: 'agenda' } }, error: null }); await laat.p; });
+    expect(leesCache('acc')).toBeNull();
+  });
+});
+
+it('openen zonder adres zet het adres vast op het startscherm, zodat een latere herstart niet verspringt', () => {
+  window.history.replaceState(null, '', '/?nu=2026-10-10T11:20');
+  render(<App />);
+  expect(window.location.hash).toBe('#/vandaag');
+});

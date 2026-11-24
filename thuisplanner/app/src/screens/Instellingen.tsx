@@ -204,7 +204,7 @@ function AgendaKeuze() {
           {WEERGAVEN.map(w => (
             <button key={w.id} type="button" role="radio" aria-checked={v.agendaWeergave === w.id}
               className={'segment-knop' + (v.agendaWeergave === w.id ? ' aan' : '')}
-              onClick={() => { zetAgenda({ weergave: w.id }); void vk.zet('agenda.weergave', w.id); }}>
+              onClick={async () => { if (await vk.zet('agenda.weergave', w.id)) zetAgenda({ weergave: w.id }); }}>
               {w.naam}
             </button>
           ))}
@@ -215,7 +215,7 @@ function AgendaKeuze() {
           { id: 'iedereen', naam: 'Iedereen', sub: 'Het hele gezin' },
           { id: 'ik', naam: 'Ik', sub: 'Jouw afspraken en taken, plus wat voor het hele gezin is. Een link vanaf het Overzicht toont altijd iedereen' },
         ]}
-        kies={w => { zetAgenda({ filter: w === 'ik' ? huishouden.ik : null }); void vk.zet('agenda.wie', w); }} />
+        kies={async w => { if (await vk.zet('agenda.wie', w)) zetAgenda({ filter: w === 'ik' ? huishouden.ik : null }); }} />
       <Reden />
       <p className="stil-tekst instellingen-voet">
         Afgeronde taken en taken zonder datum blijven ingeklapt onderaan, zoals nu. Daar is geen schakelaar voor nodig.
