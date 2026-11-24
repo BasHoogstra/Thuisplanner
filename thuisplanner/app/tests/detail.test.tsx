@@ -174,3 +174,26 @@ it('Alles bewerken opent het volledige formulier voor hetzelfde item', async () 
   expect(d.getByLabelText(/Waar/)).toHaveValue('Praktijk Oost');
   expect(d.getByRole('button', { name: 'Verwijderen' })).toBeInTheDocument();
 });
+
+it('review PR #55 (P3): reeks verwijderen met een onopgeslagen wijziging gooit niets stil weg en heeft een werkende route', async () => {
+  const reeks = afspraak({ id: 'r1', titel: 'Zwemles', datum: '2026-10-01', herhaling: { freq: 'wekelijks', tot: null, uitzonderingen: [] } });
+  const o = opzet([reeks], voorkomenId('r1', '2026-10-22'));
+  await o.user.clear(o.d().getByLabelText('Wat?'));
+  await o.user.type(o.d().getByLabelText('Wat?'), 'Zwemles diploma A');
+  await o.user.click(o.d().getByRole('button', { name: /^Herhaalt / }));
+  // Eerst opslaan of weggooien: geen reeksacties, wel een duidelijke uitleg; de invoer blijft staan.
+  expect(o.d().getByRole('status')).toHaveTextContent('nog niet is opgeslagen');
+  expect(o.d().queryByRole('button', { name: 'Reeks verwijderen…' })).not.toBeInTheDocument();
+  expect(o.d().queryByRole('button', { name: 'Herhaling wijzigen' })).not.toBeInTheDocument();
+  expect(o.d().getByLabelText('Wat?')).toHaveValue('Zwemles diploma A');
+  expect(o.verwijderReeks).not.toHaveBeenCalled();
+  // Weggooien: het herhaalpaneel blijft open en de reeksacties verschijnen; verwijderen vraagt nog steeds bevestiging.
+  await o.user.click(o.d().getByRole('button', { name: 'Wijzigingen weggooien' }));
+  expect(o.d().getByLabelText('Wat?')).toHaveValue('Zwemles');
+  await o.user.click(o.d().getByRole('button', { name: 'Reeks verwijderen…' }));
+  expect(o.d().getByText('Zwemles herhaalt. Wat wil je verwijderen?')).toBeInTheDocument();
+  await o.user.click(o.d().getByRole('button', { name: 'Nee, terug' }));
+  expect(o.verwijderReeks).not.toHaveBeenCalled();
+  expect(o.bijwerken).not.toHaveBeenCalled();
+  expect(o.wijzigVoorkomen).not.toHaveBeenCalled();
+});

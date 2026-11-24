@@ -49,7 +49,9 @@ export function Vandaag() {
   const komendVerborgen = komend.slice(komendZichtbaar.length);
   const takenZichtbaar = toonTaken ? taken : eerste(taken);
   const takenVerborgen = taken.length - takenZichtbaar.length;
-  const naarAgenda = (stand: Partial<AgendaStand>) => { app.zetAgenda(stand); app.gaNaar('agenda'); };
+  // Een doorklik vanaf Vandaag toont het hele gezin, zoals Vandaag zelf: een eerder gekozen persoonsfilter in de Agenda wordt
+  // gewist (review PR #55). Gewone navigatie via de navigatiebalk laat het filter staan.
+  const naarAgenda = (stand: Partial<AgendaStand>) => { app.zetAgenda({ ...stand, filter: null }); app.gaNaar('agenda'); };
 
   return (
     <div className="vandaag">
