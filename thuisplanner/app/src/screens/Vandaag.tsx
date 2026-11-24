@@ -6,7 +6,7 @@ import {
   achterstand, afgerondVandaag, afsprakenOp, isVoorbij, komendeAfspraken, loopt, meedenker, openBoodschappen, samenvatting,
   takenOverzicht, takenVandaag, type TaakGroep,
 } from '../lib/vandaag';
-import { AfspraakRij, TaakRij, Wie, afspraakNaam, tijdTekst } from '../components/Rijen';
+import { AfspraakRij, TaakRij, Wie, tijdTekst } from '../components/Rijen';
 import { IcPijl } from '../components/Iconen';
 import { UitnodigingMelding } from '../components/Onboarding';
 import { nieuwId } from '../lib/store';
@@ -60,9 +60,13 @@ export function Vandaag() {
   const boodschappen = openBoodschappen(staat.items);
   const signaal = meedenker(staat.items, vandaag, staat.weggeklikt, huishouden.ik);
   const vk = vakantieVoorVandaag(staat.vakanties, vandaag);
-  const naarAgenda = (stand: Partial<AgendaStand>) => { app.zetAgenda(stand); app.gaNaar('agenda'); };
+  // Elke doorklik vanaf het Overzicht (de koppen, de telregels en de regel "Hele dag") toont het hele gezin, zoals het
+  // Overzicht zelf: een eerder gekozen persoonsfilter in de Agenda wordt gewist (review PR #55/#56). Gewone navigatie via
+  // de navigatiebalk laat het filter staan.
+  const naarAgenda = (stand: Partial<AgendaStand>) => { app.zetAgenda({ ...stand, filter: null }); app.gaNaar('agenda'); };
   const restDelen = (Object.entries(overzicht.rest) as [TaakGroep, number][]).filter(([, n]) => n > 0);
   const heeftAfspraken = komend.eerst.length > 0 || komend.heleDag.length > 0;
+  const heleDagNamen = komend.heleDag.map(a => titelVoor(a, huishouden.ik));
 
   return (
     <div className="vandaag overzicht">
@@ -106,16 +110,16 @@ export function Vandaag() {
                 </ul>
               )}
               {komend.heleDag.length > 0 && (
-                <p className="hele-dag-regel">
-                  Hele dag:{' '}
-                  {komend.heleDag.map((a, i) => (
-                    <span key={a.id}>
-                      {i > 0 && ', '}
-                      <button type="button" className="tekstknop inline" onClick={() => app.openItem(a.id)}
-                        aria-label={`${afspraakNaam(a, huishouden.ik)}. Openen`}>{titelVoor(a, huishouden.ik)}</button>
-                    </span>
-                  ))}
-                </p>
+                // Review PR #56 (P2): één compacte regel, hoe veel afspraken van de hele dag er ook zijn: de eerste titel
+                // (afgekapt als die lang is), een telling, en een tik opent de hele dag in de Agenda. Een privé-afspraak van
+                // een ander heet ook hier alleen "Bezet".
+                <button type="button" className="hele-dag-regel" onClick={() => naarAgenda({ weergave: 'dag', datum: vandaag })}
+                  aria-label={`Hele dag, ${heleDagNamen.length === 1 ? '1 afspraak' : `${heleDagNamen.length} afspraken`}: ${heleDagNamen.join(', ')}. Naar de dag in de Agenda`}>
+                  <span className="hele-dag-label">Hele dag</span>
+                  <span className="hele-dag-titel">{heleDagNamen[0]}</span>
+                  {heleDagNamen.length > 1 && <span className="hele-dag-meer">+{heleDagNamen.length - 1}</span>}
+                  <IcPijl className="hele-dag-pijl" />
+                </button>
               )}
               {komend.nogVandaag > 0 && (
                 <button type="button" className="link uitklap-regel" onClick={() => naarAgenda({ weergave: 'dag', datum: vandaag })}>

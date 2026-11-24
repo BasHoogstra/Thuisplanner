@@ -99,7 +99,7 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
 
   function weggooien() {
     zetTitel(begin.titel); zetDag(begin.dag); zetStart(begin.start); zetEind(begin.eind); zetWie(begin.wie);
-    zetPlek(begin.plek); zetPrive(begin.prive); zetVakantie(begin.vakantie); zetPlan(begin.plan); zetOnderdeel(begin.onderdeel); zetStatus(begin.status); zetPaneel(null); zetFout(null);
+    zetPlek(begin.plek); zetPrive(begin.prive); zetVakantie(begin.vakantie); zetPlan(begin.plan); zetOnderdeel(begin.onderdeel); zetStatus(begin.status); zetPaneel(p => (p === 'herhaling' ? p : null)); zetFout(null);
   }
 
   async function opslaan(bereik?: 'deze' | 'reeks') {
@@ -200,10 +200,19 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
           {afspraak && herhaling && !losgemaakt && rij('herhaling', 'Herhaalt', herhalingTekst((reeks ?? afspraak).datum, herhaling), <IcHerhaal />)}
           {afspraak && paneel === 'herhaling' && (
             <div className="paneel">
-              <div className="keuzes">
-                <button type="button" className="keuze" onClick={allesBewerken}>Herhaling wijzigen</button>
-                {reeks && <button type="button" className="keuze gevaar-stil" onClick={() => { zetPaneel(null); zetVerwijderen(true); }}>Reeks verwijderen…</button>}
-              </div>
+              {gewijzigd ? (
+                // Review PR #55 (P3): met onopgeslagen wijzigingen zou "Herhaling wijzigen" ze stil weggooien en had "Reeks
+                // verwijderen…" geen zichtbaar vervolg. Daarom eerst een duidelijke keuze: opslaan of weggooien.
+                <p className="stil-tekst" role="status">
+                  Je hebt een wijziging die nog niet is opgeslagen. Sla die eerst op of gooi hem weg; daarna kun je hier de herhaling
+                  wijzigen of de reeks verwijderen.
+                </p>
+              ) : (
+                <div className="keuzes">
+                  <button type="button" className="keuze" onClick={allesBewerken}>Herhaling wijzigen</button>
+                  {reeks && <button type="button" className="keuze gevaar-stil" onClick={() => { zetPaneel(null); zetVerwijderen(true); }}>Reeks verwijderen…</button>}
+                </div>
+              )}
             </div>
           )}
           {losgemaakt && <p className="detail-noot"><IcHerhaal /> Losgemaakt uit een herhalende afspraak</p>}

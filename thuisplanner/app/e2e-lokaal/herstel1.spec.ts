@@ -123,7 +123,9 @@ test('bevinding 4: privé-afspraak niet aangekomen, herladen, opnieuw invoeren m
   expect(rijen).toHaveLength(1);
   expect(rijen[0]).toMatchObject({ id, visibility: 'private' });
   await expect.poll(() => eva.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('thuisplanner-opdracht:')).length)).toBe(0);
-  // Thomas ziet hem één keer, als "Bezet".
+  // Thomas ziet hem één keer, als "Bezet": in de Agenda bij vandaag (op het Overzicht staan afspraken van de hele dag
+  // samen op één regel, review PR #56).
+  await agendaVandaag(thomas);
   await expect(thomas.getByRole('button', { name: /^Bezet, Hele dag/ })).toHaveCount(1, SYNC);
   await expect(thomas.locator('body')).not.toContainText('Tandarts Eva');
 });
