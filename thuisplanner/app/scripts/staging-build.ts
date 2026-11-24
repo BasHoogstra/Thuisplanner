@@ -10,6 +10,7 @@
 import { createHash } from 'node:crypto';
 import type { Plugin } from 'vite';
 import { stagingFouten, stagingRef } from '../src/lib/omgeving';
+import { publiekeVapidSleutel } from '../src/pwa/push';
 
 /** Is deze sleutel geheim (service-rol of secret key)? Zo'n sleutel hoort nooit in een browserbuild. */
 export function isGeheimeSleutel(waarde: string | undefined): boolean {
@@ -29,8 +30,13 @@ export function stagingBuildFouten(env: Record<string, string | undefined>): str
   const fouten = stagingFouten(env, isHuisplanRef);
   for (const [k, v] of Object.entries(env)) {
     if (!k.startsWith('VITE_')) continue;
-    if (/SERVICE|SECRET/.test(k)) fouten.push(`${k}: een geheime sleutel hoort nooit in een browserbuild.`);
+    if (/SERVICE|SECRET|PRIVATE/.test(k)) fouten.push(`${k}: een geheime sleutel hoort nooit in een browserbuild.`);
     if (isGeheimeSleutel(v)) fouten.push(`${k} bevat een geheime sleutel (service-rol of secret key).`);
+  }
+  // Pushproef (PR P0): alleen de publieke VAPID-sleutel mag in de build, en die moet er ook echt een zijn (een private
+  // sleutel is 32 bytes, de publieke 65).
+  if (env.VITE_VAPID_PUBLIC_KEY !== undefined && !publiekeVapidSleutel(env.VITE_VAPID_PUBLIC_KEY)) {
+    fouten.push('VITE_VAPID_PUBLIC_KEY is geen publieke VAPID-sleutel (65 bytes, base64url, begint met B).');
   }
   return fouten;
 }
@@ -82,6 +88,11 @@ export function headersBestand(ref: string | null, turnstile = false): string {
     '  Cache-Control: no-cache',
     '/assets/*',
     '  Cache-Control: public, max-age=31536000, immutable',
+    // PWA (PR P0): de service worker en het manifest altijd vers, zodat een nieuwe versie meteen geldt.
+    '/sw.js',
+    '  Cache-Control: no-cache',
+    '/manifest.webmanifest',
+    '  Cache-Control: no-cache',
     '',
   ].join('\n');
 }
