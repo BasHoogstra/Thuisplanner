@@ -24,7 +24,8 @@ die eerder online gaan. Een eenmaal toegepaste migratie wordt nooit herschreven 
 | `20261029130000` | Spullen: taken alleen bij gedeelde spullen (privacyherstel `tasks.possession_id`, optie A) | in `thuisplanner-beta` (PR #54); nog niet toegepast; hoort onlosmakelijk bij `20261029120000` |
 | `20261030120000` | Afsprakenmodel (A2, met A1) | **niet in de repository van de bèta**: op `thuisplanner-a2-afsprakenmodel`; buiten de gezinsbèta (besluit Bas, 10 november). Krijgt bij integratie een nieuw nummer na de laatst toegepaste |
 | `20261111120000` | Plannen (besluit 18) | in `thuisplanner-beta` (PR #54); nog niet toegepast |
-| `20261116120000` | Claimronde uitnodigingsmails (herstelronde review PR #54) | in `thuisplanner-beta` (PR #54); nog niet toegepast; **laatste in de repository** (24 migraties) |
+| `20261116120000` | Claimronde uitnodigingsmails (herstelronde review PR #54) | in `thuisplanner-beta` (PR #54); nog niet toegepast |
+| `20261124120000` | Persoonlijke instellingen (besluit 20, PR V): `account_preferences`, `set_preference`, `reset_preferences` | op `thuisplanner-voorkeuren`; alleen lokaal getest; nog niet toegepast (eigen akkoord); **laatste in de repository** (25 migraties) |
 
 ## Waarom `20261027180000` voor de herstelmigratie
 

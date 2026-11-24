@@ -265,7 +265,7 @@ test('Zonder datum op de Dag: laptop in een zijkolom, altijd open; mobiel en tab
   await geenHorizontaleScroll(page);
 });
 
-test('Zonder datum: afvinken gaat naar een eigen ingeklapte groep afgerond; de telling blijft zichtbaar; het gezinsfilter werkt zoals voorheen', async ({ page }) => {
+test('Zonder datum: afvinken gaat naar een eigen ingeklapte groep afgerond; de telling blijft zichtbaar; taken zonder persoon blijven bij elk filter', async ({ page }) => {
   await weergave(page, 'Week');
   await zdKnop(page).click();
   await zdLijst(page).getByRole('checkbox', { name: 'Aanslag gemeentebelasting nakijken' }).click();
@@ -277,9 +277,10 @@ test('Zonder datum: afvinken gaat naar een eigen ingeklapte groep afgerond; de t
   const lijst = page.getByRole('list', { name: 'Afgerond zonder datum' });
   await lijst.getByRole('checkbox', { name: 'Aanslag gemeentebelasting nakijken' }).click();
   await expect(zdKnop(page)).toHaveText('Zonder datum · 2 open · 9 uit plannen');
-  // Het filter werkt zoals voorheen (taakPast): met één lid gekozen vallen taken zonder persoon weg, met Iedereen komen ze terug.
+  // O7 (26 oktober 2026), gebouwd met besluit 20: een taak zonder persoon hoort bij het hele gezin en blijft ook met één
+  // lid gekozen zichtbaar (taakPast).
   await kiesFilter(page, 'Daan');
-  await expect(page.getByRole('heading', { name: /^Zonder datum/ })).toHaveCount(0);
+  await expect(zdLijst(page).getByRole('checkbox', { name: 'Aanslag gemeentebelasting nakijken' })).toBeVisible();
   await kiesFilter(page, 'Iedereen');
   await expect(zdKnop(page)).toHaveText('Zonder datum · 2 open · 9 uit plannen');
 });

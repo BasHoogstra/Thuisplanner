@@ -6,6 +6,7 @@ import { Account } from '../components/Account';
 import { VakantiesRij } from './Vakanties';
 import { SpullenRij } from './Spullen';
 import { PlannenRij } from './Plannen';
+import { InstellingenRij } from './Instellingen';
 import type { Item, SyncVelden } from '../lib/types';
 
 const ZONDER_INHOUD_NAAM = { afspraak: 'Afspraak', taak: 'Taak', boodschap: 'Boodschap' } as const;
@@ -32,6 +33,8 @@ export function Meer() {
       <VakantiesRij />
       <PlannenRij />
       <SpullenRij />
+
+      <InstellingenRij />
 
       <section aria-labelledby="h-leden" className="blok">
         <h2 id="h-leden" className="sectie-kop">Huishouden</h2>
@@ -99,6 +102,9 @@ function MeerLokaal() {
       {/* Plannen (besluit 18) alleen met VITE_PLANNEN=aan; anders precies de Meer van daarvoor. */}
       {lokaal.plannen && <PlannenRij />}
       <SpullenRij />
+
+      {/* Besluit 20: alleen met VITE_VOORKEUREN=aan; anders precies de Meer van daarvoor. */}
+      <InstellingenRij />
 
       <HuishoudenBeheer />
 
