@@ -7,6 +7,8 @@ import { VakantiesRij } from './Vakanties';
 import { SpullenRij } from './Spullen';
 import { PlannenRij } from './Plannen';
 import type { Item, SyncVelden } from '../lib/types';
+import { feedbackAdres, feedbackLink } from '../lib/feedback';
+import { IcPijl, IcVerstuur } from '../components/Iconen';
 
 const ZONDER_INHOUD_NAAM = { afspraak: 'Afspraak', taak: 'Taak', boodschap: 'Boodschap' } as const;
 const naamVan = (i: Item) => (i.sync === 'zonder-inhoud'
@@ -32,6 +34,7 @@ export function Meer() {
       <VakantiesRij />
       <PlannenRij />
       <SpullenRij />
+      <FeedbackRij />
 
       <section aria-labelledby="h-leden" className="blok">
         <h2 id="h-leden" className="sectie-kop">Huishouden</h2>
@@ -75,6 +78,31 @@ export function Meer() {
   );
 }
 
+/**
+ * "Feedback of hulp" (docs/thuisplanner-beta-voorbereiding.md §6): een gewone mailto-link naar het adres uit de build,
+ * geen formulier en geen derde partij. Zonder ingesteld adres verschijnt er niets (lib/feedback.ts).
+ */
+export function FeedbackRij({ env }: { env?: Record<string, string | undefined> }) {
+  const adres = feedbackAdres(env);
+  if (!adres) return null;
+  return (
+    <section aria-label="Feedback of hulp" className="blok meer-vakanties">
+      <ul className="lijst">
+        <li className="rij">
+          <a className="rij-knop" href={feedbackLink(adres)} aria-label={`Feedback of hulp: mail ${adres}`}>
+            <span className="lid-avatar vak-icoon" aria-hidden="true"><IcVerstuur width={20} height={20} /></span>
+            <span className="rij-inhoud">
+              <span className="rij-titel">Feedback of hulp</span>
+              <span className="rij-sub"><span className="plek">Mail ons: {adres}</span></span>
+            </span>
+            <IcPijl className="rij-pijl" />
+          </a>
+        </li>
+      </ul>
+    </section>
+  );
+}
+
 /** Meer in de lokale modus: account, onbevestigde opdrachten op dit toestel, en wat er al echt werkt. */
 function MeerLokaal() {
   const { huishouden, staat, lokaal } = useApp();
@@ -103,6 +131,8 @@ function MeerLokaal() {
       <HuishoudenBeheer />
 
       <Account />
+
+      <FeedbackRij />
 
       <section aria-labelledby="h-onbevestigd" className="blok">
         <h2 id="h-onbevestigd" className="sectie-kop">Niet bevestigd</h2>

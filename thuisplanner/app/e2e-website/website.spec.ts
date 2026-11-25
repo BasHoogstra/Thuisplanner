@@ -2,7 +2,7 @@
 // bedrijfsgegevens (die staan als "nog in te vullen"), maar verder gelijk aan wat online komt.
 import { expect, test, type Page } from '@playwright/test';
 
-const PAGINAS = ['/', '/privacy', '/mails', '/bedrijfsgegevens'];
+const PAGINAS = ['/', '/privacy', '/privacy-app', '/beta', '/mails', '/bedrijfsgegevens'];
 
 /** Houdt bij of de pagina iets van buiten probeert te laden, of de CSP iets tegenhoudt. */
 function bewaak(page: Page) {
@@ -47,15 +47,29 @@ test('veelgestelde vragen openen zonder JavaScript; de prijsvraag geeft precies 
   await expect(vraag.locator('p')).toHaveText('Tijdens de bèta gebruik je Thuisplanner gratis. Over abonnementen en prijzen informeren we je ruim van tevoren.');
 });
 
-test('de voet linkt naar privacy, mails en bedrijfsgegevens; lege bedrijfsgegevens staan zichtbaar als "nog in te vullen"', async ({ page }) => {
+test('de voet linkt naar beide privacyverklaringen, mails en bedrijfsgegevens; lege bedrijfsgegevens staan zichtbaar als "nog in te vullen"', async ({ page }) => {
   await page.goto('/');
-  for (const [naam, kop] of [['Privacy', 'Privacyverklaring van deze website'], ['Welke mails sturen wij?', 'Welke mails sturen wij?'], ['Bedrijfsgegevens', 'Bedrijfsgegevens']]) {
+  for (const [naam, kop] of [['Privacy website', 'Privacyverklaring van deze website'], ['Privacy app', 'Privacyverklaring van de app'],
+    ['Welke mails sturen wij?', 'Welke mails sturen wij?'], ['Bedrijfsgegevens', 'Bedrijfsgegevens']]) {
     await page.getByRole('contentinfo').getByRole('link', { name: naam }).click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(kop);
     await page.goto('/');
   }
   await page.goto('/bedrijfsgegevens');
   await expect(page.locator('.nog-invullen').first()).toBeVisible();
+});
+
+test('de conceptnotitie staat in de voorbeeldbouw bovenaan de verklaring; de uitleg voor testers is bereikbaar', async ({ page }) => {
+  await page.goto('/privacy-app');
+  const noot = page.getByRole('note');
+  await expect(noot.getByRole('heading', { name: 'Concept: nog niet publiceren' })).toBeVisible();
+  const boven = await noot.boundingBox();
+  const kop = await page.getByRole('heading', { level: 1 }).boundingBox();
+  expect(boven!.y).toBeLessThan(kop!.y);
+  await page.goto('/');
+  await page.getByRole('link', { name: 'uitleg voor testers' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welkom bij de bèta');
+  await expect(page.getByRole('heading', { name: 'Zet Thuisplanner op je beginscherm' })).toBeVisible();
 });
 
 test('een onbekend adres geeft de 404-pagina met status 404', async ({ page }) => {
