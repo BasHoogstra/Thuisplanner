@@ -26,7 +26,7 @@
 param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta', 'productie')][string]$Omgeving = 'staging', [switch]$Push, [switch]$Bijwerken, [switch]$Export, [string]$ExportMap, [switch]$VoorStap6, [switch]$MetBestanden)
 $ErrorActionPreference = 'Stop'
 # Het aantal migraties in de repository dat deze versie van het script verwacht (bij elke nieuwe migratie bijwerken).
-$VerwachtAantal = 24
+$VerwachtAantal = 25
 $hier = Split-Path -Parent $MyInvocation.MyCommand.Path
 $thuisplanner = (Resolve-Path (Join-Path $hier '..\..')).Path
 $controle = Join-Path $hier 'verbinding-controle.mjs'
@@ -73,8 +73,9 @@ try {
     Write-Host ('  commit ' + (git -C $thuisplanner rev-parse --short HEAD) + ', branch ' + (git -C $thuisplanner rev-parse --abbrev-ref HEAD))
   }
 
-  $uri = Read-Host 'Plak de Session pooler-URI uit het dashboard (met [YOUR-PASSWORD] erin)'
-  $uri = $uri.Trim().Replace(':[YOUR-PASSWORD]@', '@')
+  $uri = Read-Host 'Plak de Session pooler-URI uit het dashboard (met [YOUR-PASSWORD] of [YOUR-DATABASE-PASSWORD] erin)'
+  # Beide plaatshouders van het dashboard (de oude en de nieuwe notatie); een echt wachtwoord in de URI weigert de controle.
+  $uri = $uri.Trim() -replace ':\[YOUR-(DATABASE-)?PASSWORD\]@', '@'
   $geheim = Read-Host 'Databasewachtwoord (wordt niet getoond)' -AsSecureString
   $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($geheim)
   try { $env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }

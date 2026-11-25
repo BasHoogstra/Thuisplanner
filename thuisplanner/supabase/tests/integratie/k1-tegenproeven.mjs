@@ -20,12 +20,13 @@ const SABOTAGES = [
     van: 'and d.user_id = c.user_id ', naar: '' },
   { fn: 'private.k1_controleer(text,text,text,text,boolean)', test: 'noodstops', wat: 'noodstop codes genegeerd bij controleren',
     van: "if not inst.codes_aan then return query select 'codes-uit'::text, null::text, null::text, null::uuid; return; end if;", naar: '' },
-  { fn: 'private.k1_nieuwe_code(text,uuid,text,text,text)', test: 'limiet op aanvragen', wat: 'geen limiet op aanvragen',
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', test: 'limiet op aanvragen', wat: 'geen limiet op aanvragen',
     van: 'if a.aanvragen_kwartier >= g.aanvragen_kwartier or a.aanvragen_dag >= g.aanvragen_dag then', naar: 'if false then' },
-  { fn: 'private.k1_nieuwe_code(text,uuid,text,text,text)', test: 'noodstops', wat: 'registratie dicht genegeerd',
-    van: "if p_soort = 'signup' and not inst.registratie_open then return query select 'registratie-dicht'::text, null::uuid; return; end if;", naar: '' },
+  // Sinds migratie 20261125120000 staat de schakelaar registratie_open in k1_registratie_toegestaan.
+  { fn: 'private.k1_registratie_toegestaan(text)', test: 'noodstops', wat: 'registratie dicht genegeerd',
+    van: 'or e is null or not inst.registratie_open then', naar: 'or e is null then' },
   // Review stap 3a: R1 (zonder instellingenrij dicht) en R2 (zonder actieve code niets tellen en geen rij).
-  { fn: 'private.k1_nieuwe_code(text,uuid,text,text,text)', test: 'zonder instellingenrij', wat: 'code verstuurd zonder instellingenrij',
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', test: 'zonder instellingenrij', wat: 'code verstuurd zonder instellingenrij',
     van: "if not found then return query select 'codes-uit'::text, null::uuid; return; end if;", naar: '' },
   { fn: 'private.k1_controleer(text,text,text,text,boolean)', test: 'zonder instellingenrij', wat: 'gecontroleerd zonder instellingenrij',
     van: "if not found then return query select 'codes-uit'::text, null::text, null::text, null::uuid; return; end if;", naar: '' },
@@ -36,6 +37,36 @@ const SABOTAGES = [
     extra: [['if c.id is null or c.verloopt <= now() then', 'if false then']] },
   { fn: 'private.k1_toestellen_intrekken(uuid)', test: 'intrekken', wat: 'toestellen niet ingetrokken',
     van: 'update private.k1_toestellen set ingetrokken = true where user_id = p_user_id and not ingetrokken;', naar: 'perform 1;' },
+  // Besloten bèta (migratie 20261125120000, besloten.test.mjs): registratie op uitnodiging, L1, R4 en L4.
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', bestand: 'besloten.test.mjs', test: 'niet-uitgenodigd', wat: 'nieuw account zonder uitnodiging',
+    van: "if p_soort = 'signup' and not private.k1_registratie_toegestaan(p_email) then", naar: 'if false then' },
+  { fn: 'private.k1_registratie_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'testerslijst', wat: 'testerslijst niet meegeteld',
+    van: 'or exists (select 1 from private.testers t where t.email = e)', naar: '' },
+  { fn: 'private.k1_registratie_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'open uitnodiging', wat: 'open uitnodiging niet meegeteld',
+    van: 'where i.invited_email = e and', naar: 'where false and' },
+  { fn: 'private.k1_registratie_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'open uitnodiging', wat: 'verlopen uitnodiging telt mee',
+    van: 'and i.expires_at > now());', naar: ');' },
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', bestand: 'besloten.test.mjs', test: 'L1', wat: 'uitlegmail zonder grens per adres',
+    van: "if a.uitleg_op is not null and a.uitleg_op > now() - interval '24 hours' then", naar: 'if false then' },
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', bestand: 'besloten.test.mjs', test: 'L1', wat: 'registratiecontrole vóór de grenzen (het oude gedrag)',
+    van: 'if a.aanvragen_kwartier >= g.aanvragen_kwartier or a.aanvragen_dag >= g.aanvragen_dag then',
+    naar: "if (a.aanvragen_kwartier >= g.aanvragen_kwartier or a.aanvragen_dag >= g.aanvragen_dag) and not (p_soort = 'signup' and not private.k1_registratie_toegestaan(p_email)) then" },
+  { fn: 'private.uitnodigingsmail_plek(uuid,text)', bestand: 'besloten.test.mjs', test: 'R4 per account', wat: 'geen grens per account',
+    van: ') < g.per_account', naar: ') < 1000000' },
+  { fn: 'private.uitnodigingsmail_plek(uuid,text)', bestand: 'besloten.test.mjs', test: 'R4 per adres', wat: 'geen grens per ontvanger',
+    van: ') < g.per_adres;', naar: ') < 1000000;' },
+  { fn: 'private.uitnodigingsmail_plannen()', bestand: 'besloten.test.mjs', test: 'R4', wat: 'nieuwe uitnodiging zonder grens per account en adres',
+    van: "when not plek then 'daglimiet'", naar: "when false then 'daglimiet'" },
+  { fn: 'private.uitnodigingsmail_opnieuw(uuid)', bestand: 'besloten.test.mjs', test: 'R4 per account', wat: 'nog eens sturen zonder grens per account en adres',
+    van: 'if not private.uitnodigingsmail_plek(uid, ontvanger) then', naar: 'if false then' },
+  { fn: 'private.k1_webhook_nieuw(text)', bestand: 'besloten.test.mjs', test: 'L4', wat: 'geen geheugen voor webhook-ids',
+    van: 'return n = 1;', naar: 'return true;' },
+  { fn: 'private.wachtrij_url_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'L5', wat: 'wachtrij ook via http naar buiten',
+    van: "p_url ~ '^https://[^/@]+/'", naar: "p_url ~ '^https?://[^/@]+/'" },
+  { fn: 'private.uitnodigingsmail_aanroepen()', bestand: 'besloten.test.mjs', test: 'L5', wat: 'seintje zonder controle op het adres',
+    van: 'or not private.wachtrij_url_toegestaan(url) then', naar: 'then' },
+  { fn: 'private.documenten_opruimen_ronde()', bestand: 'besloten.test.mjs', test: 'L5', wat: 'opruimronde zonder controle op het adres',
+    van: 'or not private.wachtrij_url_toegestaan(url) then', naar: 'then' },
   // D6, de uitnodigingsmail (uitnodigingsmail.test.mjs).
   { fn: 'private.uitnodigingsmail_opnieuw(uuid)', bestand: 'uitnodigingsmail.test.mjs', test: 'T17', wat: 'geen 10 minuten tussen mails',
     van: "if found and laatste.gevraagd > now() - interval '10 minutes' then", naar: 'if false then' },
@@ -94,5 +125,5 @@ for (const [i, s] of SABOTAGES.entries()) {
   }
 }
 await db.end();
-console.log(`K1- en D6-tegenproeven gevangen: ${SABOTAGES.length - fouten} van ${SABOTAGES.length}`);
+console.log(`K1-, D6- en bèta-tegenproeven gevangen: ${SABOTAGES.length - fouten} van ${SABOTAGES.length}`);
 process.exit(fouten ? 1 : 0);

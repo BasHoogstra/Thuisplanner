@@ -123,7 +123,7 @@ bewezen op 21 oktober 2026; de online export zelf heeft een eigen akkoord.
 **Uitvoering:**
 1. In een tab van het Terminal-paneel, vanuit de repository:
    `powershell -NoProfile -ExecutionPolicy Bypass -File .\thuisplanner\supabase\staging\verbinding.ps1 -Ref mcyjpnnjqxlqfwqhkqrl -Export -ExportMap <map>`
-2. De producteigenaar plakt de Session pooler-URI (met `[YOUR-PASSWORD]`) en typt het wachtwoord bij de verborgen prompt.
+2. De producteigenaar plakt de Session pooler-URI (met `[YOUR-PASSWORD]` of, in de nieuwere notatie van het dashboard, `[YOUR-DATABASE-PASSWORD]`) en typt het wachtwoord bij de verborgen prompt.
 3. Het script toont per tabel de telling en de SHA-256 van het manifest.
 
 **De hersteltoets** (`staging/hersteltoets.sh`, alleen lokaal, vóór stap 4):

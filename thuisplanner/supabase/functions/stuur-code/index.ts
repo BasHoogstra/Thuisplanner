@@ -4,6 +4,10 @@
 //
 // Alleen inloggen (signup, magiclink, email) en het wijzigen van het adres (email_change) zijn toegestaan. Al het
 // andere (recovery, reauthentication, invite) weigert deze hook: Thuisplanner kent geen wachtwoorden.
+//
+// Besloten bèta (migratie 20261125120000): een nieuw account (signup) krijgt alleen een code als het adres op de
+// testerslijst staat of een open uitnodiging heeft; anders hetzelfde antwoord als bij succes en hoogstens één uitlegmail
+// per adres per dag (L1). Elke webhook-id werkt maar één keer (L4).
 import { adresHmac, codeHmac, instelling, json, log, rpc, versleutel, webhookGeldig, willekeurigeCode, type Mail } from '../_gedeeld/k1.ts';
 import { verstuur } from '../_gedeeld/aanbieder.ts';
 import { beslotenTest, inlogcode, wijzigingNieuw, wijzigingOud } from '../_gedeeld/mails.ts';
@@ -12,23 +16,28 @@ import { beslotenTest, inlogcode, wijzigingNieuw, wijzigingOud } from '../_gedee
 // zou als storing (500) of als "opnieuw proberen" (429, 503) gelden. Gemeten met de lokale stack.
 const weiger = (status: number, melding: string) => json(200, { error: { http_code: status, message: melding } });
 
-type Uitkomst = 'ok' | 'codes-uit' | 'registratie-dicht' | 'te-vaak';
+type Uitkomst = 'ok' | 'codes-uit' | 'registratie-dicht' | 'registratie-stil' | 'te-vaak';
 
 /** Eén code maken, bewaren en versturen. Geeft null bij succes, anders de weigering. */
 async function code(email: string, userId: string, soort: 'signup' | 'email' | 'email_change', tokenHash: string, maakMail: (code: string) => Mail): Promise<Response | null> {
   const nieuw = willekeurigeCode();
   const adres = await adresHmac(email);
+  // Het adres zelf gaat alleen bij een nieuw account mee (de database vergelijkt het met de testerslijst en de open
+  // uitnodigingen, en bewaart het niet); bij inloggen alleen de HMAC.
   const [r] = await rpc<{ uitkomst: Uitkomst; code_id: string | null }[]>('k1_nieuwe_code', {
-    p_adres_hmac: adres, p_user_id: userId, p_soort: soort, p_code_hmac: await codeHmac(adres, nieuw), p_token_hash_enc: await versleutel(tokenHash),
+    p_adres_hmac: adres, p_email: soort === 'signup' ? email : null, p_user_id: userId, p_soort: soort, p_code_hmac: await codeHmac(adres, nieuw), p_token_hash_enc: await versleutel(tokenHash),
   });
   log('stuur-code', { soort, uitkomst: r.uitkomst });
   if (r.uitkomst === 'codes-uit') return weiger(503, 'Inloggen met een code is tijdelijk uitgeschakeld. Probeer het later opnieuw.');
-  if (r.uitkomst === 'te-vaak') return weiger(429, 'Er zijn net al een paar codes verstuurd. Gebruik de laatste code uit je mail, of probeer het over een kwartier opnieuw.');
+  // 'te-vaak' is de grens per kwartier (5) of per dag (8): de wachttijd kan dus ook langer zijn dan een kwartier.
+  if (r.uitkomst === 'te-vaak') return weiger(429, 'Er zijn net al een paar codes verstuurd. Gebruik de laatste code uit je mail, of probeer het later opnieuw: na een kwartier, of na veel aanvragen pas morgen.');
   if (r.uitkomst === 'registratie-dicht') {
     // Hetzelfde antwoord als bij succes (geen adresverraad); de eigenaar van het adres krijgt uitleg.
     try { await verstuur(beslotenTest(email)); } catch { /* uitleg mislukt: niets te herstellen */ }
     return null;
   }
+  // De uitlegmail ging de afgelopen 24 uur al naar dit adres: niets sturen, wel hetzelfde antwoord (L1).
+  if (r.uitkomst === 'registratie-stil') return null;
   try {
     await verstuur(maakMail(nieuw));
   } catch {
@@ -47,6 +56,16 @@ Deno.serve(async req => {
     if (!(await webhookGeldig(instelling('K1_HOOK_SECRET'), req.headers, body))) return json(401, { error: { http_code: 401, message: 'Ongeldige handtekening' } });
   } catch {
     return weiger(500, 'Niet ingesteld');
+  }
+  // L4: een geldig ondertekend verzoek werkt maar één keer. Een opgevangen en herhaald verzoek (binnen de 5 minuten van
+  // de handtekening) maakt dus geen nieuwe code en verstuurt geen mail. Supabase Auth maakt per verzoek een nieuwe id.
+  try {
+    if (!(await rpc<boolean>('k1_webhook_nieuw', { p_id: req.headers.get('webhook-id') }))) {
+      log('stuur-code', { uitkomst: 'herhaald-verzoek' });
+      return json(401, { error: { http_code: 401, message: 'Verzoek al verwerkt' } });
+    }
+  } catch {
+    return weiger(503, 'Versturen lukt nu niet. Probeer het over een paar minuten opnieuw.');
   }
   let p: { user?: { id?: string; email?: string; new_email?: string }; email_data?: Record<string, string> };
   try { p = JSON.parse(body); } catch { return weiger(400, 'Ongeldig verzoek'); }

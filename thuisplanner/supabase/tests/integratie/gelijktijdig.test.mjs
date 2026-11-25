@@ -28,6 +28,7 @@ const accounts = [];
 const huishoudens = [];
 const bewaard = {};           // tegenproef: originele functiedefinities
 let vorigHuishoudenOpen;      // de testpoort vóór deze test
+let vorigeMailgrenzen;        // de grenzen per uitnodiger en ontvanger (R4) vóór deze test
 
 // Binnen een transactie optreden als een ingelogde gebruiker (zoals PostgREST dat doet), na inloggen met een code: de
 // toegangspoort (KG-5H deel 2) eist amr 'otp' en een bestaande sessie (session_id = het account-id, zie account()).
@@ -134,6 +135,12 @@ before(async () => {
   // daarna terug (op een kale PostgreSQL draait seed.sql niet).
   vorigHuishoudenOpen = (await db.query('select huishouden_open from private.instellingen')).rows[0].huishouden_open;
   await db.query('update private.instellingen set huishouden_open = true');
+  // De grenzen per uitnodiger en per ontvanger (R4, migratie 20261125120000; getoetst in besloten.test.mjs) hier ruim:
+  // de claimtests maken tot 10 uitnodigingen per account en meten alleen de wachtrij.
+  if ((await db.query(`select to_regclass('private.uitnodigingsmail_grenzen') is not null as er`)).rows[0].er) {
+    vorigeMailgrenzen = (await db.query('select per_account, per_adres from private.uitnodigingsmail_grenzen')).rows[0];
+    await db.query('update private.uitnodigingsmail_grenzen set per_account = 100, per_adres = 100');
+  }
   if (TEGENPROEF) {
     for (const f of ['lock_household', 'lock_owner_count', 'lock_household_shared']) {
       bewaard[f] = (await db.query(`select pg_get_functiondef(p.oid) as d from pg_proc p
@@ -166,6 +173,7 @@ after(async () => {
   if (huishoudens.length) await db.query('delete from public.households where id = any($1::uuid[])', [huishoudens]);
   if (accounts.length) await db.query('delete from auth.users where id = any($1::uuid[])', [accounts]);
   if (vorigHuishoudenOpen !== undefined) await db.query('update private.instellingen set huishouden_open = $1', [vorigHuishoudenOpen]);
+  if (vorigeMailgrenzen) await db.query('update private.uitnodigingsmail_grenzen set per_account = $1, per_adres = $2', [vorigeMailgrenzen.per_account, vorigeMailgrenzen.per_adres]);
   await db.end();
 });
 
