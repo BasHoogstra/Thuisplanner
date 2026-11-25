@@ -2,8 +2,9 @@
 // een eigen code van 6 cijfers en stuurt die. De interne code (10 cijfers) en de token_hash verlaten deze functie nooit:
 // de token_hash gaat versleuteld de database in en komt pas terug na een geslaagde controle (controleer-code).
 //
-// Alleen inloggen (signup, magiclink, email) en het wijzigen van het adres (email_change) zijn toegestaan. Al het
-// andere (recovery, reauthentication, invite) weigert deze hook: Thuisplanner kent geen wachtwoorden.
+// Alleen inloggen (signup, magiclink, email) en het wijzigen van het adres (email_change) zijn toegestaan. Herstel,
+// herbevestiging en uitnodigen via Supabase (recovery, reauthentication, invite) sturen niets: Thuisplanner kent geen
+// wachtwoorden. Die drie krijgen stil hetzelfde antwoord als bij succes; al het andere weigert deze hook.
 //
 // Besloten bèta (migratie 20261125120000): een nieuw account (signup) krijgt alleen een code als het adres op de
 // testerslijst staat of een open uitnodiging heeft; anders hetzelfde antwoord als bij succes en hoogstens één uitlegmail
@@ -18,8 +19,20 @@ const weiger = (status: number, melding: string) => json(200, { error: { http_co
 
 type Uitkomst = 'ok' | 'codes-uit' | 'registratie-dicht' | 'registratie-stil' | 'te-vaak';
 
+// Geen adresverraad via de tijd: elk antwoord dat er als succes uitziet (code verstuurd, uitlegmail verstuurd of niets
+// verstuurd) duurt minstens zo lang. Anders zou 'registratie-stil' (direct klaar) te onderscheiden zijn van een
+// verstuurde mail. Ruim boven de gewone duur van het versturen, ruim onder de wachttijd van Supabase Auth (5 seconden).
+// Niet bij email_change: daar kent de aanvrager het adres al (ingelogd), en de hook maakt er twee codes.
+const MINIMALE_DUUR_MS = 1500;
+async function minstens(begin: number | null) {
+  if (begin === null) return;
+  const rest = MINIMALE_DUUR_MS - (performance.now() - begin);
+  if (rest > 0) await new Promise(r => setTimeout(r, rest));
+}
+
 /** Eén code maken, bewaren en versturen. Geeft null bij succes, anders de weigering. */
 async function code(email: string, userId: string, soort: 'signup' | 'email' | 'email_change', tokenHash: string, maakMail: (code: string) => Mail): Promise<Response | null> {
+  const begin = soort === 'email_change' ? null : performance.now();
   const nieuw = willekeurigeCode();
   const adres = await adresHmac(email);
   // Het adres zelf gaat alleen bij een nieuw account mee (de database vergelijkt het met de testerslijst en de open
@@ -32,12 +45,17 @@ async function code(email: string, userId: string, soort: 'signup' | 'email' | '
   // 'te-vaak' is de grens per kwartier (5) of per dag (8): de wachttijd kan dus ook langer zijn dan een kwartier.
   if (r.uitkomst === 'te-vaak') return weiger(429, 'Er zijn net al een paar codes verstuurd. Gebruik de laatste code uit je mail, of probeer het later opnieuw: na een kwartier, of na veel aanvragen pas morgen.');
   if (r.uitkomst === 'registratie-dicht') {
-    // Hetzelfde antwoord als bij succes (geen adresverraad); de eigenaar van het adres krijgt uitleg.
-    try { await verstuur(beslotenTest(email)); } catch { /* uitleg mislukt: niets te herstellen */ }
+    // Hetzelfde antwoord als bij succes (geen adresverraad); de eigenaar van het adres krijgt uitleg. Mislukt het
+    // versturen, dan dezelfde 503 als bij een inlogcode: anders verraadt een storing bij de aanbieder het verschil.
+    try { await verstuur(beslotenTest(email)); } catch {
+      log('stuur-code', { soort, uitkomst: 'versturen-mislukt' });
+      return weiger(503, 'Versturen lukt nu niet. Probeer het over een paar minuten opnieuw.');
+    }
+    await minstens(begin);
     return null;
   }
-  // De uitlegmail ging de afgelopen 24 uur al naar dit adres: niets sturen, wel hetzelfde antwoord (L1).
-  if (r.uitkomst === 'registratie-stil') return null;
+  // De uitlegmail ging de afgelopen 24 uur al naar dit adres: niets sturen, wel hetzelfde antwoord, even laat (L1).
+  if (r.uitkomst === 'registratie-stil') { await minstens(begin); return null; }
   try {
     await verstuur(maakMail(nieuw));
   } catch {
@@ -45,6 +63,7 @@ async function code(email: string, userId: string, soort: 'signup' | 'email' | '
     log('stuur-code', { soort, uitkomst: 'versturen-mislukt' });
     return weiger(503, 'Versturen lukt nu niet. Probeer het over een paar minuten opnieuw.');
   }
+  await minstens(begin);
   return null;
 }
 
@@ -82,6 +101,13 @@ Deno.serve(async req => {
       if (oud) return oud;
       const nieuw = await code(u.new_email, u.id, 'email_change', d.token_hash, c => wijzigingNieuw(u.new_email as string, c));
       return nieuw ?? json(200, {});
+    }
+    // Herstel, herbevestiging en uitnodigen via Supabase: Thuisplanner gebruikt ze niet. Geen mail, wel hetzelfde
+    // antwoord als bij succes, en meteen (Supabase Auth antwoordt bij een onbekend adres ook meteen, zonder hook): een
+    // weigering (400) zou verraden dat het adres een account heeft. Restrisico M1: §29.
+    if (actie === 'recovery' || actie === 'reauthentication' || actie === 'invite') {
+      log('stuur-code', { soort: actie, uitkomst: 'stil-geweigerd' });
+      return json(200, {});
     }
     log('stuur-code', { soort: actie ?? 'onbekend', uitkomst: 'geweigerd' });
     return weiger(400, 'Deze actie is niet beschikbaar in Thuisplanner.');
