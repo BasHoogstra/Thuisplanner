@@ -68,11 +68,11 @@ per scherm, en de bekende beperking staat in de uitleg voor testers (§6).
 | Organisatie | Zie §2.3 en besluit O1 | – |
 | Pages-project | `thuisplanner-app` (`omgevingen.json`), adres `app.mijnthuisplanner.nl` | Zoals stap 5; Preview branches: None |
 | Branch | Een eigen productiebranch, bijvoorbeeld `thuisplanner-beta`, alleen vooruit gezet vanaf een stand met groene CI | Zoals `thuisplanner-staging` |
-| Buildmodus | `beta`: `npm run build:beta` | Nieuw, op basis van `staging-build.ts` (§2.2) |
+| Buildmodus | `beta`: `npm run build:beta` | Gebouwd (lokaal, pakket P1), op basis van `staging-build.ts` (§2.2) |
 | `omgevingen.json` | `beta.supabaseRef` invullen, pas na controle in het dashboard (organisatie en kenmerk) | Zoals stap 0 van de overstap |
 | Migraties | `verbinding.ps1 -Ref <kenmerk> -Omgeving beta` (dry-run), daarna `-Push` met de getypte bevestiging | Het script kent `-Omgeving beta` al en weigert nu een bèta zonder kenmerk |
 | Nacontrole | `verbinding-controle.mjs na` met `KG_OMGEVING=beta` | Eerst de schijnafwijking met publishable keys oplossen (overstap stap 6, open punt) |
-| Edge Functions | `functies.ps1` met het bètakenmerk | Moet `-Omgeving beta` leren (nu alleen staging; kleine wijziging) |
+| Edge Functions | `functies.ps1 -Ref <kenmerk> -Omgeving beta` | Kent `-Omgeving beta` (pakket P1); weigert zolang `beta.supabaseRef` leeg is, en elk project van een andere omgeving of van Huisplan. Productie kan hier niet |
 | Geheimen | Alle 13 opnieuw en **anders** dan op staging (pepper, sleutels, hook, wachtrij) | Zoals stap 6a–6f |
 | Turnstile | Een eigen widget voor `app.mijnthuisplanner.nl` | Zoals stap 6d |
 | Mail | `MAIL_AFZENDER` = `Thuisplanner <noreply@mail.mijnthuisplanner.nl>`; een eigen Lettermint-webhook naar het bètaproject | Het token kan per project; ⚠️ op het gratis plan is er één Lettermint-project (§2.4) |
@@ -96,6 +96,31 @@ Nodig (kleine, aparte wijziging met tests en tegenproeven, eigen akkoord):
 | Demo | Een build zonder configuratie mag in modus `beta` nooit als demo starten (N4): fout, geen demo |
 | `noindex` | Blijft in de bèta |
 | Test | Een offline e2e `e2e:beta`, zoals `e2e:staging`, met een verzonnen project; de buildbewaking (T20) met tegenproef |
+
+**Stand (25 november 2026, pakket P1, voorwaarde V3; lokaal gebouwd en getest, nog niet gecommit):**
+
+- **Modus:** `src/lib/omgeving.ts` kent `demo`, `lokaal`, `staging`, `beta` en `productie`. `npm run build:beta` en
+  `npm run build:productie` bouwen met `vite build --mode beta|productie`; de omgeving staat daarna vast in de bundel.
+  Let op: Vite's eigen standaardmodus `production` is de demobuild (`npm run build`), niet de omgeving `productie`.
+- **Kenmerk:** `scripts/staging-kenmerk.mjs <omgeving>` (vóór de typecontrole) én `controleerOmgeving` in de build zelf
+  (L8) eisen precies `omgevingen.json → <omgeving>.supabaseRef`. Een kenmerk van een andere omgeving, een ander project
+  en elk Huisplan-project worden geweigerd. Zolang `beta.supabaseRef` (of `productie.supabaseRef`) `null` is, stopt de
+  build met de melding dat het kenmerk eerst moet worden vastgelegd. De enige uitzondering is de offline e2e
+  (`KG_E2E_NEPPROJECT=1`, alleen uit de procesomgeving, en alleen voor het verzonnen project `NEP_REF`).
+- **Geheimen, CSP, `noindex`:** dezelfde weigeringen als staging (`VITE_DEMO_*`, service-rol, `sb_secret_`); `connect-src`
+  alleen de eigen site en precies het project (https en wss), Turnstile alleen met een sitekey; `X-Robots-Tag: noindex`.
+- **Demo (N4):** een bèta- of productiebuild zonder geldige configuratie bouwt niet; en mocht de app toch zonder
+  configuratie starten, dan toont ze een fout ("Weigering (bèta): …"), nooit de demo.
+- **Markering (O7):** een rustige "Bèta · Thuisplanner is nog in ontwikkeling." op het inlogscherm en in Meer; geen balk
+  of label bovenaan elk scherm, geen "Testomgeving" of "verzonnen gegevens", tabtitel gewoon "Thuisplanner". De uitleg
+  "Wat werkt er in deze lokale versie?" in Meer staat alleen in lokaal en staging. Productie: geen markering.
+- **Tests:** `tests/omgeving.test.ts` (bèta en productie, T20, N4, de uitzondering voor de e2e),
+  `tests/beta-markering.test.tsx` (markering per omgeving, met tegenproef voor lokaal en staging),
+  `npm run e2e:beta` (`e2e-beta/`: de bètabuild in de browser met CSP, en de tegenproeven van de buildbewaking met de
+  echte `vite build`), en `supabase/tests/functies/functies-deploy.test.mjs` (`-Omgeving beta`). Ook in CI.
+- **Nog open (niet in P1):** het bètaproject zelf (V2), en het invullen van `beta.supabaseRef` na controle in het
+  dashboard (C3). De nacontrole `omgevingen.test.mjs` eist nu nog dat twee omgevingen nooit hetzelfde kenmerk hebben;
+  als de bèta later productie wordt (O2, §9a), moet dat bij de overstap opnieuw worden bekeken.
 
 ### 2.3 Cloudflare Access op de bèta?
 

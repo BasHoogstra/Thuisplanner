@@ -3,7 +3,11 @@ import { defineConfig } from '@playwright/test';
 // De stagingbuild in de browser, op telefoonbreedte, met de CSP uit het gegenereerde _headers-bestand. Er is
 // geen online project nodig: de build gebruikt een verzonnen projectadres en de test beantwoordt elk verzoek
 // naar dat adres zelf (e2e-staging/hulp.ts). Zo wordt precies de build getest die Cloudflare zou bouwen.
-export const NEP_REF = 'abcdefghijklmnopqrst';
+// Het verzonnen project staat in scripts/staging-build.ts: alleen dat kenmerk mag, met KG_E2E_NEPPROJECT=1, langs de
+// kenmerkcontrole van omgevingen.json (L8).
+import { NEP_REF } from './scripts/staging-build';
+
+export { NEP_REF };
 const jwt = (payload: object) => ['{"alg":"HS256","typ":"JWT"}', JSON.stringify(payload)]
   .map(d => Buffer.from(d).toString('base64url')).join('.') + '.handtekening-fictief';
 
@@ -20,6 +24,7 @@ export default defineConfig({
     env: {
       VITE_SUPABASE_URL: `https://${NEP_REF}.supabase.co`,
       VITE_SUPABASE_ANON_KEY: jwt({ iss: 'supabase', role: 'anon', ref: NEP_REF }),
+      KG_E2E_NEPPROJECT: '1',
     },
   },
   projects: [

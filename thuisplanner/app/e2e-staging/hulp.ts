@@ -2,13 +2,17 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Page } from '@playwright/test';
-import { NEP_REF } from '../playwright.staging.config';
+import { NEP_REF } from '../scripts/staging-build';
 
 export const PROJECT = `https://${NEP_REF}.supabase.co`;
 
-/** De headers uit dist-staging/_headers voor alle paden (blok "/*"), zoals Cloudflare Pages ze meestuurt. */
-function headersVoorAlles(): Record<string, string> {
-  const tekst = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist-staging/_headers'), 'utf8');
+/** Waar de gebouwde site staat en draait: de staging-e2e (standaard) of de bèta-e2e (e2e-beta). */
+export interface Site { map: string; poort: number }
+export const STAGING_SITE: Site = { map: 'dist-staging', poort: 5182 };
+
+/** De headers uit <map>/_headers voor alle paden (blok "/*"), zoals Cloudflare Pages ze meestuurt. */
+function headersVoorAlles(site: Site): Record<string, string> {
+  const tekst = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', site.map, '_headers'), 'utf8');
   const uit: Record<string, string> = {};
   let inBlok = false;
   for (const regel of tekst.split('\n')) {
@@ -33,22 +37,24 @@ export interface Proef {
  * Zet de pagina klaar: de eigen site krijgt de headers uit _headers (zoals op Cloudflare), en het nepproject
  * beantwoordt de test zelf. `antwoord` krijgt methode en pad, en geeft status en JSON terug.
  */
-export async function proef(page: Page, antwoord: (methode: string, pad: string, body: string) => { status: number; json: unknown }): Promise<Proef> {
+export async function proef(page: Page, antwoord: (methode: string, pad: string, body: string) => { status: number; json: unknown },
+  site: Site = STAGING_SITE): Promise<Proef> {
   const p: Proef = { hosts: new Set(), overtredingen: [], naarProject: [] };
-  const headers = headersVoorAlles();
+  const headers = headersVoorAlles(site);
+  const eigen = `http://127.0.0.1:${site.poort}`;
   page.on('request', r => p.hosts.add(new URL(r.url()).host));
   page.on('console', m => { if (/Content Security Policy/i.test(m.text())) p.overtredingen.push(m.text()); });
   await page.addInitScript(() => {
     document.addEventListener('securitypolicyviolation', e => console.error('Content Security Policy: ' + e.violatedDirective + ' ' + e.blockedURI));
   });
-  await page.route('http://127.0.0.1:5182/**', async route => {
+  await page.route(`${eigen}/**`, async route => {
     const r = await route.fetch();
     await route.fulfill({ response: r, headers: { ...r.headers(), ...headers } });
   });
   await page.route(`${PROJECT}/**`, async route => {
     const req = route.request();
     const cors = {
-      'access-control-allow-origin': 'http://127.0.0.1:5182',
+      'access-control-allow-origin': eigen,
       'access-control-allow-headers': '*',
       'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     };

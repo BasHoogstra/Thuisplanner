@@ -1,7 +1,7 @@
 import { useApp } from '../lib/context';
 import { HuishoudenBeheer } from '../components/HuishoudenBeheer';
 import type { Scenario } from '../data/demo';
-import { HerstelKnoppen } from '../components/Lokaal';
+import { BetaMarkering, HerstelKnoppen } from '../components/Lokaal';
 import { Account } from '../components/Account';
 import { VakantiesRij } from './Vakanties';
 import { SpullenRij } from './Spullen';
@@ -156,14 +156,17 @@ function MeerLokaal() {
         </ul>
       </section>
 
-      <section aria-labelledby="h-wat" className="blok">
+      {/* Bèta: alleen de rustige markering (besluit O7). Productie: niets. De uitleg hieronder hoort bij lokaal en staging. */}
+      {lokaal.omgeving === 'beta' && <section className="blok" aria-label="Bèta"><BetaMarkering /></section>}
+
+      {(lokaal.omgeving === 'lokaal' || lokaal.omgeving === 'staging') && <section aria-labelledby="h-wat" className="blok">
         <h2 id="h-wat" className="sectie-kop">Wat werkt er in deze lokale versie?</h2>
         <ul className="uitleg">
           <li><strong>Echt (lokale database):</strong> inloggen met een code uit je mail (of met een fictief account); een huishouden aanmaken; uitnodigen, ook per mail; afspraken, taken en boodschappen toevoegen, aanpassen, afvinken en verwijderen; herhalende afspraken (één keer of de hele reeks); wijzigingen verschijnen op het andere toestel; privé-afspraken van een ander zie je als "bezet" (de server stuurt de details niet mee); een gelijktijdige wijziging wordt geweigerd in plaats van overschreven; vakanties met voorbereidingen, boodschappen en een paklijst per gezinslid (verwijderen, overnemen en vinkjes opnieuw zijn daar ongedaan te maken).</li>
           <li><strong>Nog niet:</strong> ongedaan maken (buiten vakanties), meldingen, herhalende taken, het meedenk-signaal onthouden (wegklikken geldt alleen voor dit tabblad).</li>
           <li><strong>Alleen lokaal:</strong> een testdatabase op dit netwerk met een verzonnen gezin. Dit is geen productieversie.</li>
         </ul>
-      </section>
+      </section>}
     </div>
   );
 }

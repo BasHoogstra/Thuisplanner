@@ -11,7 +11,7 @@ import { CODE_TEKSTEN, TOEGANG_TEKSTEN } from '../src/lib/foutcodes';
 import { CodeInloggen } from '../src/components/CodeInloggen';
 import { Welkom } from '../src/components/Onboarding';
 import { headersBestand } from '../scripts/staging-build';
-import { stagingFouten } from '../src/lib/omgeving';
+import { onlineFouten } from '../src/lib/omgeving';
 
 const CONFIG: LokaleConfig = { omgeving: 'staging', url: 'https://abcdefghijklmnopqrst.supabase.co', anonKey: 'anon', accounts: [] };
 const nepSync = (() => ({ toestand: { status: 'verbonden', leden: [] }, start: async () => {}, stop: async () => {} })) as never;
@@ -251,8 +251,8 @@ describe('build en contract', () => {
   });
   it('een ongeldige sitekey wordt geweigerd', () => {
     const env = { VITE_SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co', VITE_SUPABASE_ANON_KEY: 'x' };
-    expect(stagingFouten({ ...env, VITE_TURNSTILE_SITEKEY: 'onzin' })).toEqual(['VITE_TURNSTILE_SITEKEY is geen sitekey van Cloudflare Turnstile (begint met 0x).']);
-    expect(stagingFouten({ ...env, VITE_TURNSTILE_SITEKEY: '0x4AAAAAAAAbcdefghij' })).toEqual([]);
+    expect(onlineFouten({ ...env, VITE_TURNSTILE_SITEKEY: 'onzin' }, 'staging')).toEqual(['VITE_TURNSTILE_SITEKEY is geen sitekey van Cloudflare Turnstile (begint met 0x).']);
+    expect(onlineFouten({ ...env, VITE_TURNSTILE_SITEKEY: '0x4AAAAAAAAbcdefghij' }, 'beta')).toEqual([]);
   });
   it('elke TPA/TPB-code uit de migraties en elke TPK-code uit controleer-code heeft een tekst in de app', () => {
     const map = path.resolve(__dirname, '../../supabase');
