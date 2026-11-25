@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Besluit 20 · Persoonlijke instellingen (mobiel)</title>
+<style>
+:root{--bg:#f2f4f1;--vlak:#fff;--vlak-2:#e9ece7;--inkt:#1b2421;--inkt-2:#56615c;--inkt-3:#85908a;--lijn:#e1e6e0;--lijn-sterk:#c6cec7;--accent:#245c4c;--accent-inkt:#fff;--accent-zacht:#e0ebe5;--fout:#a8432c;--radius:18px;--font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;--font-kop:ui-rounded,"SF Pro Rounded",ui-sans-serif,system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121614;--vlak:#1b201e;--vlak-2:#242a27;--inkt:#e7ece9;--inkt-2:#a6b0ab;--inkt-3:#7d8883;--lijn:#2b3230;--lijn-sterk:#414a46;--accent:#86c4ad;--accent-inkt:#0f221b;--accent-zacht:#1f3530;--fout:#f09a85}}
+:root[data-theme="dark"]{--bg:#121614;--vlak:#1b201e;--vlak-2:#242a27;--inkt:#e7ece9;--inkt-2:#a6b0ab;--inkt-3:#7d8883;--lijn:#2b3230;--lijn-sterk:#414a46;--accent:#86c4ad;--accent-inkt:#0f221b;--accent-zacht:#1f3530;--fout:#f09a85}
+*{box-sizing:border-box}
+body{margin:0;background:var(--vlak-2);color:var(--inkt);font:15px/1.45 var(--font);padding:24px 16px 48px}
+h1.pagina{font-family:var(--font-kop);font-size:22px;margin:0 auto 4px;max-width:1240px}
+p.intro{max-width:1240px;margin:0 auto 24px;color:var(--inkt-2)}
+.rij-telefoons{display:flex;flex-wrap:wrap;gap:28px;justify-content:center;max-width:1240px;margin:0 auto}
+figure{margin:0;width:320px;max-width:100%}
+figcaption{font-size:13px;color:var(--inkt-2);margin-top:10px;line-height:1.4}
+figcaption b{color:var(--inkt)}
+.tel{width:100%;height:640px;background:var(--bg);border-radius:36px;border:8px solid #1b2421;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.status{height:26px;flex:none}
+.scroll{flex:1;overflow:auto;padding:4px 16px 90px}
+.terug{color:var(--accent);font-weight:600;font-size:14px;margin:4px 0 6px;display:block}
+.kop h2{font-family:var(--font-kop);font-size:26px;margin:0 0 2px;letter-spacing:-.01em}
+.kop p{margin:0 0 14px;color:var(--inkt-2);font-size:13.5px}
+.sectie{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--inkt-3);margin:18px 4px 6px}
+.kaart{background:var(--vlak);border-radius:var(--radius);border:1px solid var(--lijn);overflow:hidden}
+.r{display:flex;align-items:center;gap:12px;padding:12px 14px;min-height:50px;border-top:1px solid var(--lijn)}
+.r:first-child{border-top:0}
+.r .t{flex:1;min-width:0}
+.r .t b{display:block;font-weight:600;font-size:15px}
+.r .t small{display:block;color:var(--inkt-2);font-size:12.5px;line-height:1.35}
+.waarde{color:var(--inkt-2);font-size:14px;white-space:nowrap}
+.pijl{color:var(--inkt-3)}
+.sw{width:44px;height:26px;border-radius:99px;background:var(--lijn-sterk);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw.aan{background:var(--accent)}
+.sw.aan::after{left:21px}
+.sw.vast{opacity:.45}
+.keuze-groep{display:flex;gap:6px;padding:10px 14px 12px;flex-wrap:wrap}
+.keuze{border:1px solid var(--lijn-sterk);background:var(--vlak);border-radius:99px;padding:6px 14px;font-size:14px;font-weight:600;color:var(--inkt)}
+.keuze.aan{background:var(--accent);border-color:var(--accent);color:var(--accent-inkt)}
+.radio{width:20px;height:20px;border-radius:50%;border:2px solid var(--lijn-sterk);flex:none}
+.radio.aan{border:6px solid var(--accent)}
+.noot{font-size:12.5px;color:var(--inkt-2);margin:8px 4px 0}
+.knop-stil{display:block;width:100%;text-align:center;padding:13px;border-radius:14px;border:1px solid var(--lijn-sterk);background:var(--vlak);font-weight:600;color:var(--fout);margin-top:18px}
+.knop{display:block;width:100%;text-align:center;padding:13px;border-radius:14px;background:var(--accent);color:var(--accent-inkt);font-weight:700;margin-top:4px}
+.toestel{background:var(--accent-zacht);border-radius:14px;padding:12px 14px;font-size:13.5px}
+.toestel b{display:block;font-size:14.5px}
+.nav{position:absolute;left:0;right:0;bottom:0;height:62px;background:var(--vlak);border-top:1px solid var(--lijn);display:grid;grid-template-columns:1fr 1fr 52px 1.3fr 1fr;align-items:center;text-align:center;font-size:10.5px;font-weight:600;color:var(--inkt-3)}
+.nav .aan{color:var(--accent)}
+.plus{width:48px;height:48px;border-radius:50%;background:var(--accent);color:var(--accent-inkt);display:grid;place-items:center;font-size:26px;margin:-26px auto 0;box-shadow:0 0 0 5px var(--bg)}
+.vel{position:absolute;inset:0;background:rgba(10,20,16,.42);display:flex;align-items:flex-end}
+.blad{background:var(--vlak);width:100%;border-radius:22px 22px 0 0;padding:18px 18px 26px}
+.blad h3{font-family:var(--font-kop);font-size:19px;margin:0 0 6px}
+.blad p{margin:0 0 12px;color:var(--inkt-2);font-size:14px}
+.melding{background:rgba(245,247,245,.94);color:#1b2421;border-radius:16px;padding:10px 12px;font-size:13px;margin:8px 0;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.melding b{display:block}
+.lock{background:linear-gradient(#2f4a41,#18241f);color:#fff}
+.lock .tijd{font-size:58px;font-weight:300;text-align:center;margin:30px 0 4px}
+.lock .datum{text-align:center;font-size:15px;margin-bottom:24px;opacity:.85}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--accent-zacht);color:var(--accent);margin-left:6px;vertical-align:1px}
+</style>
+</head>
+<body>
+<h1 class="pagina">Besluit 20: persoonlijke instellingen, mobiele voorbeelden</h1>
+<p class="intro">Concept bij <code>docs/thuisplanner-besluit20-bouwvoorstel.md</code>. Kleuren en vormen komen uit <code>thuisplanner/ontwerp/tokens.css</code>. Fictief gezin; alles in deze pagina is nagebootst, er is niets gebouwd.</p>
+
+<div class="rij-telefoons">
+
+<!-- 1. Ingang onder Meer -->
+<figure>
+<div class="tel"><div class="status"></div><div class="scroll">
+  <div class="kop"><h2>Meer</h2><p>Gezin De Boer</p></div>
+  <div class="kaart">
+    <div class="r"><span class="t"><b>Vakanties</b></span><span class="pijl">›</span></div>
+    <div class="r"><span class="t"><b>Plannen</b></span><span class="pijl">›</span></div>
+    <div class="r"><span class="t"><b>Spullen &amp; documenten</b></span><span class="pijl">›</span></div>
+  </div>
+  <div class="sectie">Voor jou</div>
+  <div class="kaart">
+    <div class="r"><span class="t"><b>Persoonlijke instellingen</b><small>Startscherm, weergave en meldingen. Alleen voor jou.</small></span><span class="pijl">›</span></div>
+  </div>
+  <div class="sectie">Huishouden</div>
+  <div class="kaart">
+    <div class="r"><span class="t"><b>Leden en uitnodigingen</b></span><span class="pijl">›</span></div>
+    <div class="r"><span class="t"><b>Account</b><small>Sanne · inloggen met e-mailcode</small></span><span class="pijl">›</span></div>
+  </div>
+</div>
+<div class="nav"><span>Overzicht</span><span>Agenda</span><span><span class="plus">+</span></span><span>Boodschappen</span><span class="aan">Meer</span></div>
+</div>
+<figcaption><b>1. Eén rustige ingang.</b> Onder Meer, boven de huishoudinstellingen, met "Alleen voor jou" erbij. Geen nieuwe hoofdmodule, geen stap in de onboarding.</figcaption>
+</figure>
+
+<!-- 2. Hoofdscherm persoonlijke instellingen -->
+<figure>
+<div class="tel"><div class="status"></div><div class="scroll">
+  <span class="terug">‹ Meer</span>
+  <div class="kop"><h2>Persoonlijk</h2><p>Dit verandert alleen jouw weergave. De rest van het gezin merkt er niets van.</p></div>
+  <div class="kaart">
+    <div class="r"><span class="t"><b>Startscherm</b></span><span class="waarde">Agenda</span><span class="pijl">›</span></div>
+    <div class="r"><span class="t"><b>Overzicht</b><small>Wat er op je Overzicht staat</small></span><span class="waarde">3 van 4</span><span class="pijl">›</span></div>
+    <div class="r"><span class="t"><b>Agenda en taken</b><small>Standaardweergave en wat je ziet</small></span><span class="waarde">Week</span><span class="pijl">›</span></div>
+    <div class="r"><span class="t"><b>Meldingen</b><small>Op deze iPhone</small></span><span class="waarde">Aan</span><span class="pijl">›</span></div>
+  </div>
+  <p class="noot">Wordt bewaard bij je account en geldt op al je toestellen.</p>
+  <span class="knop-stil">Standaardinstellingen herstellen</span>
+  <p class="noot">Zet startscherm en weergave terug. Je meldingen en de toestemming van dit toestel blijven staan.</p>
+</div>
+<div class="nav"><span>Overzicht</span><span>Agenda</span><span><span class="plus">+</span></span><span>Boodschappen</span><span class="aan">Meer</span></div>
+</div>
+<figcaption><b>2. Vier regels, met de huidige waarde.</b> Wie niets wil instellen, hoeft hier nooit te komen. Herstellen staat los onderaan en zegt precies wat het doet.</figcaption>
+</figure>
+
+<!-- 3. Startscherm -->
+<figure>
+<div class="tel"><div class="status"></div><div class="scroll">
+  <span class="terug">‹ Persoonlijk</span>
+  <div class="kop"><h2>Startscherm</h2><p>Waar Thuisplanner opent als je de app start.</p></div>
+  <div class="kaart">
+    <div class="r"><span class="radio"></span><span class="t"><b>Overzicht <span class="tag">standaard</span></b><small>Wat er vandaag en deze week speelt</small></span></div>
+    <div class="r"><span class="radio aan"></span><span class="t"><b>Agenda</b><small>Opent in je standaardweergave (Week)</small></span></div>
+    <div class="r"><span class="radio"></span><span class="t"><b>Taken</b><small>De takenlijst in de Agenda</small></span></div>
+    <div class="r"><span class="radio"></span><span class="t"><b>Boodschappen</b></span></div>
+  </div>
+  <p class="noot">Een link uit een melding, een uitnodiging of een gedeelde link opent altijd dat ene item of scherm. Wisselen tussen schermen brengt je nooit vanzelf terug naar het startscherm.</p>
+</div>
+<div class="nav"><span>Overzicht</span><span>Agenda</span><span><span class="plus">+</span></span><span>Boodschappen</span><span class="aan">Meer</span></div>
+</div>
+<figcaption><b>3. Startscherm: één keuze uit vier.</b> Meer, Plannen en Spullen zijn bewust geen startscherm: daar begint niemand zijn dag.</figcaption>
+</figure>
+
+<!-- 4. Overzicht onderdelen -->
+<figure>
+<div class="tel"><div class="status"></div><div class="scroll">
+  <span class="terug">‹ Persoonlijk</span>
+  <div class="kop"><h2>Overzicht</h2><p>Verbergen is niet verwijderen. Alles blijft in de Agenda en bij Boodschappen.</p></div>
+  <div class="kaart">
+    <div class="r"><span class="t"><b>Afspraken</b><small>De eerstvolgende 3</small></span><span class="sw aan"></span></div>
+    <div class="r"><span class="t"><b>Te doen</b><small>Tot 5 open taken</small></span><span class="sw aan"></span></div>
+    <div class="r"><span class="t"><b>Boodschappen</b><small>Eén regel</small></span><span class="sw"></span></div>
+    <div class="r"><span class="t"><b>Vakantie en suggestie</b><small>Alleen als ze spelen</small></span><span class="sw aan"></span></div>
+  </div>
+  <p class="noot">Taken die te laat zijn of vandaag moeten, blijven altijd zichtbaar zolang Te doen aan staat. Eén onderdeel blijft altijd aan, zodat je Overzicht nooit leeg is.</p>
+</div>
+<div class="nav"><span>Overzicht</span><span>Agenda</span><span><span class="plus">+</span></span><span>Boodschappen</span><span class="aan">Meer</span></div>
+</div>
+<figcaption><b>4. Overzicht: vier schakelaars, de maxima van besluit 19 blijven.</b> Geen instelling voor aantallen; wel een vangnet tegen een leeg scherm.</figcaption>
+</figure>
+
+<!-- 5. Agenda en taken -->
+<figure>
+<div class="tel"><div class="status"></div><div class="scroll">
+  <span class="terug">‹ Persoonlijk</span>
+  <div class="kop"><h2>Agenda en taken</h2><p>Hoe de Agenda opent. Binnen de Agenda kun je altijd even iets anders kiezen.</p></div>
+  <div class="sectie">Standaardweergave</div>
+  <div class="kaart"><div class="keuze-groep"><span class="keuze">Dag</span><span class="keuze aan">Week</span><span class="keuze">Maand</span><span class="keuze">Taken</span></div></div>
+  <div class="sectie">Wiens agenda bij openen</div>
+  <div class="kaart">
+    <div class="r"><span class="radio aan"></span><span class="t"><b>Iedereen <span class="tag">standaard</span></b></span></div>
+    <div class="r"><span class="radio"></span><span class="t"><b>Ik</b><small>Jouw afspraken en taken, plus wat voor het hele gezin is. Een link vanaf het Overzicht toont altijd iedereen</small></span></div>
+  </div>
+  <p class="noot">Afgeronde taken en taken zonder datum blijven ingeklapt onderaan, zoals nu. Daar is geen schakelaar voor nodig.</p>
+</div>
+<div class="nav"><span>Overzicht</span><span>Agenda</span><span><span class="plus">+</span></span><span>Boodschappen</span><span class="aan">Meer</span></div>
+</div>
+<figcaption><b>5. Agenda en taken samen.</b> Taken zijn een weergave in de Agenda, dus één scherm. "Mijn taken / van anderen" loopt via het bestaande gezinsfilter, niet via een tweede filter.</figcaption>
+</figure>
+
+<!-- 6. Meldingen -->
+<figure>
+<div class="tel"><div class="status"></div><div class="scroll">
+  <span class="terug">‹ Persoonlijk</span>
+  <div class="kop"><h2>Meldingen</h2><p>Rustig standaard: alleen herinneringen, geen activiteit van anderen.</p></div>
+  <div class="toestel"><b>Op deze iPhone: aan</b>Thuisplanner staat op je beginscherm en mag meldingen sturen. Op je laptop staan ze uit.</div>
+  <div class="sectie">Herinneringen</div>
+  <div class="kaart">
+    <div class="r"><span class="t"><b>Afspraken</b><small>30 min vooraf · hele dag om 8:00</small></span><span class="sw aan"></span></div>
+    <div class="r"><span class="t"><b>Taken met een tijd</b><small>Op het tijdstip</small></span><span class="sw aan"></span></div>
+    <div class="r"><span class="t"><b>Taak aan jou gegeven</b><small>Door een ander gezinslid</small></span><span class="sw aan"></span></div>
+  </div>
+  <div class="sectie">Van het gezin <span class="tag">standaard uit</span></div>
+  <div class="kaart">
+    <div class="r"><span class="t"><b>Afspraak toegevoegd of gewijzigd</b><small>Alleen als jij erbij bent</small></span><span class="sw"></span></div>
+    <div class="r"><span class="t"><b>Boodschappen toegevoegd</b><small>Hoogstens één bundel per uur</small></span><span class="sw"></span></div>
+  </div>
+  <div class="sectie">Rust</div>
+  <div class="kaart">
+    <div class="r"><span class="t"><b>Stille uren</b></span><span class="waarde">22:00 – 7:00</span><span class="pijl">›</span></div>
+  </div>
+</div>
+<div class="nav"><span>Overzicht</span><span>Agenda</span><span><span class="plus">+</span></span><span>Boodschappen</span><span class="aan">Meer</span></div>
+</div>
+<figcaption><b>6. Meldingen: persoonlijke voorkeuren en de toestemming van dit toestel apart.</b> Herinneringen staan aan, activiteit van anderen staat uit. Over je eigen acties krijg je nooit een melding.</figcaption>
+</figure>
+
+<!-- 7. Toestemming vragen (pas bij aanzetten) -->
+<figure>
+<div class="tel"><div class="status"></div><div class="scroll">
+  <span class="terug">‹ Persoonlijk</span>
+  <div class="kop"><h2>Meldingen</h2><p>Rustig standaard: alleen herinneringen, geen activiteit van anderen.</p></div>
+  <div class="toestel"><b>Op deze iPhone: nog uit</b>Je voorkeuren staan klaar; dit toestel heeft nog geen toestemming.</div>
+</div>
+<div class="vel"><div class="blad">
+  <h3>Meldingen op deze iPhone?</h3>
+  <p>Thuisplanner stuurt dan je herinneringen, zoals 30 minuten voor een afspraak. In de melding staat nooit wat er in een privé-afspraak staat.</p>
+  <span class="knop">Ja, zet aan</span>
+  <p class="noot" style="text-align:center;margin-top:12px">Niet nu</p>
+</div></div>
+<div class="nav"><span>Overzicht</span><span>Agenda</span><span><span class="plus">+</span></span><span>Boodschappen</span><span class="aan">Meer</span></div>
+</div>
+<figcaption><b>7. Toestemming pas als iemand zelf kiest</b> (besluit 16). Eerst onze uitleg, dan pas de vraag van iOS of Android. Op een iPhone zonder beginscherm-app staat hier in plaats daarvan hoe je hem op het beginscherm zet.</figcaption>
+</figure>
+
+<!-- 8. Vergrendelscherm -->
+<figure>
+<div class="tel lock"><div class="status"></div><div class="scroll" style="padding-bottom:16px">
+  <div class="tijd">15:30</div><div class="datum">dinsdag 1 december</div>
+  <div class="melding"><b>Thuisplanner · over 30 min</b>16:00 Zwemles · Lotte</div>
+  <div class="melding"><b>Thuisplanner · over 30 min</b>17:00 Je privé-afspraak</div>
+  <div class="melding"><b>Thuisplanner</b>Sanne gaf je een taak voor vandaag</div>
+</div></div>
+<figcaption><b>8. Wat er op het vergrendelscherm komt.</b> Gedeelde afspraak: tijd, titel, wie. Je eigen privé-afspraak zonder titel; die van een ander ("Bezet") geeft nooit een melding. Een toegewezen taak zonder titel. Tikken opent precies dat item, na inloggen.</figcaption>
+</figure>
+
+</div>
+</body>
+</html>
