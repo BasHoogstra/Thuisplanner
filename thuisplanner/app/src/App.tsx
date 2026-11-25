@@ -30,7 +30,7 @@ import { Plannen } from './screens/Plannen';
 import { plannenAan, schermVoor } from './lib/plan';
 import { Instellingen, type InstellingenPad } from './screens/Instellingen';
 import { useDemoVoorkeuren, useServerVoorkeuren, type VoorkeurenToegang } from './lib/voorkeuren-opslag';
-import { startDoel } from './lib/voorkeuren';
+import { isNieuweStart, neemStartBeurt, startDoel } from './lib/voorkeuren';
 
 const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties', 'spullen', 'plannen', 'instellingen'];
 const TITELS: Record<Scherm, string> = { vandaag: 'Overzicht', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', spullen: 'Spullen & documenten', plannen: 'Plannen', instellingen: 'Persoonlijke instellingen' };
@@ -223,19 +223,17 @@ function Schil({ klok, data, demo, huishouden: hh, voorkeuren, balk, lokaal, tit
   balk: ReactNode; lokaal?: LokaalContext; titelSoort: string; children?: ReactNode;
 }) {
   const vandaag = naarDatum(klok);
-  // Besluit 20: het startscherm, één keer bij het openen en alleen zonder eigen adres; met de stand die bij het openen al op
-  // dit toestel bekend was (anders het Overzicht, en de keuze geldt vanaf de volgende start).
+  // Besluit 20 (aangevuld 25 november 2026): het startscherm, hoogstens één keer per paginalading (neemStartBeurt), met de
+  // stand die bij het openen al op dit toestel bekend was. Zonder adres altijd; met een gewoon hoofdscherm alleen bij een
+  // echte nieuwe start; een link naar een item, of herladen, houdt het adres (zie startDoel).
   const [start] = useState(() => {
-    const zonderAdres = window.location.hash.replace(/^#\/?/, '') === '';
-    const doel = startDoel(window.location.hash, voorkeuren?.bijStart ?? null);
-    const scherm: Scherm | null = doel ? (doel === 'taken' ? 'agenda' : doel) : null;
-    // Het adres meteen vast (zonder extra stap in de geschiedenis), ook voor het Overzicht: zo opent herladen hetzelfde
-    // scherm, en springt een latere herstart van de schil (na een netwerkonderbreking of een ander huishouden) nooit
-    // alsnog naar een intussen gewijzigd startscherm terwijl iemand kijkt (review PR #58).
-    if (zonderAdres) {
-      try { window.history.replaceState(window.history.state, '', `#/${scherm ?? 'vandaag'}`); } catch { /* geen geschiedenis: alleen het scherm */ }
-    }
-    return scherm && doel ? { scherm, doel } : null;
+    if (!neemStartBeurt()) return null;
+    const doel = startDoel(window.location.hash, voorkeuren?.bijStart ?? null, isNieuweStart());
+    if (!doel) return null;
+    const scherm: Scherm = doel === 'taken' ? 'agenda' : doel;
+    // Het adres meteen goed (zonder extra stap in de geschiedenis): herladen opent hetzelfde scherm.
+    try { window.history.replaceState(window.history.state, '', `#/${scherm}`); } catch { /* geen geschiedenis: alleen het scherm */ }
+    return { scherm, doel };
   });
   const [schermKeuze, zetScherm] = useState<Scherm>(() => start?.scherm ?? schermUitHash());
   // Plannen (besluit 18): in de demo altijd; in lokaal en staging alleen met VITE_PLANNEN=aan (anders geen route).

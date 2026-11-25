@@ -95,15 +95,49 @@ export function magUit(v: Voorkeuren, deel: OverzichtDeel): boolean {
 export const isStandaard = (v: Voorkeuren): boolean =>
   JSON.stringify(naarOpslag(v)) === JSON.stringify(naarOpslag(STANDAARD));
 
+/** Gewone hoofdschermen: een adres hiervan is geen link naar iets bijzonders (de telefoon onthoudt het gewoon). */
+const HOOFDSCHERMEN = new Set(['', 'vandaag', 'agenda', 'boodschappen', 'meer']);
+
 /**
- * Het scherm bij het openen. Alleen zonder eigen adres (leeg of "#/"); een link, melding of herlaadbeurt opent altijd
- * dat adres. Zonder bekende voorkeuren op dit toestel (eerste keer inloggen): het Overzicht.
+ * Het scherm bij het openen (besluit 20, aangevuld op 25 november 2026, optie a).
+ * - Zonder adres (leeg of "#/"): altijd het startscherm.
+ * - Met een gewoon hoofdscherm (#/vandaag, #/agenda, #/boodschappen, #/meer): alleen bij een **echte nieuwe start**,
+ *   want Safari heropent de laatste pagina en een icoon op het beginscherm bewaart het adres van toen. Herladen houdt het
+ *   adres.
+ * - Een link naar een item, vakantie, plan, spullen of instellingen, of een uitnodiging: altijd dat adres.
+ * Zonder bekende voorkeuren op dit toestel (eerste keer inloggen): niets, dus het adres of het Overzicht.
  */
-export function startDoel(hash: string, v: Voorkeuren | null): Startscherm | null {
-  const h = hash.replace(/^#\/?/, '');
-  if (h !== '' || !v || v.startscherm === 'vandaag') return null;
-  return v.startscherm;
+export function startDoel(hash: string, v: Voorkeuren | null, nieuweStart = false): Startscherm | null {
+  if (!v || v.startscherm === 'vandaag') return null;
+  const h = hash.replace(/^#\/?/, '').replace(/\/$/, '');
+  if (h === '') return v.startscherm;
+  if (!nieuweStart || !HOOFDSCHERMEN.has(h)) return null;
+  // Staat het adres al op het gekozen scherm, dan hoeft er niets te gebeuren.
+  const doelAdres = v.startscherm === 'taken' ? 'agenda' : v.startscherm;
+  return h === doelAdres && v.startscherm !== 'taken' ? null : v.startscherm;
 }
+
+/**
+ * Is dit een echte nieuwe start (geen herladen of terug/vooruit)? Een herlaadbeurt houdt het adres. Zonder Navigation
+ * Timing (oude browser): geen nieuwe start, dus het adres wint (veilige kant).
+ */
+export function isNieuweStart(): boolean {
+  try {
+    const n = globalThis.performance?.getEntriesByType?.('navigation')?.[0] as PerformanceNavigationTiming | undefined;
+    return n?.type === 'navigate';
+  } catch { return false; }
+}
+
+// Het startscherm geldt hoogstens één keer per paginalading: een latere herstart van de schil (na een
+// netwerkonderbreking of een ander huishouden) springt nooit alsnog, terwijl iemand al kijkt (review PR #58).
+let startGebruikt = false;
+export function neemStartBeurt(): boolean {
+  if (startGebruikt) return false;
+  startGebruikt = true;
+  return true;
+}
+/** Alleen voor tests: een nieuwe paginalading nabootsen. */
+export function vergeetStartBeurt(): void { startGebruikt = false; }
 
 // ---------------------------------------------------------------------------------------------
 // Cache per account op dit toestel (zoals de huishoudkeuze in lokaal/sessie.ts). Alleen weergavekeuzes, geen inhoud.
