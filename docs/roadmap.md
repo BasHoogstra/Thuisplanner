@@ -196,6 +196,19 @@ Instagram-video of -beeldherkenning (pas na een proef die laat zien dat het mag 
 (concepten). Voor de bèta-omgeving zijn nog besluiten nodig: Pro in een eigen organisatie (T2), en of het bètaproject
 later het productieproject wordt (T3).
 
+### Centrale bètaplanning (25 november 2026, concept)
+
+Op 25 november 2026 vroeg de producteigenaar om alle werk in één centrale planning te verwerken, met als doel een
+functioneel vrijwel compleet product aan het einde van de besloten bèta. De besloten bèta start op **14 december 2026**;
+de volledige personalisatie en de pushmeldingen komen tijdens de bèta, gefaseerd en achter schakelaars (besluit 20).
+Betrouwbare tweerichtingssynchronisatie met Apple, Google en Outlook blijft het doel richting de publieke lancering.
+
+De planning met werkpakketten, parallelle sporen, conflictanalyse, streefdata, capaciteit, kosten en beslispunten staat
+in `docs/thuisplanner-centrale-beta-planning.md`. Zolang die een concept is, gelden de mijlpalen hierboven als
+achtergrond; na het akkoord van de producteigenaar is die planning leidend voor de bèta. Uitwerkingen:
+`docs/thuisplanner-besluit20-bouwvoorstel.md`, `docs/thuisplanner-personalisatie-beta-plan.md` en
+`docs/thuisplanner-agenda-koppelingen-onderzoek.md`.
+
 ## Productkompas-toets (werkwijze vanaf nu)
 
 Elke nieuwe stap of wijziging van een stap wordt vóór de start kort getoetst. Leg de antwoorden
