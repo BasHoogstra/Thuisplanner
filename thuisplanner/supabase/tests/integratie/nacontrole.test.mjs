@@ -73,7 +73,9 @@ test('de migratiegeschiedenis is die van de repository, en de geplande taken zij
 test('de nacontrole vindt lokaal alleen de bekende, lokale afwijkingen', () => {
   // Lokaal zijn wachtwoordsessies aan (fictieve accounts, seed.sql) en kunnen Vault, de testaanbieder en de wachtrij
   // anders staan dan online. Al het andere (RLS, policies, rechten, Realtime, taken, schema) moet in orde zijn.
-  const lokaal = [/^wachtwoordsessies zijn toegestaan/, /^Vault mist /, /^de testaanbieder voor mail staat aan/, /uitnodigingsmail\(s\) wachten/];
+  // Lokaal is het wachtrij-adres bewust http:// (Kong in Docker, k1-lokaal.mjs); online eist de nacontrole https:// (L5).
+  const lokaal = [/^wachtwoordsessies zijn toegestaan/, /^Vault mist /, /^Vault-adres thuisplanner_wachtrij_url begint niet met https:\/\//,
+    /^de testaanbieder voor mail staat aan/, /uitnodigingsmail\(s\) wachten/];
   const rest = naFouten(n, repoVersies(), verwachtSchemaVoor(repoVersies())).filter(f => !lokaal.some(r => r.test(f)));
   assert.deepEqual(rest, []);
 });
