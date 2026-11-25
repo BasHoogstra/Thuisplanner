@@ -37,7 +37,7 @@ een tester gegevens verliest of iets ziet wat niet voor hem is.
 | --- | --- | --- | --- |
 | 1. De partner gebruikt het dagelijks | week 3 (half november) | staging, achter Access | de producteigenaar en Sanne |
 | 2. Besloten bèta | week 6 (begin december) | **bèta (nieuw)** | daarnaast 3–5 externe gezinnen |
-| 3. Publieke lancering | week 12–16 (januari–februari 2027) | productie | iedereen, als product, privacy en beveiliging op orde zijn |
+| 3. Publieke lancering | streefdatum begin juni 2027, vroegst eind mei (scenario 2, besluit 25 november 2026; zie de roadmap) | productie | iedereen, als product, privacy en beveiliging op orde zijn |
 
 **Bèta-1 tegenover later:**
 

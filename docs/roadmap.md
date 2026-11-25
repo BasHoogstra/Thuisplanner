@@ -232,7 +232,8 @@ back-ups, §5.4 verwijderen op verzoek, §5.5, §8) blijven gelden.
 | V10 | Acceptatiepoort: mobiele UX-check (met pakket 1–4 "Vandaag en Agenda rustiger", besluit 23 november), onboardingtest met een nieuwe gebruiker | PR #55 + PO |
 
 **Tijdens de bèta, als update (blokkeren de start niet):** pushmeldingen en herinneringen, Bestellingen, Maaltijden en
-Recepten, herhalende taken, Overzicht en persoonlijke instellingen (besluiten 19 en 20), Agenda-stap 5–7, Vandaag
+Recepten, herhalende taken, Overzicht en persoonlijke instellingen (besluiten 19 en 20; uitwerking van personalisatie
+en meldingen in `docs/thuisplanner-bijlage-personalisatie-meldingen.md`, PR #61), Agenda-stap 5–7, Vandaag
 versie 2, eigen export en account verwijderen in de app, huishoudkennis, AI, taakstatus en opvolgen (P8). Elke functie
 alleen na zijn eigen gate.
 **Paklijsten (besluit van de producteigenaar, 25 november 2026; vervangt D11 in `docs/thuisplanner-vakanties.md`):**
