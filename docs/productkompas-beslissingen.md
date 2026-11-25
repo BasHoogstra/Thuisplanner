@@ -432,7 +432,10 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   standaard en persoonlijke vrijheid**. Ieder account kiest zelf hoe Thuisplanner er voor hem uitziet en opent, en welke
   meldingen het wil. Zonder iets in te stellen werkt Thuisplanner prettig; instellingen zijn nooit een stap in de
   onboarding. De volledige personalisatie, inclusief pushmeldingen, komt **tijdens de besloten bèta**, gefaseerd en achter
-  schakelaars. De bèta start op 14 december 2026, ook als nog niet alles klaar is.
+  schakelaars. De bèta start op 14 december 2026 (de startdata en de volgorde staan in de roadmap), ook als nog niet
+  alles klaar is.
+- **Bron:** het bericht van de producteigenaar van 25 november 2026, en het bouwvoorstel van 24 november voor zover
+  hieronder als besluit vastgelegd.
 - **Productkompas:** principes 1, 2, 6 en 7; beslissingen 2, 4, 10, 16 en 19; de regel "Privacy volgt de situatie".
   "Een rustige standaard, met persoonlijke vrijheid" is een uitwerking van deze principes, geen nieuw principe;
   `PRODUCT_PRINCIPLES.md` verandert niet.
@@ -443,17 +446,15 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
     Geen instelling kan een scherm leeg maken; te laat en vandaag blijven zichtbaar zolang Te doen aan staat.
   - **Weinig instellingen, elk met een rustige standaard.** Alleen wat een waargenomen behoefte oplost. Wat in de bèta
     nauwelijks wordt gebruikt, kan na de bèta weer weg (principe 8).
-  - **Een instelling werkt meteen en zichtbaar.** Wie iets wijzigt, ziet het effect direct of krijgt in één zin te horen
-    wanneer het geldt. Instellingen zijn ook bereikbaar vanuit het scherm waar ze over gaan.
+  - **Instellingen ook vanuit de schermen.** Instellingen zijn ook bereikbaar vanuit het scherm waar ze over gaan.
   - **Links gaan voor.** Een adres met een eigen scherm of item (een link, een uitnodiging, een melding) opent dat. Het
     startscherm geldt alleen als de app zonder eigen adres opent.
-  - **Meldingen: herinneringen aan, activiteit uit.** Herinneringen aan eigen afspraken en taken, en "een taak aan jou
-    gegeven", staan standaard aan; meldingen over wat anderen doen en samenvattingen staan standaard uit. Nooit een
-    melding over een eigen actie. Stille uren standaard 22:00–7:00. Toestemming per toestel, pas als iemand zelf
-    meldingen aanzet (besluit 16). Geen dubbele meldingen.
+  - **Meldingen:** per functie en per gebeurtenis, met persoonlijke herinneringstermijnen, meldingen voor toegewezen
+    taken, een dagelijkse samenvatting, stille uren, voorkeuren per account, privacy op het vergrendelscherm en geen
+    dubbele of overbodige meldingen. Nooit een melding over een eigen actie. Toestemming per toestel, pas als iemand
+    zelf meldingen aanzet (besluit 16).
   - **Privacy in de melding:** een privé-afspraak van een ander geeft nooit een melding; een eigen privé-afspraak toont
-    geen titel; huishoudkennis, notities en plek staan nooit in een melding. Ieder kiest of de titel op het
-    vergrendelscherm mag staan.
+    geen titel; huishoudkennis, notities en plek staan nooit in een melding (besluit 14 en 16).
   - **Herstellen:** één knop zet de weergave terug naar de standaard; meldingen hebben een eigen herstelknop.
 - **Keuzes (25 november 2026):**
   - De fasering van de meldingen (herinneringen bij de start, daarna activiteit en samenvattingen, daarna verfijning) is
@@ -463,14 +464,21 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   - Een alleen-lezen ICS-koppeling is **geen definitieve oplossing** voor Apple Agenda. Betrouwbare
     tweerichtingssynchronisatie met Apple, Google en Outlook blijft het doel richting de publieke lancering; de bèta
     mag zonder starten.
-- **Nog te beslissen, wegens spanning met eerdere besluiten** (uitwerking in `docs/thuisplanner-centrale-beta-planning.md`):
-  persoonlijke navigatie (beslissing 2: de navigatie wordt eerst aan werkelijk gebruik getoetst), het ordenen van de
-  blokken op het Overzicht (besluit 19: wat nu of dringend is, gaat voor), en de ondersteuningsniveaus Rustig,
-  Behulpzaam en Actief (M8).
+- **Voorstel, ter beslissing** (nog niet door de producteigenaar goedgekeurd; de regie legt ze voor; uitwerking in
+  `docs/thuisplanner-bijlage-personalisatie-meldingen.md` en `docs/thuisplanner-personalisatie-beta-plan.md`):
+  - herinneringen aan eigen afspraken en taken en "een taak aan jou gegeven" standaard aan; meldingen over wat anderen
+    doen en samenvattingen standaard uit;
+  - stille uren standaard 22:00–7:00;
+  - de keuze of de titel op het vergrendelscherm mag staan (standaard tijd en titel, of alleen dat er iets is);
+  - "een instelling werkt meteen en zichtbaar": wie iets wijzigt, ziet het effect direct of krijgt in één zin te horen
+    wanneer het geldt.
+- **Nog te beslissen, wegens spanning met eerdere besluiten:** persoonlijke navigatie (beslissing 2: de navigatie wordt
+  eerst aan werkelijk gebruik getoetst), het ordenen van de blokken op het Overzicht (besluit 19: wat nu of dringend is,
+  gaat voor), en de ondersteuningsniveaus Rustig, Behulpzaam en Actief (M8).
 - **Voorwaarden vóór implementatie:** de gate "Persoonlijke instellingen" en, voor meldingen, de gate van besluit 16
   (pushproef op de testtelefoons, gate 9 voor het domein "meldingen"); geen migratie, geheim (VAPID), registratie,
   kostenpost of uitrol zonder afzonderlijk akkoord.
 - **Uitwerking:** `docs/thuisplanner-besluit20-bouwvoorstel.md`, `docs/thuisplanner-personalisatie-beta-plan.md` en
-  `docs/thuisplanner-centrale-beta-planning.md`.
-- **Wat verandert:** besluit 16 wordt verruimd (meer soorten meldingen, activiteit standaard uit, tijdens de bèta).
+  `docs/thuisplanner-bijlage-personalisatie-meldingen.md` (bijlagen; de planning staat in de roadmap).
+- **Wat verandert:** besluit 16 wordt verruimd (meer soorten meldingen, tijdens de bèta).
   **Wat niet verandert:** het Productkompas, de besluiten 1–15 en 17–19, en de maxima van het Overzicht (besluit 19).

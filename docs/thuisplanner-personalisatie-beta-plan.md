@@ -1,7 +1,7 @@
 # Persoonlijke instellingen en pushmeldingen tijdens de besloten bèta (onderzoek en plan)
 
 - **Bijgewerkt (25 november 2026, tweede ronde):** de planning, de fasering en de agendaparagraaf zijn opgenomen in en
-  vervangen door `docs/thuisplanner-centrale-beta-planning.md`. Vervallen door keuzes van de producteigenaar: K3/D4 (taken
+  vervangen door `docs/thuisplanner-bijlage-personalisatie-meldingen.md` (een bijlage; de planning staat in de roadmap). Vervallen door keuzes van de producteigenaar: K3/D4 (taken
   krijgen wél een optioneel tijdstip en een optionele herinnering, zie de centrale planning §2), het aparte
   `event_reminders` (wordt `item_reminders`), en D12a (ICS is voor Apple geen eindoplossing). Het technisch ontwerp van de
   meldingen (§2) blijft gelden.
