@@ -196,6 +196,67 @@ Instagram-video of -beeldherkenning (pas na een proef die laat zien dat het mag 
 (concepten). Voor de bèta-omgeving zijn nog besluiten nodig: Pro in een eigen organisatie (T2), en of het bètaproject
 later het productieproject wordt (T3).
 
+### Besloten bèta op uitnodiging (besluit van de producteigenaar, 25 november 2026)
+
+Mijlpaal 2 wordt een **besloten bèta op uitnodiging, zonder openbare registratie**: vijf geselecteerde gezinnen, daarna
+gecontroleerd uitbreiden. Doel is praktijkervaring, geen afgewerkt product: alleen wat nodig is voor privacy,
+beveiliging, gegevensintegriteit en herstelbaarheid blokkeert de start. Deze sectie gaat voor op de streefperiode
+"rond week 6" in de tabel hierboven. Alle eisen uit `docs/thuisplanner-beta-voorbereiding.md` (§2.3 Access-poort, §4
+back-ups, §5.4 verwijderen op verzoek, §5.5, §8) blijven gelden.
+
+- **Streefdatum:** de eerste 1–2 gezinnen op **maandag 14 december 2026**; de andere 3 na een week zonder ernstige
+  fouten, bij voorkeur begin januari 2027 (geen start en support in de feestdagen).
+- **Omgeving (T2/O1):** in principe akkoord op Supabase Pro voor de bèta, in een eigen organisatie; staging blijft
+  gratis in de organisatie Thuisplanner (betaald en gratis kunnen niet in één organisatie). Kosten: Pro $25 per maand,
+  inclusief één Micro-project (het rekentegoed van $10 dekt dat); staging, Cloudflare en Lettermint (gratis tegoed)
+  $0. Totaal **$25 per maand**, plus btw als Supabase die rekent. De bèta wordt later productie (T3/O2, besloten 28
+  oktober), dus geen extra project. De betaalde activatie vraagt een afzonderlijk akkoord.
+- **Toegang alleen voor uitgenodigden:** de testerslijst (G1) voor de eerste volwassene per gezin, `huishouden_open`
+  uit, partners via een uitnodiging op hun eigen adres. Nieuw, vóór de start: **registratie alleen op uitnodiging** in
+  de codelaag (een account alleen voor een adres op de testerslijst of met een open uitnodiging), samen met L1. Daarmee
+  kan Access na de Access-poort uit (besluit O3).
+
+**Voorwaarden vóór het eerste gezin (blokkeren de start):**
+
+| # | Voorwaarde | Pakket |
+| --- | --- | --- |
+| V1 | Gezinsbèta Bas en Sanne: acceptatietest op twee telefoons; export en herstelproef mét bestanden | PO + Claude |
+| V2 | Bèta-omgeving: Pro, organisatie, project, Pages `app.mijnthuisplanner.nl` (CNAME), Turnstile, nieuwe geheimen, Auth met een ruime mailgrens per uur | PO + C |
+| V3 | Buildmodus `beta` en `productie` met kenmerkbewaking; nooit als demo (A1, N4, N5); `functies.ps1 -Omgeving beta`; L8 | P1 |
+| V4 | Registratie alleen op uitnodiging, L1, R4 en L4 (de enige pakket met een migratie), en eerlijke meldingen bij de limieten van Supabase Auth | P2 |
+| V5 | Stagingreview L5 en L6; onafhankelijke review, of het resterende risico schriftelijk geaccepteerd door de PO (O6), met een risico-overzicht | P3 + PO |
+| V6 | Verwijderen op verzoek (A9, met Mijn spullen), AVG-inzage (`avg-export.sql`) en het dagoverzicht (`dagoverzicht.sql`) | P4 |
+| V7 | Access-poort online op de bèta: het API-scheidingsscript met tegenproef, H1–H19, de verwijderproef | P5 + C |
+| V8 | Privacyverklaring van de app gepubliceerd (bedrijfsgegevens ingevuld); DPA Supabase getekend; Cloudflare en Lettermint vastgelegd; uitleg voor testers en "Feedback of hulp" in Meer | P6 + PO |
+| V9 | Back-uplagen 1–3 en de hersteloefening op de bèta, mét bestanden | C + PO |
+| V10 | Acceptatiepoort: mobiele UX-check (met pakket 1–4 "Vandaag en Agenda rustiger", besluit 23 november), onboardingtest met een nieuwe gebruiker | PR #55 + PO |
+
+**Tijdens de bèta, als update (blokkeren de start niet):** pushmeldingen en herinneringen, Bestellingen, Maaltijden en
+Recepten, herhalende taken, Overzicht en persoonlijke instellingen (besluiten 19 en 20), Agenda-stap 5–7, Vandaag
+versie 2, eigen export en account verwijderen in de app, huishoudkennis, AI. Elke functie alleen na zijn eigen gate.
+**Paklijsten (besluit van de producteigenaar, 25 november 2026; vervangt D11 in `docs/thuisplanner-vakanties.md`):**
+paklijsten behouden hun indeling per gezinslid, met daarbinnen automatische categorisering; de gebruiker kan items
+altijd anders indelen en eigen categorieën aanmaken. Pakket P7, eerst bij Sanne op staging; **P7 mag de start van de
+besloten bèta niet vertragen**. Vóór de bèta, als het past: (1) bestaande items wijzigen (beter vindbaar, ook bij
+voorbereidingen, boodschappen en extra lijsten); (2) automatische categorisering via een lokale woordenlijst, kopjes
+pas bij twee of meer categorieën; (3) een item handmatig aan een andere categorie toewijzen (vraagt een kleine,
+additieve migratie, met de RLS-tegenproeven). Tijdens de bèta: uitgebreid categoriebeheer (eigen categorieën
+toevoegen, hernoemen, volgorde, verwijderen) en het onthouden van categorisatievoorkeuren (voorstel van 25 november
+2026).
+
+**Parallel werken (zonder concessies):** de pakketten P1–P6 raken elk eigen bestanden en lopen tegelijk, elk in een
+eigen worktree en een eigen PR met volledige CI, tegenproeven en review. Alleen P2 voegt vóór de start een migratie
+toe (P7 daarna, met het volgende versienummer); elke migratie wordt eerst gerepeteerd op een kopie van de laatste
+export (generale repetitie). Elk pakket dat een lokale Supabase-stack nodig heeft, gebruikt een eigen `project_id` en
+eigen poorten, en stopt die stack na zijn testronde (Docker is krap). Spoor C (de bèta-omgeving inrichten,
+met Access aan) begint direct na de betaalde activatie, zodat de online controles (V7, V9) kunnen zodra de pakketten
+gemerged zijn. Elke commit, merge, migratie, deployment en elk gezin houdt een afzonderlijk akkoord.
+
+**Versnelling:** (1) de bèta-omgeving deze week inrichten, met Access aan; (2) P1–P6 tegelijk; (3) O6 voor de besloten
+bèta via een schriftelijk geaccepteerd risico, de externe review vóór de lancering (mijlpaal 3); (4) de gezinnen
+gespreid. Eerder dan 14 december is niet verantwoord: na het mergen van de laatste pakketten kosten de online poort, de
+hersteloefening en het opruimen van de testaccounts samen nog enkele dagen.
+
 ## Productkompas-toets (werkwijze vanaf nu)
 
 Elke nieuwe stap of wijziging van een stap wordt vóór de start kort getoetst. Leg de antwoorden
