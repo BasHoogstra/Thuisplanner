@@ -253,8 +253,8 @@ diensten.
 
 | Verzoek | Werkwijze | Nodig |
 | --- | --- | --- |
-| Inzage of kopie | Een alleen-lezende SQL-snippet die per account de eigen gegevens als JSON geeft (huishoudens, eigen afspraken, taken, boodschappen), uitgevoerd door de producteigenaar in de SQL-editor; per mail aan het eigen adres | Nieuw: `staging/avg-export.sql` (bouwen en lokaal testen; eigen akkoord) |
-| Verwijderen | Zie **"Verwijderen op verzoek"** hieronder: een gecontroleerd verwijderscript voor de beheerder, geen handwerk in het dashboard | Het script, met een integratietest en een proef op de bèta |
+| Inzage of kopie | Een alleen-lezende SQL-snippet die per account de eigen gegevens als JSON geeft (huishoudens, eigen afspraken, taken, boodschappen, vakanties, spullen en documenten, plannen), uitgevoerd door de producteigenaar in de SQL-editor; per mail aan het eigen adres | `staging/avg-export.sql` (gebouwd, zie "Stand P4" hieronder) |
+| Verwijderen | Zie **"Verwijderen op verzoek"** hieronder: een gecontroleerd verwijderscript voor de beheerder, geen handwerk in het dashboard | `staging/verwijderen.ps1` en `verwijderen.mjs` (gebouwd); nog de proef op de bèta |
 | Correctie | In de app zelf | – |
 | Logboek | Per verzoek: datum, soort, afgehandeld op (geen inhoud) | Een eenvoudige lijst bij de producteigenaar |
 
@@ -296,6 +296,65 @@ gegevens te verwijderen. Een knop in de app mag later komen; de mogelijkheid zel
      controle falen.
   2. Een proef op de bèta met verzonnen accounts, als onderdeel van de Access-poort (§2.3).
   3. Het opruimen van de testaccounts vóór de start, met hetzelfde script.
+
+**Stand P4 (voorwaarde V6, 25 november 2026): lokaal gebouwd en getest; nog niet gecommit; de proef op de bèta volgt
+met de producteigenaar.**
+
+- **Het verwijderscript** (`staging/verwijderen.ps1`, het werk in `staging/verwijderen.mjs`):
+  - Aanroep: `verwijderen.ps1 -Ref <kenmerk> -Omgeving beta -Soort huishouden -Adres <eigenaar> [-Huishouden <id>]
+    [-Ook <partner>]` voor variant (a), of `-Soort account -Adres <adres>` voor variant (b). `-Ook` alleen als de
+    partner zelf ook om verwijdering vraagt; anders blijft dat account bestaan, zonder huishouden.
+  - Verborgen prompts voor het databasewachtwoord en voor de pepper (`K1_PEPPER` van dat project, uit de
+    wachtwoordmanager): de codelaag bewaart adressen alleen als HMAC met die pepper, dus zonder pepper zijn de codes en
+    de tellers van de grenzen bij een adres niet te vinden. Staat er een recente code van het account, dan toetst het
+    script de pepper daaraan en weigert bij een verkeerde. Dezelfde verbindingseisen als `verbinding.ps1` (kenmerk uit
+    `omgevingen.json`, session pooler, TLS met de vastgepinde Supabase-root); zolang `beta.supabaseRef` leeg is,
+    weigert het script de bèta vóór het verbindt.
+  - Stap 1, alleen lezend: de huishoudens die weggaan (met leden en per lid of het account blijft), de aantallen per
+    tabel, wat er in een huishouden dat blijft van het account verdwijnt, de resten bij het adres (testerslijst,
+    uitnodigingen elders, codes, tellers), en **waar het account en het adres nu nog voorkomen** (dezelfde zoektocht
+    als de controle). Wat de database zou weigeren (de enige eigenaar van een huishouden met andere accounts), staat
+    hier al als weigering; dan wordt er niets verwijderd.
+  - Stap 2: de getypte bevestiging `verwijder <omgeving> <adres>`.
+  - Stap 3, één transactie (alles of niets), na een hercontrole onder vergrendeling dat er sinds het overzicht niets
+    wezenlijks veranderde: het huishouden (variant a; alle inhoud via de cascades), de account(s) (de triggers van de
+    database doen privé-afspraken, persoonlijke spullen en documenten, en het huishouden waar het account het enige
+    account is), de testerslijst, de codes en tellers bij de hash van het adres, uitnodigingen naar het adres in andere
+    huishoudens (ingetrokken, adres gewist), het eigenaarsveld van gedeelde bestanden, de regels in het
+    **auditlogboek van Supabase Auth** (dat bewaart adres en account-id, ook ná het verwijderen van een account) en
+    Realtime-berichten. Daarna de bestaande opruimronde voor de bestanden (`verwijderen-spullen.mjs`).
+  - Stap 4, de controle "niets meer aanwezig": elke tekst-, uuid- en json-kolom van elke tabel in `public`, `private`,
+    `auth`, `storage`, `realtime`, `net`, `cron` en `supabase_functions` wordt doorzocht op de account-id's, de
+    huishouden-id's (variant a, en huishoudens die meegingen), de adressen en de hash van het adres; plus de controle
+    van Mijn spullen op bestanden. Een tabel die niet te lezen is, telt als afwijking.
+  - De laatste regel is de **registerregel zonder persoonsgegevens** (datum, soort, aantallen, uitkomst).
+  - Plannen, vakanties (met paklijsten en boodschappenkoppelingen), afspraken, taken en boodschappen gaan in variant (a)
+    mee via de cascades; in variant (b) blijven ze als gedeelde huishoudgegevens. De test toetst beide.
+- **Integratietest** `tests/integratie/verwijderen.test.mjs` (lokale stack, het script als opdracht met de bevestiging op
+  standaardinvoer): variant (a) met inhoud in alle domeinen, bestanden, een kind, een partner met account, een open
+  uitnodiging, een uitnodiging naar het adres in een ander huishouden en een andere tester; variant (b); alleen een
+  adres zonder account; weigeringen (database zou weigeren, verkeerde pepper, online zonder kenmerk) en een verkeerde
+  bevestiging laten alles ongemoeid. **Tegenproeven:** een opzettelijk achtergelaten rij met het adres, de hash van
+  het adres, een account-id, een huishouden-id, een regel in het auditlogboek, en een achtergelaten bestand laten de
+  controle elk falen. Daarnaast met de hand nagegaan: zonder de opruiming van het auditlogboek eindigt het script met
+  "AFWIJKING" en faalt de test.
+- **Uitslag lokaal (25 november 2026, eigen stack `thuisplanner_p4`, 24 migraties):** `verwijderen.test.mjs` 5 van 5,
+  `avg-export.test.mjs` 3 van 3, `dagoverzicht.test.mjs` 2 van 2, en `verwijderen-spullen.test.mjs` nog steeds 5 van 5;
+  `statisch.js` geslaagd. De controle doorzocht 73 tabellen. De tests staan in `tests/integratie/run.sh` (CI).
+- **Bij de proef op de bèta nagaan:** of de rol `postgres` online ook mag wat lokaal kan (regels uit
+  `auth.audit_log_entries` en `realtime.messages` verwijderen, het eigenaarsveld van `storage.objects` leegmaken, en
+  alle tabellen in de doorzochte schema's lezen). Zo niet, dan stopt het script met een fout of meldt de controle
+  "niet te controleren" (fail-closed); dan eerst overleggen.
+- **Inzage:** `staging/avg-export.sql`, één alleen-lezende select met de plek `VUL-HIER-HET-ADRES-IN`. Grens: nooit
+  meer dan het account in de app mag zien (geen privé-afspraak, persoonlijk spul of document van een ander, ook niet
+  als "Bezet"; geen adressen, account-id's, hashes of tokens van anderen). De bestanden zelf staan er niet in (alleen
+  titel, soort, grootte); die gaan apart mee als daarom gevraagd wordt. Test `tests/integratie/avg-export.test.mjs`,
+  met tegenproeven (zonder de privacyfilter, of met een ander huishouden erbij, faalt de toets).
+- **Open punt voor de producteigenaar:** "Na een herstel uit een back-up voeren we de verwijderingen uit het register
+  opnieuw uit" kan niet met een register zonder persoonsgegevens: dan is niet bekend wie opnieuw weg moet. Voorstel:
+  na een herstel eerst alle accounts en huishoudens vergelijken met de stand van vóór het herstel; wat er na het herstel
+  weer is maar daarvoor niet, opnieuw verwijderen. Of: een apart, versleuteld lijstje met de adressen van verwijderde
+  accounts, alleen zolang de oudste back-up bestaat (hoogstens 4 weken). Besluit nodig.
 
 ### 5.5 Vóór de eerste externe familie
 
@@ -341,14 +400,21 @@ gegevens te verwijderen. Een knop in de app mag later komen; de mogelijkheid zel
 
 | Wat | Hoe | Hoe vaak | Wie |
 | --- | --- | --- | --- |
-| Codes en pogingen | Een alleen-lezend **dagoverzicht** (nieuw: `staging/dagoverzicht.sql`): aantal aangevraagde en gecontroleerde codes, geremd door H/U/D, vergrendelde accounts, nieuwe accounts, verwijderde onbevestigde accounts. Alleen aantallen, nooit adressen | dagelijks tijdens de bèta | producteigenaar (5 minuten) |
+| Codes en pogingen | Een alleen-lezend **dagoverzicht** (`staging/dagoverzicht.sql`, gebouwd): aantal aangevraagde, gebruikte en gecontroleerde codes, codes vervallen na te veel fouten, geremd door H/U/D, adressen aan de aanvraaggrens, vergrendelde adressen (H op), in Auth geblokkeerde accounts, nieuwe en onbevestigde accounts. Alleen aantallen, nooit adressen. Niet mogelijk, omdat de database het niet bijhoudt: het aantal geweigerde codeaanvragen en het aantal verwijderde onbevestigde accounts | dagelijks tijdens de bèta | producteigenaar (5 minuten) |
 | Mailwachtrij | `private.uitnodigingsmail_stand()` (bestaat al): wachtend > 10 min, vastgelopen, onzeker, mislukt, niet bezorgd | in het dagoverzicht | producteigenaar |
 | Mailtegoed en bezorging | Lettermint-dashboard; melding bij 200 per maand; bounces en spamklachten | wekelijks, en bij de melding | producteigenaar |
-| Geplande taken | `cron.job_run_details`: laatste run van de 5 taken `succeeded` | in het dagoverzicht | producteigenaar |
+| Geplande taken | `cron.job_run_details`: laatste run van de **6** taken `succeeded` (sinds Mijn spullen ook `thuisplanner-documenten-opruimen`) | in het dagoverzicht | producteigenaar |
 | Instellingen | De nacontrole (`verbinding-controle.mjs na`) | wekelijks en na elke wijziging | Claude, na akkoord |
 | Fouten in de app | Bèta-1: de ErrorBoundary toont een rustige melding met "Meld dit" (mailto met tijdstip en schermnaam, geen inhoud). Geen externe foutmonitoring (geen nieuwe verwerker) | bij elke melding | producteigenaar |
 | Functies en Auth | Logboeken in het dashboard (7 dagen op Pro): 5xx van de functies, `captcha_failed`, 429 | bij een melding of afwijking | producteigenaar, met Claude |
 | Beschikbaarheid | Supabase-status en Cloudflare-status; geen eigen uptime-dienst in bèta-1 | bij klachten | producteigenaar |
+
+**Stand P4 (25 november 2026): `staging/dagoverzicht.sql` lokaal gebouwd en getest; nog niet gecommit.** Eén
+alleen-lezende select in de SQL-editor; per regel een onderdeel, een waarde en eventueel "let op" (bijvoorbeeld een
+vergrendeld adres, een mislukte of niet gelopen geplande taak, of niet precies 6 geplande taken). Test
+`tests/integratie/dagoverzicht.test.mjs`: elke regel telt precies wat erbij komt, oude codes (ouder dan 24 uur) tellen
+niet mee, en er staat nooit een adres, hash of id in; met tegenproeven (een variant die een adres toont, of oude codes
+meetelt, laat de toets falen).
 
 Een externe dienst voor foutmonitoring of uptime kan vóór de lancering (mijlpaal 3), als eigen besluit met een
 AVG-beoordeling.
