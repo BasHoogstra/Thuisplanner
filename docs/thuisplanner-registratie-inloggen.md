@@ -919,13 +919,17 @@ pepper niet, dus vergelijken kan alleen op het adres); het wordt daar niet bewaa
 **L1: de uitlegmail.** De controle staat ná de grenzen per adres (5 per kwartier, 8 per dag). Een onbekend adres loopt
 dus op dezelfde aanvraag vast als een bestaand account, en de grenzen verraden niet meer welke adressen een account
 hebben. De uitlegmail gaat hoogstens één keer per adres per 24 uur (`k1_accounts.uitleg_op`); daarna hetzelfde antwoord
-zonder mail.
+zonder mail. Ook de duur verraadt niets: elk antwoord dat er als succes uitziet (inlogcode, uitlegmail of niets) duurt in
+`stuur-code` minstens 1,5 seconde, ook als er niets verstuurd wordt (niet bij een adreswijziging: die vraagt een
+ingelogde gebruiker). Zonder rij in `private.k1_grenzen` gaan er geen codes uit (fail-closed).
 
 **R4: uitnodigingsmails.** Naast de 20 per huishouden per 24 uur nu ook (in `private.uitnodigingsmail_grenzen`):
 - **5 per uitnodiger** per 24 uur, over al zijn huishoudens samen (was 10 huishoudens × 20 = 200);
 - **3 per ontvanger** per 24 uur, van alle uitnodigers samen. De wachtrij bewaart daarvoor een HMAC van het adres met een
   willekeurige sleutel die alleen de database kent; het adres zelf blijft er niet in. Opnieuw uitnodigen begint dus
-  niet meer bij nul.
+  niet meer bij nul. Bewuste keuze: deze grens geldt over alle huishoudens samen. Wordt één adres binnen 24 uur al drie
+  keer gemaild (door welke huishoudens ook), dan gaan volgende mails naar dat adres niet; de uitnodiging geldt wel, en de link kan
+  ook zo gedeeld worden. Zo kan niemand via meerdere huishoudens één adres overspoelen.
 
 Boven een grens blijft de uitnodiging geldig en gaat de mail niet (stand "daglimiet"); "nog eens sturen" geeft dan
 TPM03, zoals bij de grens per huishouden. De app hoeft niets nieuws te vertalen.
@@ -937,10 +941,14 @@ geheugen: een herhaalde melding zet dezelfde stand nog eens (geen effect), en Le
 melding.
 
 **L5: het wachtrij-adres.** De database roept de Edge Functions (het seintje voor uitnodigingsmails en de opruimronde
-van documenten) aan met het wachtrijgeheim in een kop, op het adres uit Vault. Dat adres moet `https://` zijn; `http://`
-alleen naar een lokaal adres (127.0.0.1, localhost, host.docker.internal, of de gateway `kong` / `supabase_kong_<project>`
-van een lokale stack). Anders roept de database niets aan, en wachten de mails tot het adres klopt.
+van documenten) aan met het wachtrijgeheim in een kop, op het adres uit Vault. Dat adres moet precies
+`https://<host>/functions/v1/stuur-uitnodiging` zijn, of lokaal
+`http://supabase_kong_<project>:<poort>/functions/v1/stuur-uitnodiging` (de gateway van een lokale stack; die naam bestaat
+alleen in het Docker-netwerk van die stack, en zo zet `k1-lokaal.mjs` het in Vault). Geen andere http-adressen, geen
+gebruikersnaam, geen ander pad. Anders roept de database niets aan, en wachten de mails tot het adres klopt. De
+nacontrole eist online bovendien `https://` (pakket P3).
 
 **Uitrolvolgorde.** Eerst de migratie, dan de Edge Function. Tussendoor gebruikt de oude functie de oude ingang van
 `k1_nieuwe_code` (zonder adres); die volgt de nieuwe regel en weigert dan elk nieuw account (fail-closed). Inloggen
-werkt door.
+werkt door. Die ingang geeft nooit `registratie-stil` (de oude functie kent dat niet), maar `registratie-dicht`: het
+gedrag van vóór de migratie.

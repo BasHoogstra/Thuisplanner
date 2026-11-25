@@ -266,7 +266,7 @@ test('L4: een geldig ondertekend hookverzoek werkt maar één keer', { timeout: 
   assert.equal(tegelijk.filter(x => x === 200).length, 1, JSON.stringify(tegelijk));
 });
 
-test('L5: de database roept de wachtrij alleen aan via https, of via http naar een lokaal adres', { timeout: 60000 }, async () => {
+test('L5: de database roept de wachtrij alleen aan via https, of via http naar de gateway van een lokale stack', { timeout: 60000 }, async () => {
   // Elk adres in één transactie die wordt teruggedraaid: Vault blijft zoals het was en pg_net verstuurt niets (een
   // verzoek gaat pas na de commit weg).
   const pad = '/functions/v1/stuur-uitnodiging';
@@ -279,11 +279,94 @@ test('L5: de database roept de wachtrij alleen aan via https, of via http naar e
     } finally { await db.query('rollback'); }
   };
   for (const url of [`http://voorbeeld.test${pad}`, `http://192.0.2.1:8000${pad}`, `http://localhost.voorbeeld.test${pad}`,
-    `http://localhost@voorbeeld.test${pad}`, `http://kong.voorbeeld.test${pad}`, `ftp://voorbeeld.test${pad}`]) {
-    assert.deepEqual(await met(url), [false, false], `aangeroepen via ${url}`);
+    `http://localhost@voorbeeld.test${pad}`, `http://kong.voorbeeld.test${pad}`, `ftp://voorbeeld.test${pad}`,
+    // Ook geen andere lokale http-adressen meer: alleen de gateway van een lokale stack.
+    `http://127.0.0.1:54321${pad}`, `http://localhost:54321${pad}`, `http://host.docker.internal:54321${pad}`, `http://kong:8000${pad}`,
+    `http://supabase_kong_thuisplanner${pad}`, `http://supabase_kong_thuisplanner.voorbeeld.test:8000${pad}`,
+    `HTTP://supabase_kong_thuisplanner:8000${pad}`, `https://iemand@voorbeeld.test${pad}`, `https://voorbeeld.test:443${pad}`,
+    // Alleen de functie stuur-uitnodiging, en niets erachter.
+    'https://voorbeeld.test/functions/v1/opruimen-documenten', `https://voorbeeld.test${pad}/extra`, `https://voorbeeld.test${pad}?x=1`,
+    `https://voorbeeld.test/iets${pad}`, `https://voorbeeld.test${pad}\n`, `https://${pad}`, '']) {
+    assert.deepEqual(await met(url), [false, false], `aangeroepen via ${JSON.stringify(url)}`);
   }
-  for (const url of [`https://voorbeeld.test${pad}`, `http://127.0.0.1:54321${pad}`, `http://localhost:54321${pad}`,
-    `http://host.docker.internal:54321${pad}`, `http://kong:8000${pad}`, `http://supabase_kong_thuisplanner:8000${pad}`]) {
+  for (const url of [`https://voorbeeld.test${pad}`, `https://abcdefghijklmnopqrst.supabase.co${pad}`,
+    `http://supabase_kong_thuisplanner:8000${pad}`, `http://supabase_kong_thuisplanner_p2:56601${pad}`]) {
     assert.deepEqual(await met(url), [true, true], `niet aangeroepen via ${url}`);
   }
+});
+
+test('geen adresverraad via de tijd: ook zonder mail duurt het antwoord even lang', { timeout: 90000 }, async () => {
+  const vreemd = adres('tijd-vreemd');
+  const bestaand = adres('tijd-bestaand');
+  await bestaandAccount(bestaand);
+  await vraag(vreemd);   // de eerste keer: de uitlegmail
+  const duur = async email => {
+    const begin = performance.now();
+    const r = await createClient(API_URL, ANON_KEY, geen).auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+    const ms = performance.now() - begin;
+    await wacht(1100);
+    assert.ifError(r.error);
+    return ms;
+  };
+  // Daarna gaat er niets meer (registratie-stil); toch even lang als een verstuurde inlogcode.
+  for (let i = 0; i < 2; i++) {
+    const stil = await duur(vreemd);
+    const code = await duur(bestaand);
+    assert.ok(stil >= 1400, `het stille antwoord kwam na ${Math.round(stil)} ms`);
+    assert.ok(code >= 1400, `de inlogcode kwam na ${Math.round(code)} ms`);
+  }
+  assert.equal((await mails(vreemd, 0)).filter(m => m.onderwerp === 'Thuisplanner is nog in een besloten test').length, 1);
+});
+
+test('oude ingang (zonder adres): nooit een nieuw account, en geen stille uitkomst die een oude functie niet kent', { timeout: 30000 }, async () => {
+  const email = adres('oude-ingang');
+  await db.query('insert into private.testers (email) values ($1)', [email]);   // zelfs op de testerslijst
+  const h = adresHmac(email);
+  const oud = async () => (await db.query(`select uitkomst from private.k1_nieuwe_code($1, $2::uuid, 'signup', $3, $4)`,
+    [h, randomUUID(), 'x'.repeat(64), 'versleuteld'])).rows[0].uitkomst;
+  await db.query('begin');
+  try {
+    assert.equal(await oud(), 'registratie-dicht');
+    assert.equal(await oud(), 'registratie-dicht', 'de oude ingang gaf een uitkomst die een oude functie niet kent');
+    // De nieuwe ingang zwijgt de tweede keer wel.
+    assert.equal((await db.query(`select uitkomst from private.k1_nieuwe_code($1, null, $2::uuid, 'signup', $3, $4)`,
+      [h, randomUUID(), 'x'.repeat(64), 'versleuteld'])).rows[0].uitkomst, 'registratie-stil');
+  } finally { await db.query('rollback'); }
+});
+
+test('zonder grenzenrij geen codes (fail-closed)', { timeout: 30000 }, async () => {
+  const email = adres('grenzenrij');
+  await db.query('insert into private.testers (email) values ($1)', [email]);
+  await db.query('begin');
+  try {
+    await db.query('delete from private.k1_grenzen');
+    const r = await db.query(`select uitkomst from private.k1_nieuwe_code($1, $2, $3::uuid, 'signup', $4, $5)`,
+      [adresHmac(email), email, randomUUID(), 'x'.repeat(64), 'versleuteld']);
+    assert.equal(r.rows[0].uitkomst, 'codes-uit');
+  } finally { await db.query('rollback'); }
+});
+
+test('huishouden_open: dan krijgt iedereen een account', { timeout: 60000 }, async () => {
+  await db.query('update private.instellingen set huishouden_open = true');
+  try {
+    const email = adres('huishouden-open');
+    await inloggen(email);
+    assert.ok(await bevestigd(email));
+  } finally { await db.query('update private.instellingen set huishouden_open = false'); }
+});
+
+test('R4 tegelijk: twee uitnodigers die op hetzelfde moment hetzelfde adres uitnodigen gaan samen niet over de grens', { timeout: 90000 }, async () => {
+  const a = await tester('r4-tegelijk-a');
+  const b = await tester('r4-tegelijk-b');
+  const ha = await huishouden(a.c, `R4 tegelijk a ${run}`);
+  const hb = await huishouden(b.c, `R4 tegelijk b ${run}`);
+  await db.query('update private.uitnodigingsmail_grenzen set per_adres = 1');
+  try {
+    for (let i = 0; i < 3; i++) {
+      const gast = adres(`r4-tegelijk-${i}`);
+      const [x, y] = await Promise.all([uitnodigen(a.c, ha, gast), uitnodigen(b.c, hb, gast)]);
+      const st = [await eersteMail(x), await eersteMail(y)];
+      assert.equal(st.filter(z => z !== 'daglimiet').length, 1, `ronde ${i}: ${st.join(', ')}`);
+    }
+  } finally { await db.query('update private.uitnodigingsmail_grenzen set per_adres = 3'); }
 });

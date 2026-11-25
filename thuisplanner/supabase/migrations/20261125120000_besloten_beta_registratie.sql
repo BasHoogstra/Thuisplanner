@@ -18,7 +18,7 @@
 -- 4. L4: een geheugen voor de webhook-id's van de Send Email-hook. Een opgevangen, geldig ondertekend verzoek is daarna
 --    niet nog eens bruikbaar (de handtekening alleen gold 5 minuten lang).
 -- 5. L5: het wachtrij-adres in Vault (de aanroep van de Edge Functions met het wachtrijgeheim) alleen via https://,
---    behalve naar een lokaal adres.
+--    behalve naar de gateway van een lokale Supabase-stack; en alleen naar de functie stuur-uitnodiging.
 -- Stabiele codes: ongewijzigd (TPM03 is ook de code bij de nieuwe grenzen; de app vertaalt alleen de code).
 
 -- ---------------------------------------------------------------------------------------------
@@ -56,6 +56,8 @@ declare
   nieuw uuid;
 begin
   select * into g from private.k1_grenzen where id = 1;
+  -- Zonder grenzenrij geen codes (fail-closed; anders zijn de grenzen NULL en telt niets mee).
+  if not found then return query select 'codes-uit'::text, null::uuid; return; end if;
   select * into inst from private.instellingen where id = 1;
   -- Zonder instellingenrij geen codes (fail-closed; anders zijn codes_aan en registratie_open NULL en slaan ze over).
   if not found then return query select 'codes-uit'::text, null::uuid; return; end if;
@@ -87,11 +89,14 @@ begin
 end $$;
 
 -- De oude ingang (zonder adres) blijft bestaan voor een Edge Function van vóór deze migratie, maar volgt de nieuwe
--- regel: zonder adres is een nieuw account nooit toegestaan (fail-closed). Inloggen werkt gewoon door.
+-- regel: zonder adres is een nieuw account nooit toegestaan (fail-closed). Inloggen werkt gewoon door. Die oude functie
+-- kent 'registratie-stil' niet (en zou dan een inlogmail zonder bruikbare code sturen): daarom geeft deze ingang
+-- 'registratie-dicht', het gedrag van vóór deze migratie (uitlegmail, binnen de grenzen per adres).
 create or replace function private.k1_nieuwe_code(p_adres_hmac text, p_user_id uuid, p_soort text, p_code_hmac text, p_token_hash_enc text)
 returns table (uitkomst text, code_id uuid) language plpgsql security definer set search_path = '' as $$
 begin
-  return query select * from private.k1_nieuwe_code(p_adres_hmac, null::text, p_user_id, p_soort, p_code_hmac, p_token_hash_enc);
+  return query select case when n.uitkomst = 'registratie-stil' then 'registratie-dicht' else n.uitkomst end, n.code_id
+    from private.k1_nieuwe_code(p_adres_hmac, null::text, p_user_id, p_soort, p_code_hmac, p_token_hash_enc) n;
 end $$;
 
 create function public.k1_nieuwe_code(p_adres_hmac text, p_email text, p_user_id uuid, p_soort text, p_code_hmac text, p_token_hash_enc text)
@@ -275,14 +280,13 @@ end $$;
 -- 5. L5: het wachtrij-adres uit Vault alleen via https (behalve lokaal)
 -- ---------------------------------------------------------------------------------------------
 -- De database roept de Edge Functions aan met het wachtrijgeheim in een kop. Over http:// zou dat geheim onversleuteld
--- over het netwerk gaan. Online dus alleen https://; http:// alleen naar een lokaal adres: dit toestel (127.0.0.1,
--- localhost), de Docker-host (host.docker.internal) of de gateway van een lokale Supabase-stack (kong,
--- supabase_kong_<project>, zoals k1-lokaal.mjs het in Vault zet). Na de host komt meteen een poort of een /, zodat
--- "http://localhost.voorbeeld.nl/" of "http://localhost@voorbeeld.nl/" niet als lokaal telt.
+-- over het netwerk gaan. Het adres moet dus precies zijn: https://<host>/functions/v1/stuur-uitnodiging (online), of
+-- http://supabase_kong_<project>:<poort>/functions/v1/stuur-uitnodiging: de gateway van een lokale Supabase-stack, zoals
+-- k1-lokaal.mjs het in Vault zet. Die naam bestaat alleen in het Docker-netwerk van zo'n stack. Geen andere http-adressen
+-- (ook niet localhost of 127.0.0.1), geen gebruikersnaam (@), geen andere functie en niets achter het pad.
 create function private.wachtrij_url_toegestaan(p_url text)
 returns boolean language sql immutable set search_path = '' as $$
-  select coalesce(p_url ~ '^https://[^/@]+/'
-    or p_url ~ '^http://(127\.0\.0\.1|localhost|host\.docker\.internal|kong|supabase_kong_[a-z0-9_]+)(:[0-9]+)?/', false)
+  select coalesce(p_url ~ '^(https://[a-z0-9-]+(\.[a-z0-9-]+)+|http://supabase_kong_[a-z0-9_]+:[0-9]{1,5})/functions/v1/stuur-uitnodiging$', false)
 $$;
 revoke all on function private.wachtrij_url_toegestaan(text) from public, anon, authenticated;
 

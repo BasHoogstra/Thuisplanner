@@ -18,8 +18,20 @@ const weiger = (status: number, melding: string) => json(200, { error: { http_co
 
 type Uitkomst = 'ok' | 'codes-uit' | 'registratie-dicht' | 'registratie-stil' | 'te-vaak';
 
+// Geen adresverraad via de tijd: elk antwoord dat er als succes uitziet (code verstuurd, uitlegmail verstuurd of niets
+// verstuurd) duurt minstens zo lang. Anders zou 'registratie-stil' (direct klaar) te onderscheiden zijn van een
+// verstuurde mail. Ruim boven de gewone duur van het versturen, ruim onder de wachttijd van Supabase Auth (5 seconden).
+// Niet bij email_change: daar kent de aanvrager het adres al (ingelogd), en de hook maakt er twee codes.
+const MINIMALE_DUUR_MS = 1500;
+async function minstens(begin: number | null) {
+  if (begin === null) return;
+  const rest = MINIMALE_DUUR_MS - (performance.now() - begin);
+  if (rest > 0) await new Promise(r => setTimeout(r, rest));
+}
+
 /** Eén code maken, bewaren en versturen. Geeft null bij succes, anders de weigering. */
 async function code(email: string, userId: string, soort: 'signup' | 'email' | 'email_change', tokenHash: string, maakMail: (code: string) => Mail): Promise<Response | null> {
+  const begin = soort === 'email_change' ? null : performance.now();
   const nieuw = willekeurigeCode();
   const adres = await adresHmac(email);
   // Het adres zelf gaat alleen bij een nieuw account mee (de database vergelijkt het met de testerslijst en de open
@@ -34,10 +46,11 @@ async function code(email: string, userId: string, soort: 'signup' | 'email' | '
   if (r.uitkomst === 'registratie-dicht') {
     // Hetzelfde antwoord als bij succes (geen adresverraad); de eigenaar van het adres krijgt uitleg.
     try { await verstuur(beslotenTest(email)); } catch { /* uitleg mislukt: niets te herstellen */ }
+    await minstens(begin);
     return null;
   }
-  // De uitlegmail ging de afgelopen 24 uur al naar dit adres: niets sturen, wel hetzelfde antwoord (L1).
-  if (r.uitkomst === 'registratie-stil') return null;
+  // De uitlegmail ging de afgelopen 24 uur al naar dit adres: niets sturen, wel hetzelfde antwoord, even laat (L1).
+  if (r.uitkomst === 'registratie-stil') { await minstens(begin); return null; }
   try {
     await verstuur(maakMail(nieuw));
   } catch {
@@ -45,6 +58,7 @@ async function code(email: string, userId: string, soort: 'signup' | 'email' | '
     log('stuur-code', { soort, uitkomst: 'versturen-mislukt' });
     return weiger(503, 'Versturen lukt nu niet. Probeer het over een paar minuten opnieuw.');
   }
+  await minstens(begin);
   return null;
 }
 
