@@ -7,6 +7,16 @@ export const venster = (p: Page) => p.getByRole('dialog');
 export const nav = (p: Page, naam: string) => p.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: naam }).click();
 export const SYNC = { timeout: 15_000 };
 
+/**
+ * Het Overzicht toont alleen de eerstvolgende afspraken (besluit 19). Deze tests draaien op de echte klok: kijk daarom in
+ * de Agenda bij vandaag, zodat een afspraak van vanochtend (Zwemles 09:15) ook 's middags en in de CI te vinden is.
+ */
+export async function agendaVandaag(p: Page) {
+  await nav(p, 'Agenda');
+  const knop = p.getByRole('button', { name: 'Naar vandaag' });
+  if (await knop.count()) await knop.click();
+}
+
 /** Een "telefoon": eigen browsercontext, ingelogd als een fictief gezinslid. */
 export async function telefoon(browser: Browser, naam: 'Eva' | 'Thomas', { basis = './', hosts = ['127.0.0.1', 'localhost'], bijPagina }:
   { basis?: string; hosts?: string[]; bijPagina?: (p: Page) => void } = {}): Promise<{ ctx: BrowserContext; p: Page }> {

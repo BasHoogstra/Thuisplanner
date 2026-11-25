@@ -3218,6 +3218,67 @@ do $$ declare ha uuid := current_setting('test.ha')::uuid; hb uuid := current_se
 end $$;
 set local role authenticated;
 
+-- KG-T99 (besluit 20; gate 9 voor het domein voorkeuren) Persoonlijke voorkeuren zijn strikt per account: alleen het eigen
+-- account leest de eigen rij, ook een ander lid of de eigenaar van hetzelfde huishouden niet; schrijven alleen via
+-- set_preference en reset_preferences, per sleutel; alleen bekende sleutels en waarden (geen vrije tekst); het Overzicht is
+-- nooit leeg; herstellen raakt alleen de eigen weergavesleutels; zonder geldige sessie of als anon niets; de rij verdwijnt
+-- met het account.
+do $$ declare us uuid := current_setting('test.sara')::uuid; ut uuid := current_setting('test.tim')::uuid;
+  weg uuid := gen_random_uuid(); r record; begin
+  perform pg_temp.als('sara');
+  if pg_temp.aantal('select 1 from public.account_preferences') <> 0 then raise exception 'KG-T99: een rij zonder iets in te stellen'; end if;
+  select * into r from public.set_preference('startscherm', '"agenda"');
+  if r.prefs <> '{"startscherm": "agenda"}'::jsonb or r.version <> 1 then raise exception 'KG-T99: eerste voorkeur niet bewaard (%)', r.prefs; end if;
+  select * into r from public.set_preference('agenda.wie', '"ik"');
+  if r.prefs <> '{"startscherm": "agenda", "agenda.wie": "ik"}'::jsonb or r.version <> 2 then raise exception 'KG-T99: tweede sleutel overschrijft de eerste (%)', r.prefs; end if;
+  if pg_temp.fout($q$select public.set_preference('kleur', '"rood"')$q$) is distinct from '22023' then raise exception 'KG-T99: onbekende sleutel'; end if;
+  if pg_temp.fout($q$select public.set_preference('startscherm', '"spullen"')$q$) is distinct from '22023' then raise exception 'KG-T99: onbekende waarde'; end if;
+  if pg_temp.fout($q$select public.set_preference('overzicht.taken', '"nee"')$q$) is distinct from '22023' then raise exception 'KG-T99: tekst in plaats van aan/uit'; end if;
+  if pg_temp.fout($q$select public.set_preference('startscherm', null)$q$) is distinct from '22023' then raise exception 'KG-T99: lege waarde'; end if;
+  perform public.set_preference('overzicht.afspraken', 'false');
+  perform public.set_preference('overzicht.boodschappen', 'false');
+  perform public.set_preference('overzicht.verder', 'false');
+  if pg_temp.fout($q$select public.set_preference('overzicht.taken', 'false')$q$) is distinct from '22023' then raise exception 'KG-T99: het laatste onderdeel van het Overzicht kan uit'; end if;
+  -- Alleen via de functies: geen insert, update of delete op de tabel zelf.
+  if not pg_temp.faalt(format('insert into public.account_preferences (user_id, prefs) values (%L, %L)', us, '{}')) then raise exception 'KG-T99: direct invoegen'; end if;
+  if not pg_temp.faalt($q$update public.account_preferences set prefs = '{}'$q$) then raise exception 'KG-T99: direct wijzigen'; end if;
+  if not pg_temp.faalt('delete from public.account_preferences') then raise exception 'KG-T99: direct verwijderen'; end if;
+  -- Het account-ID is niet leesbaar (P4), ook niet in een filter.
+  if not pg_temp.faalt('select user_id from public.account_preferences') then raise exception 'KG-T99: user_id leesbaar'; end if;
+  if not pg_temp.faalt(format('select prefs from public.account_preferences where user_id = %L', us)) then raise exception 'KG-T99: filteren op user_id'; end if;
+  -- Tim (lid van hetzelfde huishouden) ziet niets van Sara en schrijft alleen zijn eigen rij.
+  perform pg_temp.als('tim');
+  if pg_temp.aantal('select 1 from public.account_preferences') <> 0 then raise exception 'KG-T99: een gezinslid leest andermans voorkeuren'; end if;
+  perform public.set_preference('agenda.weergave', '"maand"');
+  if pg_temp.aantal('select 1 from public.account_preferences') <> 1
+     or (select prefs from public.account_preferences) <> '{"agenda.weergave": "maand"}'::jsonb then raise exception 'KG-T99: eigen rij niet (alleen) zichtbaar'; end if;
+  -- Sara (eigenaar van het huishouden) ziet alleen haar eigen rij, en herstellen raakt alleen haar eigen weergave.
+  perform pg_temp.als('sara');
+  if pg_temp.aantal('select 1 from public.account_preferences') <> 1
+     or (select prefs from public.account_preferences) ? 'agenda.weergave' then raise exception 'KG-T99: de eigenaar leest de voorkeuren van een lid'; end if;
+  select * into r from public.reset_preferences('weergave');
+  if r.prefs <> '{}'::jsonb then raise exception 'KG-T99: herstellen laat weergavesleutels staan (%)', r.prefs; end if;
+  if pg_temp.fout($q$select public.reset_preferences('alles')$q$) is distinct from '22023' then raise exception 'KG-T99: onbekende herstelkeuze'; end if;
+  -- Zonder geldige code-sessie (de poort): niets lezen, niets schrijven.
+  perform pg_temp.als_met('tim', '[{"method": "password", "timestamp": 1}]'::jsonb, current_setting('test.tim'));
+  if pg_temp.aantal('select 1 from public.account_preferences') <> 0 then raise exception 'KG-T99: lezen zonder geldige sessie'; end if;
+  if pg_temp.fout($q$select public.set_preference('startscherm', '"agenda"')$q$) is distinct from 'TPA01' then raise exception 'KG-T99: schrijven zonder geldige sessie'; end if;
+  reset role;
+  if (select prefs from public.account_preferences where user_id = ut) <> '{"agenda.weergave": "maand"}'::jsonb then raise exception 'KG-T99: herstellen of de poort raakte de rij van een ander'; end if;
+  set local role anon;
+  if not pg_temp.faalt('select 1 from public.account_preferences') then raise exception 'KG-T99: anon leest voorkeuren'; end if;
+  if not pg_temp.faalt($q$select public.set_preference('startscherm', '"agenda"')$q$) then raise exception 'KG-T99: anon schrijft voorkeuren'; end if;
+  -- De rij verdwijnt met het account.
+  reset role;
+  insert into auth.users (id, email) values (weg, 'weg@test.invalid');
+  insert into public.account_preferences (user_id, prefs) values (weg, '{"startscherm": "taken"}');
+  delete from auth.users where id = weg;
+  if exists (select 1 from public.account_preferences where user_id = weg) then raise exception 'KG-T99: voorkeuren blijven na het verwijderen van het account'; end if;
+  set local role authenticated;
+  perform pg_temp.ok('KG-T99');
+end $$;
+set local role authenticated;
+
 -- KG-T94 Persoonlijk volgt het account, en de seintjes verraden niets: geen seintje over een persoonlijke rij; gedeelde
 -- seintjes alleen {t, id, v, op}; een gearchiveerd lid ziet niets; ontkoppelen, de bewaartermijn en een verwijderd
 -- account wissen de persoonlijke spullen en documenten.
@@ -3332,6 +3393,6 @@ do $$ declare r record; begin
 end $$;
 set local role authenticated;
 
-select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 98' as resultaat;
+select 'KG-RLS-tests geslaagd: ' || current_setting('test.aantal') || ' van 99' as resultaat;
 
 rollback;

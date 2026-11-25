@@ -37,7 +37,7 @@ test('een taak uit een onderdeel staat met dezelfde stand op Vandaag en in het p
   await d.getByRole('button', { name: /^Status / }).click();
   await d.getByRole('group', { name: 'Status van de taak' }).getByRole('button', { name: 'Bezig' }).click();
   await d.getByRole('button', { name: 'Opslaan' }).click();
-  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Vandaag' }).click();
+  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Overzicht' }).click();
   const vink = page.getByRole('checkbox', { name: 'Budget afspreken' });
   await expect(vink).toHaveAttribute('aria-checked', 'mixed');
   await vink.click();

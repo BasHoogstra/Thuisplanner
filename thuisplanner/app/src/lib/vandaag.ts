@@ -113,11 +113,91 @@ export function achterstand(t: Taak, vandaag: Datum): string {
   return n === 1 ? 'sinds gisteren' : `sinds ${n} dagen`;
 }
 
-/** Eén zin die de dag samenvat, zonder oordeel of score. */
-export function samenvatting(afspraken: number, taken: number): string {
-  if (!afspraken && !taken) return 'Een rustige dag. Er staat niets voor je klaar.';
+/**
+ * Eén zin die de dag samenvat, zonder oordeel of score. voorbij: hoeveel afspraken van vandaag al geweest zijn; die tellen
+ * niet meer mee, zodat de zin 's avonds zegt wat er nog komt ("Vandaag nog: …") in plaats van wat er was.
+ */
+export function samenvatting(afspraken: number, taken: number, voorbij = 0): string {
+  if (!afspraken && !taken) return 'Een rustige dag. Vandaag staat er niets gepland.';
+  const nog = afspraken - voorbij;
+  if (!nog && !taken) return 'Voor vandaag staat er niets meer.';
   const delen: string[] = [];
-  if (afspraken) delen.push(afspraken === 1 ? '1 afspraak' : `${afspraken} afspraken`);
+  if (nog) delen.push(nog === 1 ? '1 afspraak' : `${nog} afspraken`);
   if (taken) delen.push(taken === 1 ? '1 taak' : `${taken} taken`);
-  return `Vandaag: ${delen.join(' en ')}.`;
+  return `${voorbij ? 'Vandaag nog' : 'Vandaag'}: ${delen.join(' en ')}.`;
+}
+
+// ---- Overzicht (besluit 19, 23 november 2026): een begrensd startscherm. ----
+
+export interface KomendeAfspraak {
+  afspraak: Afspraak;
+  datum: Datum;
+}
+
+export interface KomendeAfspraken {
+  /** Hoogstens `aantal` afspraken met een tijd die nog niet voorbij zijn, vanaf nu, op volgorde. */
+  eerst: KomendeAfspraak[];
+  /** Afspraken van vandaag zonder tijd (de hele dag): één eigen regel, niet meegeteld. */
+  heleDag: Afspraak[];
+  /** Hoeveel afspraken met een tijd er vandaag nog komen bovenop `eerst`. */
+  nogVandaag: number;
+}
+
+/**
+ * Besluit 19: de eerstvolgende afspraken met een tijd, vandaag (nog niet voorbij) en de komende `dagen` dagen. Een
+ * privé-afspraak van een ander telt mee; die toont het scherm als "Bezet". Een afspraak die over meer dagen loopt, staat
+ * er één keer in.
+ */
+export function komendeAfspraken(items: Item[], vandaag: Datum, nu: Tijd, aantal = 3, dagen = 7): KomendeAfspraken {
+  const alle: KomendeAfspraak[] = [];
+  const gezien = new Set<string>();
+  for (let n = 0; n <= dagen; n++) {
+    const datum = plusDagen(vandaag, n);
+    for (const a of afsprakenOp(items, datum)) {
+      if (a.start === undefined || (n === 0 && isVoorbij(a, nu)) || gezien.has(a.id)) continue;
+      gezien.add(a.id);
+      alle.push({ afspraak: a, datum });
+    }
+  }
+  const eerst = alle.slice(0, aantal);
+  return {
+    eerst,
+    heleDag: afsprakenOp(items, vandaag).filter(a => a.start === undefined),
+    nogVandaag: alle.slice(aantal).filter(k => k.datum === vandaag).length,
+  };
+}
+
+export type TaakGroep = 'te-laat' | 'vandaag' | 'week' | 'zonder-datum' | 'later';
+export const TAAKGROEPEN: TaakGroep[] = ['te-laat', 'vandaag', 'week', 'zonder-datum', 'later'];
+
+/** In welke groep een open taak valt. Een taak uit een plan zonder datum hoort niet op het Overzicht (null). */
+export function taakGroep(t: Taak, vandaag: Datum, dagen = 7): TaakGroep | null {
+  if (t.datum === null) return t.planId ? null : 'zonder-datum';
+  if (t.datum < vandaag) return 'te-laat';
+  if (t.datum === vandaag) return 'vandaag';
+  return t.datum <= plusDagen(vandaag, dagen) ? 'week' : 'later';
+}
+
+export interface TakenOverzicht {
+  zichtbaar: { taak: Taak; groep: TaakGroep }[];
+  /** Wat er niet in beeld staat, per groep. */
+  rest: Record<TaakGroep, number>;
+}
+
+/**
+ * Besluit 19: hoogstens `max` open taken in een vaste volgorde: te laat (oudste eerst), vandaag, de komende 7 dagen,
+ * zonder datum, later. Doordat de volgorde vastligt, drukt een latere taak nooit een taak weg die te laat is of voor
+ * vandaag staat; wat niet past, telt de telregel per groep.
+ */
+export function takenOverzicht(items: Item[], vandaag: Datum, max = 5): TakenOverzicht {
+  const open = items.filter(isTaak).filter(t => !t.klaar);
+  const geordend: { taak: Taak; groep: TaakGroep }[] = [];
+  for (const groep of TAAKGROEPEN) {
+    const lijst = open.filter(t => taakGroep(t, vandaag) === groep);
+    if (groep !== 'zonder-datum') lijst.sort((a, b) => a.datum!.localeCompare(b.datum!));
+    geordend.push(...lijst.map(taak => ({ taak, groep })));
+  }
+  const rest = { 'te-laat': 0, vandaag: 0, week: 0, 'zonder-datum': 0, later: 0 } as Record<TaakGroep, number>;
+  for (const { groep } of geordend.slice(max)) rest[groep]++;
+  return { zichtbaar: geordend.slice(0, max), rest };
 }

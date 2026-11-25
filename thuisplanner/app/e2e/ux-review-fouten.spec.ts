@@ -5,15 +5,15 @@ const op = (tijd: string) => `./?nu=2026-11-04T${tijd}`;
 
 test('Vandaag: Zwemles staat één keer, en de kaart zegt Straks of Nu', async ({ page }) => {
   await page.goto(op('08:10'));
-  await expect(page.locator('.straks .sectie-label')).toHaveText('Straks');
+  await expect(page.locator('.straks .straks-label')).toHaveText('Straks · 09:15 – 10:00');
   await expect(page.locator('.straks-titel')).toHaveText('Zwemles');
   await expect(page.getByRole('button', { name: /^Zwemles, / })).toHaveCount(1);
   await expect(page.getByRole('button', { name: /^Voetbal, / })).toHaveCount(1);
   await page.goto(op('13:30'));
-  await expect(page.locator('.straks .sectie-label')).toHaveText('Nu');
+  await expect(page.locator('.straks .straks-label')).toContainText('Nu ·');
   await expect(page.locator('.straks-titel')).toHaveText('Voetbal');
   await page.goto(op('10:30'));
-  await expect(page.locator('.straks .sectie-label')).toHaveText('Straks');
+  await expect(page.locator('.straks .straks-label')).toContainText('Straks ·');
   await expect(page.locator('.straks-titel')).toHaveText('Voetbal');
 });
 

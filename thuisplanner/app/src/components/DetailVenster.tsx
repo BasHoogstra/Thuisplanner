@@ -1,7 +1,9 @@
 // W1: een rustig detailvenster voor een bestaande afspraak of taak (besluiten D1–D4). Eerst overzicht: de titel, de dag,
 // de tijd, wie, en (als ingevuld) waar, herhaling en privé. Een tik op een regel opent alleen dát onderdeel, met dezelfde
 // kleine keuzes als de centrale +. "Opslaan" verschijnt pas na een wijziging; bij een reeks wordt dan pas gevraagd: alleen
-// deze, of de hele reeks (D3). Verwijderen en "Alles bewerken" (het volledige formulier) staan onder "Meer…" (D2).
+// deze, of de hele reeks (D3). "Alles bewerken" (het volledige formulier) en "Verwijderen" staan altijd onderaan in beeld
+// (voorstel van 23 november: eerst zaten ze achter "Meer…", waardoor een hele reeks verwijderen moeilijk te vinden was). De
+// regel "Herhaalt" biedt dezelfde twee acties voor de reeks.
 //
 // Gegevensbehoud: opslaan bouwt de afspraak op dezelfde manier als het formulier (ItemVenster): notities, voorbereiding,
 // de duur van een meerdaagse afspraak, herhaling en de reeksgegevens gaan mee, en de versie bij het openen voorkomt dat
@@ -74,7 +76,6 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
   // De drie standen alleen bij een plan-taak; elke andere taak blijft zoals ze was.
   const metStatus = !!plan && plannenAan(app);
   const [paneel, zetPaneel] = useState<Paneel>(null);
-  const [meer, zetMeer] = useState(false);
   const [verwijderen, zetVerwijderen] = useState(false);
   const [fout, zetFout] = useState<string | null>(null);
   // De versies bij het openen (versiecontrole; in de demo ongebruikt).
@@ -98,7 +99,7 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
 
   function weggooien() {
     zetTitel(begin.titel); zetDag(begin.dag); zetStart(begin.start); zetEind(begin.eind); zetWie(begin.wie);
-    zetPlek(begin.plek); zetPrive(begin.prive); zetVakantie(begin.vakantie); zetPlan(begin.plan); zetOnderdeel(begin.onderdeel); zetStatus(begin.status); zetPaneel(null); zetFout(null);
+    zetPlek(begin.plek); zetPrive(begin.prive); zetVakantie(begin.vakantie); zetPlan(begin.plan); zetOnderdeel(begin.onderdeel); zetStatus(begin.status); zetPaneel(p => (p === 'herhaling' ? p : null)); zetFout(null);
   }
 
   async function opslaan(bereik?: 'deze' | 'reeks') {
@@ -199,7 +200,19 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
           {afspraak && herhaling && !losgemaakt && rij('herhaling', 'Herhaalt', herhalingTekst((reeks ?? afspraak).datum, herhaling), <IcHerhaal />)}
           {afspraak && paneel === 'herhaling' && (
             <div className="paneel">
-              <p className="stil-tekst">De herhaling zelf wijzig je via Meer… → Alles bewerken.</p>
+              {gewijzigd ? (
+                // Review PR #55 (P3): met onopgeslagen wijzigingen zou "Herhaling wijzigen" ze stil weggooien en had "Reeks
+                // verwijderen…" geen zichtbaar vervolg. Daarom eerst een duidelijke keuze: opslaan of weggooien.
+                <p className="stil-tekst" role="status">
+                  Je hebt een wijziging die nog niet is opgeslagen. Sla die eerst op of gooi hem weg; daarna kun je hier de herhaling
+                  wijzigen of de reeks verwijderen.
+                </p>
+              ) : (
+                <div className="keuzes">
+                  <button type="button" className="keuze" onClick={allesBewerken}>Herhaling wijzigen</button>
+                  {reeks && <button type="button" className="keuze gevaar-stil" onClick={() => { zetPaneel(null); zetVerwijderen(true); }}>Reeks verwijderen…</button>}
+                </div>
+              )}
             </div>
           )}
           {losgemaakt && <p className="detail-noot"><IcHerhaal /> Losgemaakt uit een herhalende afspraak</p>}
@@ -289,17 +302,14 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
               </button>
             )}
             {!verwijderen && (
-              <button type="button" className="tekstknop detail-meer" aria-expanded={meer} onClick={() => zetMeer(m => !m)}>Meer…</button>
-            )}
-            {meer && !verwijderen && (
-              <div className="keuzes detail-meer-keuzes">
-                <button type="button" className="keuze" onClick={allesBewerken}>Alles bewerken</button>
-                <button type="button" className="keuze gevaar-stil" onClick={() => zetVerwijderen(true)}>Verwijderen</button>
+              <div className="detail-tweede">
+                <button type="button" className="knop stil" onClick={allesBewerken}>Alles bewerken</button>
+                <button type="button" className="knop stil detail-weg" onClick={() => zetVerwijderen(true)}>Verwijderen</button>
               </div>
             )}
             {verwijderen && (
               <div className="detail-bevestig" role="group" aria-label="Verwijderen bevestigen">
-                <p>{reeks ? 'Wat wil je verwijderen?' : `${item.titel ?? 'Dit'} verwijderen?`}</p>
+                <p>{reeks ? `${item.titel ?? 'Deze afspraak'} herhaalt. Wat wil je verwijderen?` : `${item.titel ?? 'Dit'} verwijderen?`}</p>
                 {reeks ? (
                   <>
                     <button type="button" className="knop breed gevaar" onClick={() => verwijder('deze')}>Alleen deze verwijderen</button>
@@ -308,7 +318,7 @@ export function DetailVenster({ item, reeks, sluit, allesBewerken, terugNaar }: 
                 ) : (
                   <button type="button" className="knop breed gevaar" onClick={() => verwijder()}>Ja, verwijderen</button>
                 )}
-                <button type="button" className="knop breed stil" onClick={() => { zetVerwijderen(false); zetMeer(false); }}>Nee, terug</button>
+                <button type="button" className="knop breed stil" onClick={() => zetVerwijderen(false)}>Nee, terug</button>
               </div>
             )}
           </div>

@@ -31,7 +31,6 @@ async function openWie(user: ReturnType<typeof userEvent.setup>) {
   return within(within(venster()).getByRole('group', { name: 'Wie pakt het op' }));
 }
 async function naarFormulier(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(within(venster()).getByRole('button', { name: 'Meer…' }));
   await user.click(within(venster()).getByRole('button', { name: 'Alles bewerken' }));
 }
 async function nieuweTitel(user: ReturnType<typeof userEvent.setup>, label: RegExp, titel: string) {

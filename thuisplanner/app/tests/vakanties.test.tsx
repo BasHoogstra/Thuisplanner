@@ -222,7 +222,7 @@ it('Later nodig: de demo, één tik naar Nu te kopen en weer terug, met ongedaan
   expect(within(nu()).queryByRole('checkbox', { name: 'Muggenspray' })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /^Later nodig 4/ })).toBeInTheDocument();
   // Vandaag: de samenvatting telt alleen wat nu te kopen is.
-  await user.click(screen.getByRole('link', { name: 'Vandaag' }));
+  await user.click(screen.getByRole('link', { name: 'Overzicht' }));
   expect(document.body.textContent).not.toContain('Kerstkransjes');
 });
 

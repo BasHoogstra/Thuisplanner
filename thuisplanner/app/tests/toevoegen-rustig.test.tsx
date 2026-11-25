@@ -27,9 +27,8 @@ function opzet(opdracht: VensterOpdracht, items: Item[] = []) {
   render(<Ctx.Provider value={ctx}><ItemVenster opdracht={opdracht} sluit={() => {}} /></Ctx.Provider>);
   // Een nieuw item opent eerst de zin (B2); dit bestand toetst het formulier daarachter (Alles invullen).
   if (opdracht.type === 'nieuw') fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Formulier' }));
-  // Een bestaand item opent eerst het overzicht (W1); dit bestand toetst het formulier daarachter (Meer… → Alles bewerken).
-  else if (screen.queryByRole('button', { name: 'Meer…' })) {
-    fireEvent.click(screen.getByRole('button', { name: 'Meer…' }));
+  // Een bestaand item opent eerst het overzicht (W1); dit bestand toetst het formulier daarachter (Alles bewerken).
+  else if (screen.queryByRole('button', { name: 'Alles bewerken' })) {
     fireEvent.click(screen.getByRole('button', { name: 'Alles bewerken' }));
   }
   return { toevoegen, bijwerken, v: within(screen.getByRole('dialog')), user: userEvent.setup() };

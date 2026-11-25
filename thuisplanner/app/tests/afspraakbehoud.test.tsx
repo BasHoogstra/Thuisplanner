@@ -96,7 +96,6 @@ it('formulier (Alles bewerken): de hele reeks aanpassen vanaf een later voorkome
   const { ctx, bijwerken } = opzet(items);
   const user = userEvent.setup();
   render(<Ctx.Provider value={ctx}><ItemVenster opdracht={{ type: 'bewerk', id: voorkomenId('r-weekend', '2026-10-16') }} sluit={() => {}} /></Ctx.Provider>);
-  await user.click(screen.getByRole('button', { name: 'Meer…' }));
   await user.click(screen.getByRole('button', { name: 'Alles bewerken' }));
   await user.click(screen.getByRole('radio', { name: 'Hele reeks' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Hele reeks opslaan' }));
