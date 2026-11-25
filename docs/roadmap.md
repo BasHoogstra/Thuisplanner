@@ -233,7 +233,8 @@ back-ups, §5.4 verwijderen op verzoek, §5.5, §8) blijven gelden.
 
 **Tijdens de bèta, als update (blokkeren de start niet):** pushmeldingen en herinneringen, Bestellingen, Maaltijden en
 Recepten, herhalende taken, Overzicht en persoonlijke instellingen (besluiten 19 en 20), Agenda-stap 5–7, Vandaag
-versie 2, eigen export en account verwijderen in de app, huishoudkennis, AI. Elke functie alleen na zijn eigen gate.
+versie 2, eigen export en account verwijderen in de app, huishoudkennis, AI, taakstatus en opvolgen (P8). Elke functie
+alleen na zijn eigen gate.
 **Paklijsten (besluit van de producteigenaar, 25 november 2026; vervangt D11 in `docs/thuisplanner-vakanties.md`):**
 paklijsten behouden hun indeling per gezinslid, met daarbinnen automatische categorisering; de gebruiker kan items
 altijd anders indelen en eigen categorieën aanmaken. Pakket P7, eerst bij Sanne op staging; **P7 mag de start van de
@@ -243,6 +244,27 @@ pas bij twee of meer categorieën; (3) een item handmatig aan een andere categor
 additieve migratie, met de RLS-tegenproeven). Tijdens de bèta: uitgebreid categoriebeheer (eigen categorieën
 toevoegen, hernoemen, volgorde, verwijderen) en het onthouden van categorisatievoorkeuren (voorstel van 25 november
 2026).
+
+**Taken: status, notitie en opvolgen (gebruiksverbetering op verzoek van de producteigenaar, 25 november 2026; in de
+roadmap opgenomen op 25 november).** Het doel is dat het gezin in één oogopslag ziet wat er loopt, binnen het bestaande
+takensysteem. Dit is een gebruiksverbetering en **mag de start van de besloten bèta niet vertragen**. Pakket P8, eerst
+bij Bas en Sanne op staging.
+
+- **T1, zonder migratie** (`tasks.started_on` bestaat al): de status Te doen, Bezig of Afgerond voor álle taken, niet
+  alleen voor plan-taken. Op de plan-pagina een compacte samenvatting per status, de taken gegroepeerd op status (Bezig,
+  In afwachting, Nog te doen, Afgerond), Afgerond standaard ingeklapt, en statussen herkenbaar aan kleur én tekst. De
+  onderdelenstructuur en de voortgangsberekening blijven ongewijzigd. Vóór de bèta als het past, anders als update.
+- **T2, met één kleine, additieve migratie** (na P2, P7 en de voorkeurenmigratie; RLS-tegenproeven, gate 9 voor de
+  uitbreidingen van taken): de status **In afwachting** (`waiting_since`, hoogstens één lopende stand, en afvinken maakt
+  die leeg), een optionele **notitie** (`notes`, ≤ 2000 tekens, zichtbaar voor het huishouden en nooit in meldingen, AI
+  of koppelingen) en een optionele **opvolgdatum** (`follow_up_on`). Op die datum komt de taak terug op het **Overzicht**
+  (besluit 19, binnen de 5 taken) en in Agenda → Taken, met het label "Opvolgen". Het is geen melding. Bij lopende taken
+  staan de notitie en de opvolgdatum direct op de rij. Tijdens de bèta, als update.
+- Geen nieuwe handeling in het `Acties`-contract (alles loopt via `bijwerken` en `wissel`), geen tweede takensysteem, en
+  invoer via de + blijft ongewijzigd. Oude clients overschrijven niets; de server laat Bezig winnen van In afwachting.
+- Schatting: T1 ± 2,5–3 werkdagen, T2 ± 5 werkdagen. Open beslispunten B1–B6 staan in het bouwvoorstel van 25 november
+  2026. Elke commit, migratie en uitrol houdt een afzonderlijk akkoord. De uitrol gaat via `verbinding.ps1` (dry-run en
+  nacontrole), na een generale repetitie op een kopie van de laatste export.
 
 **Parallel werken (zonder concessies):** de pakketten P1–P6 raken elk eigen bestanden en lopen tegelijk, elk in een
 eigen worktree en een eigen PR met volledige CI, tegenproeven en review. Alleen P2 voegt vóór de start een migratie
