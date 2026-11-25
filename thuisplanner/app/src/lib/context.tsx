@@ -5,6 +5,8 @@ import type { Lidmaatschap, UitnodigingVoorMij, Uitkomst } from './lokaal/sessie
 import type { Acties, DemoExtra, Staat } from './acties';
 import type { GezinsFilter } from './filter';
 import type { Datum, Huishouden, Item, Lid, LidId, Tijd } from './types';
+import type { VoorkeurenToegang } from './voorkeuren-opslag';
+import type { InstellingenPad } from '../screens/Instellingen';
 
 /** taken: de takenweergave binnen de Agenda (besluit Bas, 10 november 2026), geen eigen hoofdknop. */
 export type AgendaWeergave = 'dag' | 'week' | 'maand' | 'taken';
@@ -49,6 +51,11 @@ export interface AppContext extends Acties {
   openPlan: (id: string | null) => void;
   agenda: AgendaStand;
   zetAgenda: (stand: Partial<AgendaStand>) => void;
+  /** Besluit 20: de persoonlijke voorkeuren van dit account. null: online zonder de migratie (VITE_VOORKEUREN uit). */
+  voorkeuren: VoorkeurenToegang | null;
+  /** Waar je bent in Persoonlijke instellingen ("" is het overzicht). */
+  instellingenPad: InstellingenPad;
+  openInstellingen: (pad: InstellingenPad) => void;
   lokaal?: LokaalContext;
 }
 
@@ -108,7 +115,7 @@ export interface LokaalContext {
   uitloggen: (opties?: { wissen?: boolean }) => void;
 }
 
-export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer' | 'vakanties' | 'spullen' | 'plannen';
+export type Scherm = 'vandaag' | 'agenda' | 'boodschappen' | 'meer' | 'vakanties' | 'spullen' | 'plannen' | 'instellingen';
 
 export const Ctx = createContext<AppContext | null>(null);
 

@@ -238,7 +238,7 @@ test.describe('Herhalende afspraken', () => {
 });
 
 test.describe('Gezinsfilter en privacy', () => {
-  test('één lid: alleen diens afspraken, die voor iedereen en diens taken', async ({ page }) => {
+  test('één lid: alleen diens afspraken en taken, plus die voor iedereen', async ({ page }) => {
     await filter(page, 'Lotte');
     const vandaag = weekDag(page, /vandaag$/);
     await expect(vandaag).toContainText('Voetbal');
@@ -248,6 +248,10 @@ test.describe('Gezinsfilter en privacy', () => {
     await expect(vandaag).toContainText('Plantenbak water geven');
     await expect(vandaag).not.toContainText('Cadeautje voor Noor');
     await geenHorizontaleScroll(page);
+    // O7: een taak zonder persoon (voor het hele gezin) blijft ook met één lid gekozen zichtbaar; die van een ander niet.
+    await page.getByRole('tab', { name: 'Taken', exact: true }).click();
+    await expect(page.getByRole('checkbox', { name: /Toestemmingsformulier schoolreis/ })).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: /Cadeautje voor Noor/ })).toHaveCount(0);
   });
 
   test('privé blijft afgeschermd in dag, week en maand, ook met het filter op de eigenaar', async ({ page }) => {
