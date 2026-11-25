@@ -3,6 +3,7 @@
 // ontvanger (R4) en het geheugen voor webhook-id's (L4). Zie docs/thuisplanner-registratie-inloggen.md §29.
 // Alleen fictieve adressen op @test.invalid. De tegenproeven staan in k1-tegenproeven.mjs.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHmac, randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { createClient } from '@supabase/supabase-js';
@@ -23,6 +24,7 @@ const db = new pg.Client({ connectionString: DB_URL });
 const run = randomUUID().slice(0, 8);
 const wacht = ms => new Promise(r => setTimeout(r, ms));
 const huishoudens = [];
+const PROJECT = process.env.KG_PROJECT_ID ?? 'thuisplanner';
 let vorigeInst, vorigeGrenzen, vorigeMail;
 
 before(async () => {
@@ -286,7 +288,9 @@ test('L5: de database roept de wachtrij alleen aan via https, of via http naar d
     `HTTP://supabase_kong_thuisplanner:8000${pad}`, `https://iemand@voorbeeld.test${pad}`, `https://voorbeeld.test:443${pad}`,
     // Alleen de functie stuur-uitnodiging, en niets erachter.
     'https://voorbeeld.test/functions/v1/opruimen-documenten', `https://voorbeeld.test${pad}/extra`, `https://voorbeeld.test${pad}?x=1`,
-    `https://voorbeeld.test/iets${pad}`, `https://voorbeeld.test${pad}\n`, `https://${pad}`, '']) {
+    `https://voorbeeld.test/iets${pad}`, `https://voorbeeld.test${pad}\n`, `https://${pad}`, '',
+    // Een poort van één cijfer is geen gateway.
+    `http://supabase_kong_thuisplanner:8${pad}`]) {
     assert.deepEqual(await met(url), [false, false], `aangeroepen via ${JSON.stringify(url)}`);
   }
   for (const url of [`https://voorbeeld.test${pad}`, `https://abcdefghijklmnopqrst.supabase.co${pad}`,
@@ -356,17 +360,85 @@ test('huishouden_open: dan krijgt iedereen een account', { timeout: 60000 }, asy
 });
 
 test('R4 tegelijk: twee uitnodigers die op hetzelfde moment hetzelfde adres uitnodigen gaan samen niet over de grens', { timeout: 90000 }, async () => {
+  // Deterministisch met twee eigen databaseverbindingen: de tweede uitnodiging moet op de vergrendeling van het adres
+  // wachten tot de eerste klaar is, en ziet dan dat de grens (hier 1) al bereikt is.
   const a = await tester('r4-tegelijk-a');
   const b = await tester('r4-tegelijk-b');
   const ha = await huishouden(a.c, `R4 tegelijk a ${run}`);
   const hb = await huishouden(b.c, `R4 tegelijk b ${run}`);
+  const gast = adres('r4-tegelijk');
+  const ida = (await db.query('select id from auth.users where email = $1', [a.email])).rows[0].id;
+  const idb = (await db.query('select id from auth.users where email = $1', [b.email])).rows[0].id;
+  const nieuweInvite = `insert into public.household_invites (household_id, token_hash, created_by, invited_email)
+    values ($1, encode(extensions.gen_random_bytes(32), 'hex'), $2, $3) returning id`;
+  const een = new pg.Client({ connectionString: DB_URL });
+  const twee = new pg.Client({ connectionString: DB_URL });
+  await een.connect();
+  await twee.connect();
   await db.query('update private.uitnodigingsmail_grenzen set per_adres = 1');
   try {
-    for (let i = 0; i < 3; i++) {
-      const gast = adres(`r4-tegelijk-${i}`);
-      const [x, y] = await Promise.all([uitnodigen(a.c, ha, gast), uitnodigen(b.c, hb, gast)]);
-      const st = [await eersteMail(x), await eersteMail(y)];
-      assert.equal(st.filter(z => z !== 'daglimiet').length, 1, `ronde ${i}: ${st.join(', ')}`);
-    }
-  } finally { await db.query('update private.uitnodigingsmail_grenzen set per_adres = 3'); }
+    await een.query('begin');
+    const x = (await een.query(nieuweInvite, [ha, ida, gast])).rows[0].id;
+    let klaar = false;
+    const later = twee.query(nieuweInvite, [hb, idb, gast]).then(r => { klaar = true; return r.rows[0].id; });
+    await wacht(500);
+    assert.equal(klaar, false, 'de tweede uitnodiging wachtte niet op de eerste (geen vergrendeling op het adres)');
+    await een.query('commit');
+    const y = await later;
+    assert.notEqual(await eersteMail(x), 'daglimiet');
+    assert.equal(await eersteMail(y), 'daglimiet');
+  } finally {
+    await een.query('rollback').catch(() => {});
+    await db.query('update private.uitnodigingsmail_grenzen set per_adres = 3');
+    await een.end();
+    await twee.end();
+  }
+});
+
+test('herstel en herbevestiging: stil geweigerd, zonder mail, met hetzelfde antwoord als voor een onbekend adres', { timeout: 90000 }, async () => {
+  // Restrisico M1 (§29): Supabase Auth antwoordt bij een onbekend adres zelf, zonder de hook. Een weigering (400) van de
+  // hook bij een bestaand account zou dat verschil verraden; nu antwoordt de hook meteen met succes, zonder mail.
+  const bestaand = adres('herstel-bestaand');
+  const { s } = await bestaandAccount(bestaand);
+  const herstel = async email => {
+    const begin = performance.now();
+    const r = await fetch(`${API_URL}/auth/v1/recover`, { method: 'POST', headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }) });
+    const ms = Math.round(performance.now() - begin);
+    const body = await r.text();
+    await wacht(1100);
+    return { status: r.status, body, ms };
+  };
+  const sinds = Date.now();
+  const metingen = [];
+  for (let i = 0; i < 2; i++) metingen.push({ bestaand: await herstel(bestaand), onbekend: await herstel(adres(`herstel-onbekend-${i}`)) });
+  console.log('meting herstel (status, ms):', JSON.stringify(metingen.map(m => [m.bestaand.status, m.bestaand.ms, m.onbekend.status, m.onbekend.ms])));
+  for (const m of metingen) {
+    assert.equal(m.bestaand.status, m.onbekend.status, `herstel: ${m.bestaand.body} tegenover ${m.onbekend.body}`);
+    assert.equal(m.bestaand.body, m.onbekend.body);
+  }
+  const c = createClient(API_URL, ANON_KEY, geen);
+  await c.auth.setSession(s);
+  assert.ifError((await c.auth.reauthenticate()).error);
+  await wacht(1500);
+  assert.equal((await mails(bestaand, sinds)).length, 0, 'er ging toch een mail uit');
+});
+
+test('uitlegmail mislukt: dezelfde 503 als bij een inlogcode die niet verstuurd kan worden', { timeout: 120000 }, async () => {
+  // De mailaanbieder van de lokale stack (Mailpit) tijdelijk uit: versturen mislukt voor allebei.
+  const vreemd = adres('storing-vreemd');
+  const bestaand = adres('storing-bestaand');
+  await bestaandAccount(bestaand);
+  const mailpit = `supabase_inbucket_${PROJECT}`;
+  execFileSync('docker', ['stop', mailpit], { stdio: 'ignore' });
+  let n, b;
+  try {
+    n = await vraag(vreemd);
+    b = await vraag(bestaand);
+  } finally {
+    execFileSync('docker', ['start', mailpit], { stdio: 'ignore' });
+    for (let i = 0; i < 60; i++) { try { if ((await fetch(`${MAIL}/api/v1/messages?limit=1`)).ok) break; } catch { /* nog niet */ } await wacht(500); }
+  }
+  assert.ok(b.r.error, 'de inlogcode ging toch');
+  assert.equal(antwoord(n), antwoord(b), 'een storing verraadt welk adres een account heeft');
 });

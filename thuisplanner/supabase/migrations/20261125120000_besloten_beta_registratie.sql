@@ -283,10 +283,12 @@ end $$;
 -- over het netwerk gaan. Het adres moet dus precies zijn: https://<host>/functions/v1/stuur-uitnodiging (online), of
 -- http://supabase_kong_<project>:<poort>/functions/v1/stuur-uitnodiging: de gateway van een lokale Supabase-stack, zoals
 -- k1-lokaal.mjs het in Vault zet. Die naam bestaat alleen in het Docker-netwerk van zo'n stack. Geen andere http-adressen
--- (ook niet localhost of 127.0.0.1), geen gebruikersnaam (@), geen andere functie en niets achter het pad.
+-- (ook niet localhost of 127.0.0.1), geen gebruikersnaam (@), geen andere functie en niets achter het pad. De
+-- project-id in supabase_kong_<project> komt uit config.toml (project_id: kleine letters, cijfers en _); de poort is die
+-- van de gateway binnen het Docker-netwerk (lokaal 8000).
 create function private.wachtrij_url_toegestaan(p_url text)
 returns boolean language sql immutable set search_path = '' as $$
-  select coalesce(p_url ~ '^(https://[a-z0-9-]+(\.[a-z0-9-]+)+|http://supabase_kong_[a-z0-9_]+:[0-9]{1,5})/functions/v1/stuur-uitnodiging$', false)
+  select coalesce(p_url ~ '^(https://[a-z0-9-]+(\.[a-z0-9-]+)+|http://supabase_kong_[a-z0-9_]+:[0-9]{2,5})/functions/v1/stuur-uitnodiging$', false)
 $$;
 revoke all on function private.wachtrij_url_toegestaan(text) from public, anon, authenticated;
 

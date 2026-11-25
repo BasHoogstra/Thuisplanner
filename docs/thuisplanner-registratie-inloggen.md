@@ -74,7 +74,7 @@ blijft hetzelfde.
 | Onderwerp | Keuze | Waarom / alternatief |
 | --- | --- | --- |
 | Inlogmethode | Alleen een e-mailcode (OTP), geen wachtwoord, geen inloglink | Een inloglink opent vaak in een andere browser dan de app op het beginscherm of de browser van WhatsApp, en dan kom je niet in dezelfde sessie. Een code werkt overal waar je kunt typen |
-| Aanmelden en inloggen | Eén scherm; `signInWithOtp({ email, options: { shouldCreateUser: true, captchaToken } })`, dan `verifyOtp({ email, token, type: 'email' })` | Geen verschil zichtbaar tussen een nieuw en een bestaand adres, zodat niemand kan nagaan wie gebruiker is |
+| Aanmelden en inloggen | Eén scherm; `signInWithOtp({ email, options: { shouldCreateUser: true, captchaToken } })`, dan `verifyOtp({ email, token, type: 'email' })` | Geen verschil zichtbaar tussen een nieuw en een bestaand adres in de app. Via Supabase Auth zelf is het wel na te gaan: geaccepteerd restrisico M1, §29 |
 | Mailteksten | Eigen Nederlandse sjablonen in de repository (`thuisplanner/supabase/templates/`): "Confirm signup" en "Magic link" bevatten allebei **alleen de code** (`{{ .Token }}`), plus "Change email" en "Reauthentication" | Voor een nieuw account stuurt Supabase het aanmeldsjabloon, voor een bestaand het "Magic link"-sjabloon. **Lokaal te verifiëren** met Mailpit |
 | Code | 6 cijfers, 10 minuten geldig, een nieuwe code na 60 seconden | Besluit D4. Supabase: standaard 1 uur; korter is veiliger en past bij de 2-minutenervaring |
 | Sessie | `localStorage`, `persistSession`, `autoRefreshToken`; nooit een sessie uit de URL (`detectSessionInUrl: false`, staat al) | De standaard van Supabase: geen einddatum. Begrenzen (time-box, inactiviteit) kan alleen op Pro en is niet nodig |
@@ -587,7 +587,7 @@ sessie, niet in de repository.
 | C2 | Sjabloon bij een bestaand adres | "Magic link" | Dezelfde tekst als C1 |
 | C3 | De lengte van de code is instelbaar | Ja (`otp_length`; gemeten met 6 en 10) | |
 | C4 | Antwoord bij een nieuw tegenover een bestaand adres | Gelijk (`user: null`, `session: null`); duur 352 tegenover 190 ms | Geen adresverraad in het antwoord. Een klein tijdsverschil blijft |
-| C5 | `shouldCreateUser: false` bij een onbekend adres | Geeft "Signups not allowed for otp" | Verraadt dat het adres onbekend is: **nooit gebruiken**; altijd `true` (de testpoort zit in de database) |
+| C5 | `shouldCreateUser: false` bij een onbekend adres | Geeft "Signups not allowed for otp" | Verraadt dat het adres onbekend is: de app gebruikt het **nooit** (altijd `true`; de testpoort zit in de database). Iemand anders kan Supabase Auth wel zo aanroepen: geaccepteerd restrisico M1, §29 |
 | C6 | Tien foute pogingen, daarna de juiste code | **De juiste code werkt nog**: er is geen maximum per code | Zie §20.2 |
 | C7 | Een gebruikte code nog eens | Geweigerd | |
 | C8 | Een nieuwe code binnen 60 seconden | Geweigerd (429, "after 59 seconds") | De app toont een aftelling |
@@ -909,19 +909,33 @@ Migratie `20261125120000_besloten_beta_registratie.sql`, Edge Function `stuur-co
 - `huishouden_open` aan staat. Dat is de commerciële start: wie een huishouden mag maken, mag ook een account maken.
   In de bèta staat `huishouden_open` uit (de nacontrole eist dat).
 
-Iedereen anders krijgt **hetzelfde antwoord** als een bestaand account (de app ziet geen verschil, dus geen
-adresverraad) en de uitlegmail "Thuisplanner is nog in een besloten test", zonder code. Bestaande accounts loggen gewoon
+Iedereen anders krijgt **hetzelfde antwoord** als een adres dat wel een account mag maken (binnen de hook verraadt
+niets of een adres op de testerslijst staat of een uitnodiging heeft) en de uitlegmail "Thuisplanner is nog in een besloten test", zonder code. Bestaande accounts loggen gewoon
 in. `registratie_open` blijft aan, anders kunnen partners met een uitnodiging geen account maken. Supabase Auth legt het
 onbevestigde account zelf al vast vóór de hook; zonder code kan het nooit bevestigd worden, en `k1_opruimen` wist het na
 24 uur (zoals voorheen bij "registratie dicht"). Het adres zelf gaat alleen bij `signup` naar de database (die kent de
 pepper niet, dus vergelijken kan alleen op het adres); het wordt daar niet bewaard.
 
 **L1: de uitlegmail.** De controle staat ná de grenzen per adres (5 per kwartier, 8 per dag). Een onbekend adres loopt
-dus op dezelfde aanvraag vast als een bestaand account, en de grenzen verraden niet meer welke adressen een account
-hebben. De uitlegmail gaat hoogstens één keer per adres per 24 uur (`k1_accounts.uitleg_op`); daarna hetzelfde antwoord
-zonder mail. Ook de duur verraadt niets: elk antwoord dat er als succes uitziet (inlogcode, uitlegmail of niets) duurt in
-`stuur-code` minstens 1,5 seconde, ook als er niets verstuurd wordt (niet bij een adreswijziging: die vraagt een
-ingelogde gebruiker). Zonder rij in `private.k1_grenzen` gaan er geen codes uit (fail-closed).
+dus op dezelfde aanvraag vast als een bestaand account. De uitlegmail gaat hoogstens één keer per adres per 24 uur
+(`k1_accounts.uitleg_op`); daarna hetzelfde antwoord zonder mail. Elk antwoord van de hook dat er als succes uitziet
+(inlogcode, uitlegmail of niets) duurt minstens 1,5 seconde, ook als er niets verstuurd wordt (niet bij een
+adreswijziging: die vraagt een ingelogde gebruiker). Mislukt het versturen van de uitlegmail, dan dezelfde 503 als bij
+een inlogcode. Zonder rij in `private.k1_grenzen` gaan er geen codes uit (fail-closed). Binnen de hook verraden de
+antwoorden, de grenzen en de duur dus niet of een adres op de testerslijst staat of een uitnodiging heeft.
+
+**Restrisico M1: of een adres een account heeft (besluit Bas, 25 november 2026: geaccepteerd).** Dat is via Supabase
+Auth zelf te zien, buiten de hook om (gemeten op een lokale stack):
+- (a) `POST /auth/v1/otp` met `create_user: false`: bestaand 200, onbekend 422 (`otp_disabled`);
+- (b) `POST /auth/v1/recover`: bij een onbekend adres antwoordt Auth zelf, zonder de hook. De hook weigert herstel,
+  herbevestiging en uitnodigen nu stil: meteen hetzelfde antwoord als bij succes, zonder mail (log `stil-geweigerd`),
+  in plaats van een 400. Gemeten: bestaand 200 in 53 en 79 ms, onbekend 200 in 38 en 34 ms. Een klein tijdsverschil
+  blijft; een eerdere 429 van de grenzen van Auth kan ook nog verschillen;
+- (c) `POST /auth/v1/signup` met een wachtwoord: bestaand 422 (`user_already_exists`), onbekend 200 (een onbevestigde
+  gebruiker, die `k1_opruimen` na 24 uur wist).
+
+Dat risico is beperkt door Turnstile (de captcha) en de grenzen van Supabase Auth. Een mogelijke latere maatregel is een
+eigen poort vóór Auth, zodat (a), (b) en (c) niet meer rechtstreeks bereikbaar zijn.
 
 **R4: uitnodigingsmails.** Naast de 20 per huishouden per 24 uur nu ook (in `private.uitnodigingsmail_grenzen`):
 - **5 per uitnodiger** per 24 uur, over al zijn huishoudens samen (was 10 huishoudens × 20 = 200);

@@ -99,7 +99,7 @@ test('AC-1/AC-9 nieuw en bestaand adres: dezelfde mail met alleen 6 cijfers, cod
   assert.equal(eerste.mail.tekst.replace(eerste.mail.code, 'X'), tweede.mail.tekst.replace(tweede.mail.code, 'X'), 'nieuw en bestaand krijgen een andere tekst');
 });
 
-test('omzeilen: de 6 cijfers werken niet bij Supabase zelf; herstel, herbevestiging en directe hookaanroepen worden geweigerd', { timeout: 60000 }, async () => {
+test('omzeilen: de 6 cijfers werken niet bij Supabase zelf; herstel, herbevestiging en directe hookaanroepen worden (stil) geweigerd', { timeout: 60000 }, async () => {
   const email = adres('omweg');
   await inloggen(email);
   const { sinds } = await vraag(email);
@@ -109,15 +109,17 @@ test('omzeilen: de 6 cijfers werken niet bij Supabase zelf; herstel, herbevestig
   assert.ok(direct.error && !direct.data.session, 'de 6 cijfers geven bij Supabase zelf een sessie');
   // De code is daarna nog gewoon bruikbaar via controleer-code (de omweg kost geen poging van de echte gebruiker).
   assert.equal((await controleer(email, m.code)).status, 200);
-  // "Wachtwoord vergeten" en herbevestiging: de hook weigert, er gaat geen mail uit.
+  // "Wachtwoord vergeten" en herbevestiging: de hook weigert stil (hetzelfde antwoord als bij succes, zodat het niet
+  // verraadt dat het adres een account heeft; besloten.test.mjs), er gaat geen mail uit.
   const voor = Date.now();
   const herstel = await createClient(API_URL, ANON_KEY, geen).auth.resetPasswordForEmail(email);
-  assert.ok(herstel.error, 'herstelmail toegestaan');
+  assert.ifError(herstel.error);
+  await wacht(1100);   // Auth telt het (stille) herstel als verstuurd: lokaal 1 aanvraag per seconde per adres
   const { s } = await inloggen(email);
   const ingelogd = createClient(API_URL, ANON_KEY, geen);
   await ingelogd.auth.setSession(s);
   const herbevestig = await ingelogd.auth.reauthenticate();
-  assert.ok(herbevestig.error, 'herbevestiging toegestaan');
+  assert.ifError(herbevestig.error);
   await wacht(1500);
   assert.equal((await mails(email, voor)).filter(x => x.onderwerp !== 'Je inlogcode voor Thuisplanner').length, 0, 'er ging toch een andere mail uit');
   // De hook direct aanroepen zonder geldige handtekening: geweigerd (geen codes te maken buiten Supabase om).
