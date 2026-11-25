@@ -12,6 +12,7 @@ import { maakSync, onbevestigdOpToestel, wisOnbevestigdOpToestel, type Sync, typ
 import { foutTekst, TOEGANG_TEKSTEN } from '../foutcodes';
 import { bewaarAanvraag, bewaarToestel, controleerBijServer, leesToestel, vergeetAanvraag, vergeetToestellen } from './code';
 import { stagingFouten } from '../omgeving';
+import { vergeetCaches as vergeetVoorkeuren } from '../voorkeuren';
 
 export { foutTekst };
 
@@ -38,6 +39,11 @@ export interface LokaleConfig {
    * schakelaar vraagt de app precies wat ze daarvoor vroeg, en is Plannen online niet zichtbaar.
    */
   plannen?: boolean;
+  /**
+   * Persoonlijke instellingen aan (VITE_VOORKEUREN=aan in de build; besluit 20). Alleen met migratie 20261124120000 in de
+   * database: zonder die schakelaar is er online geen instellingenscherm en geldt overal de standaard.
+   */
+  voorkeuren?: boolean;
 }
 
 // Alleen een Supabase op dit toestel of in het eigen netwerk (voor de test met twee telefoons). Nooit een
@@ -61,7 +67,7 @@ export function lokaleConfig(env: Record<string, string | undefined> = import.me
   if (!isLokaalAdres(url)) throw new Error('Weigering: de app praat alleen met een lokale Supabase (dit toestel of het eigen netwerk).');
   let accounts: DemoAccount[] = [];
   try { accounts = JSON.parse(env.VITE_DEMO_ACCOUNTS || '[]'); } catch { accounts = []; }
-  return { omgeving: 'lokaal', url, anonKey, accounts, wachtwoord: env.VITE_DEMO_WACHTWOORD || undefined, spullen: env.VITE_SPULLEN === 'aan', plannen: env.VITE_PLANNEN === 'aan' };
+  return { omgeving: 'lokaal', url, anonKey, accounts, wachtwoord: env.VITE_DEMO_WACHTWOORD || undefined, spullen: env.VITE_SPULLEN === 'aan', plannen: env.VITE_PLANNEN === 'aan', voorkeuren: env.VITE_VOORKEUREN === 'aan' };
 }
 
 /**
@@ -75,7 +81,7 @@ export function appConfig(env: Record<string, string | undefined> = import.meta.
     const fouten = stagingFouten(env);
     if (fouten.length) throw new Error('Weigering (testomgeving): ' + fouten[0]);
     return { omgeving: 'staging', url: env.VITE_SUPABASE_URL as string, anonKey: env.VITE_SUPABASE_ANON_KEY as string, accounts: [],
-      turnstile: env.VITE_TURNSTILE_SITEKEY || undefined, spullen: env.VITE_SPULLEN === 'aan', plannen: env.VITE_PLANNEN === 'aan' };
+      turnstile: env.VITE_TURNSTILE_SITEKEY || undefined, spullen: env.VITE_SPULLEN === 'aan', plannen: env.VITE_PLANNEN === 'aan', voorkeuren: env.VITE_VOORKEUREN === 'aan' };
   }
   if (omgeving && omgeving !== 'lokaal') throw new Error('Weigering: onbekende omgeving ' + omgeving + '.');
   return lokaleConfig(env);
@@ -484,6 +490,7 @@ export class Sessie {
     if (wissen) this.wisOnbevestigd();
     await this.client.rpc('mijn_toestellen_intrekken');
     vergeetToestellen();
+    vergeetVoorkeuren();   // besluit 20: de kopie van de persoonlijke voorkeuren hoort niet op een afgemeld toestel
     const g = ++this.generatie;
     this.zet({ ...LEEG, fase: 'uitgelogd' });
     const afmelding = this.inRij(() => this.client.auth.signOut({ scope: 'global' }));
@@ -573,6 +580,7 @@ export class Sessie {
    */
   async uitloggen({ wissen = false }: { wissen?: boolean } = {}): Promise<void> {
     if (wissen) this.wisOnbevestigd();
+    vergeetVoorkeuren();   // besluit 20: de kopie van de persoonlijke voorkeuren hoort niet op een afgemeld toestel
     const g = ++this.generatie;
     this.zet({ ...LEEG, fase: 'uitgelogd' });
     // Het afmelden direct in de auth-rij zetten, vóór het (mogelijk trage) stoppen van de sync. Anders kan een

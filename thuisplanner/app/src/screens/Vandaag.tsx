@@ -15,6 +15,7 @@ import { vakantieVoorVandaag, wanneerKort } from '../lib/vakantie';
 import { IcKoffer } from '../components/Iconen';
 import type { AgendaStand } from '../lib/context';
 import type { Datum } from '../lib/types';
+import { STANDAARD } from '../lib/voorkeuren';
 
 /**
  * Overzicht (besluit 19, 23 november 2026), het startscherm. Intern heet het scherm nog "vandaag" (ook het adres), zodat
@@ -67,6 +68,9 @@ export function Vandaag() {
   const restDelen = (Object.entries(overzicht.rest) as [TaakGroep, number][]).filter(([, n]) => n > 0);
   const heeftAfspraken = komend.eerst.length > 0 || komend.heleDag.length > 0;
   const heleDagNamen = komend.heleDag.map(a => titelVoor(a, huishouden.ik));
+  // Besluit 20: welke onderdelen dit account wil zien. Verbergen is niet verwijderen: alles blijft in de Agenda en bij
+  // Boodschappen. De kop met de samenvatting blijft altijd staan.
+  const toon = (app.voorkeuren?.voorkeuren ?? STANDAARD).overzicht;
 
   return (
     <div className="vandaag overzicht">
@@ -83,7 +87,7 @@ export function Vandaag() {
               opAlle={() => app.gaNaar('meer')} opLater={app.lokaal.uitnodigingen.later} />
           )}
 
-          {heeftAfspraken && (
+          {toon.afspraken && heeftAfspraken && (
             <section aria-labelledby="h-afspraken" className="overzicht-blok">
               <div className="blok-kop">
                 <h2 id="h-afspraken" className="sectie-kop">Afspraken</h2>
@@ -129,7 +133,7 @@ export function Vandaag() {
             </section>
           )}
 
-          {(overzicht.zichtbaar.length > 0 || klaar.length > 0) && (
+          {toon.taken && (overzicht.zichtbaar.length > 0 || klaar.length > 0) && (
             <section aria-labelledby="h-taken" className="overzicht-blok">
               <div className="blok-kop">
                 <h2 id="h-taken" className="sectie-kop">Te doen</h2>
@@ -175,7 +179,7 @@ export function Vandaag() {
             </section>
           )}
 
-          {signaal && (
+          {toon.verder && signaal && (
             <section className="meedenker" aria-label="Meegedacht">
               <div className="meedenker-tekst">
                 <p className="meedenker-vraag">{signaal.voorstel} vanavond?</p>
@@ -197,7 +201,7 @@ export function Vandaag() {
 
         {/* Boodschappen en de vakantie: korte regels; een leeg onderdeel verdwijnt. */}
         <div className="kolom-zij verder">
-          {boodschappen.length > 0 && (
+          {toon.boodschappen && boodschappen.length > 0 && (
             <section aria-labelledby="h-boodschappen" className="blok verder-blok">
               <div className="blok-kop">
                 <h2 id="h-boodschappen" className="sectie-kop">Boodschappen</h2>
@@ -211,7 +215,7 @@ export function Vandaag() {
               </p>
             </section>
           )}
-          {vk && <VakantieKaart id={vk.id} />}
+          {toon.verder && vk && <VakantieKaart id={vk.id} />}
         </div>
       </div>
     </div>
