@@ -32,13 +32,13 @@ onafhankelijke review), `thuisplanner-k1-ontwerp.md` §12, `thuisplanner-staging
 | L5 | Het Vault-adres van de mailwachtrij mocht `http://` zijn; dan gaat het wachtrijgeheim onversleuteld over het netwerk | De nacontrole (`verbinding-controle.mjs na`) eist online dat het adres met `https://` begint. De database toetst dat zelf: alleen "ja" of "nee" komt terug, nooit het adres. "Niet te lezen" telt als afwijking | `tests/functies/nacontrole-vault.test.mjs` (4 tests) en 3 tegenproeven: elke bewust ingebouwde fout wordt gevangen |
 | L6 | Het namenfilter in de uitnodigingsmail liet Unicode-punten (`evil．com`) en telefoonnummers door | `veiligeNaam` (`_gedeeld/mails.ts`) normaliseert eerst met NFKC en weigert daarna ook ideografische punten, niet-Latijnse "domeinen" en zes of meer cijfers | `tests/functies/mails.test.mjs` (8 tests, waaronder 2 tegenproeven); met het oude filter falen 4 tests |
 
-**Nog te melden bij L5 (geen wijziging gedaan):** de database zelf accepteert nog `http://`
+**L5 in de database (pakket P2):** tot nu toe accepteerde de database zelf ook `http://`
 (`20261024120000_uitnodigingsmail_automatisch.sql:255`: `url !~ '^https?://'`; zo ook de opruimronde in
-`20261029120000_spullen_documenten.sql:460`). De nacontrole vangt een fout adres nu wél, maar pas als hij draait (na
-elke wijziging en wekelijks, beta-voorbereiding §7). Dat ook in de database dichtzetten vraagt een migratie; lokaal is
-het adres bewust `http://`. Alleen pakket P2 voegt vóór de start een migratie toe: dit is daarom niet toegevoegd, maar
-gemeld (rapport van P3). Strikt nodig voor de start is het niet, zolang de nacontrole na elke wijziging draait. Ook wordt niet gecontroleerd dat het adres naar het eigen project wijst (alleen dat het met
-`https://` begint).
+`20261029120000_spullen_documenten.sql:460`). P2 zet dat dicht in migratie `20261125120000` (lokaal gecommit, nog niet
+gemerged): alleen `https://`, of `http://` naar een lokale ontwikkelhost. Die lokale uitzondering geldt online nooit als
+in orde: de nacontrole van P3 eist online altijd `https://`. Samen vangen ze een fout adres dus vóór het versturen
+(database) én bij elke controle (nacontrole). Ook wordt niet gecontroleerd dat het adres naar het eigen project wijst
+(alleen dat het met `https://` begint).
 
 ## 2. Wordt vóór de start opgelost (blokkeert de start, niet te accepteren)
 
