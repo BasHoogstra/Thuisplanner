@@ -120,6 +120,108 @@ Daarna volgt een afzonderlijk akkoord van de producteigenaar.
 | Gehoste tests | H1–H19 groen; S1/S2 gemeten |
 | Verwijderen | De verwijderprocedure van §5.4 is op de bèta met verzonnen accounts uitgevoerd, en de controle "niets meer aanwezig" is groen |
 
+#### Het API-scheidingsscript (regel "Huishoudscheiding"; voorwaarde V7, pakket P5)
+
+Script: `thuisplanner/supabase/staging/scheiding.mjs`. Het deel "via de app" van de regel blijft een handmatige proef op
+twee telefoons; het script doet het deel "via directe API-verzoeken".
+
+**Wat het doet.** Het maakt per run vier verzonnen accounts (`scheiding-a1-<run>@test.invalid` enzovoort): gezin A en
+gezin B, elk een eigenaar en een partner. De eigenaars komen alleen voor deze run op de testerslijst (G1). Elke sessie
+is een echte codesessie (amr `otp`, een bestaande `session_id`) via een eenmalige inloglink van Supabase Auth; er gaat
+daarbij geen mail uit, en elke sessie moet eerst door de toegangspoort (`mijn_toegang` = `ok`). Beide gezinnen krijgen
+inhoud in elk domein: afspraken (gedeeld, privé, een reeks met een uitzondering, een deelnemer), taken, boodschappen,
+een vakantie met paklijst, pakitem, vakantieboodschap en voorbereiding, leden (ook een kind), uitnodigingen (met link;
+lokaal ook op e-mailadres), Mijn spullen met een gedeeld en een persoonlijk document (geüpload en bevestigd) en een
+koppeling, en een plan met onderdeel en taak. Daarna probeert gezin A, met de sessie van de eigenaar én van de partner:
+
+- **lezen:** elke tabel en view (19) zonder filter, gericht op de id's van B, en met een filter op huishouden B; zoeken op
+  de tekst van B; `my_memberships`, `my_invites`, profielen, `household_channel(B)` en `uitnodigingsmails(B)`;
+- **wijzigen:** elke schrijfbare kolom van B, toevoegen in B, kruisverwijzingen vanuit het eigen huishouden naar iets van B
+  (vakantie, plan, spul, document, boodschap, deelnemer, eigenaar), en 30 functies met een huishouden, afspraak,
+  uitnodiging, lid, paklijst of plan van B;
+- **bestanden:** een link, download, overschrijven of upload via het bekende pad, het id onder het eigen huishouden, de
+  publieke URL, `bevestig-upload` met het id van B, en de map van B bekijken.
+
+Daarna moeten alle gegevens en bestanden van B precies gelijk zijn aan vóór de pogingen. Verder: een verlopen link van B
+werkt voor niemand meer (vers werkte hij wel); een privé-afspraak van de eigenaar is voor de partner alleen "Bezet" en
+zonder details (de eigenaar ziet ze wel); het kanaal van B gaat voor A niet open (een expliciete weigering); op het eigen
+kanaal komen seintjes aan, maar geen enkel seintje over B, alleen de sleutels `t`, `id`, `v` en `op`, en geen tekst. Bij
+elke controle hoort een tegencontrole die laat zien dat de controle iets meet (B heeft echt gegevens in elke tabel, de
+partner ziet de eigen taken van A, het eigen kanaal ontvangt). Aan het eind ruimt het script altijd alles op (ook na een
+fout): bestanden, huishoudens, accounts en testers, en controleert het dat er niets is achtergebleven.
+
+**Weigeren.** Vóór er verbinding is, weigert het script: elke omgeving behalve `lokaal` en `beta` (staging bevat echte
+gegevens van de gezinsbèta; productie nooit); online elk kenmerk dat niet precies bij `beta` in
+`thuisplanner/omgevingen.json` staat (dus nu altijd: het bètakenmerk is nog `null`), een kenmerk van een andere omgeving,
+elk Huisplan-kenmerk (ook in een adres of sleutel), een database-adres dat niet de session pooler van precies dat
+project is, een sleutel van een ander project, een geheime sleutel op de plaats van de publieke, en lokaal alles wat niet
+op 127.0.0.1 of localhost staat. Online stopt het ook als wachtwoordsessies aan staan of de sessiecontrole uit. De
+weigeringen hebben een eigen zelftest zonder netwerk: `node thuisplanner/supabase/staging/scheiding.mjs zelftest`.
+
+**Draaien, lokaal** (een eigen stack, bijvoorbeeld met `project_id` `thuisplanner_p5`; de waarden uit
+`supabase status -o env`, eenmalig `npm ci` in `thuisplanner/supabase/tests/integratie`):
+
+```
+KG_OMGEVING=lokaal API_URL=… ANON_KEY=… SERVICE_ROLE_KEY=… DB_URL=… node thuisplanner/supabase/staging/scheiding.mjs
+KG_OMGEVING=lokaal … node thuisplanner/supabase/staging/scheiding.mjs --tegenproef sessie
+KG_OMGEVING=lokaal … node thuisplanner/supabase/staging/scheiding.mjs --tegenproef beleid
+```
+
+**Draaien, op de bèta** (later, met de producteigenaar, Access aan, nadat het bètakenmerk na controle in het dashboard
+in `omgevingen.json` staat). Alleen in de omgeving van dit ene proces, nooit in een bestand of de chat: `KG_OMGEVING=beta`,
+`KG_REF`, `KG_DB_URL` (session pooler zonder wachtwoord), `PGPASSWORD`, `KG_ANON_KEY` (publieke sleutel) en
+`KG_GEHEIME_SLEUTEL` (de service-rol of `sb_secret_`; nodig om verzonnen accounts aan te maken, een inloglink te maken
+en op te ruimen). Daarna het script, en de tegenproef `--tegenproef sessie`. Online maakt het script geen
+uitnodiging op e-mailadres (die zou een echte mail versturen) en de tegenproef `beleid` (die het schema wijzigt) is
+online geweigerd.
+
+**Geslaagd als:**
+
+- de gewone run eindigt met `GESLAAGD: gezin A ziet en wijzigt niets van gezin B; seintjes zonder inhoud; alles
+  opgeruimd.` en code 0 (elke afwijking: `GEFAALD` met de lijst `NIET IN ORDE`, code 1);
+- elke tegenproef eindigt met `TEGENPROEF GESLAAGD: het script faalde zoals bedoeld …` en code 0: de controles zagen de
+  fout (met de sessie van B als "partner van A" zien onder andere lezen, leden, documenten, bestanden en het kanaal van
+  B rood; met een te ruime leesregel op taken en de documentenbucket zien lezen en bestanden rood), en daarna is alles
+  opgeruimd. `TEGENPROEF MISLUKT` betekent dat de controles blind zijn: dan telt ook de gewone run niet;
+- de zelftest eindigt met `ZELFTEST GESLAAGD`.
+
+**Wat het niet doet:** het deel via de app, de autorisatie per rol (eigenaar, beheerder, lid; regel "Autorisatie"), en de
+gehoste tests H1–H19.
+
+**Stand (25 november 2026), alleen lokaal** op een eigen stack (`thuisplanner_p5`, met de schakelaars zoals online:
+wachtwoordsessies uit, `huishouden_open` uit): de gewone run **geslaagd** (316 van 316 controles); de tegenproef
+`sessie` **faalde zoals bedoeld** (94 controles rood, waaronder lezen, leden, documenten, bestanden en het kanaal van B);
+de tegenproef `beleid` **faalde zoals bedoeld** (18 controles rood: lezen van taken en de bestanden); de zelftest groen
+(21 gevallen). Na elke run waren er geen testaccounts, huishoudens, bestanden, testers of tegenproefregels meer over.
+Online (bèta) is niets gedraaid; dat volgt later met de producteigenaar, met Access aan.
+
+#### Welke gehoste tests H1–H19 al een runner hebben (alleen geïnventariseerd, 25 november 2026)
+
+"Runner" = een script in de repository dat de test tegen een online project uitvoert. Bron van de tests:
+`docs/thuisplanner-deel2-bouwverslag.md` §4.2.
+
+| Test | Runner? | Wat er is |
+| --- | --- | --- |
+| H1 codesessie (`amr`, `session_id`) | Nee | Handmatig: inloggen in de app. `scheiding.mjs` controleert `mijn_toegang` = `ok`, maar met een inloglink, niet via de codelaag; dat is dus niet H1 |
+| H2 wachtwoordroutes | Nee | Alleen lokaal (`tests/integratie/poort.test.mjs`) |
+| H3 uitloggen op alle toestellen | Nee | Alleen lokaal |
+| H4 blootgestelde schema's | Ja | `verbinding-controle.mjs na` met `KG_ANON_KEY` (`private` moet PGRST106 geven) |
+| H5 Storage en GraphQL | Deels | De nacontrole vergelijkt buckets en policies met de vaste lijst (de tekst "geen buckets" in het bouwverslag is sinds besluit 17 achterhaald); GraphQL nee |
+| H6 Send Email-hook | Nee | Handmatig: een code aanvragen |
+| H7 Auth-instellingen | Ja | `verbinding-controle.mjs na` met `KG_ANON_KEY` |
+| H8 S1 aankomsttijd codes | Nee | Handmatige meting |
+| H9 S2 limieten van Supabase | Nee | Handmatige meting |
+| H10 pogingentellers onder gelijktijdigheid | Nee | Alleen lokaal (`k1.test.mjs`) |
+| H11 Turnstile | Nee | Handmatig |
+| H12 koude start | Nee | Handmatige meting |
+| H13 logboeken | Nee | Handmatig in het dashboard |
+| H14 uitnodigingsmail V1–V8 | Nee | `proefmail.mjs` toetst alleen de adapter en de idempotentie bij Lettermint, niet V1–V8 |
+| H15 bounce-webhook | Nee | Handmatig |
+| H16 pg_cron | Deels | De nacontrole ziet de taken actief; "na een nacht opgeruimd" is handmatig |
+| H17 headers en CSP | Nee | Handmatig in de browser |
+| H18 gratis tegoed | Nee | Dashboard (op Pro gaat het om het rekentegoed) |
+| H19 automatische verzending | Deels | De nacontrole ziet pg_net, Vault en de taken; de mail binnen een minuut en pauzeren/hervatten zijn handmatig |
+
 ### 2.4 De gratis limieten en wat dat betekent
 
 | Feit (26 oktober 2026) | Gevolg |
