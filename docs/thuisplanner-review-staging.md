@@ -139,7 +139,7 @@ bevindingen gaan vooral over:
 | L5 | Het Vault-adres van de wachtrij mag `http://` zijn | `uitnodigingsmail_automatisch.sql:255` | Online alleen `https://`; ook in de nacontrole |
 | L6 | Het namenfilter in mails laat Unicode-punten (`evil．com`) en telefoonnummers door | `mails.ts:312-315` | NFKC normaliseren vóór de controle |
 | L7 | Op staging blijft de sessie in `localStorage` (bewust: ingelogd blijven op de telefoon) | `sessie.ts:85` | Geaccepteerd voor twee eigen telefoons; "overal uitloggen" werkt direct |
-| L8 | De kenmerkcontrole loopt alleen via `npm run build:staging`, niet bij een losse `vite --mode staging` | `package.json:10` | Ook in `controleerOmgeving`, met een expliciete uitzondering voor de offline e2e |
+| L8 | De kenmerkcontrole loopt alleen via `npm run build:staging`, niet bij een losse `vite --mode staging` | `package.json:10` | Ook in `controleerOmgeving`, met een expliciete uitzondering voor de offline e2e. **Opgelost (lokaal, pakket P1, 25 november 2026):** `controleerOmgeving` (`scripts/staging-build.ts`) toetst bij elke online modus (staging, beta, productie) het kenmerk aan `omgevingen.json`. De enige uitzondering is `KG_E2E_NEPPROJECT=1` uit de procesomgeving, en die geldt alleen voor het verzonnen project `NEP_REF`; tegenproeven in `tests/omgeving.test.ts` en `e2e-beta/bewaking.spec.ts` |
 | L9 | Ontwikkelpakketten met bekende kwetsbaarheden: vite 7.1.12 (bestanden lezen via de dev- en preview-server) en vitest (alleen tijdens het testen) | `npm audit` | Bijwerken naar een gepatchte versie. De kijkversie op poort 5181 is op 21 oktober gestopt |
 
 ## Info
