@@ -12,7 +12,12 @@ export function afspraakPast(a: Afspraak, f: GezinsFilter): boolean {
   return f === null || a.wie.length === 0 || a.wie.includes(f);
 }
 
-/** Bij één lid: alleen taken die dat lid oppakt. Taken zonder persoon horen bij het hele gezin. */
+/**
+ * Bij één lid: de taken die dat lid oppakt, plus de taken zonder persoon (die horen bij het hele gezin, dus ook bij elk
+ * lid), net als bij afspraken. Besluit 20: "Ik" toont jouw taken plus wat voor het hele gezin is.
+ */
 export function taakPast(t: Taak, f: GezinsFilter): boolean {
-  return f === null || taakMensen(t).includes(f);
+  if (f === null) return true;
+  const wie = taakMensen(t);
+  return wie.length === 0 || wie.includes(f);
 }

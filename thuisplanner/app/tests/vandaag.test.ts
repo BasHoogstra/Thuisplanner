@@ -59,7 +59,7 @@ describe('Vandaag-selectie', () => {
   });
 
   it('samenvatting zonder oordeel of score', () => {
-    expect(samenvatting(0, 0)).toBe('Een rustige dag. Er staat niets voor je klaar.');
+    expect(samenvatting(0, 0)).toBe('Een rustige dag. Vandaag staat er niets gepland.');
     expect(samenvatting(1, 0)).toBe('Vandaag: 1 afspraak.');
     expect(samenvatting(2, 1)).toBe('Vandaag: 2 afspraken en 1 taak.');
     // Voorstel van 23 november: wat voorbij is telt niet meer mee.

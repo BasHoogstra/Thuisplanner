@@ -73,7 +73,7 @@ test('eerste huishouden: Sanne maakt het aan en is eigenaar; Joris accepteert na
   await joris.getByRole('button', { name: 'Accepteren', exact: true }).click();
   await expect(joris.getByRole('heading', { name: 'Welkom bij Familie Test' })).toBeVisible(SYNC);
   expect(await joris.evaluate(() => JSON.stringify(sessionStorage) + JSON.stringify(localStorage))).not.toMatch(TOKEN_IN_URL);
-  await joris.getByRole('button', { name: 'Naar Vandaag' }).click();
+  await joris.getByRole('button', { name: 'Naar het overzicht' }).click();
   await expect(joris.locator('.sync-status')).toHaveText('Verbonden', SYNC);
   await nav(joris, 'Meer');
   await expect(joris.getByText('jij bent beheerder')).toBeVisible();
@@ -113,7 +113,7 @@ test('eenmalig en ingetrokken: een gebruikte of ingetrokken link werkt niet, met
   await expect(thomas.getByRole('alert')).toHaveText('Deze uitnodiging is al gebruikt.', SYNC);
 
   // Een tweede uitnodiging, ingetrokken voordat iemand hem gebruikt.
-  await nav(sanne, 'Vandaag');
+  await nav(sanne, 'Overzicht');
   const tweede = await uitnodiging(sanne, { rol: 'Lid' });
   await sanne.getByRole('button', { name: 'Intrekken' }).click();
   await sanne.getByRole('button', { name: 'Zeker intrekken' }).click();
@@ -145,7 +145,7 @@ test('twee huishoudens: Thomas accepteert een tweede, kan wisselen, en de huisho
   expect(thomas.url()).not.toMatch(TOKEN_IN_URL);
   await thomas.getByLabel('Jouw naam').fill('Thomas');
   await thomas.getByRole('button', { name: 'Accepteren', exact: true }).click();
-  await thomas.getByRole('button', { name: 'Naar Vandaag' }).click();
+  await thomas.getByRole('button', { name: 'Naar het overzicht' }).click();
   await nav(thomas, 'Boodschappen');
   await expect(thomas.getByText('Alleen-bij-Test')).toBeVisible(SYNC);
 
@@ -182,7 +182,7 @@ test('op e-mailadres: Sanne deelt geen link; Joris logt in, ziet de uitnodiging 
   await joris.getByLabel('Jouw naam').fill('Joris');
   await joris.getByRole('button', { name: 'Accepteren', exact: true }).click();
   await expect(joris.getByRole('heading', { name: 'Welkom bij Familie Test' })).toBeVisible(SYNC);
-  await joris.getByRole('button', { name: 'Naar Vandaag' }).click();
+  await joris.getByRole('button', { name: 'Naar het overzicht' }).click();
   await expect(joris.locator('.sync-status')).toHaveText('Verbonden', SYNC);
 
   // In de database: lid, en het adres is weg.
@@ -210,7 +210,7 @@ test('op e-mailadres voor iemand die al een huishouden heeft: één melding op V
   await thomas.getByLabel('Jouw naam').fill('Thomas');
   await thomas.getByRole('button', { name: 'Accepteren', exact: true }).click();
   await expect(thomas.getByRole('heading', { name: 'Welkom bij Familie Test' })).toBeVisible(SYNC);
-  await thomas.getByRole('button', { name: 'Naar Vandaag' }).click();
+  await thomas.getByRole('button', { name: 'Naar het overzicht' }).click();
   await expect(thomas.getByRole('region', { name: 'Uitnodiging' })).toHaveCount(0);
   await nav(thomas, 'Meer');
   await expect(thomas.getByRole('button', { name: 'Naar Familie De Boer' })).toBeVisible(SYNC);
@@ -238,7 +238,7 @@ test('een gekoppelde link werkt niet voor een ander account; weigeren door de ge
   await joris.getByRole('button', { name: 'Ja, weigeren' }).click();
   await expect(joris.getByRole('heading', { name: 'Welkom' })).toBeVisible(SYNC);
   await expect(joris.getByRole('heading', { name: 'Uitnodigingen voor jou' })).toHaveCount(0);
-  await nav(sanne, 'Vandaag');
+  await nav(sanne, 'Overzicht');
   await nav(sanne, 'Meer');
   await expect(sanne.getByText(/Lid · geweigerd/)).toBeVisible(SYNC);
 });

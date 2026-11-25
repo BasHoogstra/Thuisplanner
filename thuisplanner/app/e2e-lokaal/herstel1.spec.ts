@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { alsEva, nav, SYNC, telefoon, toonVoorbij, venster } from './hulp';
+import { agendaVandaag, alsEva, nav, SYNC, telefoon, venster } from './hulp';
 
 // Herstelronde 1 (review PR #23), in de echte app tegen de lokale stack met twee accounts:
 //   bevinding 1: alleen de titel aanpassen laat notities, einddatum en de rest van een afspraak staan;
@@ -60,7 +60,7 @@ test('bevinding 1: alleen de titel van een meerdaagse afspraak met notities aanp
 });
 
 test('bevinding 1: één voorkomen van een reeks met notities aanpassen: het losse voorkomen houdt de notities', async () => {
-  await toonVoorbij(eva);   // na 10:00 staat de zwemles van vanochtend ingeklapt op Vandaag
+  await agendaVandaag(eva);   // het Overzicht toont alleen wat nog komt; de zwemles van vanochtend staat in de Agenda
   await eva.getByRole('button', { name: /^Zwemles, 09:15/ }).first().click();
   // W1: in het detailvenster; pas bij opslaan de vraag alleen deze of de hele reeks.
   await venster(eva).getByLabel('Wat?').fill('Zwemles (diploma A)');
@@ -123,7 +123,9 @@ test('bevinding 4: privé-afspraak niet aangekomen, herladen, opnieuw invoeren m
   expect(rijen).toHaveLength(1);
   expect(rijen[0]).toMatchObject({ id, visibility: 'private' });
   await expect.poll(() => eva.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('thuisplanner-opdracht:')).length)).toBe(0);
-  // Thomas ziet hem één keer, als "Bezet".
+  // Thomas ziet hem één keer, als "Bezet": in de Agenda bij vandaag (op het Overzicht staan afspraken van de hele dag
+  // samen op één regel, review PR #56).
+  await agendaVandaag(thomas);
   await expect(thomas.getByRole('button', { name: /^Bezet, Hele dag/ })).toHaveCount(1, SYNC);
   await expect(thomas.locator('body')).not.toContainText('Tandarts Eva');
 });
@@ -132,6 +134,8 @@ test('bevinding 4: privé-afspraak wél aangekomen (antwoord weg), herladen: de 
   const id = await priveToevoegenZonderAntwoord(eva, 'Fysio Eva', { bereikt: true });
   await eva.reload();
   await expect(eva.locator('.sync-status')).toHaveText('Verbonden', SYNC);
+  // Zonder tijd: een afspraak van de hele dag; op het Overzicht staan die samen op één regel (review PR #56).
+  await agendaVandaag(eva);
   await expect(eva.getByRole('button', { name: /^Fysio Eva/ })).toBeVisible(SYNC);
   await nav(eva, 'Meer');
   await expect(eva.getByText('Alles is door de server bevestigd.')).toBeVisible(SYNC);

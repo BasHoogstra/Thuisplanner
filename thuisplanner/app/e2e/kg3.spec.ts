@@ -84,15 +84,15 @@ test.describe('Afspraken openen, bewerken en verwijderen', () => {
     await expect(venster(page).getByRole('heading', { name: 'Afspraak' })).toBeVisible();
     await expect(venster(page).getByLabel('Wat?')).toHaveValue('Zwemles');
     await venster(page).getByLabel('Wat?').fill('Zwemles diploma B');
-    await venster(page).getByLabel('Van', { exact: true }).fill('09:30');
+    // 14:00, zodat de afspraak nog komt: het Overzicht toont alleen wat nog komt (besluit 19).
+    await venster(page).getByLabel('Van', { exact: true }).fill('14:00');
+    await venster(page).getByLabel('Tot', { exact: true }).fill('14:45');
     await venster(page).getByRole('button', { name: 'Opslaan' }).click();
-    await expect(melding(page)).toContainText('Zwemles diploma B aangepast (vandaag 09:30)');
+    await expect(melding(page)).toContainText('Zwemles diploma B aangepast (vandaag 14:00)');
     await expect(dag(page, /vandaag$/)).toContainText('Zwemles diploma B');
-    await nav(page, 'Vandaag');
-    // Voorstel van 23 november: wat voorbij is (09:30 om 11:20) staat ingeklapt.
-    await sectie(page, 'Agenda vandaag').getByRole('button', { name: /voorbij · tonen/ }).click();
-    await expect(sectie(page, 'Agenda vandaag')).toContainText('Zwemles diploma B');
-    await expect(sectie(page, 'Agenda vandaag')).toContainText('09:30');
+    await nav(page, 'Overzicht');
+    await expect(sectie(page, 'Afspraken')).toContainText('Zwemles diploma B');
+    await expect(sectie(page, 'Afspraken')).toContainText('14:00');
   });
 
   test('naar een andere dag verplaatsen haalt hem van Vandaag af', async ({ page }) => {
@@ -114,9 +114,9 @@ test.describe('Afspraken openen, bewerken en verwijderen', () => {
     await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Alles bewerken)
     await venster(page).getByRole('button', { name: 'Verwijderen' }).click();
     await expect(melding(page)).toContainText('Pizza bakken met de buren verwijderd');
-    await expect(sectie(page, 'Agenda vandaag')).not.toContainText('Pizza bakken');
+    await expect(sectie(page, 'Afspraken')).not.toContainText('Pizza bakken');
     await melding(page).getByRole('button', { name: 'Ongedaan maken' }).click();
-    await expect(sectie(page, 'Agenda vandaag')).toContainText('Pizza bakken');
+    await expect(sectie(page, 'Afspraken')).toContainText('Pizza bakken');
   });
 
   test('een eindtijd vóór de begintijd wordt niet opgeslagen', async ({ page }) => {
@@ -127,7 +127,7 @@ test.describe('Afspraken openen, bewerken en verwijderen', () => {
     await venster(page).getByRole('button', { name: 'Opslaan' }).click();
     await expect(venster(page)).toContainText('De eindtijd ligt vóór of op de begintijd.');
     await page.keyboard.press('Escape');
-    await expect(sectie(page, 'Agenda vandaag')).toContainText('18:00');
+    await expect(sectie(page, 'Afspraken')).toContainText('18:00');
   });
 
   test('privé van een ander: alleen "bezet", geen details en niets te wijzigen', async ({ page }) => {
@@ -160,7 +160,7 @@ test.describe('Afspraken openen, bewerken en verwijderen', () => {
     await venster(page).getByRole('button', { name: /^Meer opties/ }).click();
     await venster(page).getByLabel(/Privé/).check();
     await venster(page).getByRole('button', { name: 'Opslaan' }).click();
-    await expect(sectie(page, 'Agenda vandaag').locator('li', { hasText: 'Pizza bakken' })).toContainText('alleen voor jou');
+    await expect(sectie(page, 'Afspraken').locator('li', { hasText: 'Pizza bakken' })).toContainText('alleen voor jou');
   });
 });
 
@@ -189,7 +189,10 @@ test.describe('Taken', () => {
     await expect(venster(page).getByRole('button', { name: 'Eva' })).toHaveAttribute('aria-pressed', 'false');
     await venster(page).getByRole('button', { name: 'Morgen', exact: true }).click();
     await venster(page).getByRole('button', { name: 'Opslaan' }).click();
-    await expect(sectie(page, 'Te doen')).not.toContainText('Cadeautje');
+    // Besluit 19: het Overzicht toont ook taken van de komende dagen; de taak staat nu bij morgen, voor Daan.
+    const rij = sectie(page, 'Te doen').locator('li', { hasText: 'Cadeautje voor Noor kopen' });
+    await expect(rij).toContainText('Morgen');
+    await expect(rij).toContainText('Daan');
     await nav(page, 'Agenda');
     await kiesDag(page, 'zondag 11 oktober');
     const zondag = dag(page, /^zondag 11 oktober$/);
@@ -247,7 +250,7 @@ test.describe('Boodschappen', () => {
     await page.getByRole('button', { name: 'Bananen aanpassen' }).click();
     await venster(page).getByRole('button', { name: 'Verwijderen' }).click();
     await expect(melding(page)).toContainText('Bananen verwijderd');
-    await nav(page, 'Vandaag');
+    await nav(page, 'Overzicht');
     await expect(sectie(page, 'Boodschappen')).toContainText('Halfvolle melk, Pizzadeeg, Mozzarella, Tomaten');
     await expect(sectie(page, 'Boodschappen')).not.toContainText('en nog');
   });
@@ -275,7 +278,7 @@ test('bewerkvenster en weekagenda passen op het scherm', async ({ page }) => {
 test('navigatielabels passen ook met een breed systeemlettertype', async ({ page }) => {
   // Op de CI-runner (Ubuntu) is het systeemlettertype breder dan lokaal; dat brak de 360-weergave.
   await page.addStyleTag({ content: '.nav, .nav * { font-family: "DejaVu Sans", Verdana, sans-serif !important; }' });
-  for (const naam of ['Vandaag', 'Agenda', 'Boodschappen', 'Meer']) {
+  for (const naam of ['Overzicht', 'Agenda', 'Boodschappen', 'Meer']) {
     const span = page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: naam }).locator('span');
     expect(await span.evaluate(e => e.scrollWidth > e.clientWidth), `label ${naam} is afgekapt`).toBe(false);
   }

@@ -228,7 +228,7 @@ test('Zonder datum: standaard ingeklapt met een zichtbare telling; de stand blij
   // De voorbereiding van een vakantie zonder datum staat er ook, met de vakantie erbij (F8).
   await expect(zdLijst(page).getByRole('button', { name: 'Kattenoppas vragen openen' })).toContainText('Frankrijk');
   // Naar Vandaag en terug, en via de Dag terug naar de Week: nog steeds open.
-  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Vandaag' }).click();
+  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Overzicht' }).click();
   await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Agenda' }).click();
   await expect(zdKnop(page)).toHaveAttribute('aria-expanded', 'true');
   await weergave(page, 'Dag');
@@ -265,7 +265,7 @@ test('Zonder datum op de Dag: laptop in een zijkolom, altijd open; mobiel en tab
   await geenHorizontaleScroll(page);
 });
 
-test('Zonder datum: afvinken gaat naar een eigen ingeklapte groep afgerond; de telling blijft zichtbaar; het gezinsfilter werkt zoals voorheen', async ({ page }) => {
+test('Zonder datum: afvinken gaat naar een eigen ingeklapte groep afgerond; de telling blijft zichtbaar; taken zonder persoon blijven bij elk filter', async ({ page }) => {
   await weergave(page, 'Week');
   await zdKnop(page).click();
   await zdLijst(page).getByRole('checkbox', { name: 'Aanslag gemeentebelasting nakijken' }).click();
@@ -277,9 +277,10 @@ test('Zonder datum: afvinken gaat naar een eigen ingeklapte groep afgerond; de t
   const lijst = page.getByRole('list', { name: 'Afgerond zonder datum' });
   await lijst.getByRole('checkbox', { name: 'Aanslag gemeentebelasting nakijken' }).click();
   await expect(zdKnop(page)).toHaveText('Zonder datum · 2 open · 9 uit plannen');
-  // Het filter werkt zoals voorheen (taakPast): met één lid gekozen vallen taken zonder persoon weg, met Iedereen komen ze terug.
+  // O7 (26 oktober 2026), gebouwd met besluit 20: een taak zonder persoon hoort bij het hele gezin en blijft ook met één
+  // lid gekozen zichtbaar (taakPast).
   await kiesFilter(page, 'Daan');
-  await expect(page.getByRole('heading', { name: /^Zonder datum/ })).toHaveCount(0);
+  await expect(zdLijst(page).getByRole('checkbox', { name: 'Aanslag gemeentebelasting nakijken' })).toBeVisible();
   await kiesFilter(page, 'Iedereen');
   await expect(zdKnop(page)).toHaveText('Zonder datum · 2 open · 9 uit plannen');
 });

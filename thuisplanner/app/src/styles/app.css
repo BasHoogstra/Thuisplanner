@@ -1019,3 +1019,35 @@ body.geen-scroll .melding-plek { opacity: 0; clip-path: inset(50%); }
   .agenda-titelrij .week-titel span { font-size: 19px; }
   .filter-knop:not(.aan) .filter-pijl { display: none; }
 }
+
+/* ---------- Overzicht (besluit 19): afspraken met de dag erbij, de hele-dagregel en de telregels ---------- */
+.overzicht .straks { margin-top: 6px; }
+.rij.compact .rij-tijd.met-dag { flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.rij-dag { font-size: 12px; font-weight: 600; color: var(--inkt-2); }
+/* Review PR #56 (P2): één regel, nooit breder dan het scherm; een lange titel wordt afgekapt, de rest is een telling. */
+.hele-dag-regel {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 6px; padding: 8px 2px;
+  border: 0; border-radius: 10px; background: none; color: var(--inkt-2); font: inherit; font-size: 14px; text-align: left;
+}
+@media (hover: hover) { .hele-dag-regel:hover { background: color-mix(in srgb, var(--vlak-2) 55%, transparent); } }
+.hele-dag-label { flex: 0 0 auto; }
+.hele-dag-titel { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--inkt); font-weight: 600; }
+.hele-dag-meer { flex: 0 0 auto; color: var(--inkt-2); font-weight: 600; }
+.hele-dag-pijl { flex: 0 0 auto; margin-left: auto; color: var(--inkt-2); }
+.uitklap-regel .te-laat { color: var(--fout); }
+.regel-link { color: var(--accent); }
+.overzicht .straks + .lijst { margin-top: 8px; }
+
+/* ---------- Besluit 20: persoonlijke instellingen. Alleen bestaande tokens; één kolom, grote tikvlakken. ---------- */
+.instellingen h1 { margin-top: 6px; }
+.instelling-waarde { flex: 0 0 auto; margin-top: 2px; color: var(--inkt-2); font-size: 15px; }
+.instelling-groep { margin: 0; padding: 0; border: 0; min-width: 0; }
+.instelling-groep legend { float: left; width: 100%; padding: 0; }
+.instelling-groep legend + * { clear: both; }
+.instelling-groep[disabled] { opacity: .6; }
+.instelling-regel { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 13px 16px; cursor: pointer; }
+.instelling-regel input { flex: 0 0 auto; width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
+.instelling-regel input:disabled { cursor: default; }
+.instellingen-voet { margin: 10px 2px 0; font-size: 14px; }
+.instellingen-reden { margin: 10px 2px 0; }
+.segment.vier { grid-template-columns: repeat(4, 1fr); }

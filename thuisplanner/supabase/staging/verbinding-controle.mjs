@@ -214,6 +214,13 @@ export const SCHEMA_PER_STAND = Object.freeze({
     Object.freeze({ schema: 'private', relaties: 10, functies: 133, policies: 0 }),
     Object.freeze({ schema: 'public', relaties: 20, functies: 47, policies: 45 }),
   ]),
+  // Plus de persoonlijke instellingen (migratie 20261124120000, besluit 20, PR V; nog niet online): +4 functies in private
+  // (voorkeur_geldig, voorkeuren_geldig, set_preference, reset_preferences), +2 in public (de wrappers), +1 tabel en
+  // +1 policy in public. Gemeten op een geïsoleerde lokale database met alle 25 migraties (24 november 2026).
+  '20261124120000': Object.freeze([
+    Object.freeze({ schema: 'private', relaties: 10, functies: 137, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 21, functies: 49, policies: 46 }),
+  ]),
 });
 
 // De opslag (Storage) per stand: tot en met migratie 27 niets; vanaf migratie 29 precies de privé-bucket "documenten" en

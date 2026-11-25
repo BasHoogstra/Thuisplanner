@@ -56,7 +56,7 @@ it('in de app: de Agenda loopt vast, de navigatie blijft werken en een ander sch
   expect(within(melding).getByRole('heading', { name: 'Dit scherm liep vast' })).toBeInTheDocument();
   expect(decodeURIComponent(within(melding).getByRole('link', { name: 'Meld dit' }).getAttribute('href')!)).toContain('Omgeving: demo');
   expect(document.body.textContent).not.toMatch(GEHEIM);
-  await user.click(within(nav).getByRole('link', { name: 'Vandaag' }));
+  await user.click(within(nav).getByRole('link', { name: 'Overzicht' }));
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Goedemorgen, Eva');
 });
