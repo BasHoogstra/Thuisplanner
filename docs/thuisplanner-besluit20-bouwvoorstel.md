@@ -36,6 +36,8 @@
 >   - **Verbergen is niet verwijderen.** Wat verborgen is, blijft bereikbaar via de Agenda, Boodschappen of een link.
 >     Geen instelling kan een scherm leeg maken; te laat en vandaag blijven zichtbaar zolang Te doen aan staat.
 >   - **Weinig instellingen.** Alleen wat een waargenomen behoefte oplost. Geen aantallen, kleuren of sorteringen.
+>   - *(Noot, 25 november 2026: de startschermregel hieronder is aangevuld met optie a; zie besluit 20 in
+>     `docs/productkompas-beslissingen.md`.)*
 >   - **Links gaan voor.** Een adres met een eigen scherm of item (een link, een uitnodiging, een melding) opent dat. Het
 >     startscherm geldt alleen als de app zonder eigen adres opent. Wisselen tussen schermen keert nooit vanzelf terug.
 >   - **Meldingen: herinneringen aan, activiteit uit.** Herinneringen aan eigen afspraken en taken staan standaard aan;
@@ -72,6 +74,9 @@ Overzicht, eigen sortering, thema's, "niet-toegewezen taken" als aparte schakela
 **Nu bestaat er niets hiervan:** de Agenda begint altijd op Week en Iedereen (`App.tsx:220`), het startscherm volgt
 alleen het adres (`App.tsx:213`, leeg = Overzicht), en er is geen instellingenscherm. Meer heeft Vakanties, Plannen,
 Spullen, Huishouden en Account.
+
+*(Noot, 25 november 2026: aangevuld met optie a. Bij een echte nieuwe start geldt het startscherm ook op een gewoon
+hoofdscherm; zie besluit 20 in `docs/productkompas-beslissingen.md`.)*
 
 **Startscherm, precies:** bij het openen zonder `#/…` in het adres (start van de beginscherm-app, een gewone bladwijzer
 naar de app) gaat Thuisplanner naar het gekozen scherm. Met een eigen adres (`#/agenda`, een melding, een uitnodiging,

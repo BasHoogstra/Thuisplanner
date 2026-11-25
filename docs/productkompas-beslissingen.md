@@ -447,8 +447,8 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   - **Weinig instellingen, elk met een rustige standaard.** Alleen wat een waargenomen behoefte oplost. Wat in de bèta
     nauwelijks wordt gebruikt, kan na de bèta weer weg (principe 8).
   - **Instellingen ook vanuit de schermen.** Instellingen zijn ook bereikbaar vanuit het scherm waar ze over gaan.
-  - **Links gaan voor.** Een adres met een eigen scherm of item (een link, een uitnodiging, een melding) opent dat. Het
-    startscherm geldt alleen als de app zonder eigen adres opent.
+  - **Links gaan voor.** Een adres met een eigen item (een link, een uitnodiging, een melding) opent dat. Wanneer het
+    startscherm geldt, staat in de aanvulling van 25 november hieronder.
   - **Meldingen:** per functie en per gebeurtenis, met persoonlijke herinneringstermijnen, meldingen voor toegewezen
     taken, een dagelijkse samenvatting, stille uren, voorkeuren per account, privacy op het vergrendelscherm en geen
     dubbele of overbodige meldingen. Nooit een melding over een eigen actie. Toestemming per toestel, pas als iemand
@@ -456,6 +456,18 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
   - **Privacy in de melding:** een privé-afspraak van een ander geeft nooit een melding; een eigen privé-afspraak toont
     geen titel; huishoudkennis, notities en plek staan nooit in een melding (besluit 14 en 16).
   - **Herstellen:** één knop zet de weergave terug naar de standaard; meldingen hebben een eigen herstelknop.
+- **Het startscherm, aanvulling van 25 november 2026 (optie a):**
+  - Zonder adres opent de app altijd op het startscherm.
+  - Bij een **echte nieuwe start** geldt het startscherm ook als het adres een gewoon hoofdscherm is (`#/vandaag`,
+    `#/agenda`, `#/boodschappen` of `#/meer`).
+  - Herladen houdt het adres.
+  - Een link naar een item, vakantie, plan, spullen of de instellingen, of een uitnodiging, opent altijd dat adres.
+  - Het startscherm geldt hoogstens één keer per paginalading. Wisselen tussen schermen keert nooit vanzelf terug.
+
+  Aanleiding: in de praktijk werkte het startscherm op de telefoon vrijwel nooit. Safari heropent de laatst bezochte
+  pagina, en een icoon op het beginscherm bewaart het adres van het moment waarop het werd gemaakt.
+- **Ook op 25 november:** de link "Agenda" op het Overzicht volgt de eigen standaardweergave. Is die Taken, dan opent
+  Week.
 - **Keuzes (25 november 2026):**
   - De fasering van de meldingen (herinneringen bij de start, daarna activiteit en samenvattingen, daarna verfijning) is
     de planningsrichting; waar parallel bouwen het verantwoord versnelt, mag het eerder.
