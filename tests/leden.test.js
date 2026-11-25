@@ -364,8 +364,8 @@ const tests = {
       const metLoisAlias = ms.filter(m => (m.aliases || []).some(a => a.toLowerCase() === 'lois'));
       assert(lois.length === 2 && !metLoisAlias.length, '[' + eerst + ' eerst] Inconsistent register: ' + JSON.stringify(ms));
       assert(new Set(ms.map(m => m.id)).size === ms.length, 'Dubbele ID\'s');
-      const cacheA = await A.page.evaluate(() => { const k = Object.keys(localStorage).find(x => x.startsWith('plannerCache_')); return JSON.stringify(JSON.parse(localStorage.getItem(k)).data.members); });
-      const cacheB = await B.page.evaluate(() => { const k = Object.keys(localStorage).find(x => x.startsWith('plannerCache_')); return JSON.stringify(JSON.parse(localStorage.getItem(k)).data.members); });
+      const cacheA = await A.page.evaluate(() => { const k = Object.keys(localStorage).find(x => /^(plannerCache_|huisplanCache_)/.test(x)); return JSON.stringify(JSON.parse(localStorage.getItem(k)).data.members); });
+      const cacheB = await B.page.evaluate(() => { const k = Object.keys(localStorage).find(x => /^(plannerCache_|huisplanCache_)/.test(x)); return JSON.stringify(JSON.parse(localStorage.getItem(k)).data.members); });
       assert(cacheA === JSON.stringify(ms) && cacheB === JSON.stringify(ms), '[' + eerst + ' eerst] Toestellen lopen uiteen');
       Object.keys(db.db.meta.members).forEach(k => ['same', 'different'].includes(k) && Object.keys(db.db.meta.members[k]).forEach(h => assert(/^p_[0-9a-f]{16}$/.test(h), 'Sleutel niet veilig voor Firebase: ' + h)));
       assert(!db.errors.length, 'Fouten: ' + db.errors.join(' | '));

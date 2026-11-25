@@ -9,7 +9,7 @@ async function addBood(page, text) {
   await page.press('#boodschapInput', 'Enter');
   await page.waitForTimeout(1500);
 }
-const cacheHas = (page, text) => page.evaluate(t => Object.keys(localStorage).some(k => k.startsWith('plannerCache_') && localStorage.getItem(k).includes(t)), text);
+const cacheHas = (page, text) => page.evaluate(t => Object.keys(localStorage).some(k => /^(plannerCache_|huisplanCache_)/.test(k) && localStorage.getItem(k).includes(t)), text);
 
 module.exports = {
   async 'verhuisde planner: melding, niets opslaan, lokale wijziging blijft bewaard'(ctx) {
