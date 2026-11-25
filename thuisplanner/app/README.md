@@ -97,9 +97,13 @@ Besluit 20 (bouwvoorstel §5.3) en de pushproef van besluit 16. Wat er is:
 
 Nog **niet**: echte herinneringen, toestellen of een verzendlog in de database (dat is P1, met gate 9).
 
+De checklist voor de proef op de telefoons (vooraf, per toestel, afsluiten) staat in
+[`docs/thuisplanner-pushproef-checklist.md`](../../docs/thuisplanner-pushproef-checklist.md).
+
 ### Wat er nodig is (elk met een eigen akkoord)
 
-1. **Een VAPID-sleutelpaar.** Bijvoorbeeld zo, op de eigen computer:
+1. **Een VAPID-sleutelpaar**, meteen het definitieve voor staging (= bèta; plan §2.10), zodat de abonnementen van de
+   proef in P1 blijven werken. Bijvoorbeeld zo, op de eigen computer:
 
    ```sh
    node -e "const e=require('crypto').createECDH('prime256v1');e.generateKeys();console.log('PUSHPROEF_VAPID_PUBLIC='+e.getPublicKey('base64url'));console.log('PUSHPROEF_VAPID_PRIVATE='+e.getPrivateKey('base64url'))" > .env.pushproef.local
@@ -107,7 +111,7 @@ Nog **niet**: echte herinneringen, toestellen of een verzendlog in de database (
 
    `.env.pushproef.local` staat buiten git (`.env.*`). De private sleutel gaat nooit in een `VITE_`-variabele, de
    Cloudflare-build of de repository; de stagingbuild weigert `VITE_…PRIVATE…`. Bewaar hem ook in de wachtwoordkluis:
-   P1 heeft hetzelfde paar nodig (dan als Supabase-geheim), anders moeten de abonnementen opnieuw.
+   P1 heeft hetzelfde paar nodig (dan als Supabase-geheim van `stuur-meldingen`), anders moeten de abonnementen opnieuw.
 2. **Een stagingbuild met de vlag.** In Cloudflare Pages (project `thuisplanner-staging`) twee extra
    omgevingsvariabelen: `VITE_PUSHPROEF` = `1` en `VITE_VAPID_PUBLIC_KEY` = de publieke sleutel. Daarna opnieuw
    uitrollen. Na de proef `VITE_PUSHPROEF` weer weghalen; de service worker en het manifest blijven.
