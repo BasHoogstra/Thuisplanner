@@ -214,6 +214,18 @@ export const SCHEMA_PER_STAND = Object.freeze({
     Object.freeze({ schema: 'private', relaties: 10, functies: 133, policies: 0 }),
     Object.freeze({ schema: 'public', relaties: 20, functies: 47, policies: 45 }),
   ]),
+  // Plus de besloten bèta (migratie 20261125120000, pakket P2: registratie op uitnodiging, L1, R4, L4, L5; nog niet
+  // online): +2 relaties in private (uitnodigingsmail_grenzen, k1_webhooks), +6 functies in private
+  // (k1_registratie_toegestaan, k1_nieuwe_code met adres, uitnodigingsmail_ontvanger, uitnodigingsmail_plek,
+  // k1_webhook_nieuw, wachtrij_url_toegestaan) en +2 in public (de wrappers k1_nieuwe_code met adres en k1_webhook_nieuw);
+  // k1_nieuwe_code zonder adres, uitnodigingsmail_plannen, uitnodigingsmail_opnieuw, k1_opruimen,
+  // uitnodigingsmail_aanroepen en documenten_opruimen_ronde zijn vervangen (zelfde aantal); drie kolommen erbij (tellen
+  // hier niet).
+  // Gemeten op de lokale stack thuisplanner_p2 met alle 25 migraties (25 november 2026).
+  '20261125120000': Object.freeze([
+    Object.freeze({ schema: 'private', relaties: 12, functies: 139, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 20, functies: 49, policies: 45 }),
+  ]),
 });
 
 // De opslag (Storage) per stand: tot en met migratie 27 niets; vanaf migratie 29 precies de privé-bucket "documenten" en

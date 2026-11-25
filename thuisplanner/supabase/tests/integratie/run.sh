@@ -17,7 +17,7 @@ cd "$HERE"
 [ -d node_modules ] || npm ci --no-audit --no-fund
 # API, Auth en Realtime; daarna gelijktijdigheid (aparte verbindingen) en de tegenproef daarvan:
 # zonder vergrendelingen moet elke race weer optreden.
-node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit integratie.test.mjs gelijktijdig.test.mjs sync.test.mjs herstel.test.mjs herstel2.test.mjs herstel3.test.mjs react.test.mjs p1p2.test.mjs uitnodiging.test.mjs poort.test.mjs k1.test.mjs uitnodigingsmail.test.mjs vakanties.test.mjs vakanties-sync.test.mjs spullen.test.mjs spullen-sync.test.mjs spullen-taakprivacy.test.mjs plannen-sync.test.mjs verwijderen-spullen.test.mjs export.test.mjs nacontrole.test.mjs
+node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit integratie.test.mjs gelijktijdig.test.mjs sync.test.mjs herstel.test.mjs herstel2.test.mjs herstel3.test.mjs react.test.mjs p1p2.test.mjs uitnodiging.test.mjs poort.test.mjs k1.test.mjs uitnodigingsmail.test.mjs besloten.test.mjs vakanties.test.mjs vakanties-sync.test.mjs spullen.test.mjs spullen-sync.test.mjs spullen-taakprivacy.test.mjs plannen-sync.test.mjs verwijderen-spullen.test.mjs export.test.mjs nacontrole.test.mjs
 # Verwijderen op verzoek (A9), AVG-inzage en het dagoverzicht (V6), elk met hun tegenproeven in de test zelf.
 node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit verwijderen.test.mjs avg-export.test.mjs dagoverzicht.test.mjs
 KG_TEGENPROEF=1 node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit gelijktijdig.test.mjs
@@ -27,7 +27,7 @@ KG_TEGENPROEF=1 node --test --test-concurrency=1 --test-timeout=600000 --test-fo
 # zijn regressietest falen.
 KG_TEGENPROEF=1 node --test --test-concurrency=1 --test-timeout=600000 --test-force-exit herstel.test.mjs herstel3.test.mjs
 node sync-tegenproeven.mjs
-# KG-5H deel 2 (K1): elke grens in de codelaag gesaboteerd moet zijn integratietest laten falen.
+# KG-5H deel 2 (K1) en de besloten bèta: elke grens in de codelaag gesaboteerd moet zijn integratietest laten falen.
 node k1-tegenproeven.mjs
 # F8 Vakanties (V1.2): elke teruggedraaide eigenschap van de vakantielaag in de sync laat zijn test falen.
 node vakanties-sync-tegenproeven.mjs

@@ -119,6 +119,9 @@ bevindingen gaan vooral over:
   - een grens voor de hele omgeving per dag;
   - een grens per ontvanger (via een HMAC van het adres, omdat het adres na het sluiten wordt gewist);
   - een deel van het tegoed vrijhouden voor inlogcodes.
+- **Gebouwd in P2** (migratie `20261125120000`, lokaal getest; nog niet online): hoogstens 5 uitnodigingsmails per
+  uitnodiger en 3 per ontvanger (HMAC van het adres) per 24 uur, naast de 20 per huishouden. Een grens voor de hele
+  omgeving en een vrij deel voor inlogcodes zijn niet gebouwd: met 5 gezinnen is de grens per account samen 25 per dag.
 
 ### R5. De export van stap 2b bevat onversleutelde persoonsgegevens
 - **Waar:** `C:\Users\Bas\Thuisplanner-exports\staging-2026-10-21`: twee adressen en de wachtwoordhashes uit `auth.users`.
@@ -132,11 +135,11 @@ bevindingen gaan vooral over:
 
 | # | Wat | Waar | Voorstel |
 | --- | --- | --- | --- |
-| L1 | Bij "registratie dicht" gaat er per aanvraag een uitlegmail weg, zonder grens per adres (en dat verraadt via de grenzen welke adressen een account hebben) | `k1_codelaag.sql:104`, `stuur-code/index.ts:27-30` | De controle ná de grenzen; hoogstens één uitlegmail per adres per dag. Op staging blijft registratie open, dus nu niet actief |
+| L1 | Bij "registratie dicht" gaat er per aanvraag een uitlegmail weg, zonder grens per adres (en dat verraadt via de grenzen welke adressen een account hebben) | `k1_codelaag.sql:104`, `stuur-code/index.ts:27-30` | De controle ná de grenzen; hoogstens één uitlegmail per adres per dag. Op staging blijft registratie open, dus nu niet actief. **Gebouwd in P2** (migratie `20261125120000`, lokaal getest; nog niet online): nu ook actief bij registratie op uitnodiging |
 | L2 | Elke onbekende aanvraag bij `controleer-code` maakt een rij in `k1_accounts` (pas na 30 dagen opgeruimd) | `k1_codelaag.sql:152, 234` | Opgelost met R2 |
 | L3 | `K1_CAPTCHA=uit` is een omweg zodra iemand het online zet; alleen de nacontrole vangt dat | `controleer-code/index.ts:26, 48` | In de functie `uit` weigeren als `SUPABASE_URL` niet lokaal is; `remoteip` en `hostname` meesturen naar siteverify |
-| L4 | Geen geheugen voor webhook-id's: een opgevangen verzoek (TLS gebroken) is 5 minuten opnieuw te gebruiken | `k1.ts:79-87`, `aanbieder.ts:234-236` | Een tabel met gezien-id's. Klein risico; vóór de bèta |
-| L5 | Het Vault-adres van de wachtrij mag `http://` zijn | `uitnodigingsmail_automatisch.sql:255` | Online alleen `https://`; ook in de nacontrole |
+| L4 | Geen geheugen voor webhook-id's: een opgevangen verzoek (TLS gebroken) is 5 minuten opnieuw te gebruiken | `k1.ts:79-87`, `aanbieder.ts:234-236` | Een tabel met gezien-id's. Klein risico; vóór de bèta. **Gebouwd in P2** voor de Send Email-hook (migratie `20261125120000`, lokaal getest; nog niet online); een herhaalde bezorgmelding heeft geen effect |
+| L5 | Het Vault-adres van de wachtrij mag `http://` zijn | `uitnodigingsmail_automatisch.sql:255` | Online alleen `https://`; ook in de nacontrole. **Database gebouwd in P2** (migratie `20261125120000`, lokaal getest; nog niet online): `http://` alleen naar een lokaal adres, voor het seintje én de opruimronde; de nacontrole hoort bij P3 |
 | L6 | Het namenfilter in mails laat Unicode-punten (`evil．com`) en telefoonnummers door | `mails.ts:312-315` | NFKC normaliseren vóór de controle |
 | L7 | Op staging blijft de sessie in `localStorage` (bewust: ingelogd blijven op de telefoon) | `sessie.ts:85` | Geaccepteerd voor twee eigen telefoons; "overal uitloggen" werkt direct |
 | L8 | De kenmerkcontrole loopt alleen via `npm run build:staging`, niet bij een losse `vite --mode staging` | `package.json:10` | Ook in `controleerOmgeving`, met een expliciete uitzondering voor de offline e2e. **Opgelost (lokaal, pakket P1, 25 november 2026):** `controleerOmgeving` (`scripts/staging-build.ts`) toetst bij elke online modus (staging, beta, productie) het kenmerk aan `omgevingen.json`. De enige uitzondering is `KG_E2E_NEPPROJECT=1` uit de procesomgeving, en die geldt alleen voor het verzonnen project `NEP_REF`; tegenproeven in `tests/omgeving.test.ts` en `e2e-beta/bewaking.spec.ts` |

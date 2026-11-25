@@ -162,10 +162,27 @@ export const isNetwerkfout = (e: unknown) => {
 // De Nederlandse meldingen van de codelaag (functions/stuur-code) komen ongewijzigd door; Engelse meldingen van Supabase
 // Auth zelf niet: die worden een eigen tekst per situatie.
 const EIGEN_MELDING = /^(Inloggen met een code|Er zijn net al|Versturen lukt nu niet|Deze actie is niet beschikbaar)/;
+// De eigen limieten van Supabase Auth (status 429), elk met een eerlijke wachttijd. Eén algemene "wacht even" liet in de
+// gezinsbèta niet zien dat de limiet een uur kon duren (de mailgrens van het hele project).
+function limietMelding(e: { message?: string; code?: string }): string {
+  const m = e.message ?? '';
+  const seconden = /after (\d+) seconds?/i.exec(m);
+  if (seconden) {
+    const n = Number(seconden[1]);
+    return n <= 1 ? 'Wacht een paar seconden voordat je een nieuwe code aanvraagt.' : `Wacht nog ${n} seconden voordat je een nieuwe code aanvraagt.`;
+  }
+  if (/email rate limit/i.test(m) || e.code === 'over_email_send_rate_limit') {
+    return 'Er zijn het afgelopen uur te veel codes verstuurd. Probeer het later opnieuw (uiterlijk over een uur).';
+  }
+  if (e.code === 'over_request_rate_limit' || /request rate limit/i.test(m)) {
+    return 'Er zijn net te veel aanvragen gedaan. Probeer het over een paar minuten opnieuw.';
+  }
+  return 'Wacht even voordat je een nieuwe code aanvraagt.';
+}
 function aanvraagFout(e: { status?: number; message?: string; code?: string; name?: string }): string {
   if (e.message && EIGEN_MELDING.test(e.message)) return e.message;
   if (isNetwerkfout(e)) return 'Geen verbinding. Controleer je internet en probeer het opnieuw.';
-  if (e.status === 429) return 'Wacht even voordat je een nieuwe code aanvraagt.';
+  if (e.status === 429) return limietMelding(e);
   if (e.code === 'captcha_failed') return 'Bevestig eerst dat je geen robot bent, en probeer het dan opnieuw.';
   return 'Een code aanvragen lukte nu niet. Controleer het adres en probeer het opnieuw.';
 }

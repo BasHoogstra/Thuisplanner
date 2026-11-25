@@ -895,3 +895,52 @@ gezinsgegevens.
 6. Doorzetten naar bèta; jouw toestelproef (§7.2).
 7. Externe testers.
 
+
+## 29. Besloten bèta: registratie alleen op uitnodiging (pakket P2, 25 november 2026)
+
+Besluit van de producteigenaar (roadmap, "Besloten bèta op uitnodiging", voorwaarde V4): geen openbare registratie.
+Migratie `20261125120000_besloten_beta_registratie.sql`, Edge Function `stuur-code`, tests in
+`tests/integratie/besloten.test.mjs` met tegenproeven in `k1-tegenproeven.mjs`.
+
+**Wie krijgt een account.** Een nieuw account (soort `signup`) krijgt alleen een code als `registratie_open` aan staat
+én het adres:
+- op de testerslijst staat (G1, `private.testers`); of
+- een open uitnodiging heeft (niet geaccepteerd, ingetrokken, geweigerd of verlopen); of
+- `huishouden_open` aan staat. Dat is de commerciële start: wie een huishouden mag maken, mag ook een account maken.
+  In de bèta staat `huishouden_open` uit (de nacontrole eist dat).
+
+Iedereen anders krijgt **hetzelfde antwoord** als een bestaand account (de app ziet geen verschil, dus geen
+adresverraad) en de uitlegmail "Thuisplanner is nog in een besloten test", zonder code. Bestaande accounts loggen gewoon
+in. `registratie_open` blijft aan, anders kunnen partners met een uitnodiging geen account maken. Supabase Auth legt het
+onbevestigde account zelf al vast vóór de hook; zonder code kan het nooit bevestigd worden, en `k1_opruimen` wist het na
+24 uur (zoals voorheen bij "registratie dicht"). Het adres zelf gaat alleen bij `signup` naar de database (die kent de
+pepper niet, dus vergelijken kan alleen op het adres); het wordt daar niet bewaard.
+
+**L1: de uitlegmail.** De controle staat ná de grenzen per adres (5 per kwartier, 8 per dag). Een onbekend adres loopt
+dus op dezelfde aanvraag vast als een bestaand account, en de grenzen verraden niet meer welke adressen een account
+hebben. De uitlegmail gaat hoogstens één keer per adres per 24 uur (`k1_accounts.uitleg_op`); daarna hetzelfde antwoord
+zonder mail.
+
+**R4: uitnodigingsmails.** Naast de 20 per huishouden per 24 uur nu ook (in `private.uitnodigingsmail_grenzen`):
+- **5 per uitnodiger** per 24 uur, over al zijn huishoudens samen (was 10 huishoudens × 20 = 200);
+- **3 per ontvanger** per 24 uur, van alle uitnodigers samen. De wachtrij bewaart daarvoor een HMAC van het adres met een
+  willekeurige sleutel die alleen de database kent; het adres zelf blijft er niet in. Opnieuw uitnodigen begint dus
+  niet meer bij nul.
+
+Boven een grens blijft de uitnodiging geldig en gaat de mail niet (stand "daglimiet"); "nog eens sturen" geeft dan
+TPM03, zoals bij de grens per huishouden. De app hoeft niets nieuws te vertalen.
+
+**L4: webhook-id's.** De Send Email-hook onthoudt elke webhook-id 24 uur (`private.k1_webhooks`, een SHA-256 van de id).
+Een opgevangen, geldig ondertekend verzoek is daarna niet nog eens bruikbaar (401, geen code, geen mail); van gelijke
+verzoeken tegelijk wordt er precies één verwerkt. De bezorgmeldingen van de mailaanbieder (`mail-bezorging`) houden geen
+geheugen: een herhaalde melding zet dezelfde stand nog eens (geen effect), en Lettermint geeft geen eigen id per
+melding.
+
+**L5: het wachtrij-adres.** De database roept de Edge Functions (het seintje voor uitnodigingsmails en de opruimronde
+van documenten) aan met het wachtrijgeheim in een kop, op het adres uit Vault. Dat adres moet `https://` zijn; `http://`
+alleen naar een lokaal adres (127.0.0.1, localhost, host.docker.internal, of de gateway `kong` / `supabase_kong_<project>`
+van een lokale stack). Anders roept de database niets aan, en wachten de mails tot het adres klopt.
+
+**Uitrolvolgorde.** Eerst de migratie, dan de Edge Function. Tussendoor gebruikt de oude functie de oude ingang van
+`k1_nieuwe_code` (zonder adres); die volgt de nieuwe regel en weigert dan elk nieuw account (fail-closed). Inloggen
+werkt door.
