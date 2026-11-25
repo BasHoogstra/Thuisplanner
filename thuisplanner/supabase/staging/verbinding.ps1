@@ -14,7 +14,7 @@
 #   -VoorStap6 (bij -Push): de twee Vault-waarden mogen in de nacontrole nog ontbreken (die zet de producteigenaar in
 #                         stap 6f); ze worden dan als "verwacht" getoond. Al het andere blijft een afwijking.
 #
-# - De session-pooler-URI plak je met de tekst [YOUR-PASSWORD] erin: daar staat geen geheim in.
+# - De session-pooler-URI plak je met de tekst [YOUR-PASSWORD] of [YOUR-DATABASE-PASSWORD] erin: daar staat geen geheim in.
 # - Het wachtwoord typ je bij een verborgen prompt. Het komt niet in de terminalgeschiedenis (Read-Host wordt niet
 #   opgeslagen), niet op het scherm, niet in een bestand en niet in de repository. Het staat alleen tijdens dit script
 #   in PGPASSWORD van dit proces, en wordt aan het eind gewist, ook bij een fout.
@@ -73,8 +73,10 @@ try {
     Write-Host ('  commit ' + (git -C $thuisplanner rev-parse --short HEAD) + ', branch ' + (git -C $thuisplanner rev-parse --abbrev-ref HEAD))
   }
 
-  $uri = Read-Host 'Plak de Session pooler-URI uit het dashboard (met [YOUR-PASSWORD] erin)'
-  $uri = $uri.Trim().Replace(':[YOUR-PASSWORD]@', '@')
+  $uri = Read-Host 'Plak de Session pooler-URI uit het dashboard (met [YOUR-PASSWORD] of [YOUR-DATABASE-PASSWORD] erin)'
+  # Alleen de twee letterlijke plaatshouders van het dashboard verdwijnen (oud en nieuw). Elk ander wachtwoord in de URI
+  # blijft staan en wordt door de controle geweigerd ("hoort alleen in PGPASSWORD").
+  $uri = $uri.Trim().Replace(':[YOUR-PASSWORD]@', '@').Replace(':[YOUR-DATABASE-PASSWORD]@', '@')
   $geheim = Read-Host 'Databasewachtwoord (wordt niet getoond)' -AsSecureString
   $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($geheim)
   try { $env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
