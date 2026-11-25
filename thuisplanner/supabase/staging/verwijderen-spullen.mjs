@@ -14,10 +14,9 @@
 //
 // db is een verbonden pg-client met de rechten van postgres (zoals export.mjs).
 //
-// STATUS (30 oktober 2026): voorbereidend. Nog NIET geïntegreerd met A9 (dat script bestaat nog niet). Bewezen is alleen
-// het deel van Mijn spullen, lokaal, in tests/integratie/verwijderen-spullen.test.mjs (de stappen van A9 nagespeeld). De
-// volledige verwijdering van een account of huishouden is daarom nog niet end-to-end gevalideerd: dat vraagt A9 met
-// zijn eigen integratietest en de proef op de bèta (§5.4).
+// STATUS (25 november 2026): geïntegreerd in A9 (staging/verwijderen.mjs, via verwijderen.ps1). Lokaal end-to-end bewezen
+// in tests/integratie/verwijderen.test.mjs (beide varianten, met tegenproeven) en, voor dit deel apart, in
+// tests/integratie/verwijderen-spullen.test.mjs. De proef op de bèta (§5.4) volgt nog.
 
 const BUCKET = 'documenten';
 
