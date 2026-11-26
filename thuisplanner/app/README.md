@@ -106,7 +106,7 @@ De checklist voor de proef op de telefoons (vooraf, per toestel, afsluiten) staa
    proef in P1 blijven werken. Bijvoorbeeld zo, op de eigen computer:
 
    ```sh
-   node -e "const e=require('crypto').createECDH('prime256v1');e.generateKeys();console.log('PUSHPROEF_VAPID_PUBLIC='+e.getPublicKey('base64url'));console.log('PUSHPROEF_VAPID_PRIVATE='+e.getPrivateKey('base64url'))" > .env.pushproef.local
+   node -e "const j=require('crypto').generateKeyPairSync('ec',{namedCurve:'prime256v1'}).privateKey.export({format:'jwk'});const p=Buffer.concat([Buffer.from([4]),Buffer.from(j.x,'base64url'),Buffer.from(j.y,'base64url')]);console.log('PUSHPROEF_VAPID_PUBLIC='+p.toString('base64url'));console.log('PUSHPROEF_VAPID_PRIVATE='+j.d)" > .env.pushproef.local
    ```
 
    `.env.pushproef.local` staat buiten git (`.env.*`). De private sleutel gaat nooit in een `VITE_`-variabele, de

@@ -18,6 +18,8 @@ import * as stuur from '../scripts/pushproef-stuur.mjs';
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lees = (p: string) => readFileSync(path.join(APP, p));
 const b64u = (b: Uint8Array) => Buffer.from(b).toString('base64url');
+/** De private sleutel als 32 bytes: ECDH.getPrivateKey laat voorloopnullen weg (ongeveer 1 op 256 sleutels). */
+const privaat32 = (e: { getPrivateKey(): Buffer }) => { const d = e.getPrivateKey(); return Buffer.concat([Buffer.alloc(32 - d.length), d]); };
 
 /** De alfa van de pixel linksboven (8 bits; RGB zonder alfa is dekkend). Voor de eerste pixel geeft elk PNG-filter de ruwe waarde. */
 function hoekAlfa(bestand: Buffer): number {
@@ -245,7 +247,7 @@ describe('verzendscript (scripts/pushproef-stuur.mjs)', () => {
     const versleuteld = body.subarray(21 + idlen);
     expect(rs).toBe(4096);
     const uaPub = ua.getPublicKey();
-    const jwk = { kty: 'EC', crv: 'P-256', d: b64u(ua.getPrivateKey()), x: b64u(uaPub.subarray(1, 33)), y: b64u(uaPub.subarray(33)) };
+    const jwk = { kty: 'EC', crv: 'P-256', d: b64u(privaat32(ua)), x: b64u(uaPub.subarray(1, 33)), y: b64u(uaPub.subarray(33)) };
     const priv = await subtle.importKey('jwk', jwk, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
     const pub = await subtle.importKey('raw', asPubliek, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
     const gedeeld = new Uint8Array(await subtle.deriveBits({ name: 'ECDH', public: pub }, priv, 256));
@@ -282,6 +284,16 @@ describe('verzendscript (scripts/pushproef-stuur.mjs)', () => {
     const geldig = await subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, Buffer.from(m[3], 'base64url'), Buffer.from(`${m[1]}.${m[2]}`));
     expect(geldig).toBe(true);
     expect(() => stuur.vapidKop('https://x.nl/', v, { onderwerp: 'iemand@voorbeeld.nl' })).toThrow(/mailto: of https/);
+  });
+
+  it('een private sleutel zonder voorloopnul (31 bytes, zoals ECDH.getPrivateKey die soms geeft) is dezelfde sleutel', () => {
+    // Zoek een sleutel die met een nulbyte begint; deterministisch genoeg (gemiddeld 256 pogingen).
+    let e = createECDH('prime256v1');
+    do { e = createECDH('prime256v1'); e.generateKeys(); } while (privaat32(e)[0] !== 0);
+    const kort = privaat32(e).subarray(1);
+    const v = stuur.vapidSleutel(b64u(e.getPublicKey()), b64u(kort));
+    expect(v.publiek).toBe(b64u(e.getPublicKey()));
+    expect(() => stuur.vapidSleutel(b64u(e.getPublicKey()), b64u(Buffer.concat([Buffer.from([1]), privaat32(e)])))).toThrow(/32 bytes/);
   });
 
   it('weigert sleutels die niet bij elkaar horen, ontbreken of de verkeerde lengte hebben', () => {

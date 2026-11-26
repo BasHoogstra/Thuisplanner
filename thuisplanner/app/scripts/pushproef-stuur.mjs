@@ -45,7 +45,10 @@ export function vapidSleutel(publiek, privaat) {
   if (!publiek) throw new Error('PUSHPROEF_VAPID_PUBLIC (of VITE_VAPID_PUBLIC_KEY) ontbreekt.');
   if (!privaat) throw new Error('PUSHPROEF_VAPID_PRIVATE ontbreekt.');
   const pub = vanB64u(publiek, 'De publieke VAPID-sleutel');
-  const d = vanB64u(privaat, 'De private VAPID-sleutel');
+  // Een private sleutel is een getal van 32 bytes. Sommige hulpmiddelen (zoals ECDH.getPrivateKey) laten voorloopnullen
+  // weg; dat is dezelfde sleutel, dus links aanvullen tot 32 bytes.
+  const kort = vanB64u(privaat, 'De private VAPID-sleutel');
+  const d = kort.length > 0 && kort.length < 32 ? Buffer.concat([Buffer.alloc(32 - kort.length), kort]) : kort;
   if (pub.length !== 65 || pub[0] !== 0x04) throw new Error('De publieke VAPID-sleutel moet 65 bytes zijn (begint met B).');
   if (d.length !== 32) throw new Error('De private VAPID-sleutel moet 32 bytes zijn.');
   const ecdh = createECDH('prime256v1');
