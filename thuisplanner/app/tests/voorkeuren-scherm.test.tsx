@@ -239,8 +239,32 @@ describe('online opslag: volgorde en fouten (review PR #58)', () => {
   });
 });
 
-it('openen zonder adres zet het adres vast op het startscherm, zodat een latere herstart niet verspringt', () => {
+it('openen zonder adres schrijft geen adres meer: de telefoon onthoudt dan geen #/vandaag', () => {
   window.history.replaceState(null, '', '/?nu=2026-10-10T11:20');
   render(<App />);
-  expect(window.location.hash).toBe('#/vandaag');
+  expect(window.location.hash).toBe('');
+});
+
+it('Overzicht → "Agenda" volgt de eigen standaardweergave (25 november); Taken als standaard geeft Week', async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await naarInstellingen(user, 'Agenda en taken');
+  await user.click(screen.getByRole('radio', { name: 'Maand' }));
+  await user.click(within(screen.getByRole('navigation', { name: 'Hoofdnavigatie' })).getByRole('link', { name: 'Overzicht' }));
+  await user.click(screen.getByRole('button', { name: /^Agenda/ }));
+  expect(screen.getByRole('tab', { name: 'Maand' })).toHaveAttribute('aria-selected', 'true');
+  await naarInstellingen(user, 'Agenda en taken');
+  await user.click(screen.getByRole('radio', { name: 'Taken' }));
+  await user.click(within(screen.getByRole('navigation', { name: 'Hoofdnavigatie' })).getByRole('link', { name: 'Overzicht' }));
+  await user.click(screen.getByRole('button', { name: /^Agenda/ }));
+  expect(screen.getByRole('tab', { name: 'Week' })).toHaveAttribute('aria-selected', 'true');
+});
+
+it('de schakelaars hebben een eigen naam voor schermlezers', async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await naarInstellingen(user, 'Overzicht');
+  for (const naam of ['Afspraken', 'Te doen', 'Boodschappen', 'Vakantie en suggestie']) {
+    expect(screen.getByRole('switch', { name: naam })).toHaveAttribute('aria-label', naam);
+  }
 });

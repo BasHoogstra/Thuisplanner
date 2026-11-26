@@ -70,7 +70,10 @@ export function Vandaag() {
   const heleDagNamen = komend.heleDag.map(a => titelVoor(a, huishouden.ik));
   // Besluit 20: welke onderdelen dit account wil zien. Verbergen is niet verwijderen: alles blijft in de Agenda en bij
   // Boodschappen. De kop met de samenvatting blijft altijd staan.
-  const toon = (app.voorkeuren?.voorkeuren ?? STANDAARD).overzicht;
+  const eigen = app.voorkeuren?.voorkeuren ?? STANDAARD;
+  const toon = eigen.overzicht;
+  // De link "Agenda" bij Afspraken volgt de eigen standaardweergave (besluit 20); de takenweergave past daar niet, dan Week.
+  const agendaWeergave = eigen.agendaWeergave === 'taken' ? 'week' : eigen.agendaWeergave;
 
   return (
     <div className="vandaag overzicht">
@@ -91,7 +94,7 @@ export function Vandaag() {
             <section aria-labelledby="h-afspraken" className="overzicht-blok">
               <div className="blok-kop">
                 <h2 id="h-afspraken" className="sectie-kop">Afspraken</h2>
-                <button type="button" className="link blok-link" onClick={() => naarAgenda({ weergave: 'week', datum: vandaag })}>
+                <button type="button" className="link blok-link" onClick={() => naarAgenda({ weergave: agendaWeergave, datum: vandaag })}>
                   Agenda <IcPijl />
                 </button>
               </div>

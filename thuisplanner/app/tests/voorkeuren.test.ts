@@ -1,5 +1,6 @@
 // Besluit 20: de pure regels van de persoonlijke voorkeuren (lib/voorkeuren.ts).
 import {
+  isNieuweStart, neemStartBeurt, vergeetStartBeurt,
   bewaarCache, isGeldig, isStandaard, leesCache, magUit, metWaarde, naarOpslag, SLEUTELS, STANDAARD, startDoel, uitOpslag,
   vergeetCaches,
 } from '../src/lib/voorkeuren';
@@ -71,6 +72,19 @@ describe('startscherm', () => {
     expect(startDoel('', null)).toBeNull();
     expect(startDoel('', STANDAARD)).toBeNull();
   });
+  it('nieuwe start (25 november, optie a): ook een gewoon hoofdscherm gaat naar het startscherm', () => {
+    for (const h of ['#/vandaag', '#/boodschappen', '#/meer', '#/vandaag/']) expect(startDoel(h, agenda, true)).toBe('agenda');
+    expect(startDoel('#/agenda', agenda, true)).toBeNull();   // staat er al
+    expect(startDoel('#/agenda', metWaarde(STANDAARD, 'startscherm', 'taken'), true)).toBe('taken');
+  });
+  it('herladen (geen nieuwe start) houdt een hoofdscherm; een link naar iets bijzonders wint altijd', () => {
+    expect(startDoel('#/vandaag', agenda, false)).toBeNull();
+    for (const h of ['#/vakanties/v1', '#/plannen/p1', '#/spullen/documenten', '#/instellingen/overzicht', '#/onbekend']) {
+      expect(startDoel(h, agenda, true)).toBeNull();
+    }
+    expect(startDoel('#/vandaag', null, true)).toBeNull();
+    expect(startDoel('#/agenda', STANDAARD, true)).toBeNull();
+  });
   it('taken en boodschappen', () => {
     expect(startDoel('', metWaarde(STANDAARD, 'startscherm', 'taken'))).toBe('taken');
     expect(startDoel('', metWaarde(STANDAARD, 'startscherm', 'boodschappen'))).toBe('boodschappen');
@@ -98,5 +112,28 @@ describe('kopie op dit toestel', () => {
     expect(leesCache('x')).toBeNull();
     localStorage.setItem('thuisplanner-voorkeuren:x', '{"startscherm":"spullen"}');
     expect(leesCache('x')).toEqual(STANDAARD);
+  });
+});
+
+describe('één startbeurt per paginalading', () => {
+  it('alleen de eerste keer; daarna niet meer, tot een nieuwe paginalading', () => {
+    vergeetStartBeurt();
+    expect(neemStartBeurt()).toBe(true);
+    expect(neemStartBeurt()).toBe(false);
+    vergeetStartBeurt();
+    expect(neemStartBeurt()).toBe(true);
+  });
+  it('nieuwe start volgt het soort navigatie; zonder gegevens de veilige kant', () => {
+    const echt = performance.getEntriesByType;
+    try {
+      performance.getEntriesByType = (() => [{ type: 'navigate' }]) as unknown as typeof performance.getEntriesByType;
+      expect(isNieuweStart()).toBe(true);
+      performance.getEntriesByType = (() => [{ type: 'reload' }]) as unknown as typeof performance.getEntriesByType;
+      expect(isNieuweStart()).toBe(false);
+      performance.getEntriesByType = (() => [{ type: 'back_forward' }]) as unknown as typeof performance.getEntriesByType;
+      expect(isNieuweStart()).toBe(false);
+      performance.getEntriesByType = (() => []) as unknown as typeof performance.getEntriesByType;
+      expect(isNieuweStart()).toBe(false);
+    } finally { performance.getEntriesByType = echt; }
   });
 });
