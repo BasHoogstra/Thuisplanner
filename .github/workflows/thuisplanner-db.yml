@@ -67,6 +67,13 @@ jobs:
       - name: Lokale geheimen voor de codelaag (K1), willekeurig en alleen voor deze run
         working-directory: thuisplanner
         run: node supabase/k1-lokaal.mjs
+      - name: Poorten van de stack reserveren
+        # 55320–55329 (de stack en de nagebootste mailaanbieder op API + 7) vallen in het Linux-bereik voor tijdelijke
+        # uitgaande poorten (32768–60999). Een gewone verbinding kon 55328 zo bezet houden (EADDRINUSE in de mailtests,
+        # CI van PR #56 en #60 op 25 november 2026). Gereserveerd deelt de kernel ze niet meer uit; luisteren blijft kunnen.
+        run: |
+          sudo sysctl -w net.ipv4.ip_local_reserved_ports=55320-55329
+          sysctl net.ipv4.ip_local_reserved_ports
       - name: Lokale Supabase starten
         # Met de Edge Runtime: de Send Email-hook (K1) en controleer-code draaien daarin. Met Storage: Mijn spullen &
         # Documenten (migratie 29) maakt de privé-bucket "documenten"; de scheidingstests lopen tegen de echte Storage.
