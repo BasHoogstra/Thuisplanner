@@ -86,7 +86,8 @@ Besluit 20 (bouwvoorstel §5.3) en de pushproef van besluit 16. Wat er is:
   en maskable, plus een beginschermpictogram voor iOS. Alles komt uit `../ontwerp/pictogram.svg`
   (`node scripts/pictogrammen.mjs` maakt de PNG's opnieuw).
 - `public/sw.js`: een service worker die **alleen** `push` (melding tonen) en `notificationclick` (de app openen of
-  focussen op het adres uit de melding, nooit een adres buiten de app) afhandelt. Geen fetch-handler en geen cache,
+  focussen op het adres uit de melding, nooit een adres buiten de app) afhandelt. Dat adres krijgt `?van=melding`, zodat
+  de startschermvoorkeur een meldingsdoel niet vervangt (`isNieuweStart` in `src/lib/voorkeuren.ts`). Geen fetch-handler en geen cache,
   ook niet van statische bestanden (besluit 17). Registratie in `src/pwa/registreer.ts`: alleen in een productiebuild,
   op https (of 127.0.0.1), via het vaste pad `./sw.js` met de hele app als scope.
 - De pushproef (`src/pwa/`): alleen in een build met `VITE_PUSHPROEF=1`. Dan staat boven de app één regel

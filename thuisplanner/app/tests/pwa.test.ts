@@ -147,14 +147,20 @@ describe('service worker (public/sw.js)', () => {
     await wacht('notificationclick', { notification: { close, data: { url: 'https://thuisplanner-staging.pages.dev/#/agenda' } } });
     expect(close).toHaveBeenCalled();
     expect(venster.focus).toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith('https://thuisplanner-staging.pages.dev/#/agenda');
+    expect(navigate).toHaveBeenCalledWith('https://thuisplanner-staging.pages.dev/?van=melding#/agenda');
     expect(openWindow).not.toHaveBeenCalled();
   });
 
   it('notificationclick: geen open venster → de app openen; een vreemd adres wordt de start van de app', async () => {
     const { wacht, openWindow } = laadServiceWorker();
     await wacht('notificationclick', { notification: { close: vi.fn(), data: { url: 'https://voorbeeld.nl/' } } });
-    expect(openWindow).toHaveBeenCalledWith('https://thuisplanner-staging.pages.dev/');
+    expect(openWindow).toHaveBeenCalledWith('https://thuisplanner-staging.pages.dev/?van=melding');
+  });
+
+  it('notificationclick: het doel krijgt ?van=melding vóór de hash, zodat het startscherm het niet vervangt (review #57)', async () => {
+    const { wacht, openWindow } = laadServiceWorker();
+    await wacht('notificationclick', { notification: { close: vi.fn(), data: { url: 'https://thuisplanner-staging.pages.dev/#/agenda' } } });
+    expect(openWindow).toHaveBeenCalledWith('https://thuisplanner-staging.pages.dev/?van=melding#/agenda');
   });
 
   it('notificationclick: lukt navigeren niet (venster niet beheerd), dan blijft het venster gewoon open', async () => {

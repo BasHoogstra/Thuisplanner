@@ -27,6 +27,16 @@ function veiligAdres(adres) {
   return scope;
 }
 
+// Een klik op een melding opent een expliciet doel. Het merk ?van=melding (vóór de hash) laat de app zien dat het geen
+// gewone start is, zodat de startschermvoorkeur dit doel niet vervangt (isNieuweStart in src/lib/voorkeuren.ts).
+var HERKOMST = 'van';
+var HERKOMST_MELDING = 'melding';
+function meldingAdres(adres) {
+  var u = new URL(veiligAdres(adres));
+  u.searchParams.set(HERKOMST, HERKOMST_MELDING);
+  return u.href;
+}
+
 function tekst(waarde, max) {
   return typeof waarde === 'string' && waarde.trim() ? waarde.trim().slice(0, max) : '';
 }
@@ -59,7 +69,7 @@ self.addEventListener('push', function (event) {
 
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-  var doel = veiligAdres(event.notification.data && event.notification.data.url);
+  var doel = meldingAdres(event.notification.data && event.notification.data.url);
   var scope = self.registration.scope;
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (vensters) {
     var open = vensters.filter(function (c) { return c.url.indexOf(scope) === 0; })[0];
