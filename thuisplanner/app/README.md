@@ -103,18 +103,26 @@ De checklist voor de proef op de telefoons (vooraf, per toestel, afsluiten) staa
 ### Wat er nodig is (elk met een eigen akkoord)
 
 1. **Een VAPID-sleutelpaar**, meteen het definitieve voor staging (= bèta; plan §2.10), zodat de abonnementen van de
-   proef in P1 blijven werken. Bijvoorbeeld zo, op de eigen computer:
+   proef in P1 blijven werken. Eenmalig, op de eigen computer (PowerShell of een andere terminal), zonder netwerk:
 
    ```sh
-   node -e "const j=require('crypto').generateKeyPairSync('ec',{namedCurve:'prime256v1'}).privateKey.export({format:'jwk'});const p=Buffer.concat([Buffer.from([4]),Buffer.from(j.x,'base64url'),Buffer.from(j.y,'base64url')]);console.log('PUSHPROEF_VAPID_PUBLIC='+p.toString('base64url'));console.log('PUSHPROEF_VAPID_PRIVATE='+j.d)" > .env.pushproef.local
+   cd thuisplanner/app
+   node scripts/vapid-maak.mjs
    ```
 
-   `.env.pushproef.local` staat buiten git (`.env.*`). De private sleutel gaat nooit in een `VITE_`-variabele, de
-   Cloudflare-build of de repository; de stagingbuild weigert `VITE_…PRIVATE…`. Bewaar hem ook in de wachtwoordkluis:
-   P1 heeft hetzelfde paar nodig (dan als Supabase-geheim van `stuur-meldingen`), anders moeten de abonnementen opnieuw.
-2. **Een stagingbuild met de vlag.** In Cloudflare Pages (project `thuisplanner-staging`) twee extra
-   omgevingsvariabelen: `VITE_PUSHPROEF` = `1` en `VITE_VAPID_PUBLIC_KEY` = de publieke sleutel. Daarna opnieuw
-   uitrollen. Na de proef `VITE_PUSHPROEF` weer weghalen; de service worker en het manifest blijven.
+   Het script schrijft `.env.pushproef.local` zelf (UTF-8 zonder BOM), overschrijft nooit een bestaand bestand, stopt
+   als git het bestand niet negeert (`.env.*`), en toont **alleen de publieke sleutel**. Gebruik níet `> bestand` in
+   Windows PowerShell 5.1: dat schrijft UTF-16 of een BOM, en dan leest `node --env-file` de sleutels niet.
+
+   Zet daarna de private sleutel in de wachtwoordkluis: open het bestand (`notepad .env.pushproef.local`) en kopieer de
+   waarde achter `PUSHPROEF_VAPID_PRIVATE=`. Hij gaat nooit in chat, een log, een `VITE_`-variabele, de Cloudflare-build
+   of de repository; de stagingbuild weigert `VITE_…PRIVATE…`. P1 heeft hetzelfde paar nodig (dan als Supabase-geheim van
+   `stuur-meldingen`, met een eigen akkoord), anders moeten de abonnementen opnieuw.
+2. **Een stagingbuild met de vlag.** In Cloudflare Pages (project `thuisplanner-staging`, omgeving Production) twee
+   extra omgevingsvariabelen: `VITE_PUSHPROEF` = `1` en `VITE_VAPID_PUBLIC_KEY` = de publieke sleutel. Pages bouwt
+   `thuisplanner-staging` automatisch: staan de variabelen er vóór de merge van deze PR, dan is die merge meteen de
+   proefbuild; anders daarna opnieuw uitrollen (Retry deployment). Na de proef `VITE_PUSHPROEF` weer weghalen en opnieuw
+   uitrollen; de service worker, het manifest en `VITE_VAPID_PUBLIC_KEY` blijven.
 3. **De telefoons** van Bas en Sanne, en een computer met dit script.
 
 ### De proef

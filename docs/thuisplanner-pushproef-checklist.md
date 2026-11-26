@@ -10,10 +10,10 @@ Techniek en opdrachten: `thuisplanner/app/README.md`, sectie "PWA en pushproef (
 
 | # | Wat | Wie | Klaar |
 | --- | --- | --- | --- |
-| V1 | PR #57 gemerged in `thuisplanner-staging` | Bas | ☐ |
-| V2 | Het **definitieve** VAPID-sleutelpaar voor staging (= bèta, plan §2.10) gemaakt. Private sleutel alleen in de wachtwoordkluis en in `thuisplanner/app/.env.pushproef.local` op de computer van de proef | Bas | ☐ |
-| V3 | In Cloudflare Pages (`thuisplanner-staging`): `VITE_PUSHPROEF` = `1` en `VITE_VAPID_PUBLIC_KEY` = de publieke sleutel | Bas | ☐ |
-| V4 | Nieuwe uitrol van staging; op staging staat boven de app de regel **Pushproef** | Bas | ☐ |
+| V1 | Review van PR #57 (nog niet mergen) | Bas | ☐ |
+| V2 | Het **definitieve** VAPID-sleutelpaar voor staging (= bèta, plan §2.10) gemaakt met `node scripts/vapid-maak.mjs` (in `thuisplanner/app`). Private sleutel alleen in de wachtwoordkluis en in `thuisplanner/app/.env.pushproef.local` op de computer van de proef | Bas | ☐ |
+| V3 | In Cloudflare Pages (`thuisplanner-staging`, omgeving Production): `VITE_PUSHPROEF` = `1` en `VITE_VAPID_PUBLIC_KEY` = de publieke sleutel | Bas | ☐ |
+| V4 | PR #57 gemerged in `thuisplanner-staging`: Pages bouwt die branch automatisch, dus dit is de uitrol, meteen met de proefvlag. Op staging staat boven de app de regel **Pushproef** | Bas | ☐ |
 | V5 | Een computer met Node 22+ en deze repository (voor het verzendscript) | Bas | ☐ |
 
 ## Per toestel: aanmelden
