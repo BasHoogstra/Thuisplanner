@@ -214,6 +214,13 @@ export const SCHEMA_PER_STAND = Object.freeze({
     Object.freeze({ schema: 'private', relaties: 10, functies: 133, policies: 0 }),
     Object.freeze({ schema: 'public', relaties: 20, functies: 47, policies: 45 }),
   ]),
+  // Plus de persoonlijke instellingen (migratie 20261124120000, besluit 20, PR V; nog niet online): +4 functies in private
+  // (voorkeur_geldig, voorkeuren_geldig, set_preference, reset_preferences), +2 in public (de wrappers), +1 tabel en
+  // +1 policy in public. Gemeten op een geïsoleerde lokale database met alle 25 migraties (24 november 2026).
+  '20261124120000': Object.freeze([
+    Object.freeze({ schema: 'private', relaties: 10, functies: 137, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 21, functies: 49, policies: 46 }),
+  ]),
   // Plus de besloten bèta (migratie 20261125120000, pakket P2: registratie op uitnodiging, L1, R4, L4, L5; nog niet
   // online): +2 relaties in private (uitnodigingsmail_grenzen, k1_webhooks), +6 functies in private
   // (k1_registratie_toegestaan, k1_nieuwe_code met adres, uitnodigingsmail_ontvanger, uitnodigingsmail_plek,
@@ -221,10 +228,12 @@ export const SCHEMA_PER_STAND = Object.freeze({
   // k1_nieuwe_code zonder adres, uitnodigingsmail_plannen, uitnodigingsmail_opnieuw, k1_opruimen,
   // uitnodigingsmail_aanroepen en documenten_opruimen_ronde zijn vervangen (zelfde aantal); drie kolommen erbij (tellen
   // hier niet).
-  // Gemeten op de lokale stack thuisplanner_p2 met alle 25 migraties (25 november 2026).
+  // Gemeten op de lokale stack thuisplanner_p2 met alle 25 migraties (25 november 2026); de aantallen hieronder zijn
+  // die van ná 20261124120000 (persoonlijke instellingen) plus P2 (samengevoegd 26 november 2026, nagemeten op de stack
+  // thuisplanner_beta met alle 26 migraties).
   '20261125120000': Object.freeze([
-    Object.freeze({ schema: 'private', relaties: 12, functies: 139, policies: 0 }),
-    Object.freeze({ schema: 'public', relaties: 20, functies: 49, policies: 45 }),
+    Object.freeze({ schema: 'private', relaties: 12, functies: 143, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 21, functies: 51, policies: 46 }),
   ]),
 });
 

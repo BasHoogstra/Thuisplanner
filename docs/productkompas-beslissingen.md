@@ -24,6 +24,8 @@ wordt hier niet gewijzigd of aangevuld.
   gesplitst en staat bij besluit 13 een verwijzing; de beslissingen 1–17 zijn verder niet herschreven.
 - Op 10 en 11 november 2026 is besluit 18 aangevuld (Plannen in de gezinsbèta, op het echte pad; v1 met één
   verantwoordelijke en zonder bijlagen). De oorspronkelijke tekst blijft staan; de aanvulling staat erbij.
+- Op 25 november 2026 is besluit 20 toegevoegd (persoonlijke instellingen en meldingen), met één nieuwe gate. Besluit 16
+  wordt erdoor verruimd; de beslissingen 1–15 en 17–19 zijn niet herschreven.
 - De roadmap staat in `docs/roadmap.md`. De beslissingen hieronder gelden voor iedere versie ervan.
 
 ## Harde randvoorwaarden (gates)
@@ -45,6 +47,7 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
 | Spullen en documenten: gate 9 voor het domein "spullen en documenten", met negatieve tests op bestanden van andere huishoudens (ook via een bekende URL, bestands-id of pad, en een verlopen link); Storage alleen na een eigen akkoord, met een vaste lijst van verwachte buckets en policies in plaats van de controle "geen opslag"; een aantoonbare verwijderprocedure inclusief bestanden, en een eigen export die de bestanden meeneemt. | De eerste migratie of bucket voor spullen en documenten | Beslissing 17 |
 | Plannen: KG-5E licht is afgerond; gate 9 voor het domein "plannen" (plannen, onderdelen en de uitbreidingen van taken); plannen gaan nooit over een koppeling tussen huishoudens. Voor echte bijlagen geldt daarnaast de gate van beslissing 17. | De eerste migratie voor plannen | Beslissing 18 |
 | Meerdere verantwoordelijken: voor iedere bestaande bewerkingsroute is met tests en een tegenproef aangetoond dat er geen verantwoordelijke of ander taakveld stil verloren gaat. Waar de server maar één persoon kan bewaren, kan de gebruiker er ook maar één kiezen. | Het aanzetten van meerdere verantwoordelijken in de demo, en opnieuw vóór de eerste migratie daarvoor | Beslissing 18 |
+| Persoonlijke instellingen: gate 9 voor het domein "voorkeuren" (alleen de eigen rij, ook niet voor de eigenaar van het huishouden; alleen bekende sleutels en waarden). Voor meldingen geldt daarnaast de gate van beslissing 16, nu ook voor de uitgebreide soorten, de outbox en per-afspraak- of per-taakherinneringen. Een instelling verandert nooit gedeelde gegevens, privacy of wat een ander ziet. | De eerste migratie voor voorkeuren (gehaald met migratie 25, KG-T99), en opnieuw voor elke uitbreiding van de sleutels of een nieuwe tabel per account | Beslissing 20 |
 
 ## Beslissingen
 
@@ -395,3 +398,99 @@ Deze punten moeten aantoonbaar zijn opgelost of geborgd vóór het genoemde mome
     migratie gaat alleen met een afzonderlijk akkoord naar staging.
 - **Wat niet verandert:** het Productkompas en de beslissingen 1–12 en 14–17. Bij besluit 13 verandert alleen wanneer de
   gate geldt; de inhoud van het besluit blijft staan.
+
+### 19. Overzicht als begrensd startscherm (23 november 2026)
+
+- **Besluit van de producteigenaar:** na de feedback van Sanne in de eerste gezinstest wordt het startscherm een compact
+  overzicht van wat er in het gezin speelt, en heet het **Overzicht** in plaats van Vandaag. Wat vandaag belangrijk is,
+  houdt de nadruk. Daarna volgen hoogstens 3 komende afspraken en 5 relevante open taken, een korte regel met de
+  boodschappen, en alleen als het speelt de vakantie en één suggestie. Elk onderdeel linkt naar de volledige lijst.
+- **Productkompas:** principe 2 ("Vandaag hoeft geen dashboard van het hele huishouden te zijn") staat hier op spanning.
+  De producteigenaar kiest bewust voor een **begrensd** overzicht. De voorwaarden die de rust bewaken:
+  - **Harde maxima.** 3 afspraken (afspraken van de hele dag op één eigen regel, niet meegeteld) en 5 taken. De rest
+    staat achter één telregel met een link.
+  - **Wat nu of dringend is, gaat voor.** De eerstvolgende afspraak van vandaag krijgt als enige de nadruk. Taken staan in
+    een vaste volgorde: te laat, vandaag, de komende 7 dagen, zonder datum, later. Te laat en vandaag worden nooit
+    weggedrukt door latere taken. Zijn het er meer dan 5, dan noemt de telregel de rest per groep.
+  - **Leeg verdwijnt.** Een onderdeel zonder inhoud staat er niet. Er komen geen nieuwe meldingen of badges.
+  - Principes 6 (aandacht) en 8 (werkelijk gebruik): dit is een hypothese die in de bèta wordt getoetst.
+- **Keuzes (23 november 2026):**
+  - "Bezet" (de privé-afspraak van een ander) telt mee in de 3, en toont alleen wie en wanneer.
+  - Afspraken kijken 7 dagen vooruit.
+  - Taken uit plannen zonder datum blijven in de Agenda ("Taken uit plannen") en staan niet op het Overzicht.
+  - Binnen een groep is de volgorde alleen op datum, niet eerst "voor jou".
+- **Privacy:** ongewijzigd. Privé-afspraken van anderen blijven "Bezet". Taken zijn in het model voor het hele huishouden
+  zichtbaar. Het Overzicht toont niets wat de Agenda niet al toont, en het gezinsfilter van de Agenda geldt er niet.
+- **Naam:** "Overzicht" in de navigatie, de paginatitel en de teksten. De interne schermnaam en het adres (`#/vandaag`)
+  blijven, zodat bestaande links blijven werken.
+- **Volgorde:** als vervolg op PR #55 (Vandaag en Agenda rustiger), in een eigen PR. Geen databasewijziging.
+  `PRODUCT_PRINCIPLES.md` is niet aangepast.
+
+### 20. Persoonlijke instellingen en meldingen (24–25 november 2026)
+
+- **Besluit van de producteigenaar:** Thuisplanner blijft één gedeelde omgeving voor het huishouden, met **een rustige
+  standaard en persoonlijke vrijheid**. Ieder account kiest zelf hoe Thuisplanner er voor hem uitziet en opent, en welke
+  meldingen het wil. Zonder iets in te stellen werkt Thuisplanner prettig; instellingen zijn nooit een stap in de
+  onboarding. De volledige personalisatie, inclusief pushmeldingen, komt **tijdens de besloten bèta**, gefaseerd en achter
+  schakelaars. De bèta start op 14 december 2026 (de startdata en de volgorde staan in de roadmap), ook als nog niet
+  alles klaar is.
+- **Bron:** het bericht van de producteigenaar van 25 november 2026, en het bouwvoorstel van 24 november voor zover
+  hieronder als besluit vastgelegd.
+- **Productkompas:** principes 1, 2, 6 en 7; beslissingen 2, 4, 10, 16 en 19; de regel "Privacy volgt de situatie".
+  "Een rustige standaard, met persoonlijke vrijheid" is een uitwerking van deze principes, geen nieuw principe;
+  `PRODUCT_PRINCIPLES.md` verandert niet.
+- **Uitgangspunten:**
+  - **Alleen de eigen weergave.** Een instelling verandert nooit gedeelde gegevens, de privacy, of wat een ander ziet.
+    Per account, nooit per huishouden of lid (M2). Een kind zonder account heeft geen instellingen.
+  - **Verbergen is niet verwijderen.** Wat verborgen is, blijft bereikbaar via de Agenda, Boodschappen of een link.
+    Geen instelling kan een scherm leeg maken; te laat en vandaag blijven zichtbaar zolang Te doen aan staat.
+  - **Weinig instellingen, elk met een rustige standaard.** Alleen wat een waargenomen behoefte oplost. Wat in de bèta
+    nauwelijks wordt gebruikt, kan na de bèta weer weg (principe 8).
+  - **Instellingen ook vanuit de schermen.** Instellingen zijn ook bereikbaar vanuit het scherm waar ze over gaan.
+  - **Links gaan voor.** Een adres met een eigen item (een link, een uitnodiging, een melding) opent dat. Wanneer het
+    startscherm geldt, staat in de aanvulling van 25 november hieronder.
+  - **Meldingen:** per functie en per gebeurtenis, met persoonlijke herinneringstermijnen, meldingen voor toegewezen
+    taken, een dagelijkse samenvatting, stille uren, voorkeuren per account, privacy op het vergrendelscherm en geen
+    dubbele of overbodige meldingen. Nooit een melding over een eigen actie. Toestemming per toestel, pas als iemand
+    zelf meldingen aanzet (besluit 16).
+  - **Privacy in de melding:** een privé-afspraak van een ander geeft nooit een melding; een eigen privé-afspraak toont
+    geen titel; huishoudkennis, notities en plek staan nooit in een melding (besluit 14 en 16).
+  - **Herstellen:** één knop zet de weergave terug naar de standaard; meldingen hebben een eigen herstelknop.
+- **Het startscherm, aanvulling van 25 november 2026 (optie a):**
+  - Zonder adres opent de app altijd op het startscherm.
+  - Bij een **echte nieuwe start** geldt het startscherm ook als het adres een gewoon hoofdscherm is (`#/vandaag`,
+    `#/agenda`, `#/boodschappen` of `#/meer`).
+  - Herladen houdt het adres.
+  - Een link naar een item, vakantie, plan, spullen of de instellingen, of een uitnodiging, opent altijd dat adres.
+  - Het startscherm geldt hoogstens één keer per paginalading. Wisselen tussen schermen keert nooit vanzelf terug.
+
+  Aanleiding: in de praktijk werkte het startscherm op de telefoon vrijwel nooit. Safari heropent de laatst bezochte
+  pagina, en een icoon op het beginscherm bewaart het adres van het moment waarop het werd gemaakt.
+- **Ook op 25 november:** de link "Agenda" op het Overzicht volgt de eigen standaardweergave. Is die Taken, dan opent
+  Week.
+- **Keuzes (25 november 2026):**
+  - De fasering van de meldingen (herinneringen bij de start, daarna activiteit en samenvattingen, daarna verfijning) is
+    de planningsrichting; waar parallel bouwen het verantwoord versnelt, mag het eerder.
+  - Taken krijgen op termijn een **optioneel tijdstip en een optionele herinnering**. Een gewone taak invoeren blijft
+    even eenvoudig als nu (alleen de titel is verplicht).
+  - Een alleen-lezen ICS-koppeling is **geen definitieve oplossing** voor Apple Agenda. Betrouwbare
+    tweerichtingssynchronisatie met Apple, Google en Outlook blijft het doel richting de publieke lancering; de bèta
+    mag zonder starten.
+- **Voorstel, ter beslissing** (nog niet door de producteigenaar goedgekeurd; de regie legt ze voor; uitwerking in
+  `docs/thuisplanner-bijlage-personalisatie-meldingen.md` en `docs/thuisplanner-personalisatie-beta-plan.md`):
+  - herinneringen aan eigen afspraken en taken en "een taak aan jou gegeven" standaard aan; meldingen over wat anderen
+    doen en samenvattingen standaard uit;
+  - stille uren standaard 22:00–7:00;
+  - de keuze of de titel op het vergrendelscherm mag staan (standaard tijd en titel, of alleen dat er iets is);
+  - "een instelling werkt meteen en zichtbaar": wie iets wijzigt, ziet het effect direct of krijgt in één zin te horen
+    wanneer het geldt.
+- **Nog te beslissen, wegens spanning met eerdere besluiten:** persoonlijke navigatie (beslissing 2: de navigatie wordt
+  eerst aan werkelijk gebruik getoetst), het ordenen van de blokken op het Overzicht (besluit 19: wat nu of dringend is,
+  gaat voor), en de ondersteuningsniveaus Rustig, Behulpzaam en Actief (M8).
+- **Voorwaarden vóór implementatie:** de gate "Persoonlijke instellingen" en, voor meldingen, de gate van besluit 16
+  (pushproef op de testtelefoons, gate 9 voor het domein "meldingen"); geen migratie, geheim (VAPID), registratie,
+  kostenpost of uitrol zonder afzonderlijk akkoord.
+- **Uitwerking:** `docs/thuisplanner-besluit20-bouwvoorstel.md`, `docs/thuisplanner-personalisatie-beta-plan.md` en
+  `docs/thuisplanner-bijlage-personalisatie-meldingen.md` (bijlagen; de planning staat in de roadmap).
+- **Wat verandert:** besluit 16 wordt verruimd (meer soorten meldingen, tijdens de bèta).
+  **Wat niet verandert:** het Productkompas, de besluiten 1–15 en 17–19, en de maxima van het Overzicht (besluit 19).

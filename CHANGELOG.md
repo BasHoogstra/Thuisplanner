@@ -1048,3 +1048,19 @@ Elke stap uit de roadmap krijgt hier een regel. Wijzigingen staan eerst in de te
 - **V-04:** ongedaan maken van een overname via vakantie + aanmaakmoment: één opdracht, alles of niets, zonder de grens van de adresregel en van 1000 rijen; het aantal komt van de server.
 - **V-10:** RLS-scenario's KG-T95 en KG-T96 met 5 tegenproeven (matrix 90).
 - Geen databasewijziging, geen migratie 28. Details en tests: `docs/thuisplanner-vakanties.md` §23.
+
+## Thuisplanner: Vandaag en Agenda rustiger, pakket 1–4 (23 november 2026, lokaal)
+- Aanleiding: de eerste gezinstest (Vandaag en Agenda onoverzichtelijk) en het UX-voorstel van 23 november; besluit van de producteigenaar: pakket 1–4 vóór bèta 1, als mobiele UX onder de acceptatiepoort. Geen functies weg, geen databasewijziging, geen nieuwe handelingen (`acties-contract` ongewijzigd).
+- **Pakket 1, Agenda-kop:** de periode met ‹ › en het gezinsfilter (stippen van de leden) in één rij; de vier weergaven op één regel (de keuzebalk brak "Taken" eerder af naar een tweede regel), met "Vandaag" ernaast als je elders bent. De zichtbare titel "Agenda" vervalt; voor schermlezers blijft de kop. Het filter klapt dicht bij het wisselen van weergave.
+- **Pakket 2, één compacte afspraakrij** (`AfspraakRij compact`) op Vandaag en in de Dag-weergave: begintijd, lidkleur, titel, herhaling of slot, één persoon. Eindtijd in het detail; de plek klein achter de titel in Dag. Het herhaalteken staat nu ook in de Week. De naam voor schermlezers is ongewijzigd.
+- **Pakket 3, Vandaag:** voorbije afspraken ingeklapt ("n voorbij · tonen"); de volgende afspraak als "Daarna" in de Straks-kaart; hoogstens vijf rijen per blok met de rest achter één regel; taken die te laat zijn met een label; "Hele dag" en "Alle taken" naar de Agenda; de samenvatting telt wat nog komt ("Vandaag nog: …"); een rustige dag zonder grote cirkel; Boodschappen, Binnenkort (hoogstens drie dagen) en de vakantie als rustige strook zonder kaarten, lege onderdelen verdwijnen.
+- **Pakket 4, verwijderen vindbaar:** "Alles bewerken" en "Verwijderen" staan altijd onderaan het detailvenster (niet meer achter "Meer…"); bij een reeks noemt de vraag de afspraak ("Zwemles herhaalt. Wat wil je verwijderen?"); de regel "Herhaalt" biedt "Herhaling wijzigen" en "Reeks verwijderen…".
+- Tests: unit-tests en e2e bijgewerkt op de nieuwe plek van de knoppen en de ingeklapte delen; nieuw: de samenvatting met voorbije afspraken en de acties onder "Herhaalt".
+
+## Thuisplanner: Overzicht als begrensd startscherm (besluit 19, 23 november 2026, lokaal)
+- Aanleiding: de feedback van Sanne. Het startscherm laat ook zien wat eraan komt, zonder weer druk te worden. Vervolg op PR #55; geen databasewijziging, geen nieuwe handelingen.
+- **Naam:** "Vandaag" heet nu **Overzicht** (navigatie, paginatitel, teksten). Het adres `#/vandaag` en de interne schermnaam blijven.
+- **Afspraken:** de 3 eerstvolgende met een tijd, vandaag en de komende 7 dagen, met de dag ervoor ("Morgen", "vr 27"). De eerste van vandaag krijgt als enige de nadruk (Straks/Nu). Afspraken van de hele dag staan op één eigen regel. Een telregel "Nog n vandaag" linkt naar de Dag. "Bezet" telt mee. Binnenkort, "Agenda vandaag" en het inklappen van voorbije afspraken vervallen hier.
+- **Te doen:** 5 open taken in een vaste volgorde: te laat, vandaag, de komende 7 dagen, zonder datum (geen taken uit plannen), later. Wat te laat is of vandaag moet, wordt nooit weggedrukt. De rest wordt per groep geteld, met "te laat" in rood, en linkt naar Agenda → Taken.
+- **Boodschappen** in één regel; de vakantie en één suggestie alleen als die spelen. Een leeg onderdeel verdwijnt.
+- Logica in `lib/vandaag.ts` (`komendeAfspraken`, `taakGroep`, `takenOverzicht`), met unit-tests in `tests/overzicht.test.ts`. De e2e-tests zijn bijgewerkt op de nieuwe opbouw en naam. Besluit 19 staat in `docs/productkompas-beslissingen.md`.

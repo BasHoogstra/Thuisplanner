@@ -943,3 +943,112 @@ body.geen-scroll .melding-plek { opacity: 0; clip-path: inset(50%); }
 /* Plannen, stap C: wie doet wat. */
 .plan-filter { margin: 0 0 12px; }
 .plan-per-persoon { margin-top: 14px; }
+
+/* ---------- Rust vóór informatiedichtheid (voorstel van 23 november 2026, pakket 1–4) ----------
+   Eén compacte afspraakrij op Vandaag en in de Dag-weergave, een Agenda-kop in twee rijen, een rustiger Vandaag en de
+   acties van het detailvenster altijd in beeld. Alleen bestaande tokens; de stille tekst gebruikt --inkt-2 (≥ 4,5:1). */
+.rij.compact .rij-knop { align-items: center; gap: 10px; min-height: 46px; padding: 10px 14px; }
+.rij.compact .rij-tijd { flex-direction: row; padding-top: 0; width: 4.3em; line-height: 1.2; white-space: nowrap; }
+.rij.compact .rij-streep { min-height: 22px; }
+.rij.compact .rij-titel { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; }
+.rij-titel-tekst { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; }
+.rij.compact .rij-titel-tekst:only-child, .rij-titel-tekst:last-child { flex-shrink: 1; }
+.rij-herhaal, .rij-slot { flex: 0 0 auto; color: var(--inkt-2); }
+.week-rij-titel .rij-herhaal { margin: 0 0 0 5px; }
+.rij-plek { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--inkt-2); font-weight: 400; font-size: 14px; margin-left: 4px; }
+.rij-wie { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; color: var(--inkt-2); font-size: 14px; }
+.lijst.compact .vink-knop { padding-top: 11px; padding-bottom: 11px; }
+.lijst.compact .rij-open { padding-top: 11px; padding-bottom: 11px; }
+.plek.te-laat { color: var(--fout); font-weight: 600; }
+.uitklap-regel { display: flex; align-items: center; min-height: 44px; padding: 6px 2px; color: var(--inkt-2); font-weight: 600; text-align: left; }
+.blok-link { min-height: 44px; }
+.blok-kop .sectie-kop { margin-bottom: 4px; }
+
+/* Vandaag: Straks met "Daarna" eronder; meedenken als één compacte regel; de onderstrook zonder kaarten. */
+.straks-label { font-size: 14px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.straks-knop .straks-label { display: flex; }
+.straks-knop .straks-titel { margin-bottom: 4px; }
+.straks-daarna {
+  display: block; width: 100%; min-height: 44px; padding: 10px 20px 12px; border: 0; border-top: 1px solid var(--lijn);
+  background: none; text-align: left; color: var(--inkt-2); font: inherit; font-size: 14px; border-radius: 0 0 var(--radius) var(--radius);
+}
+.straks-daarna strong { color: var(--inkt); font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (hover: hover) { .straks-daarna:hover { background: color-mix(in srgb, var(--vlak-2) 55%, transparent); } }
+.meedenker { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 20px; padding: 12px 14px; }
+.meedenker-tekst { flex: 1 1 200px; min-width: 0; }
+.meedenker .meedenker-vraag { margin: 0 0 2px; font-size: 16px; }
+.meedenker .meedenker-knoppen { margin-top: 0; }
+.verder .sectie-kop { margin-top: 24px; }
+.verder .boodschappen-kort { padding: 2px 2px 0; background: none; border: 0; border-radius: 0; color: var(--inkt-2); }
+.verder .vooruit { padding: 0 2px; background: none; border: 0; border-radius: 0; }
+.verder .vooruit li { padding: 6px 0; font-size: 15px; }
+.verder .vooruit-dag { flex-basis: 4.6em; font-weight: 600; color: var(--inkt); }
+.verder .vooruit-wat { display: block; color: var(--inkt-2); }
+.verder .vakantie-kaart { margin-top: 24px; }
+
+/* Agenda: de periode met pijlen en het filter in één rij; de vier weergaven op één regel, met "Vandaag" ernaast. */
+.agenda-kop { padding-top: 12px; }
+.agenda-titelrij { align-items: center; gap: 8px; }
+.agenda-titelrij > .week-titel, .agenda-titelrij .week-balk { flex: 1 1 auto; min-width: 0; }
+.agenda-titelrij .week-balk { margin: 0; flex-wrap: nowrap; gap: 6px; }
+.agenda-titelrij .week-titel { margin: 0 2px 0 0; }
+.agenda-titelrij .week-titel span { font-family: var(--font-kop); font-size: 21px; font-weight: 700; letter-spacing: -.015em; line-height: 1.2; }
+.agenda-titelrij .week-titel small { line-height: 1.3; font-size: 13px; }
+.agenda-titelrij .icoonknop { flex: 0 0 auto; width: 44px; height: 44px; }
+.keuze.klein.filter-knop { margin-bottom: 0; min-height: 44px; padding: 0 10px; }
+.filter-stippen { display: inline-flex; }
+.filter-stippen .stip { width: 11px; height: 11px; margin-left: -3px; box-shadow: 0 0 0 2px var(--vlak); }
+.filter-stippen .stip:first-child { margin-left: 0; }
+.agenda-balk { margin-top: 10px; }
+.agenda-weergaven { display: flex; align-items: center; gap: 8px; }
+.segment.klein.vier { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: none; flex: 1 1 auto; gap: 2px; }
+.segment.klein.vier .segment-knop { min-height: 36px; padding: 0 2px; }
+.keuze.klein.naar-vandaag { min-height: 44px; color: var(--accent); font-weight: 600; }
+
+/* Detailvenster: "Alles bewerken" en "Verwijderen" altijd onderaan in beeld, even groot. */
+.detail-tweede { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.detail-tweede .knop { min-height: 48px; padding: 0 10px; }
+.knop.stil.detail-weg { color: var(--fout); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--fout) 40%, transparent); }
+
+@media (min-width: 960px) {
+  .agenda-titelrij .week-titel span { font-size: 24px; }
+  .agenda-weergaven .segment.klein.vier { flex: 0 0 360px; }
+  .verder .sectie-kop:first-child, .kolom-zij.verder > .blok:first-child .sectie-kop { margin-top: 16px; }
+}
+@media (max-width: 359px) {
+  .agenda-titelrij { gap: 4px; }
+  .agenda-titelrij .week-titel span { font-size: 19px; }
+  .filter-knop:not(.aan) .filter-pijl { display: none; }
+}
+
+/* ---------- Overzicht (besluit 19): afspraken met de dag erbij, de hele-dagregel en de telregels ---------- */
+.overzicht .straks { margin-top: 6px; }
+.rij.compact .rij-tijd.met-dag { flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.rij-dag { font-size: 12px; font-weight: 600; color: var(--inkt-2); }
+/* Review PR #56 (P2): één regel, nooit breder dan het scherm; een lange titel wordt afgekapt, de rest is een telling. */
+.hele-dag-regel {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 6px; padding: 8px 2px;
+  border: 0; border-radius: 10px; background: none; color: var(--inkt-2); font: inherit; font-size: 14px; text-align: left;
+}
+@media (hover: hover) { .hele-dag-regel:hover { background: color-mix(in srgb, var(--vlak-2) 55%, transparent); } }
+.hele-dag-label { flex: 0 0 auto; }
+.hele-dag-titel { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--inkt); font-weight: 600; }
+.hele-dag-meer { flex: 0 0 auto; color: var(--inkt-2); font-weight: 600; }
+.hele-dag-pijl { flex: 0 0 auto; margin-left: auto; color: var(--inkt-2); }
+.uitklap-regel .te-laat { color: var(--fout); }
+.regel-link { color: var(--accent); }
+.overzicht .straks + .lijst { margin-top: 8px; }
+
+/* ---------- Besluit 20: persoonlijke instellingen. Alleen bestaande tokens; één kolom, grote tikvlakken. ---------- */
+.instellingen h1 { margin-top: 6px; }
+.instelling-waarde { flex: 0 0 auto; margin-top: 2px; color: var(--inkt-2); font-size: 15px; }
+.instelling-groep { margin: 0; padding: 0; border: 0; min-width: 0; }
+.instelling-groep legend { float: left; width: 100%; padding: 0; }
+.instelling-groep legend + * { clear: both; }
+.instelling-groep[disabled] { opacity: .6; }
+.instelling-regel { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 13px 16px; cursor: pointer; }
+.instelling-regel input { flex: 0 0 auto; width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
+.instelling-regel input:disabled { cursor: default; }
+.instellingen-voet { margin: 10px 2px 0; font-size: 14px; }
+.instellingen-reden { margin: 10px 2px 0; }
+.segment.vier { grid-template-columns: repeat(4, 1fr); }

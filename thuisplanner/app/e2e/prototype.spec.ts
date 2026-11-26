@@ -8,8 +8,9 @@ const venster = (p: Page) => p.getByRole('dialog', { name: 'Toevoegen' });
 // W1: een bestaand item opent eerst het rustige overzicht. Deze specs toetsen het formulier daarachter.
 async function naarFormulier(p: Page) {
   await expect(venster(p)).toBeVisible();
-  const meer = venster(p).getByRole('button', { name: 'Meer…' });
-  if (await meer.count()) { await meer.click(); await venster(p).getByRole('button', { name: 'Alles bewerken' }).click(); }
+  // Voorstel van 23 november: "Alles bewerken" staat direct in beeld (niet meer achter "Meer…").
+  const alles = venster(p).getByRole('button', { name: 'Alles bewerken' });
+  if (await alles.count()) await alles.click();
 }
 const sectie = (p: Page, naam: string) => p.locator('section', { has: p.getByRole('heading', { name: naam, exact: true }) });
 
@@ -30,18 +31,21 @@ test.beforeEach(async ({ page }) => {
 test('Vandaag: begroeting, samenvatting, één nadrukkaart, demo-markering, geen horizontale scroll', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Goedemorgen, Eva');
   await expect(page.getByText('Zaterdag 10 oktober', { exact: false })).toBeVisible();
-  await expect(page.getByText('Vandaag: 4 afspraken en 4 taken.')).toBeVisible();
+  await expect(page.getByText('Vandaag nog: 3 afspraken en 4 taken.')).toBeVisible();   // om 11:20 is de zwemles voorbij
   await expect(page.locator('.straks')).toHaveCount(1);
   await expect(page.locator('.straks')).toContainText('Voetbal');
   await expect(page.locator('.demobalk')).toContainText('Demo');
   await expect(page.getByText('Gymtas inpakken vanavond?')).toBeVisible();
-  await expect(sectie(page, 'Binnenkort')).toContainText('Ouderavond groep 4');
+  // Besluit 19: de 3 eerstvolgende afspraken; Bezet van een ander telt mee.
+  await expect(sectie(page, 'Afspraken')).toContainText('Bezet');
+  await expect(sectie(page, 'Afspraken')).toContainText('Pizza bakken');
+  await expect(page.getByRole('heading', { name: 'Binnenkort' })).toHaveCount(0);
   await geenHorizontaleScroll(page);
 });
 
 test('navigatie: vier bestemmingen, labels passen, adres volgt', async ({ page }) => {
   const nav = page.getByRole('navigation', { name: 'Hoofdnavigatie' });
-  for (const naam of ['Vandaag', 'Agenda', 'Boodschappen', 'Meer']) {
+  for (const naam of ['Overzicht', 'Agenda', 'Boodschappen', 'Meer']) {
     const link = nav.getByRole('link', { name: naam });
     const afgekapt = await link.locator('span').evaluate(e => e.scrollWidth > e.clientWidth);
     expect(afgekapt, `label ${naam} is afgekapt`).toBe(false);
@@ -56,7 +60,7 @@ test('navigatie: vier bestemmingen, labels passen, adres volgt', async ({ page }
   await nav.getByRole('link', { name: 'Meer' }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Meer');
   await geenHorizontaleScroll(page);
-  await nav.getByRole('link', { name: 'Vandaag' }).click();
+  await nav.getByRole('link', { name: 'Overzicht' }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Goedemorgen, Eva');
 });
 
@@ -73,18 +77,21 @@ test('afspraak toevoegen verschijnt op Vandaag en in de Agenda; ongedaan maken h
   await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
   await expect(venster(page)).toBeHidden();
   await expect(page.getByRole('status')).toContainText('Kapper staat in de agenda (vandaag 16:30)');
-  await expect(sectie(page, 'Agenda vandaag')).toContainText('Kapper');
+  await expect(sectie(page, 'Afspraken')).toContainText('Kapper');
   await page.getByRole('button', { name: 'Ongedaan maken' }).click();
-  await expect(sectie(page, 'Agenda vandaag')).not.toContainText('Kapper');
+  await expect(sectie(page, 'Afspraken')).not.toContainText('Kapper');
 });
 
-test('afspraak voor morgen staat onder Binnenkort', async ({ page }) => {
+test('afspraak voor morgen staat in de Agenda (het Overzicht toont vandaag al 3 afspraken)', async ({ page }) => {
   await plus(page).click();
   await venster(page).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; dit test het formulier
   await venster(page).getByLabel('Wat?').fill('Fietsenmaker');
   await venster(page).getByRole('button', { name: 'Morgen', exact: true }).click();
   await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
-  await expect(sectie(page, 'Binnenkort')).toContainText('Fietsenmaker');
+  await expect(page.getByRole('status')).toContainText('Fietsenmaker staat in de agenda (morgen');
+  await expect(sectie(page, 'Afspraken')).not.toContainText('Fietsenmaker');
+  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Agenda' }).click();
+  await expect(page.locator('main')).toContainText('Fietsenmaker');
 });
 
 test('taak toevoegen, afvinken en weer terughalen', async ({ page }) => {
@@ -136,9 +143,9 @@ test('invoervenster: lege invoer geeft een rustige foutmelding; Escape en sluitk
 });
 
 test('privé: van een ander alleen "bezet"; eigen privé-afspraak met slotje', async ({ page }) => {
-  const agenda = sectie(page, 'Agenda vandaag');
-  await expect(agenda).toContainText('Bezet');
-  await expect(agenda).toContainText('privé-afspraak');
+  // Om 11:20 staat de privé-afspraak van Thomas (15:00) bij de afspraken: alleen "Bezet", met wie en wanneer.
+  await expect(sectie(page, 'Afspraken')).toContainText('Bezet');
+  await expect(page.getByRole('button', { name: /^Bezet, 15:00 – 16:00/ })).toHaveCount(1);
   await plus(page).click();
   await venster(page).getByRole('button', { name: 'Formulier' }).click();   // B2: de + opent de zin; dit test het formulier
   await venster(page).getByLabel('Wat?').fill('Huisarts');
@@ -146,7 +153,10 @@ test('privé: van een ander alleen "bezet"; eigen privé-afspraak met slotje', a
   await venster(page).getByRole('button', { name: /^Meer opties/ }).click();
   await venster(page).getByLabel(/Privé/).check();
   await venster(page).getByRole('button', { name: 'Toevoegen' }).click();
-  await expect(agenda.locator('li', { hasText: 'Huisarts' })).toContainText('alleen voor jou');
+  // Om 18:00 staat al Pizza bakken als derde afspraak; in de Dag van de Agenda staat de eigen privé-afspraak met slotje.
+  await page.getByRole('navigation', { name: 'Hoofdnavigatie' }).getByRole('link', { name: 'Agenda' }).click();
+  await page.getByRole('tab', { name: 'Dag', exact: true }).click();
+  await expect(page.locator('li', { hasText: 'Huisarts' })).toContainText('alleen voor jou');
 });
 
 test('meedenken: accepteren zet één taak op de lijst; daarna verdwijnt het signaal', async ({ page }) => {
@@ -164,11 +174,12 @@ test('meedenken: "Niet nodig" laat het signaal verdwijnen zonder iets toe te voe
 test('een rustige dag oogt rustig', async ({ page }) => {
   await page.getByRole('navigation').getByRole('link', { name: 'Meer' }).click();
   await page.getByRole('button', { name: 'Rustige dag' }).click();
-  await expect(page.getByText('Niets dat vandaag van je vraagt.')).toBeVisible();
-  await expect(page.getByText('Een rustige dag. Er staat niets voor je klaar.')).toBeVisible();
+  await expect(page.getByText('Een rustige dag. Vandaag staat er niets gepland.')).toBeVisible();
   await expect(page.locator('.straks')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Te doen' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Agenda vandaag' })).toHaveCount(0);
+  // Besluit 19: het Overzicht laat ook op een rustige dag zien wat eraan komt, zonder nadruk en zonder iets dat te laat is.
+  await expect(sectie(page, 'Afspraken')).toContainText('Morgen');
+  await expect(sectie(page, 'Te doen')).not.toContainText('te laat');
+  await expect(page.getByText('Alles van vandaag is gedaan.')).toHaveCount(0);
   await geenHorizontaleScroll(page);
 });
 
@@ -199,7 +210,7 @@ test('screenshots @screenshot', async ({ page }, info) => {
   await page.getByRole('navigation').getByRole('link', { name: 'Agenda' }).click();
   await page.screenshot({ path: pad('6-agenda-week'), fullPage: naam === 'desktop' });
   await page.getByRole('button', { name: /^Zwemles, 09:15/ }).click();
-  await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Meer… → Alles bewerken)
+  await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Alles bewerken)
   await page.screenshot({ path: pad('7-afspraak-bewerken') });
   await page.keyboard.press('Escape');
   await page.getByRole('navigation').getByRole('link', { name: 'Boodschappen' }).click();
@@ -209,10 +220,10 @@ test('screenshots @screenshot', async ({ page }, info) => {
   await page.getByRole('tab', { name: 'Maand', exact: true }).click();
   await page.screenshot({ path: pad('9-agenda-maand') });
   await page.getByRole('cell').getByRole('button', { name: /^zaterdag 17 oktober/ }).click();
-  await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Meer… → Alles bewerken)
+  await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Alles bewerken)
   await page.screenshot({ path: pad('10-agenda-dag') });
   await page.getByRole('button', { name: /^Zwemles/ }).first().click();
-  await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Meer… → Alles bewerken)
+  await naarFormulier(page);   // W1: eerst het overzicht; dit test het formulier (Alles bewerken)
   await page.screenshot({ path: pad('11-herhaling-bewerken') });
 });
 

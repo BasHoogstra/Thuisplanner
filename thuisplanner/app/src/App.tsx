@@ -28,16 +28,25 @@ import type { Toestand } from '../../sync/thuisplanner-sync.js';
 
 import { Plannen } from './screens/Plannen';
 import { plannenAan, schermVoor } from './lib/plan';
+import { Instellingen, type InstellingenPad } from './screens/Instellingen';
+import { useDemoVoorkeuren, useServerVoorkeuren, type VoorkeurenToegang } from './lib/voorkeuren-opslag';
+import { isNieuweStart, neemStartBeurt, startDoel } from './lib/voorkeuren';
 
-const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties', 'spullen', 'plannen'];
-const TITELS: Record<Scherm, string> = { vandaag: 'Vandaag', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', spullen: 'Spullen & documenten', plannen: 'Plannen' };
+const SCHERMEN: Scherm[] = ['vandaag', 'agenda', 'boodschappen', 'meer', 'vakanties', 'spullen', 'plannen', 'instellingen'];
+const TITELS: Record<Scherm, string> = { vandaag: 'Overzicht', agenda: 'Agenda', boodschappen: 'Boodschappen', meer: 'Meer', vakanties: 'Vakanties', spullen: 'Spullen & documenten', plannen: 'Plannen', instellingen: 'Persoonlijke instellingen' };
 
-/** "#/agenda" → agenda; "#/vakanties/<id>" → die vakantie (F8); "#/spullen/<pad>" → Spullen & documenten; "#/plannen/<id>" → dat plan (besluit 18). */
-function uitHash(): { scherm: Scherm; vakantie: string | null; spullen: string; plan: string | null } {
+const INSTELLINGEN_PADEN: InstellingenPad[] = ['startscherm', 'overzicht', 'agenda'];
+
+/**
+ * "#/agenda" → agenda; "#/vakanties/<id>" → die vakantie (F8); "#/spullen/<pad>" → Spullen & documenten; "#/plannen/<id>" →
+ * dat plan (besluit 18); "#/instellingen/<deel>" → Persoonlijke instellingen (besluit 20).
+ */
+function uitHash(): { scherm: Scherm; vakantie: string | null; spullen: string; plan: string | null; instellingen: InstellingenPad } {
   const [h, id, ...rest] = window.location.hash.replace('#/', '').replace('#', '').split('/') as [Scherm, string | undefined, ...string[]];
-  if (!SCHERMEN.includes(h)) return { scherm: 'vandaag', vakantie: null, spullen: '', plan: null };
+  if (!SCHERMEN.includes(h)) return { scherm: 'vandaag', vakantie: null, spullen: '', plan: null, instellingen: '' };
   return { scherm: h, vakantie: h === 'vakanties' && id ? decodeURIComponent(id) : null, spullen: h === 'spullen' ? [id, ...rest].filter(Boolean).join('/') : '',
-    plan: h === 'plannen' && id ? decodeURIComponent(id) : null };
+    plan: h === 'plannen' && id ? decodeURIComponent(id) : null,
+    instellingen: h === 'instellingen' && INSTELLINGEN_PADEN.includes(id as InstellingenPad) ? id as InstellingenPad : '' };
 }
 function schermUitHash(): Scherm { return uitHash().scherm; }
 
@@ -95,9 +104,10 @@ function DemoApp() {
   // De demo-extra's gaan apart naar de schermen (ctx.demo); de rest is hetzelfde contract als online (acties.ts).
   const { kiesScenario, vervangAlles: _alleenDemo, ...data } = demo;
   const demoExtra = useMemo(() => ({ scenario: demo.staat.scenario, kiesScenario }), [demo.staat.scenario, kiesScenario]);
+  const voorkeuren = useDemoVoorkeuren();
   return (
     <SpullenCtx.Provider value={spullen}>
-      <Schil klok={klok} data={data} demo={demoExtra} huishouden={huishouden} balk={<DemoBalk />} titelSoort="demo">
+      <Schil klok={klok} data={data} demo={demoExtra} huishouden={huishouden} voorkeuren={voorkeuren} balk={<DemoBalk />} titelSoort="demo">
         <SpullenLaag invoer={invoer} sluit={sluitInvoer} />
       </Schil>
     </SpullenCtx.Provider>
@@ -158,6 +168,9 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
   const t = snap.toestand!;
   const hh = useMemo(() => naarHuishouden(t, snap.huishouden!.naam), [t, snap.huishouden]);
   const { keuze, sluitKeuze, opnieuwProberen, vergeten, herinvoeren, syncMeldingWeg, ...data } = useLokaleStaat(sessie, snap, vandaag, hh);
+  // Besluit 20: alleen met VITE_VOORKEUREN=aan (en migratie 20261124120000); anders null en overal de standaard.
+  const online = t.status === 'verbonden' || t.status === 'synchroniseren';
+  const voorkeuren = useServerVoorkeuren(sessie.client, snap.account!.id, online, data.meld, !!sessie.config.voorkeuren);
   const lokaal: LokaalContext = {
     omgeving: sessie.config.omgeving,
     plannen: !!sessie.config.plannen,
@@ -190,7 +203,7 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
     uitloggen: (o?: { wissen?: boolean }) => { void sessie.uitloggen(o); },
   };
   const schil = (extra?: ReactNode) => (
-    <Schil klok={klok} data={data} huishouden={hh} lokaal={lokaal} balk={<LokaleBalk />} titelSoort={TITELSOORT[sessie.config.omgeving]}>
+    <Schil klok={klok} data={data} huishouden={hh} lokaal={lokaal} voorkeuren={voorkeuren} balk={<LokaleBalk />} titelSoort={TITELSOORT[sessie.config.omgeving]}>
       {keuze && <KeuzeVenster keuze={keuze} sluit={sluitKeuze} />}
       {extra}
     </Schil>
@@ -209,25 +222,52 @@ function EchteSpullen({ sessie, toestand, meld, children }: { sessie: Sessie; to
   return <SpullenCtx.Provider value={spullen}>{children(<SpullenLaag invoer={invoer} sluit={sluitInvoer} />)}</SpullenCtx.Provider>;
 }
 
-function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, children }: {
-  klok: Date; data: Acties & { staat: Staat }; demo?: AppContext['demo']; huishouden: Huishouden; balk: ReactNode;
+function Schil({ klok, data, demo, huishouden: hh, voorkeuren, balk, lokaal, titelSoort, children }: {
+  klok: Date; data: Acties & { staat: Staat }; demo?: AppContext['demo']; huishouden: Huishouden; voorkeuren: VoorkeurenToegang | null;
+  balk: ReactNode; lokaal?: LokaalContext;
   /** Tussen haakjes achter "Thuisplanner" in de tabtitel; null (bèta, productie): geen toevoeging. */
-  lokaal?: LokaalContext; titelSoort: string | null; children?: ReactNode;
+  titelSoort: string | null; children?: ReactNode;
 }) {
   const vandaag = naarDatum(klok);
-  const [schermKeuze, zetScherm] = useState<Scherm>(schermUitHash);
+  // Besluit 20 (aangevuld 25 november 2026): het startscherm, hoogstens één keer per paginalading (neemStartBeurt), met de
+  // stand die bij het openen al op dit toestel bekend was. Zonder adres altijd; met een gewoon hoofdscherm alleen bij een
+  // echte nieuwe start; een link naar een item, of herladen, houdt het adres (zie startDoel).
+  const [start] = useState(() => {
+    if (!neemStartBeurt()) return null;
+    const doel = startDoel(window.location.hash, voorkeuren?.bijStart ?? null, isNieuweStart());
+    if (!doel) return null;
+    const scherm: Scherm = doel === 'taken' ? 'agenda' : doel;
+    // Het adres meteen goed (zonder extra stap in de geschiedenis): herladen opent hetzelfde scherm.
+    try { window.history.replaceState(window.history.state, '', `#/${scherm}`); } catch { /* geen geschiedenis: alleen het scherm */ }
+    return { scherm, doel };
+  });
+  const [schermKeuze, zetScherm] = useState<Scherm>(() => start?.scherm ?? schermUitHash());
   // Plannen (besluit 18): in de demo altijd; in lokaal en staging alleen met VITE_PLANNEN=aan (anders geen route).
-  const scherm = schermVoor(schermKeuze, plannenAan({ lokaal }));
+  // Persoonlijke instellingen (besluit 20): alleen als er voorkeuren zijn.
+  const scherm = schermVoor(schermKeuze === 'instellingen' && !voorkeuren ? 'meer' : schermKeuze, plannenAan({ lokaal }));
   const [vakantie, zetVakantie] = useState<string | null>(() => uitHash().vakantie);
   const [spullenPad, zetSpullenPad] = useState<string>(() => uitHash().spullen);
   const [plan, zetPlan] = useState<string | null>(() => uitHash().plan);
+  const [instellingenPad, zetInstellingenPad] = useState<InstellingenPad>(() => uitHash().instellingen);
   const [venster, zetVenster] = useState<VensterOpdracht | null>(null);
-  const [agenda, zetAgendaStand] = useState<AgendaStand>({ weergave: 'week', datum: vandaag, filter: null });
+  // Besluit 20: de Agenda opent in de eigen standaardweergave en met "Iedereen" of "Ik". Daarna blijft de Agenda staan waar
+  // je was (ook na even een ander scherm), zoals altijd.
+  const [agenda, zetAgendaStand] = useState<AgendaStand>(() => {
+    const v = voorkeuren?.bijStart ?? null;
+    return {
+      weergave: start?.doel === 'taken' ? 'taken' : v?.agendaWeergave ?? 'week',
+      datum: vandaag,
+      filter: v?.agendaWie === 'ik' ? hh.ik : null,
+    };
+  });
   const zetAgenda = useCallback((s: Partial<AgendaStand>) => zetAgendaStand(a => ({ ...a, ...s })), []);
   const hoofd = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const opHash = () => { const u = uitHash(); zetScherm(u.scherm); zetVakantie(u.vakantie); zetSpullenPad(u.spullen); zetPlan(u.plan); };
+    const opHash = () => {
+      const u = uitHash();
+      zetScherm(u.scherm); zetVakantie(u.vakantie); zetSpullenPad(u.spullen); zetPlan(u.plan); zetInstellingenPad(u.instellingen);
+    };
     window.addEventListener('hashchange', opHash);
     return () => window.removeEventListener('hashchange', opHash);
   }, []);
@@ -240,6 +280,15 @@ function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, chi
     zetVakantie(null);
     zetSpullenPad('');
     zetPlan(null);
+    zetInstellingenPad('');
+    window.scrollTo({ top: 0 });
+    hoofd.current?.focus({ preventScroll: true });
+  }, []);
+  const openInstellingen = useCallback((pad: InstellingenPad) => {
+    const doel = pad ? `#/instellingen/${pad}` : '#/instellingen';
+    if (window.location.hash !== doel) window.location.hash = doel;
+    zetScherm('instellingen');
+    zetInstellingenPad(pad);
     window.scrollTo({ top: 0 });
     hoofd.current?.focus({ preventScroll: true });
   }, []);
@@ -299,6 +348,9 @@ function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, chi
     openPlan,
     agenda,
     zetAgenda,
+    voorkeuren,
+    instellingenPad,
+    openInstellingen,
     lokaal,
     demo,
   };
@@ -318,6 +370,7 @@ function Schil({ klok, data, demo, huishouden: hh, balk, lokaal, titelSoort, chi
             {scherm === 'vakanties' && <Vakanties />}
             {scherm === 'spullen' && <Spullen />}
             {scherm === 'plannen' && <Plannen />}
+            {scherm === 'instellingen' && <Instellingen />}
           </Foutgrens>
         </main>
         {venster && (

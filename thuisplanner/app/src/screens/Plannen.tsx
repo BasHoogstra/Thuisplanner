@@ -234,7 +234,7 @@ function PlanPagina({ p }: { p: Plan }) {
       {filter !== null ? <PerPersoon p={p} filter={filter} /> : <>
       {/* Met onderdelen voeg je een taak toe in het onderdeel; losse taken blijven zonder kop bovenaan staan. */}
       {actief && !onderdelen.length && <TaakInvoer p={p} focusBijOpenen={leegBijOpenen.current} />}
-      {!totaal && !onderdelen.length && <p className="stil-tekst vak-leeg">Wat moet er gebeuren? Een taak met een datum verschijnt vanzelf op Vandaag en in de Agenda.</p>}
+      {!totaal && !onderdelen.length && <p className="stil-tekst vak-leeg">Wat moet er gebeuren? Een taak met een datum verschijnt vanzelf op het Overzicht en in de Agenda.</p>}
       <TaakLijst taken={los} />
 
       {onderdelen.map(o => {

@@ -119,12 +119,13 @@ test('de eerste weergave: alleen de balk, de groene verzendknop meteen zichtbaar
   expect(posities[0], 'de + vanuit Vandaag en Agenda staat anders').toBe(posities[1]);
 });
 
-test('een afspraak in één zin: op Binnenkort, met ongedaan maken; de melding hindert een volgende invoer niet', async ({ page }) => {
+test('een afspraak in één zin: in de Agenda, met ongedaan maken; de melding hindert een volgende invoer niet', async ({ page }) => {
   await zin(page, 'morgen om 15:00 met Lotte naar de tandarts');
   await verstuur(page).click();
   await expect(venster(page)).toBeHidden();
   await expect(page.getByRole('status')).toContainText('Naar de tandarts staat in de agenda (morgen 15:00)');
-  await expect(sectie(page, 'Binnenkort')).toContainText('Naar de tandarts');
+  // Het Overzicht toont om 11:20 al 3 afspraken van vandaag (besluit 19); de afspraak van morgen staat in de Agenda.
+  await expect(sectie(page, 'Afspraken')).not.toContainText('Naar de tandarts');
   // Meteen weer de +: de melding gaat weg en de verzendknop is direct te raken.
   await zin(page, 'band plakken');
   await expect(page.locator('.melding')).toHaveCount(0);

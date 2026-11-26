@@ -18,14 +18,15 @@ die eerder online gaan. Een eenmaal toegepaste migratie wordt nooit herschreven 
 | `20261025120000` | Vakanties | toegepast op staging (stap 9b) |
 | `20261026120000` | Boodschappen "Later nodig" | toegepast op staging (stap 9b) |
 | `20261027120000` | Extra inpaklijsten | toegepast op staging (stap 9b) |
-| **`20261027180000`** | **Herstel bezorgmeldingen** (PR #48) | in `main` (PR #54); toegepast op staging (stand `5e17c40`) |
+| **`20261027180000`** | **Herstel bezorgmeldingen** (PR #48) | toegepast op staging (gecontroleerd 25 november 2026) |
 | `20261028120000` | Vakanties-reviewpunten (V1.1) | gereserveerd; volgens de hoofdlijnsessie niet nodig (herstel in app en sync), nog niet geschreven |
-| `20261029120000` | Mijn spullen & Documenten | in `main` (PR #54); toegepast op staging (stand `5e17c40`) |
-| `20261029130000` | Spullen: taken alleen bij gedeelde spullen (privacyherstel `tasks.possession_id`, optie A) | in `main` (PR #54); toegepast op staging (stand `5e17c40`); hoort onlosmakelijk bij `20261029120000` |
+| `20261029120000` | Mijn spullen & Documenten | toegepast op staging (gecontroleerd 25 november 2026) |
+| `20261029130000` | Spullen: taken alleen bij gedeelde spullen (privacyherstel `tasks.possession_id`, optie A) | toegepast op staging (gecontroleerd 25 november 2026); hoort onlosmakelijk bij `20261029120000` |
 | `20261030120000` | Afsprakenmodel (A2, met A1) | **niet in de repository van de bèta**: op `thuisplanner-a2-afsprakenmodel`; buiten de gezinsbèta (besluit Bas, 10 november). Krijgt bij integratie een nieuw nummer na de laatst toegepaste |
-| `20261111120000` | Plannen (besluit 18) | in `main` (PR #54); toegepast op staging (stand `5e17c40`) |
-| `20261116120000` | Claimronde uitnodigingsmails (herstelronde review PR #54) | in `main` (PR #54); toegepast op staging (stand `5e17c40`, 24 migraties); **laatst toegepaste** |
-| `20261125120000` | Besloten bèta: registratie alleen op uitnodiging, L1, R4 en L4 (pakket P2, V4) | nog niet toegepast; eerst de generale repetitie; **laatste in de repository** (25 migraties). Paklijstcategorieën (P7) komen daarna, met het volgende nummer |
+| `20261111120000` | Plannen (besluit 18) | toegepast op staging (gecontroleerd 25 november 2026) |
+| `20261116120000` | Claimronde uitnodigingsmails (herstelronde review PR #54) | toegepast op staging (gecontroleerd 25 november 2026); **laatst toegepaste** (24 migraties) |
+| `20261124120000` | Persoonlijke instellingen (besluit 20, PR V): `account_preferences`, `set_preference`, `reset_preferences` | in PR #58; lokaal getest; de dry-run op staging (25 november) toont alleen deze als nieuw; nog niet toegepast (eigen akkoord) |
+| `20261125120000` | Besloten bèta: registratie alleen op uitnodiging, L1, R4 en L4 (pakket P2, V4) | op `thuisplanner-besloten-beta`; nog niet toegepast; eerst de generale repetitie, ná `20261124120000`; **laatste in de repository** (26 migraties). Paklijstcategorieën (P7) komen daarna, met het volgende nummer |
 
 ## Waarom `20261027180000` voor de herstelmigratie
 

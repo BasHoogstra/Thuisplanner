@@ -233,7 +233,6 @@ describe('in de app', () => {
     render(<App />);
     await user.click(screen.getByRole('button', { name: 'Vergunning nakijken openen' }));
     let d = screen.getByRole('dialog', { name: 'Taak' });
-    await user.click(within(d).getByRole('button', { name: 'Meer…' }));
     await user.click(within(d).getByRole('button', { name: 'Alles bewerken' }));
     d = screen.getByRole('dialog', { name: 'Taak' });
     await user.clear(within(d).getByLabelText(/^Wat/));

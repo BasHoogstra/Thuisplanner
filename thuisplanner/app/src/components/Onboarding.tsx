@@ -200,7 +200,7 @@ export function UitnodigingAccepteren({ sessie, snap, bron, sluit }: { sessie: S
           <h1>Welkom{naam ? ` bij ${naam}` : ''}</h1>
           <p className="kop-samenvatting">Je bent nu lid van dit huishouden.</p>
         </header>
-        <button type="button" className="knop breed" onClick={sluit} disabled={bezig}>Naar Vandaag</button>
+        <button type="button" className="knop breed" onClick={sluit} disabled={bezig}>Naar het overzicht</button>
         {!verlaten ? (
           <button type="button" className="knop breed stil" onClick={() => zetVerlaten(true)} disabled={bezig}>Toch niet: dit huishouden verlaten</button>
         ) : (

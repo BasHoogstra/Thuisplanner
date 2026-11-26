@@ -175,7 +175,10 @@ describe('privacy en gezinsfilter', () => {
   it('filterregels', () => {
     const a = items.find(i => i.id === 'a-eten') as Afspraak;
     expect(afspraakPast(a, 'm-daan')).toBe(true); // voor iedereen
-    expect(taakPast({ id: 't', soort: 'taak', titel: 'x', datum: V, voor: null, klaar: false }, 'm-daan')).toBe(false);
+    // O7 (26 oktober 2026), gebouwd met besluit 20: een taak zonder persoon hoort bij het hele gezin en dus bij elk lid.
+    expect(taakPast({ id: 't', soort: 'taak', titel: 'x', datum: V, voor: null, klaar: false }, 'm-daan')).toBe(true);
+    expect(taakPast({ id: 't', soort: 'taak', titel: 'x', datum: V, voor: 'm-eva', klaar: false }, 'm-daan')).toBe(false);
+    expect(taakPast({ id: 't', soort: 'taak', titel: 'x', datum: V, voor: 'm-daan', klaar: false }, 'm-daan')).toBe(true);
     expect(taakPast({ id: 't', soort: 'taak', titel: 'x', datum: V, voor: null, klaar: false }, null)).toBe(true);
   });
 });
