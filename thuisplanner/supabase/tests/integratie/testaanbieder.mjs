@@ -11,6 +11,7 @@
 // Met een Idempotency-Key die hij al kent, verstuurt hij niets opnieuw en geeft hij hetzelfde bericht-id (zoals een
 // idempotente aanbieder). Bezorgmeldingen ondertekent hij met TESTAANBIEDER_GEHEIM (HMAC-SHA256, hex).
 import { createHmac, randomUUID } from 'node:crypto';
+import { execSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -22,6 +23,43 @@ const HIER = path.dirname(fileURLToPath(import.meta.url));
 export function functieEnv() {
   const tekst = readFileSync(path.resolve(HIER, '../../functions/.env'), 'utf8');
   return Object.fromEntries(tekst.split(/\r?\n/).filter(r => r.includes('=') && !r.startsWith('#')).map(r => [r.slice(0, r.indexOf('=')), r.slice(r.indexOf('=') + 1)]));
+}
+
+/**
+ * Luisteren op een vaste poort, met geduld. De poort ligt vast (de Edge Functions kennen hem via TESTAANBIEDER_URL), maar
+ * op Linux valt hij in het bereik van tijdelijke uitgaande poorten (32768–60999): een gewone verbinding van de runner kan
+ * hem even bezet houden (EADDRINUSE, CI van PR #56 en #60 op 25 november 2026). Dan opnieuw proberen, en bij de eerste
+ * keer tonen wie de poort heeft. Een andere fout, of nog steeds bezet na alle pogingen: meteen een duidelijke fout.
+ * De workflow reserveert de poorten van de stack ook (ip_local_reserved_ports); dit is het vangnet.
+ */
+export async function luisterMetGeduld(server, poort, adres, { pogingen = 30, wachtMs = 1000, meld = console.error } = {}) {
+  for (let i = 1; ; i++) {
+    try {
+      await new Promise((ok, fout) => {
+        const bijFout = e => { server.off('listening', bijLuisteren); fout(e); };
+        const bijLuisteren = () => { server.off('error', bijFout); ok(); };
+        server.once('error', bijFout);
+        server.once('listening', bijLuisteren);
+        server.listen(poort, adres);
+      });
+      if (i > 1) meld(`testaanbieder: poort ${poort} vrij na ${i} pogingen`);
+      return;
+    } catch (e) {
+      if (e?.code !== 'EADDRINUSE' || i >= pogingen) {
+        if (e?.code === 'EADDRINUSE') e.message = `poort ${poort} na ${pogingen} pogingen nog bezet: ${e.message}`;
+        throw e;
+      }
+      if (i === 1) meld(`testaanbieder: poort ${poort} bezet, opnieuw proberen. Wie: ${wieHeeftPoort(poort)}`);
+      await new Promise(r => setTimeout(r, wachtMs));
+    }
+  }
+}
+
+/** Alleen voor de foutmelding: wie heeft de poort (Linux: ss), zonder dat het mislukken ervan iets uitmaakt. */
+function wieHeeftPoort(poort) {
+  try {
+    return execSync(`ss -tanp 2>/dev/null | grep -E ':${Number(poort)}[[:space:]]' | head -5`, { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }).trim() || 'onbekend';
+  } catch { return 'onbekend'; }
 }
 
 export async function startTestaanbieder(poort) {
@@ -69,7 +107,7 @@ export async function startTestaanbieder(poort) {
       else antwoord(Number(g), {});
     });
   });
-  await new Promise((ok, fout) => { server.once('error', fout); server.listen(poort, process.env.TESTAANBIEDER_ADRES ?? '127.0.0.1', ok); });
+  await luisterMetGeduld(server, poort, process.env.TESTAANBIEDER_ADRES ?? '127.0.0.1');
   t.stop = () => new Promise(ok => { server.closeAllConnections?.(); server.close(() => ok()); });
   return t;
 }

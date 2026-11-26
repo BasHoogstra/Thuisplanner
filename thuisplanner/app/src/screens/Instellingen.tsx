@@ -173,7 +173,7 @@ function OverzichtKeuze() {
                     <span className="rij-titel">{DELEN[d].naam}</span>
                     <span className="rij-sub"><span className="plek">{vast ? 'Blijft aan: je Overzicht is nooit leeg' : DELEN[d].sub}</span></span>
                   </span>
-                  <input type="checkbox" role="switch" checked={v.overzicht[d]} disabled={vast}
+                  <input type="checkbox" role="switch" aria-label={DELEN[d].naam} checked={v.overzicht[d]} disabled={vast}
                     onChange={e => { void vk.zet(`overzicht.${d}` as Sleutel, e.target.checked); }} />
                 </label>
               </li>
