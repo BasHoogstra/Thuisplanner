@@ -1,0 +1,27 @@
+# Thuisplanner: nachtelijke volledige testronde op thuisplanner-staging (besluit C van Bas, 26 november 2026).
+# Een schedule loopt alleen vanaf de standaardbranch (main); dit bestand roept daarom de twee bestaande workflows van
+# thuisplanner-staging aan, met die branch als ref. Draait op GitHub, onafhankelijk van de laptop. Geen secrets, alleen
+# leesrechten, geen deploy en geen online database.
+name: Thuisplanner nachtelijke testronde
+
+on:
+  schedule:
+    - cron: '17 2 * * *'   # 02:17 UTC = 03:17 in de winter, 04:17 in de zomer (Amsterdam)
+  workflow_dispatch:        # ook met de hand te starten (Actions-tab)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thuisplanner-nachtelijk
+  cancel-in-progress: false
+
+jobs:
+  app:
+    uses: BasHoogstra/Thuisplanner/.github/workflows/thuisplanner-app.yml@thuisplanner-staging
+    with:
+      ref: thuisplanner-staging
+  database:
+    uses: BasHoogstra/Thuisplanner/.github/workflows/thuisplanner-db.yml@thuisplanner-staging
+    with:
+      ref: thuisplanner-staging
