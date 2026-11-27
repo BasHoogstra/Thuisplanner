@@ -15,6 +15,17 @@ on:
       - 'thuisplanner/sync/**'
       - '.github/workflows/thuisplanner-app.yml'
 
+  # Handmatig (Actions-tab) en aanroepbaar door de nachtelijke testronde op main (thuisplanner-nachtelijk.yml), die
+  # `ref` meegeeft (de branch om te testen, standaard thuisplanner-staging). Zonder ref: de gewone checkout.
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Branch of commit om te testen'
+        type: string
+        required: false
+        default: ''
+
 permissions:
   contents: read
 
@@ -27,6 +38,8 @@ jobs:
         working-directory: thuisplanner/app
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
