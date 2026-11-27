@@ -106,8 +106,10 @@ test('de kopie bevat alle domeinen van het account, en niets wat het account in 
   ok(await gijs.c.rpc('create_invite', { p_household: g, p_email: anna.email }));   // een open uitnodiging aan Anna
   ok(await anna.c.rpc('create_invite', { p_household: h, p_email: `oma-${run}@test.invalid` }));
   await db.query('insert into private.testers (email) values ($1)', [anna.email]);
+  ok(await anna.c.rpc('set_preference', { p_key: 'startscherm', p_value: 'agenda' }));   // besluit 20
 
   const { tekst, json } = await exporteer(anna.email.toUpperCase());
+  assert.deepEqual(json.persoonlijke_instellingen?.instellingen, { startscherm: 'agenda' }, 'de persoonlijke instellingen ontbreken');
   assert.equal(json.account.adres, anna.email);
   assert.equal(json.op_de_testerslijst, true);
   assert.equal(json.huishoudens.length, 1);

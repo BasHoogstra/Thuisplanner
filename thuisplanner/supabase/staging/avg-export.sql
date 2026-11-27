@@ -48,6 +48,9 @@ select jsonb_pretty(jsonb_build_object(
   'opmerking', case when not exists (select 1 from acc) then 'Bij dit adres hoort geen account.' end,
   'profiel', (select jsonb_build_object('weergavenaam', p.display_name, 'aangemaakt', p.created_at, 'gewijzigd', p.updated_at)
               from public.profiles p join acc on p.user_id = acc.id),
+  -- Besluit 20 (migratie 20261124120000): de persoonlijke instellingen van dit account.
+  'persoonlijke_instellingen', (select jsonb_build_object('instellingen', a.prefs, 'aangemaakt', a.created_at, 'gewijzigd', a.updated_at)
+                                from public.account_preferences a join acc on a.user_id = acc.id),
   'op_de_testerslijst', exists (select 1 from private.testers t, invoer i where t.email = i.adres),
   'bekende_toestellen', coalesce((select jsonb_agg(jsonb_build_object('sinds', t.gemaakt, 'laatst_gebruikt', t.laatst_gebruikt,
                                      'ingetrokken', t.ingetrokken) order by t.gemaakt)

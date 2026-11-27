@@ -135,9 +135,11 @@ test('scheiding: B uploadt nooit naar een pad van A, of naar een eigen pad met e
 test('een verlopen link werkt niet meer (de tegenproef: dezelfde link werkt direct wel)', async () => {
   const d = await nieuwDocument(sara, ha, mSara);
   assert.equal((await bevestig(sara, d.id)).status, 200);
-  const { signedUrl } = ok(await link(sara, d.pad, 1));
+  // 3 seconden, niet 1: Storage rekent in hele seconden, dus een link van 1 seconde is soms al verlopen als het ophalen
+  // net in de volgende seconde valt (gemeten 26 november 2026: 1 op 60). Daarna ruim voorbij het verloopmoment wachten.
+  const { signedUrl } = ok(await link(sara, d.pad, 3));
   assert.equal((await fetch(signedUrl)).status, 200, 'tegenproef: de verse link werkt');
-  await wacht(2500);
+  await wacht(4500);
   assert.notEqual((await fetch(signedUrl)).status, 200, 'verlopen link werkt nog');
 });
 
