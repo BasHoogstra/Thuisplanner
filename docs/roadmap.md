@@ -222,7 +222,7 @@ back-ups, §5.4 verwijderen op verzoek, §5.5, §8) blijven gelden.
 | --- | --- | --- |
 | V1 | Gezinsbèta Bas en Sanne: acceptatietest op twee telefoons; export en herstelproef mét bestanden | PO + Claude |
 | V2 | Bèta-omgeving: Pro, organisatie, project, Pages `app.mijnthuisplanner.nl` (CNAME), Turnstile, nieuwe geheimen, Auth met een ruime mailgrens per uur | PO + C |
-| V3 | Buildmodus `beta` en `productie` met kenmerkbewaking; nooit als demo (A1, N4, N5); `functies.ps1 -Omgeving beta`; L8 | P1 |
+| V3 | Buildmodus `beta` en `productie` met kenmerkbewaking; nooit als demo (A1, N4, N5); `functies.ps1 -Omgeving beta`; L8. **Afhankelijkheid (besluit 26 november 2026):** de manifest, pictogrammen, beginscherm-tags en service worker uit PR #57 in de bèta-build (zie V11) | P1 + PR #57 |
 | V4 | Registratie alleen op uitnodiging, L1, R4 en L4 (de enige pakket met een migratie), en eerlijke meldingen bij de limieten van Supabase Auth | P2 |
 | V5 | Stagingreview L5 en L6; onafhankelijke review, of het resterende risico schriftelijk geaccepteerd door de PO (O6), met een risico-overzicht | P3 + PO |
 | V6 | Verwijderen op verzoek (A9, met Mijn spullen), AVG-inzage (`avg-export.sql`) en het dagoverzicht (`dagoverzicht.sql`) | P4 |
@@ -230,6 +230,9 @@ back-ups, §5.4 verwijderen op verzoek, §5.5, §8) blijven gelden.
 | V8 | Privacyverklaring van de app gepubliceerd (bedrijfsgegevens ingevuld); DPA Supabase getekend; Cloudflare en Lettermint vastgelegd; uitleg voor testers en "Feedback of hulp" in Meer | P6 + PO |
 | V9 | Back-uplagen 1–3 en de hersteloefening op de bèta, mét bestanden | C + PO |
 | V10 | Acceptatiepoort: mobiele UX-check (met pakket 1–4 "Vandaag en Agenda rustiger", besluit 23 november), onboardingtest met een nieuwe gebruiker | PR #55 + PO |
+| V11 | **Eén keer inloggen** (besluit 26 november 2026): op `app.mijnthuisplanner.nl` zonder Access na één code-inlog per toestel geen inlog- of Access-scherm na update, herstart, offline en minstens 8 dagen niet openen (iPhone-beginscherm-app en desktop). De 13 testpunten en de 8-dagenproef (begin uiterlijk **5 december**); Auth-instellingen vastgelegd; technische hostnamen afgeschermd. Uitwerking en handelingen: `docs/thuisplanner-beta-voorbereiding.md` §2.5 | P1 + PR #57 + C + PO |
+
+**Eén keer inloggen (V11, besluit van de producteigenaar, 26 november 2026: "Alle drie").** De voorwaarde is een bèta-gate vóór 14 december. Overbrugging tot de verhuizing: de Access-sessieduur op staging tijdelijk op het maximum (de PO doet dat zelf). PR #57 (manifest, pictogrammen, beginscherm-tags, service worker; niet de pushproef) komt vóór 14 december in de bèta-build, als afhankelijkheid van P1. De 8-dagenproef begint uiterlijk 5 december; kan dat nog niet op `app.mijnthuisplanner.nl`, dan op staging als beginscherm-app met de manifest, met een korte herhaling op de bèta na de verhuizing. **Groen voor 14 december** (besluit van de producteigenaar, 26 november 2026: "Ja, zo"): de 8-dagenproef op staging geslaagd, plus de korte reeks op de bèta (testpunt 1–5 en 8–13) vóór 14 december; de tweede 8-dagenproef op de bèta loopt vanaf de verhuizing en moet groen zijn voordat er nieuwe gezinnen bij komen (besluit van de producteigenaar, 26 november 2026: "Ja"; §2.5). Elke handeling (Access, DNS, project, uitrol, verhuizing) houdt een afzonderlijk akkoord.
 
 **Tijdens de bèta, als update (blokkeren de start niet):** pushmeldingen en herinneringen, Bestellingen, Maaltijden en
 Recepten, herhalende taken, Overzicht en persoonlijke instellingen (besluiten 19 en 20; uitwerking van personalisatie

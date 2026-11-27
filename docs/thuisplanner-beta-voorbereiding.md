@@ -261,6 +261,97 @@ Online (bèta) is niets gedraaid; dat volgt later met de producteigenaar, met Ac
 hoeft er geen project verhuisd te worden en blijft er een gratis plek over. Tot die tijd kan alles lokaal worden
 voorbereid (§9, spoor A).
 
+### 2.5 Acceptatievoorwaarde "Eén keer inloggen" (besluit van de producteigenaar, 26 november 2026)
+
+**Besluit** ("Alle drie", op de drie voorstellen uit `docs/thuisplanner-inlogduur-advies.md`, 26 november 2026):
+1. De voorwaarde "Eén keer inloggen" is een **bèta-gate vóór 14 december** (voorwaarde V11 in de roadmap): de 13
+   testpunten hieronder en de **8-dagenproef, die uiterlijk 5 december begint**.
+2. **Overbrugging:** de Access-sessieduur op staging gaat tijdelijk naar het maximum. De producteigenaar doet dat zelf
+   in het dashboard. Dit is tijdelijk en telt niet als bewijs voor de gate.
+3. **PR #57 komt vóór 14 december in de bèta-build:** de manifest, de pictogrammen, de beginscherm-tags
+   (`apple-mobile-web-app-capable` e.d.) en de service worker. De pushproef zelf hoeft niet mee. Dit is een
+   afhankelijkheid van P1 (V3).
+
+**De voorwaarde.** Op `app.mijnthuisplanner.nl`, zonder Cloudflare Access, ziet een gebruiker na één code-inlog per
+toestel in de volgende situaties **geen enkel inlogscherm en geen Access-scherm**: na een app-update, na het afsluiten
+en herstarten van app en toestel, na offline openen, en na **minstens 8 dagen** niet openen. Dit geldt voor een
+iPhone-beginscherm-app en voor een desktopbrowser (Chrome of Edge); Android Chrome als het toestel er is. Geslaagd =
+alle testpunten groen, met datum en tijd vastgelegd. Waarom 8 dagen: net over de 7-dagenregel van Safari.
+
+**Waarom het kan (uit het advies):** Supabase vernieuwt sessies zonder einddatum zolang er geen time-box of
+inactiviteitslimiet is (gemeten: na vernieuwen blijft `amr: otp` en geeft de toegangspoort `ok`); netwerkfouten loggen
+niemand uit. De twee echte voorwaarden zijn **één vast adres** (een ander adres is een andere opslag) en op de iPhone
+een **echte beginscherm-app met manifest** (PR #57).
+
+| # | Testpunt | Toestel | Verwacht | Wie |
+| --- | --- | --- | --- | --- |
+| 1 | Eerste inlog met een code in de beginscherm-app | iPhone (Bas en Sanne) | Binnen 2 minuten ingelogd; geen Access-scherm | PO, Sanne |
+| 2 | App uit de app-wisselaar vegen en heropenen; telefoon herstarten | iPhone | Direct het huishouden, geen inlogscherm | PO, Sanne |
+| 3 | Nieuwe build uitrollen (app-update), daarna openen en herladen | iPhone + desktop | Ingelogd; nieuwe versie zichtbaar | Claude (uitrol na akkoord), PO |
+| 4 | Database-migratie uitrollen, daarna openen | iPhone + desktop | Ingelogd | Claude (na akkoord), PO |
+| 5 | Vliegtuigmodus aan, app openen, na 2 minuten weer online | iPhone | "Geen verbinding", nooit het inlogscherm; daarna vanzelf verder (binnen 60–90 s) | PO |
+| 6 | Minstens 8 dagen niet openen, daarna openen | iPhone-beginscherm-app | Ingelogd, geen code nodig | PO of Sanne (één toestel bewust laten liggen) |
+| 7 | Minstens 8 dagen niet openen | desktop Chrome of Edge (browser gesloten) | Ingelogd | PO |
+| 8 | Browser en computer herstarten | desktop | Ingelogd | PO |
+| 9 | Toegangstoken verlopen (meer dan 1 uur dicht), daarna openen | iPhone + desktop | Ingelogd, hoogstens kort "Even geduld" | PO |
+| 10 | Tegenproef: "Uitloggen op alle toestellen" op toestel A | A en B | B is bij de volgende actie uit (TPA02), A ook; opnieuw inloggen kan met een code | PO |
+| 11 | Tegenproef: `app.mijnthuisplanner.nl` in een privévenster | desktop | Geen Access-scherm, wel het codescherm. `thuisplanner-app.pages.dev` en een preview geven het Access-scherm (of bestaan niet) | Claude (zonder inlog) |
+| 12 | Auth-instellingen van de bèta | dashboard | Zoals vastgelegd hieronder | PO (schermafdruk), Claude legt vast |
+| 13 | Geautomatiseerd (lokaal en in CI): code-sessie na vernieuwen `ok`; heropenen bewaard (bestaat al); T21 en T23 | — | Groen, met tegenproef | Claude |
+
+**De 8-dagenproef (testpunt 6 en 7) begint uiterlijk 5 december.** Kan dat nog niet op de definitieve hostnaam, dan
+loopt de proef op staging met een vergelijkbare opzet (beginscherm-app met de manifest van PR #57), en wordt hij op de
+bèta korter herhaald (testpunt 9), met een tweede 8-dagenproef vanaf de verhuizing. Planning: zie de roadmap, V11.
+
+**Wanneer is de gate groen voor 14 december** (besluit van de producteigenaar, 26 november 2026: "Ja, zo"):
+1. **De 8-dagenproef op staging is geslaagd**: een iPhone-beginscherm-app (met de manifest van PR #57) en een desktop
+   (Chrome of Edge) zijn minstens 8 dagen bewust niet geopend en daarna nog ingelogd, zonder code. Een Access-scherm
+   dat ondanks de verlengde sessieduur verschijnt, wordt apart genoteerd en telt niet als fout van het inloggen zelf.
+   Voorwaarde: de Auth-instellingen van staging zijn gelijk aan de vastgelegde bèta-instellingen (schermafdruk PO).
+2. **De korte reeks op de bèta is groen**, na de verhuizing en vóór 14 december: testpunt 1–5 en 8–12 op
+   `app.mijnthuisplanner.nl`, plus testpunt 13 (geautomatiseerd).
+3. **De tweede 8-dagenproef op de bèta** begint op de verhuisdatum. De uitslag komt na 14 december, vóór de andere
+   gezinnen. **Besluit van de producteigenaar (26 november 2026: "Ja"):** deze proef moet groen zijn voordat er nieuwe
+   gezinnen bij komen; faalt die, dan gaan er geen nieuwe gezinnen bij tot de oorzaak is opgelost.
+
+**Vastgelegde Auth-instellingen van de bèta** (checklist bij C2, controle in de nacontrole):
+- JWT-expiry 3600 s;
+- rotatie van refresh-tokens aan, herhaalmarge 10 s;
+- **geen** time-box, **geen** inactiviteitstime-out, **geen** "single session per user" (pas op Pro beschikbaar: uit
+  laten);
+- de grens "Token refresh" niet lager dan 150 per 5 minuten per IP (een 429 bij een verlopen token wist de sessie in
+  auth-js; restrisico, zie handeling 12).
+
+**Afscherming van de technische hostnamen** (Access per hostnaam, niet per project):
+
+| Hostnaam | Project | Access |
+| --- | --- | --- |
+| `app.mijnthuisplanner.nl` | `thuisplanner-app` | **Nee**, pas na de groene Access-poort (§2.3) en een apart akkoord; tijdens het inrichten wel (O3/C) |
+| `thuisplanner-app.pages.dev` | idem | **Ja** (of een redirect naar het eigen domein): voorkomt een tweede adres met een eigen sessie |
+| `*.thuisplanner-app.pages.dev` (previews) | idem | **Previews uit** (advies), anders Access: een preview zou met de bèta-database (straks productie) praten |
+| `thuisplanner-staging.pages.dev` + previews | `thuisplanner-staging` | **Ja, blijft** (B1) |
+
+Te verifiëren in het dashboard: "Enable access policy" in Pages beschermt standaard alleen de previews; het hoofdadres
+moet apart in de Access-applicatie.
+
+**Handelingen, elk met een apart akkoord van de producteigenaar** (niets hiervan is uitgevoerd):
+1. Access-sessieduur op staging verlengen (de overbrugging; doet de PO zelf).
+2. PR #57 (of alleen de manifest, de pictogrammen en de tags) samenvoegen naar staging, en later naar de bèta.
+3. De kleine app-verbeteringen bouwen en committen: een eenmalige beginschermhint op de iPhone in een Safari-tabblad
+   (§15.3), `navigator.storage.persist()` na het inloggen, de test "code-sessie na vernieuwen blijft `ok`", eventueel
+   een `SIGNED_OUT`-luisteraar (T24), en geautomatiseerde varianten van T21 en T23.
+4. P2 en de integratiebranch pushen, de Draft PR maken en naar staging zetten.
+5. Het bèta-Supabase-project aanmaken (Pro, eigen organisatie) en de Auth-instellingen zetten zoals hierboven.
+6. Het Pages-project `thuisplanner-app` en het eigen domein `app.mijnthuisplanner.nl` (DNS) koppelen.
+7. Previews van `thuisplanner-app` uitzetten, en Access op `thuisplanner-app.pages.dev` (en eventueel de previews).
+8. Access tijdelijk op `app.mijnthuisplanner.nl` tijdens het inrichten (O3/C), en Access daar uitzetten na de groene
+   Access-poort.
+9. Migraties en functies op de bèta-database, en de uitrol van de app.
+10. De verhuizing van Bas en Sanne van staging naar de bèta: export en import van hun gegevens, en één nieuwe
+    code-inlog per toestel (het ene inlogmoment op het definitieve adres; daarna nooit meer van adres wisselen).
+11. De 8-dagenproef starten (welk toestel bewust blijft liggen, en vanaf welke datum).
+12. Het restrisico "429 bij vernieuwen" vastleggen in `docs/thuisplanner-restrisico-besloten-beta.md`.
+
 ## 3. Supabase Pro: voorbereiden, niet kopen
 
 ### 3.1 Wat Pro toevoegt
@@ -563,6 +654,7 @@ leeg. Ze staan in het draaiboek, met wie ze mag gebruiken (de producteigenaar).
 | Q8 | Gehoste tests | H1–H19 op de bèta groen; S1/S2 gemeten (H8, H9) | Op staging deels; bèta bestaat niet |
 | Q9 | Beveiliging | Onafhankelijke review (of geaccepteerd risico); R4, L1, L4–L6, L8 | Open |
 | Q10 | Herstel | Hersteloefening op de bèta geslaagd (§4) | Open |
+| Q11 | Eén keer inloggen (§2.5, besluit 26 november 2026) | De 13 testpunten groen, met de 8-dagenproef (begin uiterlijk 5 december); PR #57 in de bèta-build; Auth-instellingen vastgelegd; technische hostnamen afgeschermd | Open: advies besloten, niets uitgevoerd |
 
 Het volledige periodecontract van KG-5E (F2) en de router mogen na mijlpaal 2, mits Q6 is gehaald: dan bouwen we
 nieuwe functies niet meer op twee datapaden (F1).
