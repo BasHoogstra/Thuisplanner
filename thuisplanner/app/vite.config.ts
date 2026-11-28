@@ -12,14 +12,17 @@ export default defineConfig(({ mode }) => {
   // Storage en de Edge Functions door naar de lokale Supabase. Anders geen proxy, zoals voorheen.
   const doel = loadEnv(mode, process.cwd(), 'KG_').KG_SUPABASE_DOEL;
   const proxy = doel ? supabaseProxy(doel) : undefined;
-  // Omgeving bewaken (scripts/staging-build.ts): staging alleen met precies één online project en zonder
-  // demo-gegevens of geheimen; elke build krijgt een _headers-bestand met de beveiligingsheaders.
+  // Omgeving bewaken (scripts/staging-build.ts): staging, bèta en productie alleen met precies het vastgelegde project
+  // uit omgevingen.json en zonder demo-gegevens of geheimen; elke build krijgt een _headers-bestand met de
+  // beveiligingsheaders. KG_E2E_NEPPROJECT=1 (alleen uit de procesomgeving) is de uitzondering voor de offline e2e.
   const env = loadEnv(mode, process.cwd(), 'VITE_');
-  const { staging } = controleerOmgeving(mode, env);
+  const opties = { nepproject: process.env.KG_E2E_NEPPROJECT === '1' };
+  const { omgeving } = controleerOmgeving(mode, env, opties);
   return {
     base: './',
-    plugins: [react(), ontwerp(), bewaking(mode, env)],
-    define: staging ? { 'import.meta.env.VITE_OMGEVING': JSON.stringify('staging') } : undefined,
+    plugins: [react(), ontwerp(), bewaking(mode, env, opties)],
+    // De omgeving staat vast in de bundel: een bèta- of productiebuild kan daardoor nooit als demo starten (N4).
+    define: omgeving ? { 'import.meta.env.VITE_OMGEVING': JSON.stringify(omgeving) } : undefined,
     // De sync-module staat naast de app (../sync); Vite mag die map lezen.
     server: { host: '127.0.0.1', port: 5180, strictPort: true, fs: { allow: ['..'] }, proxy },
     preview: { host: '127.0.0.1', port: 5181, strictPort: true, proxy },

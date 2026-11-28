@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { headersBestand, stagingBuildFouten } from '../scripts/staging-build';
+import { headersBestand, onlineBuildFouten } from '../scripts/staging-build';
 import { magRegistreren, registreerServiceWorker } from '../src/pwa/registreer';
 import { base64urlNaarBytes, publiekeVapidSleutel } from '../src/pwa/push';
 // @ts-expect-error: los Node-script zonder typen
@@ -211,7 +211,8 @@ describe('VAPID-sleutel in de build', () => {
     expect(base64urlNaarBytes('AQID')).toEqual(new Uint8Array([1, 2, 3]));
   });
 
-  const basis = { VITE_SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co', VITE_SUPABASE_ANON_KEY: 'sb_publishable_x' };
+  const basis = { VITE_OMGEVING: 'staging', VITE_SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co', VITE_SUPABASE_ANON_KEY: ['sb', 'publishable', 'x'].join('_') };
+  const stagingBuildFouten = (env: Record<string, string>) => onlineBuildFouten(env, 'staging');
 
   it('de stagingbuild weigert een private sleutel in een VITE_-variabele en een ongeldige publieke sleutel', () => {
     const { publiek, privaat } = paar();

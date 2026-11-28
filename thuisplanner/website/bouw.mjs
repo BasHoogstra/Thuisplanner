@@ -8,6 +8,10 @@
 //   node bouw.mjs --publicatie   publicatiebouw: weigert bij lege of onvolledige bedrijfsgegevens of een ongeldige
 //                                instelling; alleen deze bouw mag online
 //
+// Conceptnotities: tekst tussen <!-- concept --> en <!-- /concept --> (bijvoorbeeld wat de producteigenaar nog moet
+// aanleveren of beslissen) staat alleen in de voorbeeldbouw. De publicatiebouw laat hem weg en weigert een blok dat
+// niet goed is afgesloten.
+//
 // De site heeft geen JavaScript, geen cookies, geen formulieren en geen verzoeken naar andere sites. De CSP dwingt dat af.
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -37,6 +41,13 @@ export function instellingFouten(g, { publicatie }) {
     if (leeg(b.adres) && !b.adresAfgeschermd) f.push('bedrijf.adres is leeg en niet afgeschermd (publicatie geweigerd)');
   }
   return f;
+}
+
+/** Conceptblokken: in de voorbeeldbouw zichtbaar (zonder de markeringen), in de publicatiebouw weg. */
+export function concepten(html, { publicatie, pagina = 'pagina' }) {
+  const uit = html.replace(/<!--\s*concept\s*-->([\s\S]*?)<!--\s*\/concept\s*-->/g, (m, inhoud) => (publicatie ? '' : inhoud));
+  if (/<!--\s*\/?concept\s*-->/.test(uit)) throw new Error(`${pagina}: een conceptblok is niet goed afgesloten`);
+  return uit;
 }
 
 const escape = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -104,7 +115,7 @@ export function bouw({ publicatie = false, gegevens = JSON.parse(readFileSync(pa
     const [, titel = 'Thuisplanner', beschrijving = ''] = bron.match(/^<!--\s*titel:\s*(.*?)\s*\|\s*beschrijving:\s*(.*?)\s*-->/) ?? [];
     const pad = p === 'index.html' ? '' : p.replace(/\.html$/, '');
     const html = vul(deel('kop.html'), { TITEL: escape(titel), BESCHRIJVING: escape(beschrijving), CANONIEK: `${gegevens.basisUrl}/${pad}` })
-      + vul(bron.replace(/^<!--[\s\S]*?-->\s*/, ''))
+      + vul(concepten(bron.replace(/^<!--[\s\S]*?-->\s*/, ''), { publicatie, pagina: p }))
       + vul(deel('voet.html'));
     if (/<script|javascript:|\son[a-z]+=/i.test(html)) throw new Error(`${p}: geen scripts of event-handlers toegestaan`);
     writeFileSync(path.join(uit, p), html);

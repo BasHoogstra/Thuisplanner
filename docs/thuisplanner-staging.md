@@ -28,7 +28,7 @@ Achtergrond, de vergelijking van hostingopties en de risico's staan in het eerde
 
 | Onderdeel | Hoe | Waar |
 | --- | --- | --- |
-| Omgevingen | `demo` (geen backend), `lokaal` (dit toestel of eigen netwerk) en `staging`. Staging alleen via `npm run build:staging`; een gewone build kan het niet worden | `src/lib/omgeving.ts`, `src/lib/lokaal/sessie.ts` (`appConfig`) |
+| Omgevingen | `demo` (geen backend), `lokaal` (dit toestel of eigen netwerk), `staging`, en sinds pakket P1 ook `beta` en `productie` (`docs/thuisplanner-beta-voorbereiding.md` §2.2). Staging alleen via `npm run build:staging`; een gewone build kan het niet worden | `src/lib/omgeving.ts`, `src/lib/lokaal/sessie.ts` (`appConfig`) |
 | Alleen het bedoelde project | De app en de build accepteren precies `https://<20 letters>.supabase.co`: geen http, geen poort, geen pad, geen andere schrijfwijze, en nooit een Huisplan-project (de build vergelijkt via SHA-256, zodat de kenmerken nergens in `thuisplanner/` staan). Zonder de stagingmarkering blijft elke online URL geweigerd | `src/lib/omgeving.ts`, `scripts/staging-build.ts` |
 | Geen geheimen | De stagingbuild faalt bij `VITE_DEMO_*`, bij elke `VITE_*SERVICE*`/`*SECRET*`-variabele, bij een service-rol-JWT of `sb_secret_`-sleutel, en achteraf als er in de gebouwde bestanden een geheime sleutel, een ander Supabase-project of een Huisplan-project staat | `scripts/staging-build.ts` |
 | Beveiligingsheaders | Elke build krijgt `_headers` voor Cloudflare Pages: een strenge CSP (`connect-src` alleen de eigen site plus precies het stagingproject, via https en wss), `noindex`, `no-referrer`, `nosniff`, `frame-ancestors 'none'`, `no-cache` voor `index.html` en `immutable` voor `assets/*` | `scripts/staging-build.ts` (`headersBestand`) |

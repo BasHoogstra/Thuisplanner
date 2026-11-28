@@ -37,7 +37,7 @@ een tester gegevens verliest of iets ziet wat niet voor hem is.
 | --- | --- | --- | --- |
 | 1. De partner gebruikt het dagelijks | week 3 (half november) | staging, achter Access | de producteigenaar en Sanne |
 | 2. Besloten bèta | week 6 (begin december) | **bèta (nieuw)** | daarnaast 3–5 externe gezinnen |
-| 3. Publieke lancering | week 12–16 (januari–februari 2027) | productie | iedereen, als product, privacy en beveiliging op orde zijn |
+| 3. Publieke lancering | streefdatum begin juni 2027, vroegst eind mei (scenario 2, besluit 25 november 2026; zie de roadmap) | productie | iedereen, als product, privacy en beveiliging op orde zijn |
 
 **Bèta-1 tegenover later:**
 
@@ -68,11 +68,11 @@ per scherm, en de bekende beperking staat in de uitleg voor testers (§6).
 | Organisatie | Zie §2.3 en besluit O1 | – |
 | Pages-project | `thuisplanner-app` (`omgevingen.json`), adres `app.mijnthuisplanner.nl` | Zoals stap 5; Preview branches: None |
 | Branch | Een eigen productiebranch, bijvoorbeeld `thuisplanner-beta`, alleen vooruit gezet vanaf een stand met groene CI | Zoals `thuisplanner-staging` |
-| Buildmodus | `beta`: `npm run build:beta` | Nieuw, op basis van `staging-build.ts` (§2.2) |
+| Buildmodus | `beta`: `npm run build:beta` | Gebouwd (lokaal, pakket P1), op basis van `staging-build.ts` (§2.2) |
 | `omgevingen.json` | `beta.supabaseRef` invullen, pas na controle in het dashboard (organisatie en kenmerk) | Zoals stap 0 van de overstap |
 | Migraties | `verbinding.ps1 -Ref <kenmerk> -Omgeving beta` (dry-run), daarna `-Push` met de getypte bevestiging | Het script kent `-Omgeving beta` al en weigert nu een bèta zonder kenmerk |
 | Nacontrole | `verbinding-controle.mjs na` met `KG_OMGEVING=beta` | Eerst de schijnafwijking met publishable keys oplossen (overstap stap 6, open punt) |
-| Edge Functions | `functies.ps1` met het bètakenmerk | Moet `-Omgeving beta` leren (nu alleen staging; kleine wijziging) |
+| Edge Functions | `functies.ps1 -Ref <kenmerk> -Omgeving beta` | Kent `-Omgeving beta` (pakket P1); weigert zolang `beta.supabaseRef` leeg is, en elk project van een andere omgeving of van Huisplan. Productie kan hier niet |
 | Geheimen | Alle 13 opnieuw en **anders** dan op staging (pepper, sleutels, hook, wachtrij) | Zoals stap 6a–6f |
 | Turnstile | Een eigen widget voor `app.mijnthuisplanner.nl` | Zoals stap 6d |
 | Mail | `MAIL_AFZENDER` = `Thuisplanner <noreply@mail.mijnthuisplanner.nl>`; een eigen Lettermint-webhook naar het bètaproject | Het token kan per project; ⚠️ op het gratis plan is er één Lettermint-project (§2.4) |
@@ -97,6 +97,31 @@ Nodig (kleine, aparte wijziging met tests en tegenproeven, eigen akkoord):
 | `noindex` | Blijft in de bèta |
 | Test | Een offline e2e `e2e:beta`, zoals `e2e:staging`, met een verzonnen project; de buildbewaking (T20) met tegenproef |
 
+**Stand (25 november 2026, pakket P1, voorwaarde V3; lokaal gebouwd en getest, nog niet gecommit):**
+
+- **Modus:** `src/lib/omgeving.ts` kent `demo`, `lokaal`, `staging`, `beta` en `productie`. `npm run build:beta` en
+  `npm run build:productie` bouwen met `vite build --mode beta|productie`; de omgeving staat daarna vast in de bundel.
+  Let op: Vite's eigen standaardmodus `production` is de demobuild (`npm run build`), niet de omgeving `productie`.
+- **Kenmerk:** `scripts/staging-kenmerk.mjs <omgeving>` (vóór de typecontrole) én `controleerOmgeving` in de build zelf
+  (L8) eisen precies `omgevingen.json → <omgeving>.supabaseRef`. Een kenmerk van een andere omgeving, een ander project
+  en elk Huisplan-project worden geweigerd. Zolang `beta.supabaseRef` (of `productie.supabaseRef`) `null` is, stopt de
+  build met de melding dat het kenmerk eerst moet worden vastgelegd. De enige uitzondering is de offline e2e
+  (`KG_E2E_NEPPROJECT=1`, alleen uit de procesomgeving, en alleen voor het verzonnen project `NEP_REF`).
+- **Geheimen, CSP, `noindex`:** dezelfde weigeringen als staging (`VITE_DEMO_*`, service-rol, `sb_secret_`); `connect-src`
+  alleen de eigen site en precies het project (https en wss), Turnstile alleen met een sitekey; `X-Robots-Tag: noindex`.
+- **Demo (N4):** een bèta- of productiebuild zonder geldige configuratie bouwt niet; en mocht de app toch zonder
+  configuratie starten, dan toont ze een fout ("Weigering (bèta): …"), nooit de demo.
+- **Markering (O7):** een rustige "Bèta · Thuisplanner is nog in ontwikkeling." op het inlogscherm en in Meer; geen balk
+  of label bovenaan elk scherm, geen "Testomgeving" of "verzonnen gegevens", tabtitel gewoon "Thuisplanner". De uitleg
+  "Wat werkt er in deze lokale versie?" in Meer staat alleen in lokaal en staging. Productie: geen markering.
+- **Tests:** `tests/omgeving.test.ts` (bèta en productie, T20, N4, de uitzondering voor de e2e),
+  `tests/beta-markering.test.tsx` (markering per omgeving, met tegenproef voor lokaal en staging),
+  `npm run e2e:beta` (`e2e-beta/`: de bètabuild in de browser met CSP, en de tegenproeven van de buildbewaking met de
+  echte `vite build`), en `supabase/tests/functies/functies-deploy.test.mjs` (`-Omgeving beta`). Ook in CI.
+- **Nog open (niet in P1):** het bètaproject zelf (V2), en het invullen van `beta.supabaseRef` na controle in het
+  dashboard (C3). De nacontrole `omgevingen.test.mjs` eist nu nog dat twee omgevingen nooit hetzelfde kenmerk hebben;
+  als de bèta later productie wordt (O2, §9a), moet dat bij de overstap opnieuw worden bekeken.
+
 ### 2.3 Cloudflare Access op de bèta?
 
 | Optie | Hoe | Voor | Tegen |
@@ -120,6 +145,108 @@ Daarna volgt een afzonderlijk akkoord van de producteigenaar.
 | Gehoste tests | H1–H19 groen; S1/S2 gemeten |
 | Verwijderen | De verwijderprocedure van §5.4 is op de bèta met verzonnen accounts uitgevoerd, en de controle "niets meer aanwezig" is groen |
 
+#### Het API-scheidingsscript (regel "Huishoudscheiding"; voorwaarde V7, pakket P5)
+
+Script: `thuisplanner/supabase/staging/scheiding.mjs`. Het deel "via de app" van de regel blijft een handmatige proef op
+twee telefoons; het script doet het deel "via directe API-verzoeken".
+
+**Wat het doet.** Het maakt per run vier verzonnen accounts (`scheiding-a1-<run>@test.invalid` enzovoort): gezin A en
+gezin B, elk een eigenaar en een partner. De eigenaars komen alleen voor deze run op de testerslijst (G1). Elke sessie
+is een echte codesessie (amr `otp`, een bestaande `session_id`) via een eenmalige inloglink van Supabase Auth; er gaat
+daarbij geen mail uit, en elke sessie moet eerst door de toegangspoort (`mijn_toegang` = `ok`). Beide gezinnen krijgen
+inhoud in elk domein: afspraken (gedeeld, privé, een reeks met een uitzondering, een deelnemer), taken, boodschappen,
+een vakantie met paklijst, pakitem, vakantieboodschap en voorbereiding, leden (ook een kind), uitnodigingen (met link;
+lokaal ook op e-mailadres), Mijn spullen met een gedeeld en een persoonlijk document (geüpload en bevestigd) en een
+koppeling, en een plan met onderdeel en taak. Daarna probeert gezin A, met de sessie van de eigenaar én van de partner:
+
+- **lezen:** elke tabel en view (19) zonder filter, gericht op de id's van B, en met een filter op huishouden B; zoeken op
+  de tekst van B; `my_memberships`, `my_invites`, profielen, `household_channel(B)` en `uitnodigingsmails(B)`;
+- **wijzigen:** elke schrijfbare kolom van B, toevoegen in B, kruisverwijzingen vanuit het eigen huishouden naar iets van B
+  (vakantie, plan, spul, document, boodschap, deelnemer, eigenaar), en 30 functies met een huishouden, afspraak,
+  uitnodiging, lid, paklijst of plan van B;
+- **bestanden:** een link, download, overschrijven of upload via het bekende pad, het id onder het eigen huishouden, de
+  publieke URL, `bevestig-upload` met het id van B, en de map van B bekijken.
+
+Daarna moeten alle gegevens en bestanden van B precies gelijk zijn aan vóór de pogingen. Verder: een verlopen link van B
+werkt voor niemand meer (vers werkte hij wel); een privé-afspraak van de eigenaar is voor de partner alleen "Bezet" en
+zonder details (de eigenaar ziet ze wel); het kanaal van B gaat voor A niet open (een expliciete weigering); op het eigen
+kanaal komen seintjes aan, maar geen enkel seintje over B, alleen de sleutels `t`, `id`, `v` en `op`, en geen tekst. Bij
+elke controle hoort een tegencontrole die laat zien dat de controle iets meet (B heeft echt gegevens in elke tabel, de
+partner ziet de eigen taken van A, het eigen kanaal ontvangt). Aan het eind ruimt het script altijd alles op (ook na een
+fout): bestanden, huishoudens, accounts en testers, en controleert het dat er niets is achtergebleven.
+
+**Weigeren.** Vóór er verbinding is, weigert het script: elke omgeving behalve `lokaal` en `beta` (staging bevat echte
+gegevens van de gezinsbèta; productie nooit); online elk kenmerk dat niet precies bij `beta` in
+`thuisplanner/omgevingen.json` staat (dus nu altijd: het bètakenmerk is nog `null`), een kenmerk van een andere omgeving,
+elk Huisplan-kenmerk (ook in een adres of sleutel), een database-adres dat niet de session pooler van precies dat
+project is, een sleutel van een ander project, een geheime sleutel op de plaats van de publieke, en lokaal alles wat niet
+op 127.0.0.1 of localhost staat. Online stopt het ook als wachtwoordsessies aan staan of de sessiecontrole uit. De
+weigeringen hebben een eigen zelftest zonder netwerk: `node thuisplanner/supabase/staging/scheiding.mjs zelftest`.
+
+**Draaien, lokaal** (een eigen stack, bijvoorbeeld met `project_id` `thuisplanner_p5`; de waarden uit
+`supabase status -o env`, eenmalig `npm ci` in `thuisplanner/supabase/tests/integratie`):
+
+```
+KG_OMGEVING=lokaal API_URL=… ANON_KEY=… SERVICE_ROLE_KEY=… DB_URL=… node thuisplanner/supabase/staging/scheiding.mjs
+KG_OMGEVING=lokaal … node thuisplanner/supabase/staging/scheiding.mjs --tegenproef sessie
+KG_OMGEVING=lokaal … node thuisplanner/supabase/staging/scheiding.mjs --tegenproef beleid
+```
+
+**Draaien, op de bèta** (later, met de producteigenaar, Access aan, nadat het bètakenmerk na controle in het dashboard
+in `omgevingen.json` staat). Alleen in de omgeving van dit ene proces, nooit in een bestand of de chat: `KG_OMGEVING=beta`,
+`KG_REF`, `KG_DB_URL` (session pooler zonder wachtwoord), `PGPASSWORD`, `KG_ANON_KEY` (publieke sleutel) en
+`KG_GEHEIME_SLEUTEL` (de service-rol of `sb_secret_`; nodig om verzonnen accounts aan te maken, een inloglink te maken
+en op te ruimen). Daarna het script, en de tegenproef `--tegenproef sessie`. Online maakt het script geen
+uitnodiging op e-mailadres (die zou een echte mail versturen) en de tegenproef `beleid` (die het schema wijzigt) is
+online geweigerd.
+
+**Geslaagd als:**
+
+- de gewone run eindigt met `GESLAAGD: gezin A ziet en wijzigt niets van gezin B; seintjes zonder inhoud; alles
+  opgeruimd.` en code 0 (elke afwijking: `GEFAALD` met de lijst `NIET IN ORDE`, code 1);
+- elke tegenproef eindigt met `TEGENPROEF GESLAAGD: het script faalde zoals bedoeld …` en code 0: de controles zagen de
+  fout (met de sessie van B als "partner van A" zien onder andere lezen, leden, documenten, bestanden en het kanaal van
+  B rood; met een te ruime leesregel op taken en de documentenbucket zien lezen en bestanden rood), en daarna is alles
+  opgeruimd. `TEGENPROEF MISLUKT` betekent dat de controles blind zijn: dan telt ook de gewone run niet;
+- de zelftest eindigt met `ZELFTEST GESLAAGD`.
+
+**Wat het niet doet:** het deel via de app, de autorisatie per rol (eigenaar, beheerder, lid; regel "Autorisatie"), en de
+gehoste tests H1–H19.
+
+**Stand (25 november 2026), alleen lokaal** op een eigen stack (`thuisplanner_p5`, met de schakelaars zoals online:
+wachtwoordsessies uit, `huishouden_open` uit): de gewone run **geslaagd** (316 van 316 controles); de tegenproef
+`sessie` **faalde zoals bedoeld** (94 controles rood, waaronder lezen, leden, documenten, bestanden en het kanaal van B);
+de tegenproef `beleid` **faalde zoals bedoeld** (18 controles rood: lezen van taken en de bestanden); de zelftest groen
+(21 gevallen). Na elke run waren er geen testaccounts, huishoudens, bestanden, testers of tegenproefregels meer over.
+Online (bèta) is niets gedraaid; dat volgt later met de producteigenaar, met Access aan.
+
+#### Welke gehoste tests H1–H19 al een runner hebben (alleen geïnventariseerd, 25 november 2026)
+
+"Runner" = een script in de repository dat de test tegen een online project uitvoert. Bron van de tests:
+`docs/thuisplanner-deel2-bouwverslag.md` §4.2.
+
+| Test | Runner? | Wat er is |
+| --- | --- | --- |
+| H1 codesessie (`amr`, `session_id`) | Nee | Handmatig: inloggen in de app. `scheiding.mjs` controleert `mijn_toegang` = `ok`, maar met een inloglink, niet via de codelaag; dat is dus niet H1 |
+| H2 wachtwoordroutes | Nee | Alleen lokaal (`tests/integratie/poort.test.mjs`) |
+| H3 uitloggen op alle toestellen | Nee | Alleen lokaal |
+| H4 blootgestelde schema's | Ja | `verbinding-controle.mjs na` met `KG_ANON_KEY` (`private` moet PGRST106 geven) |
+| H5 Storage en GraphQL | Deels | De nacontrole vergelijkt buckets en policies met de vaste lijst (de tekst "geen buckets" in het bouwverslag is sinds besluit 17 achterhaald); GraphQL nee |
+| H6 Send Email-hook | Nee | Handmatig: een code aanvragen |
+| H7 Auth-instellingen | Ja | `verbinding-controle.mjs na` met `KG_ANON_KEY` |
+| H8 S1 aankomsttijd codes | Nee | Handmatige meting |
+| H9 S2 limieten van Supabase | Nee | Handmatige meting |
+| H10 pogingentellers onder gelijktijdigheid | Nee | Alleen lokaal (`k1.test.mjs`) |
+| H11 Turnstile | Nee | Handmatig |
+| H12 koude start | Nee | Handmatige meting |
+| H13 logboeken | Nee | Handmatig in het dashboard |
+| H14 uitnodigingsmail V1–V8 | Nee | `proefmail.mjs` toetst alleen de adapter en de idempotentie bij Lettermint, niet V1–V8 |
+| H15 bounce-webhook | Nee | Handmatig |
+| H16 pg_cron | Deels | De nacontrole ziet de taken actief; "na een nacht opgeruimd" is handmatig |
+| H17 headers en CSP | Nee | Handmatig in de browser |
+| H18 gratis tegoed | Nee | Dashboard (op Pro gaat het om het rekentegoed) |
+| H19 automatische verzending | Deels | De nacontrole ziet pg_net, Vault en de taken; de mail binnen een minuut en pauzeren/hervatten zijn handmatig |
+
 ### 2.4 De gratis limieten en wat dat betekent
 
 | Feit (26 oktober 2026) | Gevolg |
@@ -133,6 +260,97 @@ Daarna volgt een afzonderlijk akkoord van de producteigenaar.
 **Advies:** maak het bètaproject pas aan op het moment van het Pro-besluit (§3), meteen in de juiste organisatie. Zo
 hoeft er geen project verhuisd te worden en blijft er een gratis plek over. Tot die tijd kan alles lokaal worden
 voorbereid (§9, spoor A).
+
+### 2.5 Acceptatievoorwaarde "Eén keer inloggen" (besluit van de producteigenaar, 26 november 2026)
+
+**Besluit** ("Alle drie", op de drie voorstellen uit `docs/thuisplanner-inlogduur-advies.md`, 26 november 2026):
+1. De voorwaarde "Eén keer inloggen" is een **bèta-gate vóór 14 december** (voorwaarde V11 in de roadmap): de 13
+   testpunten hieronder en de **8-dagenproef, die uiterlijk 5 december begint**.
+2. **Overbrugging:** de Access-sessieduur op staging gaat tijdelijk naar het maximum. De producteigenaar doet dat zelf
+   in het dashboard. Dit is tijdelijk en telt niet als bewijs voor de gate.
+3. **PR #57 komt vóór 14 december in de bèta-build:** de manifest, de pictogrammen, de beginscherm-tags
+   (`apple-mobile-web-app-capable` e.d.) en de service worker. De pushproef zelf hoeft niet mee. Dit is een
+   afhankelijkheid van P1 (V3).
+
+**De voorwaarde.** Op `app.mijnthuisplanner.nl`, zonder Cloudflare Access, ziet een gebruiker na één code-inlog per
+toestel in de volgende situaties **geen enkel inlogscherm en geen Access-scherm**: na een app-update, na het afsluiten
+en herstarten van app en toestel, na offline openen, en na **minstens 8 dagen** niet openen. Dit geldt voor een
+iPhone-beginscherm-app en voor een desktopbrowser (Chrome of Edge); Android Chrome als het toestel er is. Geslaagd =
+alle testpunten groen, met datum en tijd vastgelegd. Waarom 8 dagen: net over de 7-dagenregel van Safari.
+
+**Waarom het kan (uit het advies):** Supabase vernieuwt sessies zonder einddatum zolang er geen time-box of
+inactiviteitslimiet is (gemeten: na vernieuwen blijft `amr: otp` en geeft de toegangspoort `ok`); netwerkfouten loggen
+niemand uit. De twee echte voorwaarden zijn **één vast adres** (een ander adres is een andere opslag) en op de iPhone
+een **echte beginscherm-app met manifest** (PR #57).
+
+| # | Testpunt | Toestel | Verwacht | Wie |
+| --- | --- | --- | --- | --- |
+| 1 | Eerste inlog met een code in de beginscherm-app | iPhone (Bas en Sanne) | Binnen 2 minuten ingelogd; geen Access-scherm | PO, Sanne |
+| 2 | App uit de app-wisselaar vegen en heropenen; telefoon herstarten | iPhone | Direct het huishouden, geen inlogscherm | PO, Sanne |
+| 3 | Nieuwe build uitrollen (app-update), daarna openen en herladen | iPhone + desktop | Ingelogd; nieuwe versie zichtbaar | Claude (uitrol na akkoord), PO |
+| 4 | Database-migratie uitrollen, daarna openen | iPhone + desktop | Ingelogd | Claude (na akkoord), PO |
+| 5 | Vliegtuigmodus aan, app openen, na 2 minuten weer online | iPhone | "Geen verbinding", nooit het inlogscherm; daarna vanzelf verder (binnen 60–90 s) | PO |
+| 6 | Minstens 8 dagen niet openen, daarna openen | iPhone-beginscherm-app | Ingelogd, geen code nodig | PO of Sanne (één toestel bewust laten liggen) |
+| 7 | Minstens 8 dagen niet openen | desktop Chrome of Edge (browser gesloten) | Ingelogd | PO |
+| 8 | Browser en computer herstarten | desktop | Ingelogd | PO |
+| 9 | Toegangstoken verlopen (meer dan 1 uur dicht), daarna openen | iPhone + desktop | Ingelogd, hoogstens kort "Even geduld" | PO |
+| 10 | Tegenproef: "Uitloggen op alle toestellen" op toestel A | A en B | B is bij de volgende actie uit (TPA02), A ook; opnieuw inloggen kan met een code | PO |
+| 11 | Tegenproef: `app.mijnthuisplanner.nl` in een privévenster | desktop | Geen Access-scherm, wel het codescherm. `thuisplanner-app.pages.dev` en een preview geven het Access-scherm (of bestaan niet) | Claude (zonder inlog) |
+| 12 | Auth-instellingen van de bèta | dashboard | Zoals vastgelegd hieronder | PO (schermafdruk), Claude legt vast |
+| 13 | Geautomatiseerd (lokaal en in CI): code-sessie na vernieuwen `ok`; heropenen bewaard (bestaat al); T21 en T23 | — | Groen, met tegenproef | Claude |
+
+**De 8-dagenproef (testpunt 6 en 7) begint uiterlijk 5 december.** Kan dat nog niet op de definitieve hostnaam, dan
+loopt de proef op staging met een vergelijkbare opzet (beginscherm-app met de manifest van PR #57), en wordt hij op de
+bèta korter herhaald (testpunt 9), met een tweede 8-dagenproef vanaf de verhuizing. Planning: zie de roadmap, V11.
+
+**Wanneer is de gate groen voor 14 december** (besluit van de producteigenaar, 26 november 2026: "Ja, zo"):
+1. **De 8-dagenproef op staging is geslaagd**: een iPhone-beginscherm-app (met de manifest van PR #57) en een desktop
+   (Chrome of Edge) zijn minstens 8 dagen bewust niet geopend en daarna nog ingelogd, zonder code. Een Access-scherm
+   dat ondanks de verlengde sessieduur verschijnt, wordt apart genoteerd en telt niet als fout van het inloggen zelf.
+   Voorwaarde: de Auth-instellingen van staging zijn gelijk aan de vastgelegde bèta-instellingen (schermafdruk PO).
+2. **De korte reeks op de bèta is groen**, na de verhuizing en vóór 14 december: testpunt 1–5 en 8–12 op
+   `app.mijnthuisplanner.nl`, plus testpunt 13 (geautomatiseerd).
+3. **De tweede 8-dagenproef op de bèta** begint op de verhuisdatum. De uitslag komt na 14 december, vóór de andere
+   gezinnen. **Besluit van de producteigenaar (26 november 2026: "Ja"):** deze proef moet groen zijn voordat er nieuwe
+   gezinnen bij komen; faalt die, dan gaan er geen nieuwe gezinnen bij tot de oorzaak is opgelost.
+
+**Vastgelegde Auth-instellingen van de bèta** (checklist bij C2, controle in de nacontrole):
+- JWT-expiry 3600 s;
+- rotatie van refresh-tokens aan, herhaalmarge 10 s;
+- **geen** time-box, **geen** inactiviteitstime-out, **geen** "single session per user" (pas op Pro beschikbaar: uit
+  laten);
+- de grens "Token refresh" niet lager dan 150 per 5 minuten per IP (een 429 bij een verlopen token wist de sessie in
+  auth-js; restrisico, zie handeling 12).
+
+**Afscherming van de technische hostnamen** (Access per hostnaam, niet per project):
+
+| Hostnaam | Project | Access |
+| --- | --- | --- |
+| `app.mijnthuisplanner.nl` | `thuisplanner-app` | **Nee**, pas na de groene Access-poort (§2.3) en een apart akkoord; tijdens het inrichten wel (O3/C) |
+| `thuisplanner-app.pages.dev` | idem | **Ja** (of een redirect naar het eigen domein): voorkomt een tweede adres met een eigen sessie |
+| `*.thuisplanner-app.pages.dev` (previews) | idem | **Previews uit** (advies), anders Access: een preview zou met de bèta-database (straks productie) praten |
+| `thuisplanner-staging.pages.dev` + previews | `thuisplanner-staging` | **Ja, blijft** (B1) |
+
+Te verifiëren in het dashboard: "Enable access policy" in Pages beschermt standaard alleen de previews; het hoofdadres
+moet apart in de Access-applicatie.
+
+**Handelingen, elk met een apart akkoord van de producteigenaar** (niets hiervan is uitgevoerd):
+1. Access-sessieduur op staging verlengen (de overbrugging; doet de PO zelf).
+2. PR #57 (of alleen de manifest, de pictogrammen en de tags) samenvoegen naar staging, en later naar de bèta.
+3. De kleine app-verbeteringen bouwen en committen: een eenmalige beginschermhint op de iPhone in een Safari-tabblad
+   (§15.3), `navigator.storage.persist()` na het inloggen, de test "code-sessie na vernieuwen blijft `ok`", eventueel
+   een `SIGNED_OUT`-luisteraar (T24), en geautomatiseerde varianten van T21 en T23.
+4. P2 en de integratiebranch pushen, de Draft PR maken en naar staging zetten.
+5. Het bèta-Supabase-project aanmaken (Pro, eigen organisatie) en de Auth-instellingen zetten zoals hierboven.
+6. Het Pages-project `thuisplanner-app` en het eigen domein `app.mijnthuisplanner.nl` (DNS) koppelen.
+7. Previews van `thuisplanner-app` uitzetten, en Access op `thuisplanner-app.pages.dev` (en eventueel de previews).
+8. Access tijdelijk op `app.mijnthuisplanner.nl` tijdens het inrichten (O3/C), en Access daar uitzetten na de groene
+   Access-poort.
+9. Migraties en functies op de bèta-database, en de uitrol van de app.
+10. De verhuizing van Bas en Sanne van staging naar de bèta: export en import van hun gegevens, en één nieuwe
+    code-inlog per toestel (het ene inlogmoment op het definitieve adres; daarna nooit meer van adres wisselen).
+11. De 8-dagenproef starten (welk toestel bewust blijft liggen, en vanaf welke datum).
+12. Het restrisico "429 bij vernieuwen" vastleggen in `docs/thuisplanner-restrisico-besloten-beta.md`.
 
 ## 3. Supabase Pro: voorbereiden, niet kopen
 
@@ -253,8 +471,8 @@ diensten.
 
 | Verzoek | Werkwijze | Nodig |
 | --- | --- | --- |
-| Inzage of kopie | Een alleen-lezende SQL-snippet die per account de eigen gegevens als JSON geeft (huishoudens, eigen afspraken, taken, boodschappen), uitgevoerd door de producteigenaar in de SQL-editor; per mail aan het eigen adres | Nieuw: `staging/avg-export.sql` (bouwen en lokaal testen; eigen akkoord) |
-| Verwijderen | Zie **"Verwijderen op verzoek"** hieronder: een gecontroleerd verwijderscript voor de beheerder, geen handwerk in het dashboard | Het script, met een integratietest en een proef op de bèta |
+| Inzage of kopie | Een alleen-lezende SQL-snippet die per account de eigen gegevens als JSON geeft (huishoudens, eigen afspraken, taken, boodschappen, vakanties, spullen en documenten, plannen), uitgevoerd door de producteigenaar in de SQL-editor; per mail aan het eigen adres | `staging/avg-export.sql` (gebouwd, zie "Stand P4" hieronder) |
+| Verwijderen | Zie **"Verwijderen op verzoek"** hieronder: een gecontroleerd verwijderscript voor de beheerder, geen handwerk in het dashboard | `staging/verwijderen.ps1` en `verwijderen.mjs` (gebouwd); nog de proef op de bèta |
 | Correctie | In de app zelf | – |
 | Logboek | Per verzoek: datum, soort, afgehandeld op (geen inhoud) | Een eenvoudige lijst bij de producteigenaar |
 
@@ -296,6 +514,65 @@ gegevens te verwijderen. Een knop in de app mag later komen; de mogelijkheid zel
      controle falen.
   2. Een proef op de bèta met verzonnen accounts, als onderdeel van de Access-poort (§2.3).
   3. Het opruimen van de testaccounts vóór de start, met hetzelfde script.
+
+**Stand P4 (voorwaarde V6, 25 november 2026): lokaal gebouwd en getest; nog niet gecommit; de proef op de bèta volgt
+met de producteigenaar.**
+
+- **Het verwijderscript** (`staging/verwijderen.ps1`, het werk in `staging/verwijderen.mjs`):
+  - Aanroep: `verwijderen.ps1 -Ref <kenmerk> -Omgeving beta -Soort huishouden -Adres <eigenaar> [-Huishouden <id>]
+    [-Ook <partner>]` voor variant (a), of `-Soort account -Adres <adres>` voor variant (b). `-Ook` alleen als de
+    partner zelf ook om verwijdering vraagt; anders blijft dat account bestaan, zonder huishouden.
+  - Verborgen prompts voor het databasewachtwoord en voor de pepper (`K1_PEPPER` van dat project, uit de
+    wachtwoordmanager): de codelaag bewaart adressen alleen als HMAC met die pepper, dus zonder pepper zijn de codes en
+    de tellers van de grenzen bij een adres niet te vinden. Staat er een recente code van het account, dan toetst het
+    script de pepper daaraan en weigert bij een verkeerde. Dezelfde verbindingseisen als `verbinding.ps1` (kenmerk uit
+    `omgevingen.json`, session pooler, TLS met de vastgepinde Supabase-root); zolang `beta.supabaseRef` leeg is,
+    weigert het script de bèta vóór het verbindt.
+  - Stap 1, alleen lezend: de huishoudens die weggaan (met leden en per lid of het account blijft), de aantallen per
+    tabel, wat er in een huishouden dat blijft van het account verdwijnt, de resten bij het adres (testerslijst,
+    uitnodigingen elders, codes, tellers), en **waar het account en het adres nu nog voorkomen** (dezelfde zoektocht
+    als de controle). Wat de database zou weigeren (de enige eigenaar van een huishouden met andere accounts), staat
+    hier al als weigering; dan wordt er niets verwijderd.
+  - Stap 2: de getypte bevestiging `verwijder <omgeving> <adres>`.
+  - Stap 3, één transactie (alles of niets), na een hercontrole onder vergrendeling dat er sinds het overzicht niets
+    wezenlijks veranderde: het huishouden (variant a; alle inhoud via de cascades), de account(s) (de triggers van de
+    database doen privé-afspraken, persoonlijke spullen en documenten, en het huishouden waar het account het enige
+    account is), de testerslijst, de codes en tellers bij de hash van het adres, uitnodigingen naar het adres in andere
+    huishoudens (ingetrokken, adres gewist), het eigenaarsveld van gedeelde bestanden, de regels in het
+    **auditlogboek van Supabase Auth** (dat bewaart adres en account-id, ook ná het verwijderen van een account) en
+    Realtime-berichten. Daarna de bestaande opruimronde voor de bestanden (`verwijderen-spullen.mjs`).
+  - Stap 4, de controle "niets meer aanwezig": elke tekst-, uuid- en json-kolom van elke tabel in `public`, `private`,
+    `auth`, `storage`, `realtime`, `net`, `cron` en `supabase_functions` wordt doorzocht op de account-id's, de
+    huishouden-id's (variant a, en huishoudens die meegingen), de adressen en de hash van het adres; plus de controle
+    van Mijn spullen op bestanden. Een tabel die niet te lezen is, telt als afwijking.
+  - De laatste regel is de **registerregel zonder persoonsgegevens** (datum, soort, aantallen, uitkomst).
+  - Plannen, vakanties (met paklijsten en boodschappenkoppelingen), afspraken, taken en boodschappen gaan in variant (a)
+    mee via de cascades; in variant (b) blijven ze als gedeelde huishoudgegevens. De test toetst beide.
+- **Integratietest** `tests/integratie/verwijderen.test.mjs` (lokale stack, het script als opdracht met de bevestiging op
+  standaardinvoer): variant (a) met inhoud in alle domeinen, bestanden, een kind, een partner met account, een open
+  uitnodiging, een uitnodiging naar het adres in een ander huishouden en een andere tester; variant (b); alleen een
+  adres zonder account; weigeringen (database zou weigeren, verkeerde pepper, online zonder kenmerk) en een verkeerde
+  bevestiging laten alles ongemoeid. **Tegenproeven:** een opzettelijk achtergelaten rij met het adres, de hash van
+  het adres, een account-id, een huishouden-id, een regel in het auditlogboek, en een achtergelaten bestand laten de
+  controle elk falen. Daarnaast met de hand nagegaan: zonder de opruiming van het auditlogboek eindigt het script met
+  "AFWIJKING" en faalt de test.
+- **Uitslag lokaal (25 november 2026, eigen stack `thuisplanner_p4`, 24 migraties):** `verwijderen.test.mjs` 5 van 5,
+  `avg-export.test.mjs` 3 van 3, `dagoverzicht.test.mjs` 2 van 2, en `verwijderen-spullen.test.mjs` nog steeds 5 van 5;
+  `statisch.js` geslaagd. De controle doorzocht 73 tabellen. De tests staan in `tests/integratie/run.sh` (CI).
+- **Bij de proef op de bèta nagaan:** of de rol `postgres` online ook mag wat lokaal kan (regels uit
+  `auth.audit_log_entries` en `realtime.messages` verwijderen, het eigenaarsveld van `storage.objects` leegmaken, en
+  alle tabellen in de doorzochte schema's lezen). Zo niet, dan stopt het script met een fout of meldt de controle
+  "niet te controleren" (fail-closed); dan eerst overleggen.
+- **Inzage:** `staging/avg-export.sql`, één alleen-lezende select met de plek `VUL-HIER-HET-ADRES-IN`. Grens: nooit
+  meer dan het account in de app mag zien (geen privé-afspraak, persoonlijk spul of document van een ander, ook niet
+  als "Bezet"; geen adressen, account-id's, hashes of tokens van anderen). De bestanden zelf staan er niet in (alleen
+  titel, soort, grootte); die gaan apart mee als daarom gevraagd wordt. Test `tests/integratie/avg-export.test.mjs`,
+  met tegenproeven (zonder de privacyfilter, of met een ander huishouden erbij, faalt de toets).
+- **Open punt voor de producteigenaar:** "Na een herstel uit een back-up voeren we de verwijderingen uit het register
+  opnieuw uit" kan niet met een register zonder persoonsgegevens: dan is niet bekend wie opnieuw weg moet. Voorstel:
+  na een herstel eerst alle accounts en huishoudens vergelijken met de stand van vóór het herstel; wat er na het herstel
+  weer is maar daarvoor niet, opnieuw verwijderen. Of: een apart, versleuteld lijstje met de adressen van verwijderde
+  accounts, alleen zolang de oudste back-up bestaat (hoogstens 4 weken). Besluit nodig.
 
 ### 5.5 Vóór de eerste externe familie
 
@@ -341,14 +618,21 @@ gegevens te verwijderen. Een knop in de app mag later komen; de mogelijkheid zel
 
 | Wat | Hoe | Hoe vaak | Wie |
 | --- | --- | --- | --- |
-| Codes en pogingen | Een alleen-lezend **dagoverzicht** (nieuw: `staging/dagoverzicht.sql`): aantal aangevraagde en gecontroleerde codes, geremd door H/U/D, vergrendelde accounts, nieuwe accounts, verwijderde onbevestigde accounts. Alleen aantallen, nooit adressen | dagelijks tijdens de bèta | producteigenaar (5 minuten) |
+| Codes en pogingen | Een alleen-lezend **dagoverzicht** (`staging/dagoverzicht.sql`, gebouwd): aantal aangevraagde, gebruikte en gecontroleerde codes, codes vervallen na te veel fouten, geremd door H/U/D, adressen aan de aanvraaggrens, vergrendelde adressen (H op), in Auth geblokkeerde accounts, nieuwe en onbevestigde accounts. Alleen aantallen, nooit adressen. Niet mogelijk, omdat de database het niet bijhoudt: het aantal geweigerde codeaanvragen en het aantal verwijderde onbevestigde accounts | dagelijks tijdens de bèta | producteigenaar (5 minuten) |
 | Mailwachtrij | `private.uitnodigingsmail_stand()` (bestaat al): wachtend > 10 min, vastgelopen, onzeker, mislukt, niet bezorgd | in het dagoverzicht | producteigenaar |
 | Mailtegoed en bezorging | Lettermint-dashboard; melding bij 200 per maand; bounces en spamklachten | wekelijks, en bij de melding | producteigenaar |
-| Geplande taken | `cron.job_run_details`: laatste run van de 5 taken `succeeded` | in het dagoverzicht | producteigenaar |
+| Geplande taken | `cron.job_run_details`: laatste run van de **6** taken `succeeded` (sinds Mijn spullen ook `thuisplanner-documenten-opruimen`) | in het dagoverzicht | producteigenaar |
 | Instellingen | De nacontrole (`verbinding-controle.mjs na`) | wekelijks en na elke wijziging | Claude, na akkoord |
 | Fouten in de app | Bèta-1: de ErrorBoundary toont een rustige melding met "Meld dit" (mailto met tijdstip en schermnaam, geen inhoud). Geen externe foutmonitoring (geen nieuwe verwerker) | bij elke melding | producteigenaar |
 | Functies en Auth | Logboeken in het dashboard (7 dagen op Pro): 5xx van de functies, `captcha_failed`, 429 | bij een melding of afwijking | producteigenaar, met Claude |
 | Beschikbaarheid | Supabase-status en Cloudflare-status; geen eigen uptime-dienst in bèta-1 | bij klachten | producteigenaar |
+
+**Stand P4 (25 november 2026): `staging/dagoverzicht.sql` lokaal gebouwd en getest; nog niet gecommit.** Eén
+alleen-lezende select in de SQL-editor; per regel een onderdeel, een waarde en eventueel "let op" (bijvoorbeeld een
+vergrendeld adres, een mislukte of niet gelopen geplande taak, of niet precies 6 geplande taken). Test
+`tests/integratie/dagoverzicht.test.mjs`: elke regel telt precies wat erbij komt, oude codes (ouder dan 24 uur) tellen
+niet mee, en er staat nooit een adres, hash of id in; met tegenproeven (een variant die een adres toont, of oude codes
+meetelt, laat de toets falen).
 
 Een externe dienst voor foutmonitoring of uptime kan vóór de lancering (mijlpaal 3), als eigen besluit met een
 AVG-beoordeling.
@@ -370,6 +654,7 @@ leeg. Ze staan in het draaiboek, met wie ze mag gebruiken (de producteigenaar).
 | Q8 | Gehoste tests | H1–H19 op de bèta groen; S1/S2 gemeten (H8, H9) | Op staging deels; bèta bestaat niet |
 | Q9 | Beveiliging | Onafhankelijke review (of geaccepteerd risico); R4, L1, L4–L6, L8 | Open |
 | Q10 | Herstel | Hersteloefening op de bèta geslaagd (§4) | Open |
+| Q11 | Eén keer inloggen (§2.5, besluit 26 november 2026) | De 13 testpunten groen, met de 8-dagenproef (begin uiterlijk 5 december); PR #57 in de bèta-build; Auth-instellingen vastgelegd; technische hostnamen afgeschermd | Open: advies besloten, niets uitgevoerd |
 
 Het volledige periodecontract van KG-5E (F2) en de router mogen na mijlpaal 2, mits Q6 is gehaald: dan bouwen we
 nieuwe functies niet meer op twee datapaden (F1).

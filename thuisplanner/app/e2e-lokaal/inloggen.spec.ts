@@ -99,6 +99,10 @@ test('M1: na het aanvragen herladen (mail-app en terug) staat het codescherm er 
   const sinds = Date.now();
   await p.getByLabel('E-mailadres', { exact: true }).fill(email);
   await p.getByRole('button', { name: 'Stuur code' }).click();
+  // Eerst het codescherm (zoals de gebruiker het ziet vóór die naar de mail wisselt): stuur-code antwoordt pas na
+  // minstens 1,5 s (geen adresverraad via de tijd), terwijl de mail al eerder binnen kan zijn. Pas na dat antwoord
+  // bewaart de app de aanvraag; zonder deze wachtstap herlaadt de test soms te vroeg.
+  await expect(p.getByLabel('Code uit de mail')).toBeVisible();
   const goed = await code(email, sinds);
   await p.reload();
   await expect(p.getByLabel('Code uit de mail')).toBeVisible();

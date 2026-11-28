@@ -1,0 +1,121 @@
+<!-- titel: Privacyverklaring van de app · Thuisplanner | beschrijving: Welke gegevens de app Thuisplanner verwerkt, waarom, hoe lang, en bij wie. Geen advertenties, geen tracking, geen verkoop van gegevens. -->
+    <section class="blok">
+      <div class="breedte smal tekst">
+<!-- concept -->
+        <div class="concept-noot" role="note" aria-labelledby="h-concept">
+          <h2 id="h-concept">Concept: nog niet publiceren</h2>
+          <p>Dit blok staat alleen in de voorbeeldbouw. De publicatiebouw laat het weg, en weigert zolang de bedrijfsgegevens in <code>gegevens.json</code> leeg zijn.</p>
+          <p><strong>Nog aanleveren</strong></p>
+          <ol>
+            <li>De bedrijfsgegevens in <code>thuisplanner/website/gegevens.json</code>: naam, KvK-nummer, vestigingsadres (of "afgeschermd"), contactadres en eventueel btw-id.</li>
+            <li>Het feedbackadres voor de app (<code>VITE_FEEDBACK_ADRES</code> in de bètabuild). Hetzelfde als het contactadres, of een eigen adres zoals <code>beta@</code>?</li>
+            <li>De verwerkersovereenkomst van Supabase getekend; die van Cloudflare en Lettermint vastgelegd. Controleer daarbij of de contractpartij van Supabase nog Supabase Pte. Ltd. (Singapore) is.</li>
+          </ol>
+          <p><strong>Nog beslissen</strong></p>
+          <ol>
+            <li><strong>Verwijderde inhoud.</strong> Verwijderde afspraken, taken, boodschappen, vakanties en plannen worden in de database alleen als verwijderd gemarkeerd. Ze blijven bewaard tot het hele huishouden wordt verwijderd. Zo staat het nu in de tekst. Wil je een opruimtermijn (bijvoorbeeld 30 dagen, zoals bij spullen en documenten), dan vraagt dat een migratie: een eigen pakket en akkoord.</li>
+            <li><strong>Testerslijst.</strong> Hoe lang bewaren we het e-mailadres op de testerslijst? Voorstel in de tekst: tot het einde van de bèta, of eerder op verzoek.</li>
+            <li><strong>Mijn spullen &amp; Documenten en Plannen.</strong> De tekst gaat ervan uit dat beide in de bèta aan staan. Staat een van beide uit, dan halen we die passages weg.</li>
+            <li><strong>Leeftijd.</strong> Voorstel: een account vanaf 16 jaar. Kinderen staan er alleen in als huishoudlid zonder account (dat dwingt de database al af).</li>
+            <li><strong>Feedbackmails.</strong> Voorstel in de tekst: bewaren tot de vraag is afgehandeld, en uiterlijk tot het einde van de bèta.</li>
+            <li><strong>Toezegging "we kijken niet in jullie planner".</strong> Klopt dit voor jouw werkwijze (alleen bij een verzoek van de gebruiker of om een storing op te lossen)?</li>
+          </ol>
+        </div>
+<!-- /concept -->
+        <h1>Privacyverklaring van de app</h1>
+        <p>Deze verklaring gaat over de app Thuisplanner op <strong>app.mijnthuisplanner.nl</strong>, tijdens de besloten bèta. Voor de website zelf is er een aparte <a href="/privacy">privacyverklaring van de website</a>.</p>
+        <p>In het kort: we gebruiken jullie gegevens alleen om Thuisplanner voor jullie huishouden te laten werken. Geen advertenties, geen tracking en geen verkoop van gegevens.</p>
+
+        <h2>Wie is verantwoordelijk?</h2>
+        <p>{{BEDRIJF_NAAM}}. Contact: {{CONTACT_MAIL}}. Meer gegevens staan op de pagina <a href="/bedrijfsgegevens">bedrijfsgegevens</a>.</p>
+
+        <h2>Welke gegevens verwerkt de app?</h2>
+        <ul>
+          <li><strong>Je account.</strong> Je e-mailadres en de naam die je opgeeft.</li>
+          <li><strong>Je huishouden.</strong> De naam van het huishouden en de leden: naam, volwassene of kind, een kleur en de rol (eigenaar, beheerder of lid). Kinderen staan er alleen in als huishoudlid, met wat een ouder zelf invult. Een kind krijgt geen eigen account.</li>
+          <li><strong>Uitnodigingen.</strong> Het e-mailadres van iemand die je uitnodigt, zolang de uitnodiging openstaat.</li>
+          <li><strong>Wat jullie plannen.</strong> Afspraken (ook privé-afspraken), taken, boodschappen, vakanties met voorbereidingen en paklijsten, en plannen met hun taken.</li>
+          <li><strong>Mijn spullen &amp; Documenten.</strong> Spullen die je vastlegt (bijvoorbeeld merk, model, serienummer, aankoopdatum, winkel, prijs en garantie) en documenten die je toevoegt, zoals facturen, bonnen en garantiebewijzen (PDF of foto, hoogstens 10 MB). Bij een foto haalt de app de plaatsgegevens (GPS) weg voordat hij wordt opgeslagen. Je vult de gegevens zelf in; er gaat niets naar een externe dienst om tekst te herkennen. Zet er liever geen BSN, rekeningnummer of betaalgegevens in.</li>
+          <li><strong>Inloggen en beveiliging.</strong> Je logt in met een code die je per mail krijgt. Van die code bewaren we alleen een versleutelde vingerafdruk, nooit de code zelf. Daarnaast: het aantal inlogpogingen per adres, een kenmerk van toestellen waarop je eerder inlogde (op de server alleen als vingerafdruk), je inlogsessies, en technische gegevens zoals je IP-adres en het type browser in de logboeken.</li>
+          <li><strong>Testerslijst.</strong> Tijdens de besloten bèta het e-mailadres van de eerste volwassene per huishouden, zodat alleen uitgenodigde huishoudens kunnen beginnen.</li>
+          <li><strong>Als je ons mailt.</strong> Je e-mailadres en je bericht, bijvoorbeeld via "Feedback of hulp" in de app.</li>
+        </ul>
+
+        <h2>Wat staat er op je eigen toestel?</h2>
+        <p>De app bewaart in de opslag van je browser alleen wat nodig is: je inlogsessie, het toestelkenmerk, een openstaande codeaanvraag (je adres en het tijdstip, hoogstens 10 minuten, nooit de code), het gekozen huishouden, een paar weergavekeuzes, en wijzigingen die de server nog niet heeft bevestigd. Uitloggen wist je sessie. Documenten worden geopend via een link die 60 seconden geldig is, en niet in de browsercache bewaard. Thuisplanner gebruikt geen cookies voor analyse, advertenties of tracking.</p>
+
+        <h2>Wie in je huishouden ziet wat?</h2>
+        <ul>
+          <li>Gedeelde afspraken, taken, boodschappen, vakanties en plannen ziet ieder lid met een account in jullie huishouden.</li>
+          <li>Een privé-afspraak zien anderen alleen als "bezet", zonder titel of details.</li>
+          <li>Spullen en documenten zijn persoonlijk of gedeeld; dat kies je zelf. Persoonlijke spullen en documenten ziet niemand anders, ook niet dat ze bestaan.</li>
+          <li>Dit regelt de server, niet alleen het scherm. Een ander huishouden ziet nooit iets van jullie gegevens.</li>
+        </ul>
+
+        <h2>Waarvoor gebruiken we je gegevens, en op welke grond?</h2>
+        <ul>
+          <li><strong>Thuisplanner laten werken</strong> en gegevens delen binnen jullie huishouden. Grond: de overeenkomst met jou (je gebruikt de dienst).</li>
+          <li><strong>Mails die nodig zijn</strong>: je inlogcode, een uitnodiging (met de naam van wie uitnodigt en van het huishouden) en de bevestiging van een nieuw e-mailadres. Grond: de overeenkomst. Geen reclame en geen nieuwsbrieven. Zie <a href="/mails">welke mails wij sturen</a>.</li>
+          <li><strong>Inloggen beveiligen en misbruik tegengaan</strong>, bijvoorbeeld met een grens op het aantal pogingen en met Cloudflare Turnstile bij het aanvragen van een code. Grond: ons gerechtvaardigd belang bij een veilige dienst.</li>
+          <li><strong>Fouten opsporen en oplossen</strong> met de logboeken. Grond: gerechtvaardigd belang.</li>
+          <li><strong>Feedback en hulp tijdens de bèta</strong>: je vragen beantwoorden en de app verbeteren. Grond: de overeenkomst en ons gerechtvaardigd belang.</li>
+        </ul>
+
+        <h2>Wat we niet doen</h2>
+        <ul>
+          <li>Geen advertenties en geen verkoop of verhuur van gegevens.</li>
+          <li>Geen analyse- of trackingdiensten en geen profilering.</li>
+          <li>Geen AI-dienst. Een vraag in de + ("Welk modelnummer heeft onze vaatwasser?") beantwoordt de app uit jullie eigen gegevens, zonder externe dienst.</li>
+          <li>We kijken niet in de inhoud van jullie planner. Alleen als je ons daarom vraagt (bijvoorbeeld voor een kopie of om iets te verwijderen) of om een storing op te lossen, werken we met de gegevens die daarvoor nodig zijn.</li>
+        </ul>
+
+        <h2>Hoe lang bewaren we gegevens?</h2>
+        <ul>
+          <li><strong>De inhoud van jullie huishouden</strong>: zolang het huishouden bestaat. Verwijder je een afspraak, taak, boodschap, vakantie of plan, dan verdwijnt die uit de app, maar blijft die in de database gemarkeerd als verwijderd tot het huishouden wordt verwijderd.</li>
+          <li><strong>Spullen en documenten in de prullenbak</strong>: 30 dagen terug te zetten; daarna wissen we het spul of document, met het bestand. Een upload die niet lukte, wissen we na 24 uur.</li>
+          <li><strong>Privé-afspraken van een lid dat uit het huishouden is gehaald</strong>: 30 dagen; daarna definitief weg.</li>
+          <li><strong>Het e-mailadres op een uitnodiging</strong>: gewist zodra de uitnodiging is aangenomen, ingetrokken of verlopen. Een uitnodiging is 7 dagen geldig.</li>
+          <li><strong>Inlogcodes</strong>: 10 minuten geldig, na 24 uur gewist. Een account waarvan de code nooit is ingevoerd: na 24 uur gewist.</li>
+          <li><strong>Tellers van inlogpogingen</strong>: 30 dagen. <strong>Bekende toestellen</strong>: 180 dagen na het laatste gebruik.</li>
+          <li><strong>Gegevens voor het versturen van uitnodigingsmails</strong>: 30 dagen.</li>
+          <li><strong>Logboeken</strong> bij Supabase: 7 dagen.</li>
+          <li><strong>Verstuurde mails</strong> bij Lettermint: de inhoud en gegevens van een mail 28 dagen, meldingen over de bezorging hoogstens 90 dagen.</li>
+          <li><strong>Back-ups</strong>: de dagelijkse back-up van de database 7 dagen; onze eigen wekelijkse back-up (met documenten), versleuteld bewaard, hoogstens 4 weken.</li>
+          <li><strong>De testerslijst</strong>: tot het einde van de bèta, of eerder als je daarom vraagt.</li>
+          <li><strong>Je mails aan ons</strong>: tot je vraag is afgehandeld, en uiterlijk tot het einde van de bèta.</li>
+        </ul>
+
+        <h2>Wie verwerkt gegevens voor ons?</h2>
+        <p>We werken met drie dienstverleners. Met elk hebben we een verwerkersovereenkomst; ze mogen jullie gegevens alleen voor ons gebruiken.</p>
+        <ul>
+          <li><strong>Supabase</strong>: de database, het inloggen, de opslag van documenten en de logboeken. De gegevens staan in Frankfurt (Duitsland). Supabase is een bedrijf uit Singapore; voor toegang van buiten de EU gelden de standaardcontractbepalingen van de Europese Commissie.</li>
+          <li><strong>Cloudflare</strong>: levert de app aan je browser en beschermt het aanvragen van een code met Turnstile. Daarbij verwerkt Cloudflare technische gegevens zoals je IP-adres en het type browser. Cloudflare heeft een wereldwijd netwerk; voor doorgifte naar de Verenigde Staten gelden het EU-VS-gegevensprivacykader of de standaardcontractbepalingen.</li>
+          <li><strong>Lettermint</strong>: verstuurt de inlogcodes en uitnodigingen. Lettermint verwerkt de gegevens in de EU.</li>
+        </ul>
+
+        <h2>Je rechten</h2>
+        <p>Je kunt ons vragen welke gegevens we van je hebben, om een kopie, om iets te verbeteren of te verwijderen, en je kunt bezwaar maken. Veel kun je in de app zelf aanpassen. Een kopie of het verwijderen van je account of huishouden regelen we tijdens de bèta met de hand: mail ons op {{CONTACT_MAIL}} vanaf het e-mailadres van je account. We antwoorden binnen een maand, en meestal binnen een week.</p>
+        <ul>
+          <li>Vraagt de eigenaar om het hele huishouden te verwijderen, dan verdwijnt alles, ook het lidmaatschap van de andere leden. Hun eigen account blijft alleen bestaan als ze dat zelf willen.</li>
+          <li>Vraag je om alleen je eigen account te verwijderen, dan verdwijnen je account en je privé-afspraken. De gedeelde gegevens van het huishouden blijven.</li>
+          <li>Niet alles verdwijnt meteen: back-ups (hoogstens 4 weken), logboeken (7 dagen) en verstuurde mails bij Lettermint (28 dagen) lopen vanzelf af. Moeten we ooit een back-up terugzetten, dan voeren we je verwijdering opnieuw uit.</li>
+        </ul>
+        <p>Ben je het niet eens met hoe we met je gegevens omgaan, dan kun je een klacht indienen bij de Autoriteit Persoonsgegevens.</p>
+
+        <h2>Kinderen</h2>
+        <p>Een account is voor wie 16 jaar of ouder is. Kinderen kun je als huishoudlid toevoegen, zonder account. Vul over kinderen alleen in wat nodig is voor de planning.</p>
+
+        <h2>Beveiliging</h2>
+        <ul>
+          <li>Inloggen gaat alleen met een eenmalige code; Thuisplanner gebruikt geen wachtwoorden. "Uitloggen op alle toestellen" werkt direct.</li>
+          <li>De server controleert bij elk verzoek wie wat mag zien. Documenten staan in afgeschermde opslag, zonder openbare links.</li>
+          <li>Alle verbindingen zijn versleuteld.</li>
+        </ul>
+
+        <h2>Wat de bèta voor je gegevens betekent</h2>
+        <p>Thuisplanner is nog in ontwikkeling. Er kunnen fouten in zitten; daarom maken we naast de dagelijkse back-up ook zelf elke week een back-up. Als de bèta straks de gewone versie van Thuisplanner wordt, blijven jullie gegevens gewoon staan, tenzij je ons vraagt ze te verwijderen.</p>
+
+        <h2>Wijzigingen</h2>
+        <p>Als deze verklaring verandert, staat de nieuwe versie op deze pagina. Bij een belangrijke wijziging laten we het je vooraf weten.</p>
+      </div>
+    </section>

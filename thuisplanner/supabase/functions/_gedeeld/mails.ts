@@ -46,12 +46,23 @@ export function wijzigingNieuw(aan: string, code: string): Mail {
 }
 
 /**
- * Een naam van een gebruiker in de mail (uitnodiger, huishouden): kort, op één regel, en zonder iets dat op een link of
- * adres lijkt. Zo blijft de tekst vast en is de uitnodigingsmail geen kanaal voor reclame of phishing.
+ * Een naam van een gebruiker in de mail (uitnodiger, huishouden): kort, op één regel, en zonder iets dat op een link,
+ * adres of telefoonnummer lijkt. Zo blijft de tekst vast en is de uitnodigingsmail geen kanaal voor reclame of phishing.
+ *
+ * Eerst NFKC (stagingreview L6): brede en andere "lijkt-op"-tekens worden dan de gewone vorm (`．` → `.`, `＠` → `@`,
+ * `０６` → `06`), zodat de controle ze ziet. De ideografische punten (`。`, `｡`) blijft NFKC als punt van een andere
+ * soort houden, terwijl browsers en mailprogramma's ze in een domeinnaam als punt lezen: die worden daarom ook `.`.
+ * De controle en de mail gebruiken dezelfde, genormaliseerde tekst: wat getoetst is, is precies wat er komt te staan.
  */
 export function veiligeNaam(naam: string | null, anders: string): string {
-  const n = (naam ?? '').replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '').replace(/\s+/g, ' ').trim();
-  if (!n || n.length > 40 || /[@<>/\\:]|www\.|\.[a-z]{2,}\b/i.test(n)) return anders;
+  const n = (naam ?? '').normalize('NFKC').replace(/[。｡]/g, '.')
+    .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '').replace(/\s+/g, ' ').trim();
+  if (!n || n.length > 40) return anders;
+  // Iets dat op een adres of link lijkt: @, haken, schuine strepen, dubbele punt, "www." of een punt met twee letters
+  // erna (ook niet-Latijnse letters, zoals een nagemaakt `.сом`).
+  if (/[@<>/\\:]|www\.|\.\p{L}{2}/iu.test(n)) return anders;
+  // Iets dat op een telefoonnummer lijkt: zes of meer cijfers in de naam, in welk schrift ook.
+  if ((n.match(/\p{Nd}/gu) ?? []).length >= 6) return anders;
   return n;
 }
 

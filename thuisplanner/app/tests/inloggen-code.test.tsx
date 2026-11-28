@@ -11,7 +11,7 @@ import { CODE_TEKSTEN, TOEGANG_TEKSTEN } from '../src/lib/foutcodes';
 import { CodeInloggen } from '../src/components/CodeInloggen';
 import { Welkom } from '../src/components/Onboarding';
 import { headersBestand } from '../scripts/staging-build';
-import { stagingFouten } from '../src/lib/omgeving';
+import { onlineFouten } from '../src/lib/omgeving';
 
 const CONFIG: LokaleConfig = { omgeving: 'staging', url: 'https://abcdefghijklmnopqrst.supabase.co', anonKey: 'anon', accounts: [] };
 const nepSync = (() => ({ toestand: { status: 'verbonden', leden: [] }, start: async () => {}, stop: async () => {} })) as never;
@@ -96,7 +96,20 @@ describe('sessie: aanvragen, controleren, netwerk en poort', () => {
       .toMatchObject({ ok: false, fout: 'Er zijn net al een paar codes verstuurd. Gebruik de laatste code uit je mail.' });
     const engels = nepClient({ otp: { error: { status: 429, message: 'For security purposes, you can only request this after 59 seconds.' } } });
     expect(await new Sessie(CONFIG, { maakClient: () => engels.client, maakSync: nepSync }).vraagCode('a@x.nl'))
-      .toMatchObject({ ok: false, fout: 'Wacht even voordat je een nieuwe code aanvraagt.' });
+      .toMatchObject({ ok: false, fout: 'Wacht nog 59 seconden voordat je een nieuwe code aanvraagt.', code: 'TE_VAAK' });
+  });
+  // Gezinsbèta 22 november: "Wacht even" bleef ook na meer dan 5 minuten staan. Elke limiet van Supabase Auth krijgt nu
+  // een eigen, eerlijke tekst met de echte wachttijd.
+  it.each([
+    [{ status: 429, code: 'over_email_send_rate_limit', message: 'For security purposes, you can only request this after 1 seconds.' }, 'Wacht een paar seconden voordat je een nieuwe code aanvraagt.'],
+    [{ status: 429, code: 'over_email_send_rate_limit', message: 'email rate limit exceeded' }, 'Er zijn het afgelopen uur te veel codes verstuurd. Probeer het later opnieuw (uiterlijk over een uur).'],
+    [{ status: 429, message: 'Email rate limit exceeded' }, 'Er zijn het afgelopen uur te veel codes verstuurd. Probeer het later opnieuw (uiterlijk over een uur).'],
+    [{ status: 429, code: 'over_request_rate_limit', message: 'Request rate limit reached' }, 'Er zijn net te veel aanvragen gedaan. Probeer het over een paar minuten opnieuw.'],
+    [{ status: 429, message: 'Too Many Requests' }, 'Wacht even voordat je een nieuwe code aanvraagt.'],
+  ])('limieten van Supabase Auth: %o geeft een melding met de echte wachttijd', async (fout, tekst) => {
+    const n = nepClient({ otp: { error: fout } });
+    expect(await new Sessie(CONFIG, { maakClient: () => n.client, maakSync: nepSync }).vraagCode('a@x.nl'))
+      .toMatchObject({ ok: false, fout: tekst, code: 'TE_VAAK' });
   });
   it('een goede code: de token_hash gaat direct naar verifyOtp (Supabase geeft de sessie); het toestel wordt onthouden', async () => {
     const n = nepClient({ lid: [{ household_id: 'h1', role: 'owner' }] });
@@ -251,8 +264,8 @@ describe('build en contract', () => {
   });
   it('een ongeldige sitekey wordt geweigerd', () => {
     const env = { VITE_SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co', VITE_SUPABASE_ANON_KEY: 'x' };
-    expect(stagingFouten({ ...env, VITE_TURNSTILE_SITEKEY: 'onzin' })).toEqual(['VITE_TURNSTILE_SITEKEY is geen sitekey van Cloudflare Turnstile (begint met 0x).']);
-    expect(stagingFouten({ ...env, VITE_TURNSTILE_SITEKEY: '0x4AAAAAAAAbcdefghij' })).toEqual([]);
+    expect(onlineFouten({ ...env, VITE_TURNSTILE_SITEKEY: 'onzin' }, 'staging')).toEqual(['VITE_TURNSTILE_SITEKEY is geen sitekey van Cloudflare Turnstile (begint met 0x).']);
+    expect(onlineFouten({ ...env, VITE_TURNSTILE_SITEKEY: '0x4AAAAAAAAbcdefghij' }, 'beta')).toEqual([]);
   });
   it('elke TPA/TPB-code uit de migraties en elke TPK-code uit controleer-code heeft een tekst in de app', () => {
     const map = path.resolve(__dirname, '../../supabase');

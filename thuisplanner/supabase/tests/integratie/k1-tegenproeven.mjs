@@ -2,6 +2,7 @@
 // de bijbehorende integratietest (k1.test.mjs of uitnodigingsmail.test.mjs) dan faalt. Alleen tegen een LOKALE stack; elke sabotage wordt teruggedraaid, ook bij
 // een fout. Zelfde omgeving als k1.test.mjs (API_URL, ANON_KEY, SERVICE_ROLE_KEY, DB_URL).
 import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import pg from 'pg';
 
 const { DB_URL } = process.env;
@@ -20,13 +21,15 @@ const SABOTAGES = [
     van: 'and d.user_id = c.user_id ', naar: '' },
   { fn: 'private.k1_controleer(text,text,text,text,boolean)', test: 'noodstops', wat: 'noodstop codes genegeerd bij controleren',
     van: "if not inst.codes_aan then return query select 'codes-uit'::text, null::text, null::text, null::uuid; return; end if;", naar: '' },
-  { fn: 'private.k1_nieuwe_code(text,uuid,text,text,text)', test: 'limiet op aanvragen', wat: 'geen limiet op aanvragen',
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', test: 'limiet op aanvragen', wat: 'geen limiet op aanvragen',
     van: 'if a.aanvragen_kwartier >= g.aanvragen_kwartier or a.aanvragen_dag >= g.aanvragen_dag then', naar: 'if false then' },
-  { fn: 'private.k1_nieuwe_code(text,uuid,text,text,text)', test: 'noodstops', wat: 'registratie dicht genegeerd',
-    van: "if p_soort = 'signup' and not inst.registratie_open then return query select 'registratie-dicht'::text, null::uuid; return; end if;", naar: '' },
+  // Sinds migratie 20261125120000 staat de schakelaar registratie_open in k1_registratie_toegestaan.
+  { fn: 'private.k1_registratie_toegestaan(text)', test: 'noodstops', wat: 'registratie dicht genegeerd',
+    van: 'or e is null or not inst.registratie_open then', naar: 'or e is null then' },
   // Review stap 3a: R1 (zonder instellingenrij dicht) en R2 (zonder actieve code niets tellen en geen rij).
-  { fn: 'private.k1_nieuwe_code(text,uuid,text,text,text)', test: 'zonder instellingenrij', wat: 'code verstuurd zonder instellingenrij',
-    van: "if not found then return query select 'codes-uit'::text, null::uuid; return; end if;", naar: '' },
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', test: 'zonder instellingenrij', wat: 'code verstuurd zonder instellingenrij',
+    van: "registratie_open NULL en slaan ze over).\n  if not found then return query select 'codes-uit'::text, null::uuid; return; end if;",
+    naar: 'registratie_open NULL en slaan ze over).' },
   { fn: 'private.k1_controleer(text,text,text,text,boolean)', test: 'zonder instellingenrij', wat: 'gecontroleerd zonder instellingenrij',
     van: "if not found then return query select 'codes-uit'::text, null::text, null::text, null::uuid; return; end if;", naar: '' },
   { fn: 'private.k1_controleer(text,text,text,text,boolean)', test: 'zonder actieve code', wat: 'een rij voor een adres zonder code',
@@ -36,6 +39,59 @@ const SABOTAGES = [
     extra: [['if c.id is null or c.verloopt <= now() then', 'if false then']] },
   { fn: 'private.k1_toestellen_intrekken(uuid)', test: 'intrekken', wat: 'toestellen niet ingetrokken',
     van: 'update private.k1_toestellen set ingetrokken = true where user_id = p_user_id and not ingetrokken;', naar: 'perform 1;' },
+  // Besloten bèta (migratie 20261125120000, besloten.test.mjs): registratie op uitnodiging, L1, R4, L4, L5, de oude ingang
+  // en de grenzenrij.
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', bestand: 'besloten.test.mjs', test: 'niet-uitgenodigd', wat: 'nieuw account zonder uitnodiging',
+    van: "if p_soort = 'signup' and not private.k1_registratie_toegestaan(p_email) then", naar: 'if false then' },
+  { fn: 'private.k1_registratie_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'testerslijst', wat: 'testerslijst niet meegeteld',
+    van: 'or exists (select 1 from private.testers t where t.email = e)', naar: '' },
+  { fn: 'private.k1_registratie_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'open uitnodiging', wat: 'open uitnodiging niet meegeteld',
+    van: 'where i.invited_email = e and', naar: 'where false and' },
+  { fn: 'private.k1_registratie_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'open uitnodiging', wat: 'verlopen uitnodiging telt mee',
+    van: 'and i.expires_at > now());', naar: ');' },
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', bestand: 'besloten.test.mjs', test: 'L1', wat: 'uitlegmail zonder grens per adres',
+    van: "if a.uitleg_op is not null and a.uitleg_op > now() - interval '24 hours' then", naar: 'if false then' },
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', bestand: 'besloten.test.mjs', test: 'L1', wat: 'registratiecontrole vóór de grenzen (het oude gedrag)',
+    van: 'if a.aanvragen_kwartier >= g.aanvragen_kwartier or a.aanvragen_dag >= g.aanvragen_dag then',
+    naar: "if (a.aanvragen_kwartier >= g.aanvragen_kwartier or a.aanvragen_dag >= g.aanvragen_dag) and not (p_soort = 'signup' and not private.k1_registratie_toegestaan(p_email)) then" },
+  { fn: 'private.uitnodigingsmail_plek(uuid,text)', bestand: 'besloten.test.mjs', test: 'R4 per account', wat: 'geen grens per account',
+    van: ') < g.per_account', naar: ') < 1000000' },
+  { fn: 'private.uitnodigingsmail_plek(uuid,text)', bestand: 'besloten.test.mjs', test: 'R4 per adres', wat: 'geen grens per ontvanger',
+    van: ') < g.per_adres;', naar: ') < 1000000;' },
+  { fn: 'private.uitnodigingsmail_plannen()', bestand: 'besloten.test.mjs', test: 'R4', wat: 'nieuwe uitnodiging zonder grens per account en adres',
+    van: "when not plek then 'daglimiet'", naar: "when false then 'daglimiet'" },
+  { fn: 'private.uitnodigingsmail_opnieuw(uuid)', bestand: 'besloten.test.mjs', test: 'R4 per account', wat: 'nog eens sturen zonder grens per account en adres',
+    van: 'if not private.uitnodigingsmail_plek(uid, ontvanger) then', naar: 'if false then' },
+  { fn: 'private.k1_webhook_nieuw(text)', bestand: 'besloten.test.mjs', test: 'L4', wat: 'geen geheugen voor webhook-ids',
+    van: 'return n = 1;', naar: 'return true;' },
+  { fn: 'private.wachtrij_url_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'L5', wat: 'wachtrij ook via http naar buiten',
+    van: '|http://supabase_kong_[a-z0-9_]+:[0-9]{2,5})', naar: '|http://[^/@]+)' },
+  { fn: 'private.wachtrij_url_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'L5', wat: 'wachtrij via http naar localhost (de oude uitzondering)',
+    van: '|http://supabase_kong_[a-z0-9_]+:[0-9]{2,5})', naar: '|http://(localhost|supabase_kong_[a-z0-9_]+):[0-9]{2,5})' },
+  { fn: 'private.wachtrij_url_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'L5', wat: 'wachtrij naar een andere functie of een ander pad',
+    van: "/functions/v1/stuur-uitnodiging$'", naar: "/'" },
+  { fn: 'private.uitnodigingsmail_aanroepen()', bestand: 'besloten.test.mjs', test: 'L5', wat: 'seintje zonder controle op het adres',
+    van: 'or not private.wachtrij_url_toegestaan(url) then', naar: 'then' },
+  { fn: 'private.documenten_opruimen_ronde()', bestand: 'besloten.test.mjs', test: 'L5', wat: 'opruimronde zonder controle op het adres',
+    van: 'or not private.wachtrij_url_toegestaan(url) then', naar: 'then' },
+  { fn: 'private.k1_nieuwe_code(text,uuid,text,text,text)', bestand: 'besloten.test.mjs', test: 'oude ingang', wat: 'oude ingang geeft registratie-stil door',
+    van: "case when n.uitkomst = 'registratie-stil' then 'registratie-dicht' else n.uitkomst end", naar: 'n.uitkomst' },
+  { fn: 'private.k1_nieuwe_code(text,text,uuid,text,text,text)', bestand: 'besloten.test.mjs', test: 'grenzenrij', wat: 'codes zonder grenzenrij',
+    van: "where id = 1;\n  -- Zonder grenzenrij geen codes (fail-closed; anders zijn de grenzen NULL en telt niets mee).\n  if not found then return query select 'codes-uit'::text, null::uuid; return; end if;",
+    naar: 'where id = 1;' },
+  { fn: 'private.k1_registratie_toegestaan(text)', bestand: 'besloten.test.mjs', test: 'huishouden_open', wat: 'huishouden_open niet meegeteld',
+    van: 'return inst.huishouden_open\n    or exists', naar: 'return exists' },
+  // Een sabotage in een Edge Function (bron: het bestand). De Edge Runtime van de lokale stack wordt daarvoor herstart
+  // (alleen de container van dit project, KG_PROJECT_ID), en na het terugzetten opnieuw.
+  { bron: '../../functions/stuur-code/index.ts', bestand: 'besloten.test.mjs', test: 'adresverraad via de tijd', wat: 'stille weg antwoordt direct (de oude stand)',
+    van: 'const MINIMALE_DUUR_MS = 1500;', naar: 'const MINIMALE_DUUR_MS = 0;' },
+  { bron: '../../functions/stuur-code/index.ts', bestand: 'besloten.test.mjs', test: 'herstel en herbevestiging', wat: 'herstel geeft weer een 400 (de oude stand)',
+    van: "if (actie === 'recovery' || actie === 'reauthentication' || actie === 'invite') {", naar: 'if (false) {' },
+  { bron: '../../functions/stuur-code/index.ts', bestand: 'besloten.test.mjs', test: 'uitlegmail mislukt', wat: 'mislukte uitlegmail toch als succes (de oude stand)',
+    van: "try { await verstuur(beslotenTest(email)); } catch {\n      log('stuur-code', { soort, uitkomst: 'versturen-mislukt' });\n      return weiger(503,",
+    naar: "try { await verstuur(beslotenTest(email)); } catch { /* oud */ }\n    if (false) {\n      return weiger(503," },
+  { fn: 'private.uitnodigingsmail_plek(uuid,text)', bestand: 'besloten.test.mjs', test: 'R4 tegelijk', wat: 'geen vergrendeling op het adres',
+    van: "perform pg_advisory_xact_lock(hashtextextended('thuisplanner:uitnodigingsmail:adres:' || p_ontvanger, 0));", naar: 'perform 1;' },
   // D6, de uitnodigingsmail (uitnodigingsmail.test.mjs).
   { fn: 'private.uitnodigingsmail_opnieuw(uuid)', bestand: 'uitnodigingsmail.test.mjs', test: 'T17', wat: 'geen 10 minuten tussen mails',
     van: "if found and laatste.gevraagd > now() - interval '10 minutes' then", naar: 'if false then' },
@@ -77,16 +133,38 @@ const SABOTAGES = [
 const db = new pg.Client({ connectionString: DB_URL });
 await db.connect();
 let fouten = 0;
+const herstartFuncties = async () => {
+  const container = `supabase_edge_runtime_${process.env.KG_PROJECT_ID ?? 'thuisplanner'}`;
+  const r = spawnSync('docker', ['restart', container], { encoding: 'utf8', timeout: 120000 });
+  if (r.status !== 0) throw new Error(`herstart van ${container} mislukt: ${r.stderr}`);
+  await new Promise(klaar => setTimeout(klaar, 8000));
+};
+const draai = s => {
+  const r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-force-exit', '--test-reporter=tap', `--test-name-pattern=${s.test}`, s.bestand ?? 'k1.test.mjs'],
+    { env: process.env, encoding: 'utf8', timeout: 600000 });
+  return r.status !== 0 && /# fail [1-9]/.test(r.stdout);
+};
 for (const [i, s] of SABOTAGES.entries()) {
+  if (s.bron) {
+    const pad = new URL(s.bron, import.meta.url);
+    const oud = readFileSync(pad, 'utf8');
+    if (!oud.includes(s.van)) { console.log(`TEGENPROEF ${i + 1} ONGELDIG (${s.wat}): tekst niet gevonden`); fouten++; continue; }
+    writeFileSync(pad, oud.replace(s.van, s.naar));
+    try {
+      await herstartFuncties();
+      const gevangen = draai(s);
+      console.log(`${gevangen ? 'tegenproef' : 'TEGENPROEF'} ${i + 1} ${gevangen ? 'gevangen' : 'NIET GEVANGEN'}: ${s.wat} (test: ${s.test})`);
+      if (!gevangen) fouten++;
+    } finally { writeFileSync(pad, oud); await herstartFuncties(); }
+    continue;
+  }
   const def = (await db.query('select pg_get_functiondef($1::regprocedure) d', [s.fn])).rows[0].d;
   // Een sabotage kan meer dan één plek tegelijk veranderen (extra): voor een bescherming die op twee plekken zit.
   const paren = [[s.van, s.naar], ...(s.extra ?? [])];
   if (paren.some(([van]) => !def.includes(van))) { console.log(`TEGENPROEF ${i + 1} ONGELDIG (${s.wat}): tekst niet gevonden`); fouten++; continue; }
   await db.query(paren.reduce((d, [van, naar]) => d.replace(van, naar), def));
   try {
-    const r = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-force-exit', '--test-reporter=tap', `--test-name-pattern=${s.test}`, s.bestand ?? 'k1.test.mjs'],
-      { env: process.env, encoding: 'utf8', timeout: 600000 });
-    const gevangen = r.status !== 0 && /# fail [1-9]/.test(r.stdout);
+    const gevangen = draai(s);
     console.log(`${gevangen ? 'tegenproef' : 'TEGENPROEF'} ${i + 1} ${gevangen ? 'gevangen' : 'NIET GEVANGEN'}: ${s.wat} (test: ${s.test})`);
     if (!gevangen) fouten++;
   } finally {
@@ -94,5 +172,5 @@ for (const [i, s] of SABOTAGES.entries()) {
   }
 }
 await db.end();
-console.log(`K1- en D6-tegenproeven gevangen: ${SABOTAGES.length - fouten} van ${SABOTAGES.length}`);
+console.log(`K1-, D6- en bèta-tegenproeven gevangen: ${SABOTAGES.length - fouten} van ${SABOTAGES.length}`);
 process.exit(fouten ? 1 : 0);

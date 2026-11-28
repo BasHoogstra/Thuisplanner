@@ -21,7 +21,8 @@ if (!/^postgres(ql)?:\/\/[^@/]*@(127\.0\.0\.1|localhost):\d+\//.test(DB_URL)) {
 const { Client } = createRequire(path.join(HIER, '../tests/integratie/package.json'))('pg');
 
 // Wat in deze lokale opzet anders is dan online, en dus geen afwijking van de uitrol: Vault (stap 6), de testaanbieder.
-const LOKAAL = [/^Vault mist /, /^de testaanbieder voor mail staat aan/];
+// Lokaal is het wachtrij-adres bewust http:// (Kong in Docker); online eist de nacontrole https:// (stagingreview L5).
+const LOKAAL = [/^Vault mist /, /^Vault-adres thuisplanner_wachtrij_url begint niet met https:\/\//, /^de testaanbieder voor mail staat aan/];
 
 async function tabellen(c) {
   return (await c.query(`select n.nspname as schema, c.relname as tabel from pg_class c join pg_namespace n on n.oid = c.relnamespace

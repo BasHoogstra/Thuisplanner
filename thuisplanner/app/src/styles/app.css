@@ -105,6 +105,7 @@ a { color: var(--accent); }
 .rij.lid { align-items: center; gap: 12px; padding: 13px 16px; }
 .rij-knop, .rij-open, .vink-knop, .straks-knop { background: none; border: 0; text-align: left; color: inherit; }
 .rij-knop { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 12px; padding: 13px 16px; }
+a.rij-knop { text-decoration: none; }   /* Meer → Feedback of hulp: een link die eruitziet als een rij */
 .vink-knop { flex: 0 0 auto; display: flex; align-items: flex-start; padding: 13px 6px 13px 16px; }
 .rij-open { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 8px; padding: 13px 14px 13px 8px; }
 .rij-pijl { flex: 0 0 auto; margin-top: 4px; color: var(--inkt-3); opacity: .7; }
