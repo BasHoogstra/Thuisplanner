@@ -121,7 +121,7 @@ verschijnen alleen als "Bezet"; taken en boodschappen zijn voorlopig alleen gede
 | KG-5H deel 2: registratie en inloggen met e-mailcode | Zelf aanmelden en inloggen met een eenmalige code (K1, eigen codelaag), toegangspoort op de manier van inloggen (geen wachtwoordsessies), besloten test (G1), account en adres wijzigen, uitnodigingsmail (D6). Prioriteit vóór externe testers | Bouwscope goedgekeurd op 17 oktober 2026; lokaal **gebouwd** (`docs/thuisplanner-deel2-bouwverslag.md`); nog niet gepusht en niet op staging. Vóór testers (bouwverslag §6): versterkte poortbewaking (lokaal gebouwd), automatische verzending van uitnodigingsmails (lokaal gebouwd, bouwverslag §8; keuze mailaanbieder en Supabase-abonnement voor productie open), domein en mailaanbieder, staging intern bijwerken en de gehoste tests H1–H18, en daarna een **aparte bèta** (eigen Supabase- en Cloudflare Pages-project; staging blijft intern achter Cloudflare Access) met dezelfde tests, S1/S2 en een proef op echte telefoons |
 | Publieke website en gedeelde ontwerpbasis | De website op mijnthuisplanner.nl (uitleg, voordelen, hoe het werkt, privacy, veelgestelde vragen, "Meedoen met de bèta"), zonder JavaScript of tracking; één ontwerpbasis (`thuisplanner/ontwerp`) voor app en website; Lettermint als mailaanbieder; de omgevingen in `thuisplanner/omgevingen.json` | Akkoord op 18 oktober 2026; lokaal **gebouwd** (`docs/thuisplanner-website.md`). Nog niet gepubliceerd: bedrijfsgegevens, de DNS-overstap, het Pages-project en het koppelen van het domein, elk met een eigen akkoord |
 | F8 Vakanties, V1 | Vakanties via Meer en Vandaag; paklijst per lid + Gezamenlijk, overnemen zonder overschrijven; voorbereidingen als gewone taken (`tasks.trip_id`); boodschappen via een koppeltabel; afspraken koppelen in V2 (privacytoets). Geen budget, bestemmingstips, categorieën of aantallen | Ontwerp besloten op 21 oktober 2026 (V0, `docs/thuisplanner-vakanties.md`); V1.1 (database, RLS, tests) lokaal **gebouwd** (83 van 83, alle tegenproeven gevangen), niet gecommit en niet op staging; daarna V1.2 (sync) en V1.3 (app) |
-| Agenda vernieuwen (A1–A12, stappen 0–10) | Laptop-week in zeven rijen, iPhone-week als weekstrip met de gekozen dag en de rest van de week, één dagblok, een rustige maand met vakanties als periode, afgerond en zonder datum ingeklapt, de centrale + met de gekozen datum. Herziet W2-besluiten D5 en D6. Productrichting: later koppelingen met Google, Microsoft en waar haalbaar Apple (nu niets bouwen; gate 9 opnieuw voor die gegevens, na het besluit B-data) | Voorlopig productakkoord op 26 oktober 2026 (`docs/thuisplanner-agenda.md`); stap 0 t/m 4 lokaal gecommit op `thuisplanner-agenda` (niet gepusht, niet op staging); praktijktest door Sanne volgt |
+| Agenda vernieuwen (A1–A12, stappen 0–10) | Laptop-week in zeven rijen, iPhone-week als weekstrip met de gekozen dag en de rest van de week, één dagblok, een rustige maand met vakanties als periode, afgerond en zonder datum ingeklapt, de centrale + met de gekozen datum. Herziet W2-besluiten D5 en D6. Productrichting: later koppelingen met Google, Microsoft en waar haalbaar Apple (nu niets bouwen; gate 9 opnieuw voor die gegevens, na het besluit B-data). *Bijgewerkt 25 november 2026: tweerichting met Apple, Google én Outlook vóór de publieke lancering, via één motor; zie "Agendakoppelingen en hybride app".* | Voorlopig productakkoord op 26 oktober 2026 (`docs/thuisplanner-agenda.md`); stap 0 t/m 4 lokaal gecommit op `thuisplanner-agenda` (niet gepusht, niet op staging); praktijktest door Sanne volgt |
 | KG-5E t/m KG-5J (stap 4–9) | Frontend herindelen, lezen, schrijven, inloggen, realtime in de app, staging | Lezen, schrijven en realtime lokaal gebouwd (zie hierboven); nog open: herindeling (stap 4), echte inlogpagina's met e-mailcode, huishouden en uitnodigen (stap 7, na akkoord), staging (stap 9, na B2) |
 
 **Wat er verandert aan de gates, en wat niet:**
@@ -187,7 +187,7 @@ privacy en veiligheid gaan voor de datum: liever iets minder functies dan half w
 | 2d. Mijn spullen & Documenten (besluit 17) | **In ontwikkeling** sinds 28 oktober 2026, met hoge prioriteit; **bedoeld voor bèta 1** (3–5 gezinnen), mits beveiliging, documentopslag, huishoudrechten, verwijderprocedure en tests aantoonbaar in orde zijn. Is de functie dan nog niet veilig of stabiel genoeg, dan start bèta 1 zonder deze functie. | Aankoopdossiers en documenten, gekoppeld zonder duplicaten; PDF- en foto-invoer met handmatige correctie; zoeken en vragen via de + ("Welk modelnummer heeft onze vaatwasser?"); een demoflow met een verzonnen vaatwasser. Wordt lokaal gebouwd in een eigen worktree (`Thuisplanner-spullen`), met de echte opslag direct veilig ontworpen (privé-bucket per huishouden, RLS, bestandscontrole, verwijderen en back-up). Een migratie, bucket of uitrol alleen na een eigen akkoord; de bestaande onderdelen en de bèta-voorbereiding blijven ongemoeid. Uitwerking: `docs/thuisplanner-spullen-documenten.md`. |
 | 2e. Plannen (besluit 18) | **Demo: na een eigen akkoord**, zonder bèta-belofte en zonder 1b, bèta 1 of Maaltijden te vertragen. **Echte versie: niet vóór bèta 1**, na KG-5E licht, op zijn vroegst bij 2c. *Bijgewerkt 11 november 2026 (aanvulling op besluit 18): de echte versie hoort in de gezinsbèta, na KG-5E licht; v1 met één verantwoordelijke en zonder bijlagen, online achter `VITE_PLANNEN`.* | Demo: plannen met taken, voortgang, optionele onderdelen, meer verantwoordelijken en nagespeelde bijlagen; plan-taken zonder datum in een inklapbare groep in de Agenda. Alleen in de demomodus, niet op staging. Plek: **voorlopig onder Meer**, te evalueren na gebruikerstesten. ⛔ De gates "Plannen" en "Meerdere verantwoordelijken". Uitwerking: `docs/thuisplanner-plannen.md`. |
 | 2c. Bèta 2 | **Vanaf week 10**, gefaseerd | Minimale herinneringen (na de pushproef), huishoudkennis en contacten met verjaardagen, slimme projecten (sjablonen, en AI na de kwaliteitsproef; ze komen terecht in Plannen, mijlpaal 2e), Instagram-tekst plakken, Agenda-stap 5–7, Vandaag versie 2 |
-| 3. Publieke lancering | **Zodra de eisen zijn gehaald**, voorlopige inschatting week 12–16 | Een productieproject met back-ups, export en account verwijderen in de app, quota, een externe review van het inloggen, privacyverklaring en voorwaarden, monitoring, een eigen domein zonder Access, en een privé-repository of licentie |
+| 3. Publieke lancering | **Streefdatum begin juni 2027** (vroegst eind mei 2027), zodra de eisen zijn gehaald. *Bijgewerkt 25 november 2026 (besluit scenario 2). Tweerichting met Apple, Google en Outlook is een eis voor de lancering (zie "Agendakoppelingen en hybride app" en "Planning publieke lancering"); de eerdere inschatting week 12–16 vervalt.* | Een productieproject met back-ups, export en account verwijderen in de app, quota, een externe review van het inloggen, privacyverklaring en voorwaarden, monitoring, een eigen domein zonder Access, en een privé-repository of licentie |
 
 **Bewust later:** offline werken, abonnementen (F10), co-ouderschap (besluit 12), de import vanuit Huisplan, en
 Instagram-video of -beeldherkenning (pas na een proef die laat zien dat het mag en werkt).
@@ -195,6 +195,187 @@ Instagram-video of -beeldherkenning (pas na een proef die laat zien dat het mag 
 📝 De uitwerking staat in `docs/thuisplanner-beta-voorbereiding.md` en `docs/thuisplanner-ai-kwaliteitsproef.md`
 (concepten). Voor de bèta-omgeving zijn nog besluiten nodig: Pro in een eigen organisatie (T2), en of het bètaproject
 later het productieproject wordt (T3).
+
+### Besloten bèta op uitnodiging (besluit van de producteigenaar, 25 november 2026)
+
+Mijlpaal 2 wordt een **besloten bèta op uitnodiging, zonder openbare registratie**: vijf geselecteerde gezinnen, daarna
+gecontroleerd uitbreiden. Doel is praktijkervaring, geen afgewerkt product: alleen wat nodig is voor privacy,
+beveiliging, gegevensintegriteit en herstelbaarheid blokkeert de start. Deze sectie gaat voor op de streefperiode
+"rond week 6" in de tabel hierboven. Alle eisen uit `docs/thuisplanner-beta-voorbereiding.md` (§2.3 Access-poort, §4
+back-ups, §5.4 verwijderen op verzoek, §5.5, §8) blijven gelden.
+
+- **Streefdatum:** de eerste 1–2 gezinnen op **maandag 14 december 2026**; de andere 3 na een week zonder ernstige
+  fouten, bij voorkeur begin januari 2027 (geen start en support in de feestdagen).
+- **Omgeving (T2/O1):** in principe akkoord op Supabase Pro voor de bèta, in een eigen organisatie; staging blijft
+  gratis in de organisatie Thuisplanner (betaald en gratis kunnen niet in één organisatie). Kosten: Pro $25 per maand,
+  inclusief één Micro-project (het rekentegoed van $10 dekt dat); staging, Cloudflare en Lettermint (gratis tegoed)
+  $0. Totaal **$25 per maand**, plus btw als Supabase die rekent. De bèta wordt later productie (T3/O2, besloten 28
+  oktober), dus geen extra project. De betaalde activatie vraagt een afzonderlijk akkoord.
+- **Toegang alleen voor uitgenodigden:** de testerslijst (G1) voor de eerste volwassene per gezin, `huishouden_open`
+  uit, partners via een uitnodiging op hun eigen adres. Nieuw, vóór de start: **registratie alleen op uitnodiging** in
+  de codelaag (een account alleen voor een adres op de testerslijst of met een open uitnodiging), samen met L1. Daarmee
+  kan Access na de Access-poort uit (besluit O3).
+
+**Voorwaarden vóór het eerste gezin (blokkeren de start):**
+
+| # | Voorwaarde | Pakket |
+| --- | --- | --- |
+| V1 | Gezinsbèta Bas en Sanne: acceptatietest op twee telefoons; export en herstelproef mét bestanden | PO + Claude |
+| V2 | Bèta-omgeving: Pro, organisatie, project, Pages `app.mijnthuisplanner.nl` (CNAME), Turnstile, nieuwe geheimen, Auth met een ruime mailgrens per uur | PO + C |
+| V3 | Buildmodus `beta` en `productie` met kenmerkbewaking; nooit als demo (A1, N4, N5); `functies.ps1 -Omgeving beta`; L8. **Afhankelijkheid (besluit 26 november 2026):** de manifest, pictogrammen, beginscherm-tags en service worker uit PR #57 in de bèta-build (zie V11) | P1 + PR #57 |
+| V4 | Registratie alleen op uitnodiging, L1, R4 en L4 (de enige pakket met een migratie), en eerlijke meldingen bij de limieten van Supabase Auth | P2 |
+| V5 | Stagingreview L5 en L6; onafhankelijke review, of het resterende risico schriftelijk geaccepteerd door de PO (O6), met een risico-overzicht | P3 + PO |
+| V6 | Verwijderen op verzoek (A9, met Mijn spullen), AVG-inzage (`avg-export.sql`) en het dagoverzicht (`dagoverzicht.sql`) | P4 |
+| V7 | Access-poort online op de bèta: het API-scheidingsscript met tegenproef, H1–H19, de verwijderproef | P5 + C |
+| V8 | Privacyverklaring van de app gepubliceerd (bedrijfsgegevens ingevuld); DPA Supabase getekend; Cloudflare en Lettermint vastgelegd; uitleg voor testers en "Feedback of hulp" in Meer | P6 + PO |
+| V9 | Back-uplagen 1–3 en de hersteloefening op de bèta, mét bestanden | C + PO |
+| V10 | Acceptatiepoort: mobiele UX-check (met pakket 1–4 "Vandaag en Agenda rustiger", besluit 23 november), onboardingtest met een nieuwe gebruiker | PR #55 + PO |
+| V11 | **Eén keer inloggen** (besluit 26 november 2026): op `app.mijnthuisplanner.nl` zonder Access na één code-inlog per toestel geen inlog- of Access-scherm na update, herstart, offline en minstens 8 dagen niet openen (iPhone-beginscherm-app en desktop). De 13 testpunten en de 8-dagenproef (begin uiterlijk **5 december**); Auth-instellingen vastgelegd; technische hostnamen afgeschermd. Uitwerking en handelingen: `docs/thuisplanner-beta-voorbereiding.md` §2.5 | P1 + PR #57 + C + PO |
+
+**Eén keer inloggen (V11, besluit van de producteigenaar, 26 november 2026: "Alle drie").** De voorwaarde is een bèta-gate vóór 14 december. Overbrugging tot de verhuizing: de Access-sessieduur op staging tijdelijk op het maximum (de PO doet dat zelf). PR #57 (manifest, pictogrammen, beginscherm-tags, service worker; niet de pushproef) komt vóór 14 december in de bèta-build, als afhankelijkheid van P1. De 8-dagenproef begint uiterlijk 5 december; kan dat nog niet op `app.mijnthuisplanner.nl`, dan op staging als beginscherm-app met de manifest, met een korte herhaling op de bèta na de verhuizing. **Groen voor 14 december** (besluit van de producteigenaar, 26 november 2026: "Ja, zo"): de 8-dagenproef op staging geslaagd, plus de korte reeks op de bèta (testpunt 1–5 en 8–13) vóór 14 december; de tweede 8-dagenproef op de bèta loopt vanaf de verhuizing en moet groen zijn voordat er nieuwe gezinnen bij komen (besluit van de producteigenaar, 26 november 2026: "Ja"; §2.5). Elke handeling (Access, DNS, project, uitrol, verhuizing) houdt een afzonderlijk akkoord.
+
+**Tijdens de bèta, als update (blokkeren de start niet):** pushmeldingen en herinneringen, Bestellingen, Maaltijden en
+Recepten, herhalende taken, Overzicht en persoonlijke instellingen (besluiten 19 en 20; uitwerking van personalisatie
+en meldingen in `docs/thuisplanner-bijlage-personalisatie-meldingen.md`, PR #61), Agenda-stap 5–7, Vandaag
+versie 2, eigen export en account verwijderen in de app, huishoudkennis, AI, taakstatus en opvolgen (P8). Elke functie
+alleen na zijn eigen gate.
+**Paklijsten (besluit van de producteigenaar, 25 november 2026; vervangt D11 in `docs/thuisplanner-vakanties.md`):**
+paklijsten behouden hun indeling per gezinslid, met daarbinnen automatische categorisering; de gebruiker kan items
+altijd anders indelen en eigen categorieën aanmaken. Pakket P7, eerst bij Sanne op staging; **P7 mag de start van de
+besloten bèta niet vertragen**. Vóór de bèta, als het past: (1) bestaande items wijzigen (beter vindbaar, ook bij
+voorbereidingen, boodschappen en extra lijsten); (2) automatische categorisering via een lokale woordenlijst, kopjes
+pas bij twee of meer categorieën; (3) een item handmatig aan een andere categorie toewijzen (vraagt een kleine,
+additieve migratie, met de RLS-tegenproeven). Tijdens de bèta: uitgebreid categoriebeheer (eigen categorieën
+toevoegen, hernoemen, volgorde, verwijderen) en het onthouden van categorisatievoorkeuren (voorstel van 25 november
+2026).
+
+**Taken: status, notitie en opvolgen (gebruiksverbetering op verzoek van de producteigenaar, 25 november 2026; in de
+roadmap opgenomen op 25 november).** Het doel is dat het gezin in één oogopslag ziet wat er loopt, binnen het bestaande
+takensysteem. Dit is een gebruiksverbetering en **mag de start van de besloten bèta niet vertragen**. Pakket P8, eerst
+bij Bas en Sanne op staging.
+
+- **T1, zonder migratie** (`tasks.started_on` bestaat al): de status Te doen, Bezig of Afgerond voor álle taken, niet
+  alleen voor plan-taken. Op de plan-pagina een compacte samenvatting per status, de taken gegroepeerd op status (Bezig,
+  In afwachting, Nog te doen, Afgerond), Afgerond standaard ingeklapt, en statussen herkenbaar aan kleur én tekst. De
+  onderdelenstructuur en de voortgangsberekening blijven ongewijzigd. Vóór de bèta als het past, anders als update.
+- **T2, met één kleine, additieve migratie** (na P2, P7 en de voorkeurenmigratie; RLS-tegenproeven, gate 9 voor de
+  uitbreidingen van taken): de status **In afwachting** (`waiting_since`, hoogstens één lopende stand, en afvinken maakt
+  die leeg), een optionele **notitie** (`notes`, ≤ 2000 tekens, zichtbaar voor het huishouden en nooit in meldingen, AI
+  of koppelingen) en een optionele **opvolgdatum** (`follow_up_on`). Op die datum komt de taak terug op het **Overzicht**
+  (besluit 19, binnen de 5 taken) en in Agenda → Taken, met het label "Opvolgen". Het is geen melding. Bij lopende taken
+  staan de notitie en de opvolgdatum direct op de rij. Tijdens de bèta, als update.
+- Geen nieuwe handeling in het `Acties`-contract (alles loopt via `bijwerken` en `wissel`), geen tweede takensysteem, en
+  invoer via de + blijft ongewijzigd. Oude clients overschrijven niets; de server laat Bezig winnen van In afwachting.
+- Schatting: T1 ± 2,5–3 werkdagen, T2 ± 5 werkdagen. Open beslispunten B1–B6 staan in het bouwvoorstel van 25 november
+  2026. Elke commit, migratie en uitrol houdt een afzonderlijk akkoord. De uitrol gaat via `verbinding.ps1` (dry-run en
+  nacontrole), na een generale repetitie op een kopie van de laatste export.
+
+**Parallel werken (zonder concessies):** de pakketten P1–P6 raken elk eigen bestanden en lopen tegelijk, elk in een
+eigen worktree en een eigen PR met volledige CI, tegenproeven en review. Alleen P2 voegt vóór de start een migratie
+toe (P7 daarna, met het volgende versienummer); elke migratie wordt eerst gerepeteerd op een kopie van de laatste
+export (generale repetitie). Elk pakket dat een lokale Supabase-stack nodig heeft, gebruikt een eigen `project_id` en
+eigen poorten, en stopt die stack na zijn testronde (Docker is krap). Spoor C (de bèta-omgeving inrichten,
+met Access aan) begint direct na de betaalde activatie, zodat de online controles (V7, V9) kunnen zodra de pakketten
+gemerged zijn. Elke commit, merge, migratie, deployment en elk gezin houdt een afzonderlijk akkoord.
+
+**Versnelling:** (1) de bèta-omgeving deze week inrichten, met Access aan; (2) P1–P6 tegelijk; (3) O6 voor de besloten
+bèta via een schriftelijk geaccepteerd risico, de externe review vóór de lancering (mijlpaal 3); (4) de gezinnen
+gespreid. Eerder dan 14 december is niet verantwoord: na het mergen van de laatste pakketten kosten de online poort, de
+hersteloefening en het opruimen van de testaccounts samen nog enkele dagen.
+
+### Agendakoppelingen en hybride app (besluiten van de producteigenaar, 25 november 2026)
+
+Bij de publieke lancering moet Thuisplanner **betrouwbaar in twee richtingen** synchroniseren met **Apple Agenda,
+Google Agenda en Outlook**. Gebruikers houden hun eigen agenda-app en voeren niets dubbel in. Alle koppelingen
+gebruiken **één gemeenschappelijke motor** (koppelrijen, driewegs vergelijken, outbox, grenzen). De **PWA blijft** de
+basis; er komt **geen volledig native app** met aparte codebases. **Deze sporen vertragen de besloten bèta van 14
+december 2026 niet:** vóór de start alleen besluiten en aanvragen door de producteigenaar, geen ontwikkelwerk.
+
+- **Google en Outlook:** op de server (Google Calendar API, Microsoft Graph met delta en webhooks).
+- **Apple:** **geen app-specifieke wachtwoorden** zolang niet aantoonbaar is dat de rechten beperkt zijn tot de
+  benodigde agendagegevens (B-i1). Daarom via **EventKit in een hybride app (Capacitor)**. Gezinsafspraken bereiken de
+  iPhone via een **abonnementsagenda in iCloud** (privé-URL, intrekbaar per lid, privé = "Bezet"): dat is een
+  **kanaal binnen de tweerichtingssync**, geen alleen-lezen eindoplossing (B-p3). Afspraken met een externe bron wijzigt
+  alleen de eigenaar.
+- **Lanceringsnorm Apple (B-p1):** de achtergrondsync van iOS is niet gegarandeerd, dus de norm wordt meetbaar
+  vastgelegd, bijvoorbeeld 95% van de wijzigingen op de iPhone binnen 1 uur in Thuisplanner en 100% bij het openen van
+  de app. Die wordt in de bèta gemeten; haalt de bèta de norm niet, dan beslist de producteigenaar vóór de lancering
+  opnieuw. Niet stil afzwakken.
+- **Niet:** alleen-lezen ICS als definitieve oplossing; een verplichte overstap naar Google Agenda (B-i10);
+  commerciële diensten die het iCloud-wachtwoord vragen (Nylas, Cronofy, Nango en vergelijkbaar).
+- **Hybride app al tijdens de besloten bèta beproeven:** Android eerst als testinstallatie zonder Play-account (B-p7);
+  iOS via TestFlight (intern, voor Bas en Sanne) zodra het Apple Developer-account er is (B-p4). Geen universal links in
+  de bèta, zodat er geen uitzondering in Cloudflare Access nodig is; uitnodigingen lopen via de code (B-p8). De
+  web-pushproef (besluit 16) gaat door voor de PWA; de hybride app krijgt later APNs/FCM, en de gate voor meldingen geldt
+  dan opnieuw voor dat toesteltype.
+- **A2 + A3 als bèta-update in januari 2027 (B-p6):** eigen migratie, gate 9 en generale repetitie, na V1 en de
+  bèta-start. Hier begint het kritieke pad naar de lancering.
+- **Accounts en kosten regelt of keurt de producteigenaar zelf, elk apart:** bedrijfsvorm (KvK) en D-U-N-S (B-p2, als
+  eerste, want die bepalen Apple als organisatie, Google Play zonder de regel "12 testers, 14 dagen" en de
+  uitgeververificatie van Microsoft), het Apple Developer-account (€99 per jaar), interesse voor de OAuth-pilot van
+  Apple (B-p5, niet op bouwen), het Google Cloud-project met merkverificatie, Microsoft Partner Center en de Play
+  Console. Uitsluitend echte bedrijfsgegevens.
+- **Privacy:** een DPIA-aanvulling en de privacyverklaring vóór de proef met bètagezinnen: agendagegevens van het
+  toestel (alleen de gekozen agenda's), de abonnements-URL als geheim, Apple (APNs) en Google (FCM) als verwerkers van
+  pushtokens. App Store-privacylabels, privacymanifest en Play Data safety.
+- **Gratis of Premium:** uitgesteld.
+
+**Start agendawerk, beperkt (besluit van de producteigenaar, 25 november 2026: "Ja, start agendawerk beperkt op 16
+december"):** fase A begint op **16 december 2026** met één sessie, alleen lokaal; geen migratie op staging vóór ±11
+januari 2027. Het Google-prototype draait in de kerstweek intern op staging (uitrol met een eigen akkoord). De
+producteigenaar zet het Google-project en de merkverificatie op tussen 7 en 18 december; de verificatieaanvraag bij
+Google volgt rond 5–8 januari 2027. De bèta-start op 14 december blijft ongewijzigd. Uitwerking:
+`agenda-start-december.md` (notitiemap van de regie).
+
+| Spoor | Inhoud | Afhankelijk van | Indicatie |
+| --- | --- | --- | --- |
+| S0 | Besluiten en aanvragen (PO): bedrijfsvorm, D-U-N-S, Apple Developer, Google-project + merkverificatie (7–18 december), Microsoft Partner Center, Play Console | – | vóór en rond de bèta-start |
+| S1 | Proeven: Google, Graph, EventKit en CalendarContract (met meting van de achtergrond) | S0 | januari 2027 |
+| S2 | Hybride schil (Capacitor iOS + Android), TestFlight en interne Play-test | S0 (Android kan zonder account) | januari 2027 |
+| S3 | A2 + A3 als bèta-update (eigen migratie, gate 9) | V1 en de bèta-start | januari 2027 |
+| S4 | Motor (gate 9 voor het domein "agendakoppelingen") | S3 | februari 2027 |
+| S5 | Google, Outlook en Apple/EventKit parallel, elk in een eigen worktree en PR; de Google-verificatie indienen | S4 (+ S2 voor Apple) | maart – begin april 2027 |
+| S6 | Proef met bètagezinnen (incl. de meting tegen B-p1), lanceringspoort, review in de app-winkels | S5 | april – mei 2027 |
+
+**Vroegst lanceringsklaar eind mei 2027; streefdatum begin juni 2027** (scenario 2, zie hieronder), met tegenslag bij
+de externe verificaties (Google OAuth, Microsoft-uitgeververificatie, App Review) later. Omdat tweerichting vóór de
+publieke lancering een eis is, bepaalt dit spoor de streefperiode van mijlpaal 3. Elke commit, migratie, account, abonnement en uitrol houdt een
+afzonderlijk akkoord. Uitwerking: `agendakoppelingen-parallel-plan.md` (notitiemap van de regie), met als achtergrond
+de notities over CalDAV, EventKit en de app-architectuur; waar die botsen, gaan deze besluiten voor (CalDAV vervalt).
+
+### Planning publieke lancering (besluit van de producteigenaar, 25 november 2026: scenario 2)
+
+Besloten na bespreking van de volledige vergelijking van de drie scenario's ("Scenario 2 is bevestigd, begin juni
+2027"). De technische voortgang (de sporen hierboven en de besloten bèta) staat los van de lanceringsdatum.
+
+De publieke lancering vraagt betrouwbare tweerichting met Apple, Google en Outlook. Drie scenario's zijn doorgerekend,
+met de ontwikkeltijd, de externe wachttijd en de veiligheids- en acceptatietests apart. De interne proef van ≥14 dagen
+per koppeling, de proef met gezinnen, gate 9 en de externe review van het inloggen worden in geen enkel scenario
+ingekort.
+
+| Scenario | Alle koppelingen | App in de winkels | Lancering verantwoord |
+| --- | --- | --- | --- |
+| 1. Huidige capaciteit (4 sporen) | ±begin juni 2027 | ±eind juni | ±eind juni – juli 2027 |
+| **2. Maximaal verantwoord parallel (5 sessies, Codex-reviews) — gekozen** | **±begin mei 2027** | **±eind mei** | **±eind mei – begin juni 2027** |
+| 3. Versneld met een iOS-specialist (betaald) | ±eind april 2027 | ±half mei | ±half – eind mei 2027 |
+
+- **Werkplan: scenario 2**, streefdatum voor de publieke lancering **begin juni 2027**, vroegst eind mei (B-l1).
+- **Terugval:** valt de EventKit-proef in januari tegen, dan beslist de producteigenaar rond **1 februari 2027** over het
+  inhuren van een iOS-specialist (B-l3; kosten met een eigen akkoord).
+- **Geen commerciële integratiedienst** zoals Cronofy (B-l4): die lost Apple niet op, versnelt het kritieke pad niet en
+  voegt een verwerker toe.
+- **KvK/D-U-N-S en de Google-merkverificatie vóór half december 2026** (B-l5): elke week later schuift het kritieke pad
+  een week op. Accounts en kosten keurt de producteigenaar apart goed.
+- **Codex-review op elke agenda-PR** (B-l6), zodat scenario 2 binnen de reviewcapaciteit blijft.
+- **Afgewezen (B-l2):** lanceren rond half april met alleen Google en Outlook (persoonlijk) en Apple als update eind
+  mei. Apple hoort bij de lancering. Februari of maart 2027 is niet haalbaar zonder concessies aan kwaliteit, privacy
+  of betrouwbaarheid.
+- **Kritiek pad:** de bedrijfsgegevens (KvK, D-U-N-S) → het Apple Developer-account → de app-schil; agenda fase A → de
+  motor → de EventKit-adapter → de proeven → App Review.
+- **Push en personalisatie** volgen de centrale bèta-planning (B1 14 december, B2/P2 4 januari, B3 11 januari); native
+  push (APNs) komt met de app-schil via TestFlight (±februari 2027).
+- Elke commit, migratie, account, kostenpost en uitrol houdt een afzonderlijk akkoord. Uitwerking:
+  `lanceringsscenarios-agenda.md` (notitiemap van de regie).
 
 ## Productkompas-toets (werkwijze vanaf nu)
 
@@ -639,7 +820,7 @@ die erachter staat. De kolom "Oorspronkelijk advies" komt uit de roadmap van 2 o
 | Navigatie | 3.1, 3.5 | Beslissen na het onderzoek in 3.1, niet vooraf. | 🔁 Vóór 3.1 toetsen aan werkelijk gebruik (beslissing 2). Plannen staat voorlopig onder Meer; dat is geen vaste keuze en wordt na gebruikerstesten geëvalueerd (besluit 18). |
 | Prijsmodel en welke functies betaald zijn | 4.5 | Eén abonnement per huishouden, onbeperkt leden, met proefperiode; eventueel AI-foto's als extra. | ✏️ Vervallen: de hele planner alleen-lezen of onbruikbaar na een proefperiode (beslissing 3). Een Premium-proefperiode blijft mogelijk, bijvoorbeeld met daarna een terugval naar een bruikbare Gratis-versie. Het prijsmodel zelf staat nog open. |
 | AI-dienst voor foto's en de kosten daarvan | 3.8 | Pas kiezen als 3.1–3.7 bewezen zijn; verwerking in de EU en geen opslag bij de dienst. | 🔁 De prioriteit van 3.8 wordt herbeoordeeld bij de eerstvolgende roadmapreview (beslissing 5). |
-| Alleen web-app of ook in de app-winkels | 4.10 | Eerst als web-app; app-winkels pas als pushmeldingen op iPhone een probleem blijken. | Ongewijzigd open. |
+| Alleen web-app of ook in de app-winkels | 4.10 | Eerst als web-app; app-winkels pas als pushmeldingen op iPhone een probleem blijken. | ✏️ Besloten op 25 november 2026: de PWA blijft de basis, met een **hybride app (Capacitor)** voor de app-winkels, nodig voor de Apple-agendakoppeling via EventKit; al tijdens de besloten bèta beproefd. Geen volledig native app met aparte codebases (zie "Agendakoppelingen en hybride app"). |
 | Welke secundaire functies definitief blijven na 2.14 | Na 2.14 | Na minimaal drie maanden gebruikscijfers per functie beslissen. | 🔁 Op basis van werkelijk gebruik (beslissing 10). |
 
 ## Functies die voorlopig blijven

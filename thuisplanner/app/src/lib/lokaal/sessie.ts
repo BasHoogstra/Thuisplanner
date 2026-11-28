@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react';
 import { maakSync, onbevestigdOpToestel, wisOnbevestigdOpToestel, type Sync, type Toestand } from '../../../../sync/thuisplanner-sync.js';
 import { foutTekst, TOEGANG_TEKSTEN } from '../foutcodes';
 import { bewaarAanvraag, bewaarToestel, controleerBijServer, leesToestel, vergeetAanvraag, vergeetToestellen } from './code';
-import { stagingFouten } from '../omgeving';
+import { isOnlineOmgeving, onlineFouten, type OnlineOmgeving } from '../omgeving';
 import { vergeetCaches as vergeetVoorkeuren } from '../voorkeuren';
 
 export { foutTekst };
@@ -19,8 +19,11 @@ export { foutTekst };
 export interface DemoAccount { naam: string; email: string }
 
 export interface LokaleConfig {
-  /** lokaal: dit toestel of het eigen netwerk; staging: precies één online testproject (zie ../omgeving.ts). */
-  omgeving: 'lokaal' | 'staging';
+  /**
+   * lokaal: dit toestel of het eigen netwerk; staging, beta, productie: precies één online project van die omgeving
+   * (zie ../omgeving.ts).
+   */
+  omgeving: 'lokaal' | OnlineOmgeving;
   url: string;
   anonKey: string;
   /** Fictieve accounts om mee in te loggen (alleen lokaal). */
@@ -70,17 +73,20 @@ export function lokaleConfig(env: Record<string, string | undefined> = import.me
   return { omgeving: 'lokaal', url, anonKey, accounts, wachtwoord: env.VITE_DEMO_WACHTWOORD || undefined, spullen: env.VITE_SPULLEN === 'aan', plannen: env.VITE_PLANNEN === 'aan', voorkeuren: env.VITE_VOORKEUREN === 'aan' };
 }
 
+const WEIGERING: Record<OnlineOmgeving, string> = { staging: 'Weigering (testomgeving)', beta: 'Weigering (bèta)', productie: 'Weigering (productie)' };
+
 /**
- * De configuratie van deze build: null = demo, anders lokaal of staging. Staging alleen met VITE_OMGEVING=staging
- * (dat zet `npm run build:staging`) en precies één online project; zonder die markering blijft elke online URL
- * geweigerd, zoals altijd. Nooit stil terugvallen op de demo.
+ * De configuratie van deze build: null = demo, anders lokaal of online. Online (staging, beta, productie) alleen met
+ * VITE_OMGEVING (dat zet `npm run build:staging|beta|productie`, vast in de bundel) en precies één online project;
+ * zonder die markering blijft elke online URL geweigerd, zoals altijd. Nooit stil terugvallen op de demo: een online
+ * build zonder (geldige) configuratie geeft een fout (N4).
  */
 export function appConfig(env: Record<string, string | undefined> = import.meta.env): LokaleConfig | null {
   const omgeving = env.VITE_OMGEVING;
-  if (omgeving === 'staging') {
-    const fouten = stagingFouten(env);
-    if (fouten.length) throw new Error('Weigering (testomgeving): ' + fouten[0]);
-    return { omgeving: 'staging', url: env.VITE_SUPABASE_URL as string, anonKey: env.VITE_SUPABASE_ANON_KEY as string, accounts: [],
+  if (isOnlineOmgeving(omgeving)) {
+    const fouten = onlineFouten(env, omgeving);
+    if (fouten.length) throw new Error(WEIGERING[omgeving] + ': ' + fouten[0]);
+    return { omgeving, url: env.VITE_SUPABASE_URL as string, anonKey: env.VITE_SUPABASE_ANON_KEY as string, accounts: [],
       turnstile: env.VITE_TURNSTILE_SITEKEY || undefined, spullen: env.VITE_SPULLEN === 'aan', plannen: env.VITE_PLANNEN === 'aan', voorkeuren: env.VITE_VOORKEUREN === 'aan' };
   }
   if (omgeving && omgeving !== 'lokaal') throw new Error('Weigering: onbekende omgeving ' + omgeving + '.');
@@ -88,8 +94,8 @@ export function appConfig(env: Record<string, string | undefined> = import.meta.
 }
 
 /**
- * Hoe de Supabase-client de inlogsessie bewaart. Staging (een eigen telefoon): in localStorage, zodat je ingelogd
- * blijft als je de app of het tabblad sluit; uitloggen wist hem. Lokaal: per tabblad (sessionStorage), zodat je op
+ * Hoe de Supabase-client de inlogsessie bewaart. Online (staging, bèta, productie; een eigen telefoon): in
+ * localStorage, zodat je ingelogd blijft als je de app of het tabblad sluit; uitloggen wist hem. Lokaal: per tabblad (sessionStorage), zodat je op
  * één computer twee fictieve accounts naast elkaar kunt testen. Nooit een sessie uit de URL overnemen: de app
  * heeft geen inloglinks, dus een token in de URL is altijd verdacht.
  */
@@ -98,7 +104,7 @@ export function authOpties(config: Pick<LokaleConfig, 'omgeving'>) {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
-    storage: config.omgeving === 'staging' ? duurzameOpslag() : sessieOpslag(),
+    storage: config.omgeving !== 'lokaal' ? duurzameOpslag() : sessieOpslag(),
     storageKey: 'thuisplanner-auth',
   };
 }
@@ -162,10 +168,27 @@ export const isNetwerkfout = (e: unknown) => {
 // De Nederlandse meldingen van de codelaag (functions/stuur-code) komen ongewijzigd door; Engelse meldingen van Supabase
 // Auth zelf niet: die worden een eigen tekst per situatie.
 const EIGEN_MELDING = /^(Inloggen met een code|Er zijn net al|Versturen lukt nu niet|Deze actie is niet beschikbaar)/;
+// De eigen limieten van Supabase Auth (status 429), elk met een eerlijke wachttijd. Eén algemene "wacht even" liet in de
+// gezinsbèta niet zien dat de limiet een uur kon duren (de mailgrens van het hele project).
+function limietMelding(e: { message?: string; code?: string }): string {
+  const m = e.message ?? '';
+  const seconden = /after (\d+) seconds?/i.exec(m);
+  if (seconden) {
+    const n = Number(seconden[1]);
+    return n <= 1 ? 'Wacht een paar seconden voordat je een nieuwe code aanvraagt.' : `Wacht nog ${n} seconden voordat je een nieuwe code aanvraagt.`;
+  }
+  if (/email rate limit/i.test(m) || e.code === 'over_email_send_rate_limit') {
+    return 'Er zijn het afgelopen uur te veel codes verstuurd. Probeer het later opnieuw (uiterlijk over een uur).';
+  }
+  if (e.code === 'over_request_rate_limit' || /request rate limit/i.test(m)) {
+    return 'Er zijn net te veel aanvragen gedaan. Probeer het over een paar minuten opnieuw.';
+  }
+  return 'Wacht even voordat je een nieuwe code aanvraagt.';
+}
 function aanvraagFout(e: { status?: number; message?: string; code?: string; name?: string }): string {
   if (e.message && EIGEN_MELDING.test(e.message)) return e.message;
   if (isNetwerkfout(e)) return 'Geen verbinding. Controleer je internet en probeer het opnieuw.';
-  if (e.status === 429) return 'Wacht even voordat je een nieuwe code aanvraagt.';
+  if (e.status === 429) return limietMelding(e);
   if (e.code === 'captcha_failed') return 'Bevestig eerst dat je geen robot bent, en probeer het dan opnieuw.';
   return 'Een code aanvragen lukte nu niet. Controleer het adres en probeer het opnieuw.';
 }
@@ -325,7 +348,7 @@ export class Sessie {
     const { data, error } = await this.inRij(() => this.client.auth.signInWithPassword({ email, password: wachtwoord }));
     if (!this.actueel(g)) return;   // intussen uitgelogd of een ander account gekozen: die actie ruimt op
     if (error || !data.user) {
-      this.zet({ fase: 'uitgelogd', fout: this.config.omgeving === 'staging'
+      this.zet({ fase: 'uitgelogd', fout: this.config.omgeving !== 'lokaal'
         ? 'Inloggen lukte niet. Klopt je e-mailadres en wachtwoord?'
         : 'Inloggen lukte niet. Klopt het wachtwoord, en staat de lokale database klaar?' });
       return;

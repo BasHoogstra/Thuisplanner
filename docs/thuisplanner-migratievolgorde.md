@@ -25,7 +25,8 @@ die eerder online gaan. Een eenmaal toegepaste migratie wordt nooit herschreven 
 | `20261030120000` | Afsprakenmodel (A2, met A1) | **niet in de repository van de bèta**: op `thuisplanner-a2-afsprakenmodel`; buiten de gezinsbèta (besluit Bas, 10 november). Krijgt bij integratie een nieuw nummer na de laatst toegepaste |
 | `20261111120000` | Plannen (besluit 18) | toegepast op staging (gecontroleerd 25 november 2026) |
 | `20261116120000` | Claimronde uitnodigingsmails (herstelronde review PR #54) | toegepast op staging (gecontroleerd 25 november 2026); **laatst toegepaste** (24 migraties) |
-| `20261124120000` | Persoonlijke instellingen (besluit 20, PR V): `account_preferences`, `set_preference`, `reset_preferences` | in PR #58; lokaal getest; de dry-run op staging (25 november) toont alleen deze als nieuw; nog niet toegepast (eigen akkoord); **laatste in de repository** (25 migraties) |
+| `20261124120000` | Persoonlijke instellingen (besluit 20, PR V): `account_preferences`, `set_preference`, `reset_preferences` | in PR #58; lokaal getest; de dry-run op staging (25 november) toont alleen deze als nieuw; nog niet toegepast (eigen akkoord) |
+| `20261125120000` | Besloten bèta: registratie alleen op uitnodiging, L1, R4 en L4 (pakket P2, V4) | op `thuisplanner-besloten-beta`; nog niet toegepast; eerst de generale repetitie, ná `20261124120000`; **laatste in de repository** (26 migraties). Paklijstcategorieën (P7) komen daarna, met het volgende nummer |
 
 ## Waarom `20261027180000` voor de herstelmigratie
 

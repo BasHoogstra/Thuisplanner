@@ -1,13 +1,15 @@
 import { useApp } from '../lib/context';
 import { HuishoudenBeheer } from '../components/HuishoudenBeheer';
 import type { Scenario } from '../data/demo';
-import { HerstelKnoppen } from '../components/Lokaal';
+import { BetaMarkering, HerstelKnoppen } from '../components/Lokaal';
 import { Account } from '../components/Account';
 import { VakantiesRij } from './Vakanties';
 import { SpullenRij } from './Spullen';
 import { PlannenRij } from './Plannen';
 import { InstellingenRij } from './Instellingen';
 import type { Item, SyncVelden } from '../lib/types';
+import { feedbackAdres, feedbackLink } from '../lib/feedback';
+import { IcPijl, IcVerstuur } from '../components/Iconen';
 
 const ZONDER_INHOUD_NAAM = { afspraak: 'Afspraak', taak: 'Taak', boodschap: 'Boodschap' } as const;
 const naamVan = (i: Item) => (i.sync === 'zonder-inhoud'
@@ -33,6 +35,7 @@ export function Meer() {
       <VakantiesRij />
       <PlannenRij />
       <SpullenRij />
+      <FeedbackRij />
 
       <InstellingenRij />
 
@@ -78,6 +81,31 @@ export function Meer() {
   );
 }
 
+/**
+ * "Feedback of hulp" (docs/thuisplanner-beta-voorbereiding.md §6): een gewone mailto-link naar het adres uit de build,
+ * geen formulier en geen derde partij. Zonder ingesteld adres verschijnt er niets (lib/feedback.ts).
+ */
+export function FeedbackRij({ env }: { env?: Record<string, string | undefined> }) {
+  const adres = feedbackAdres(env);
+  if (!adres) return null;
+  return (
+    <section aria-label="Feedback of hulp" className="blok meer-vakanties">
+      <ul className="lijst">
+        <li className="rij">
+          <a className="rij-knop" href={feedbackLink(adres)} aria-label={`Feedback of hulp: mail ${adres}`}>
+            <span className="lid-avatar vak-icoon" aria-hidden="true"><IcVerstuur width={20} height={20} /></span>
+            <span className="rij-inhoud">
+              <span className="rij-titel">Feedback of hulp</span>
+              <span className="rij-sub"><span className="plek">Mail ons: {adres}</span></span>
+            </span>
+            <IcPijl className="rij-pijl" />
+          </a>
+        </li>
+      </ul>
+    </section>
+  );
+}
+
 /** Meer in de lokale modus: account, onbevestigde opdrachten op dit toestel, en wat er al echt werkt. */
 function MeerLokaal() {
   const { huishouden, staat, lokaal } = useApp();
@@ -109,6 +137,8 @@ function MeerLokaal() {
       <HuishoudenBeheer />
 
       <Account />
+
+      <FeedbackRij />
 
       <section aria-labelledby="h-onbevestigd" className="blok">
         <h2 id="h-onbevestigd" className="sectie-kop">Niet bevestigd</h2>
@@ -162,14 +192,17 @@ function MeerLokaal() {
         </ul>
       </section>
 
-      <section aria-labelledby="h-wat" className="blok">
+      {/* Bèta: alleen de rustige markering (besluit O7). Productie: niets. De uitleg hieronder hoort bij lokaal en staging. */}
+      {lokaal.omgeving === 'beta' && <section className="blok" aria-label="Bèta"><BetaMarkering /></section>}
+
+      {(lokaal.omgeving === 'lokaal' || lokaal.omgeving === 'staging') && <section aria-labelledby="h-wat" className="blok">
         <h2 id="h-wat" className="sectie-kop">Wat werkt er in deze lokale versie?</h2>
         <ul className="uitleg">
           <li><strong>Echt (lokale database):</strong> inloggen met een code uit je mail (of met een fictief account); een huishouden aanmaken; uitnodigen, ook per mail; afspraken, taken en boodschappen toevoegen, aanpassen, afvinken en verwijderen; herhalende afspraken (één keer of de hele reeks); wijzigingen verschijnen op het andere toestel; privé-afspraken van een ander zie je als "bezet" (de server stuurt de details niet mee); een gelijktijdige wijziging wordt geweigerd in plaats van overschreven; vakanties met voorbereidingen, boodschappen en een paklijst per gezinslid (verwijderen, overnemen en vinkjes opnieuw zijn daar ongedaan te maken).</li>
           <li><strong>Nog niet:</strong> ongedaan maken (buiten vakanties), meldingen, herhalende taken, het meedenk-signaal onthouden (wegklikken geldt alleen voor dit tabblad).</li>
           <li><strong>Alleen lokaal:</strong> een testdatabase op dit netwerk met een verzonnen gezin. Dit is geen productieversie.</li>
         </ul>
-      </section>
+      </section>}
     </div>
   );
 }

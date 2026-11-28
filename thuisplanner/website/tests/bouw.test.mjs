@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { bouw, instellingFouten } from '../bouw.mjs';
+import { bouw, concepten, instellingFouten } from '../bouw.mjs';
 
 const HIER = path.dirname(fileURLToPath(import.meta.url));
 const ECHT = JSON.parse(readFileSync(path.resolve(HIER, '../gegevens.json'), 'utf8'));
@@ -45,7 +45,71 @@ test('publicatiebouw met volledige gegevens: vindbaar, geen plaatshouders, geen 
   assert.match(lees(uit, 'bedrijfsgegevens.html'), /Niet van toepassing/);
   const sitemap = lees(uit, 'sitemap.xml');
   assert.deepEqual([...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]).sort(),
-    ['https://mijnthuisplanner.nl/', 'https://mijnthuisplanner.nl/bedrijfsgegevens', 'https://mijnthuisplanner.nl/mails', 'https://mijnthuisplanner.nl/privacy']);
+    ['https://mijnthuisplanner.nl/', 'https://mijnthuisplanner.nl/bedrijfsgegevens', 'https://mijnthuisplanner.nl/beta',
+      'https://mijnthuisplanner.nl/mails', 'https://mijnthuisplanner.nl/privacy', 'https://mijnthuisplanner.nl/privacy-app']);
+});
+
+test('conceptnotities: zichtbaar in de voorbeeldbouw, weg in de publicatiebouw; een open blok wordt geweigerd', () => {
+  const voorbeeld = tijdelijk();
+  bouw({ uit: voorbeeld });
+  for (const p of ['privacy-app.html', 'beta.html']) {
+    assert.match(lees(voorbeeld, p), /class="concept-noot"[\s\S]*Concept: nog niet publiceren/, p);
+    assert.doesNotMatch(lees(voorbeeld, p), /<!--\s*\/?concept/, `${p}: markeringen horen niet in de uitvoer`);
+  }
+  // Wat de producteigenaar nog moet aanleveren en beslissen, staat bovenaan de verklaring, vóór de kop.
+  const app = lees(voorbeeld, 'privacy-app.html');
+  assert.ok(app.indexOf('Nog aanleveren') < app.indexOf('Nog beslissen'));
+  assert.ok(app.indexOf('Nog beslissen') < app.indexOf('<h1>Privacyverklaring van de app</h1>'));
+  const publicatie = tijdelijk();
+  bouw({ publicatie: true, gegevens: PROEF, uit: publicatie });
+  for (const p of paginas(publicatie)) {
+    assert.doesNotMatch(lees(publicatie, p), /concept-noot|Concept: nog niet publiceren|Nog aanleveren|Nog beslissen|<!--\s*\/?concept/, p);
+  }
+  // De rest van de pagina blijft staan.
+  assert.match(lees(publicatie, 'privacy-app.html'), /<h1>Privacyverklaring van de app<\/h1>/);
+  // Tegenproef: een blok zonder afsluiting gaat nooit stil mee, ook niet in de voorbeeldbouw.
+  for (const pub of [true, false]) {
+    assert.throws(() => concepten('<p>a</p><!-- concept --><p>open</p>', { publicatie: pub, pagina: 'x.html' }), /x\.html: een conceptblok is niet goed afgesloten/);
+    assert.throws(() => concepten('<p>a</p><!-- /concept -->', { publicatie: pub, pagina: 'x.html' }), /niet goed afgesloten/);
+  }
+  assert.equal(concepten('a<!-- concept -->b<!-- /concept -->c<!-- concept -->d<!-- /concept -->e', { publicatie: true }), 'ace');
+  assert.equal(concepten('a<!-- concept -->b<!-- /concept -->c', { publicatie: false }), 'abc');
+});
+
+test('privacyverklaring van de app: verantwoordelijke uit gegevens.json, verwerkers, bewaartermijnen, rechten en de bèta', () => {
+  const uit = tijdelijk();
+  bouw({ publicatie: true, gegevens: PROEF, uit });
+  const html = lees(uit, 'privacy-app.html');
+  assert.match(html, /Proefbedrijf &amp; Zonen/);
+  assert.match(html, /<a href="mailto:contact@test\.invalid">/);
+  for (const kop of ['Wie is verantwoordelijk?', 'Welke gegevens verwerkt de app?', 'Wat staat er op je eigen toestel?', 'Wie in je huishouden ziet wat?',
+    'Waarvoor gebruiken we je gegevens, en op welke grond?', 'Wat we niet doen', 'Hoe lang bewaren we gegevens?', 'Wie verwerkt gegevens voor ons?',
+    'Je rechten', 'Kinderen', 'Beveiliging', 'Wat de bèta voor je gegevens betekent', 'Wijzigingen']) assert.ok(html.includes(`<h2>${kop}</h2>`), kop);
+  for (const v of ['Supabase', 'Cloudflare', 'Lettermint', 'Frankfurt', 'Turnstile', 'Autoriteit Persoonsgegevens']) assert.ok(html.includes(v), v);
+  // De functies die nu gebouwd zijn, en de termijnen uit de code (migraties en sync).
+  for (const v of ['Mijn spullen &amp; Documenten', 'vakanties', 'plannen', '"bezet"', '60 seconden', '30 dagen', '180 dagen', '24 uur',
+    '7 dagen', '28 dagen', '4 weken']) assert.ok(html.includes(v), v);
+  assert.doesNotMatch(html, /Firebase|Google Analytics|nog in te vullen/);
+  // De websiteverklaring en de appverklaring verwijzen naar elkaar; de voet linkt op elke pagina naar beide.
+  assert.match(lees(uit, 'privacy.html'), /href="\/privacy-app"/);
+  assert.match(html, /href="\/privacy"/);
+  for (const p of paginas(uit)) assert.match(lees(uit, p), /<a href="\/privacy">Privacy website<\/a>[\s\S]*<a href="\/privacy-app">Privacy app<\/a>/, p);
+});
+
+test('uitleg voor testers: bèta, back-up, code nooit afgeven, beginscherm op iPhone en Android, beperkingen en het feedbackadres', () => {
+  const uit = tijdelijk();
+  bouw({ publicatie: true, gegevens: PROEF, uit });
+  const html = lees(uit, 'beta.html');
+  for (const v of ['Wat betekent bèta?', 'elke week een eigen back-up', 'Wij vragen nooit om je code: niet per telefoon, niet per chat en niet per mail',
+    'Zet op beginscherm', 'iPhone (Safari)', 'Android (Chrome)', 'Toevoegen aan startscherm', 'Zonder internet wordt niets opgeslagen',
+    'Geen verbinding', 'Meer → Feedback of hulp', 'href="/privacy-app"']) assert.ok(html.includes(v), v);
+  assert.match(html, /<a href="mailto:contact@test\.invalid">/);
+  assert.match(lees(uit, 'index.html'), /<a href="\/beta">uitleg voor testers<\/a>/);
+  // Zonder bedrijfsgegevens (de voorbeeldbouw) geen verzonnen adres: alleen "nog in te vullen".
+  const voorbeeld = tijdelijk();
+  bouw({ uit: voorbeeld });
+  assert.doesNotMatch(lees(voorbeeld, 'beta.html'), /mailto:/);
+  assert.match(lees(voorbeeld, 'beta.html'), /Mail ons op <span class="nog-invullen">nog in te vullen<\/span>/);
 });
 
 test('ongeldige instellingen worden geweigerd', () => {

@@ -29,7 +29,7 @@ let db = new pg.Client({ connectionString: DB_URL });
 const run = randomUUID().slice(0, 8);
 const accounts = [];
 const huishoudens = [];
-let vorige, aanbieder;
+let vorige, vorigeGrenzen, aanbieder;
 const wacht = ms => new Promise(r => setTimeout(r, ms));
 async function tot(fn, ms = 15000, wat = 'voorwaarde') {
   const eind = Date.now() + ms;
@@ -43,6 +43,10 @@ before(async () => {
   await db.connect();
   vorige = (await db.query('select * from private.instellingen')).rows[0];
   await db.query(`update private.instellingen set wachtwoordsessies_toegestaan = false, huishouden_open = true, mail_testaanbieder = 'gewoon'`);
+  // De grenzen per uitnodiger en per ontvanger (R4, migratie 20261125120000) staan in besloten.test.mjs; hier ruim, zodat
+  // deze tests (20 per huishouden, 30 tegelijk) de wachtrij zelf toetsen.
+  vorigeGrenzen = (await db.query('select per_account, per_adres from private.uitnodigingsmail_grenzen')).rows[0];
+  await db.query('update private.uitnodigingsmail_grenzen set per_account = 100, per_adres = 100');
   aanbieder = await startTestaanbieder(Number(api.port) + 7);
 });
 after(async () => {
@@ -52,6 +56,7 @@ after(async () => {
   for (const id of accounts) await admin.auth.admin.deleteUser(id);
   await db.query('update private.instellingen set wachtwoordsessies_toegestaan = $1, huishouden_open = $2, mail_testaanbieder = $3',
     [vorige.wachtwoordsessies_toegestaan, vorige.huishouden_open, vorige.mail_testaanbieder]);
+  if (vorigeGrenzen) await db.query('update private.uitnodigingsmail_grenzen set per_account = $1, per_adres = $2', [vorigeGrenzen.per_account, vorigeGrenzen.per_adres]);
   await db.end();
 });
 

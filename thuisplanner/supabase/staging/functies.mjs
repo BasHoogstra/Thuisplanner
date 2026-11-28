@@ -1,8 +1,10 @@
-// Thuisplanner-staging, stap 5: de controles rond het deployen van de Edge Functions (staging/functies.ps1). Zie
-// docs/thuisplanner-staging-overstap.md, stap 5. Dit script deployt zelf niets en maakt geen verbinding.
-//   node functies.mjs vooraf <kenmerk> [omgeving]   vóór het deployen: het juiste project, de bedoelde functies, alles
-//                                                     gecommit, verify_jwt uit zoals in config.toml
-//   node functies.mjs na <kenmerk>                    na het deployen: de functielijst (JSON van `functions list`, via stdin)
+// De controles rond het deployen van de Edge Functions (staging/functies.ps1), voor staging (stap 5 van
+// docs/thuisplanner-staging-overstap.md) en de bèta (docs/thuisplanner-beta-voorbereiding.md §2.1). Dit script deployt
+// zelf niets en maakt geen verbinding.
+//   node functies.mjs vooraf <kenmerk> [staging|beta]   vóór het deployen: het juiste project, de bedoelde functies,
+//                                                         alles gecommit, verify_jwt uit zoals in config.toml
+//   node functies.mjs na <kenmerk> [staging|beta]       na het deployen: de functielijst (JSON van `functions list`, via stdin)
+// Productie kan hier (nog) niet: die omgeving krijgt pas na de lancering een eigen project en een eigen besluit.
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -14,11 +16,19 @@ const KG = path.resolve(HIER, '..');
 /** Precies deze functies, en geen andere (de map _gedeeld is geen functie). */
 export const FUNCTIES = ['bevestig-upload', 'controleer-code', 'mail-bezorging', 'opruimen-documenten', 'stuur-code', 'stuur-uitnodiging'];
 
-/** Het kenmerk en de omgeving: precies het vastgelegde project, nooit Huisplan. Leeg = in orde. */
-export function kenmerkFouten(ref, omgeving = 'staging') {
+/** De omgevingen waarvoor dit script functies mag deployen (zelfde lijst als -Omgeving in functies.ps1). */
+export const OMGEVINGEN = ['staging', 'beta'];
+
+/**
+ * Het kenmerk en de omgeving: precies het vastgelegde project van die omgeving (thuisplanner/omgevingen.json), nooit
+ * een project van een andere omgeving, nooit Huisplan. Een omgeving zonder vastgelegd kenmerk (de bèta tot haar project
+ * bestaat) wordt geweigerd. Leeg = in orde. omgevingen: alleen voor tests een eigen variant.
+ */
+export function kenmerkFouten(ref, omgeving = 'staging', omgevingen) {
+  if (!OMGEVINGEN.includes(omgeving)) return [`de omgeving moet ${OMGEVINGEN.join(' of ')} zijn (niet ${JSON.stringify(omgeving)})`];
   if (!/^[a-z]{20}$/.test(ref || '')) return ['het kenmerk is geen projectkenmerk van 20 kleine letters'];
   if (isHuisplanRef(ref)) return ['het kenmerk is een Huisplan-project'];
-  return omgevingFouten(omgeving, ref);
+  return omgevingFouten(omgeving, ref, omgevingen);
 }
 
 /** De functiemappen: precies FUNCTIES, plus mappen die met _ beginnen (gedeelde code). */
@@ -78,5 +88,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     for (const x of Array.isArray(lijst) ? lijst : []) console.log(`  ${x.slug ?? x.name}: ${x.status}, versie ${x.version}, verify_jwt ${x.verify_jwt}`);
     if (f.length) { console.log('AFWIJKING na het deployen:\n- ' + f.join('\n- ')); process.exit(1); }
     console.log(`IN ORDE: precies de ${FUNCTIES.length} functies, actief, verify_jwt uit`);
-  } else { console.log('gebruik: vooraf <kenmerk> [omgeving] | na <kenmerk> [omgeving] (lijst via stdin)'); process.exit(2); }
+  } else { console.log('gebruik: vooraf <kenmerk> [staging|beta] | na <kenmerk> [staging|beta] (lijst via stdin)'); process.exit(2); }
 }

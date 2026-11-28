@@ -4,6 +4,7 @@ import type { LidRij, Melding as SyncMelding, SyncStatus } from '../../../sync/t
 import type { Lidmaatschap, UitnodigingVoorMij, Uitkomst } from './lokaal/sessie';
 import type { Acties, DemoExtra, Staat } from './acties';
 import type { GezinsFilter } from './filter';
+import type { OnlineOmgeving } from './omgeving';
 import type { Datum, Huishouden, Item, Lid, LidId, Tijd } from './types';
 import type { VoorkeurenToegang } from './voorkeuren-opslag';
 import type { InstellingenPad } from '../screens/Instellingen';
@@ -64,8 +65,8 @@ export interface AppContext extends Acties {
  * schermen niets van accounts of synchronisatie.
  */
 export interface LokaalContext {
-  /** lokaal (fictief, eigen netwerk) of staging (de testomgeving online). */
-  omgeving: 'lokaal' | 'staging';
+  /** lokaal (fictief, eigen netwerk), staging (de testomgeving online), beta (de besloten bèta) of productie. */
+  omgeving: 'lokaal' | OnlineOmgeving;
   /** Plannen aan (VITE_PLANNEN=aan, met migratie 20261111120000). Anders is Plannen online niet zichtbaar. */
   plannen?: boolean;
   /** Huishoudbeheer (KG-5H): het huidige huishouden met je rol, je andere huishoudens en de leden. */

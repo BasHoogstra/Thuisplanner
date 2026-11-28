@@ -54,6 +54,14 @@ test('de referenties per stand: staging (16 migraties) ongewijzigd; Vakanties pr
   const [p6, u6] = SCHEMA_PER_STAND['20261116120000'];
   assert.deepEqual([p6.relaties - p5.relaties, p6.functies - p5.functies, p6.policies - p5.policies], [0, 3, 0]);
   assert.deepEqual([u6.relaties - u5.relaties, u6.functies - u5.functies, u6.policies - u5.policies], [0, 3, 0]);
+  // Persoonlijke instellingen (besluit 20): private +4 functies; public +1 tabel, +2 wrappers, +1 policy.
+  const [p7, u7] = SCHEMA_PER_STAND['20261124120000'];
+  assert.deepEqual([p7.relaties - p6.relaties, p7.functies - p6.functies, p7.policies - p6.policies], [0, 4, 0]);
+  assert.deepEqual([u7.relaties - u6.relaties, u7.functies - u6.functies, u7.policies - u6.policies], [1, 2, 1]);
+  // Besloten bèta (P2), ná de persoonlijke instellingen: private +2 tabellen en +6 functies, public +2 wrappers.
+  const [p8, u8] = SCHEMA_PER_STAND['20261125120000'];
+  assert.deepEqual([p8.relaties - p7.relaties, p8.functies - p7.functies, p8.policies - p7.policies], [2, 6, 0]);
+  assert.deepEqual([u8.relaties - u7.relaties, u8.functies - u7.functies, u8.policies - u7.policies], [0, 2, 0]);
   // Elke referentie hoort bij een migratie die in de repository staat, en een onbekende stand is een fout.
   for (const v of Object.keys(SCHEMA_PER_STAND)) assert.ok(repoVersies().includes(v), `referentie voor onbekende migratie ${v}`);
   assert.throws(() => verwachtSchemaVoor(['20261009120000']), /geen schemareferentie/);
@@ -73,7 +81,9 @@ test('de migratiegeschiedenis is die van de repository, en de geplande taken zij
 test('de nacontrole vindt lokaal alleen de bekende, lokale afwijkingen', () => {
   // Lokaal zijn wachtwoordsessies aan (fictieve accounts, seed.sql) en kunnen Vault, de testaanbieder en de wachtrij
   // anders staan dan online. Al het andere (RLS, policies, rechten, Realtime, taken, schema) moet in orde zijn.
-  const lokaal = [/^wachtwoordsessies zijn toegestaan/, /^Vault mist /, /^de testaanbieder voor mail staat aan/, /uitnodigingsmail\(s\) wachten/];
+  // Lokaal is het wachtrij-adres bewust http:// (Kong in Docker, k1-lokaal.mjs); online eist de nacontrole https:// (L5).
+  const lokaal = [/^wachtwoordsessies zijn toegestaan/, /^Vault mist /, /^Vault-adres thuisplanner_wachtrij_url begint niet met https:\/\//,
+    /^de testaanbieder voor mail staat aan/, /uitnodigingsmail\(s\) wachten/];
   const rest = naFouten(n, repoVersies(), verwachtSchemaVoor(repoVersies())).filter(f => !lokaal.some(r => r.test(f)));
   assert.deepEqual(rest, []);
 });

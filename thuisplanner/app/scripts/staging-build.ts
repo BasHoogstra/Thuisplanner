@@ -1,15 +1,20 @@
-// Bewaking van de browserbuild (gebruikt door vite.config.ts). Zie docs/thuisplanner-staging.md.
+// Bewaking van de browserbuild (gebruikt door vite.config.ts). Zie docs/thuisplanner-staging.md en
+// docs/thuisplanner-beta-voorbereiding.md §2.2.
 //
-// 1. Vooraf: een stagingbuild (`vite build --mode staging`) mag alleen met precies één online Supabase-project,
-//    de publieke sleutel en geen VITE_DEMO_* of geheime sleutels (src/lib/omgeving.ts: stagingFouten).
-//    Een gewone build mag nooit stilletjes een stagingbuild worden.
+// 1. Vooraf: een online build (`vite build --mode staging|beta|productie`) mag alleen met precies één online
+//    Supabase-project, de publieke sleutel en geen VITE_DEMO_* of geheime sleutels (src/lib/omgeving.ts: onlineFouten).
+//    Het project moet bovendien precies het vastgelegde project van die omgeving zijn uit thuisplanner/omgevingen.json
+//    (L8: ook bij een losse `vite --mode …`, niet alleen via npm run build:…). Enige uitzondering: de offline e2e
+//    (playwright.staging.config.ts, playwright.beta.config.ts) met KG_E2E_NEPPROJECT=1, en dan alleen het verzonnen
+//    project NEP_REF. Een gewone build mag nooit stilletjes een online build worden.
 // 2. Achteraf: in de gebouwde bestanden staat geen geheime sleutel, geen ander Supabase-project en geen
 //    Huisplan-project. Zo niet, dan faalt de build.
 // 3. Altijd: een _headers-bestand voor Cloudflare Pages met de beveiligingsheaders. connect-src staat alleen
-//    het eigen adres toe, en in staging daarnaast precies het stagingproject (https en wss).
+//    het eigen adres toe, en online daarnaast precies het project van de omgeving (https en wss).
 import { createHash } from 'node:crypto';
 import type { Plugin } from 'vite';
-import { stagingFouten, stagingRef } from '../src/lib/omgeving';
+import { isOnlineOmgeving, onlineFouten, projectRef, type OnlineOmgeving } from '../src/lib/omgeving';
+import { BUILDNAAM, kenmerkFouten, leesOmgevingen, type Omgevingen } from './staging-kenmerk.mjs';
 
 /** Is deze sleutel geheim (service-rol of secret key)? Zo'n sleutel hoort nooit in een browserbuild. */
 export function isGeheimeSleutel(waarde: string | undefined): boolean {
@@ -24,9 +29,9 @@ export function isGeheimeSleutel(waarde: string | undefined): boolean {
   }
 }
 
-/** Alle fouten van een stagingconfiguratie: die van de app, plus geheime sleutels in VITE_-variabelen. */
-export function stagingBuildFouten(env: Record<string, string | undefined>): string[] {
-  const fouten = stagingFouten(env, isHuisplanRef);
+/** Alle fouten van een online configuratie: die van de app, plus geheime sleutels in VITE_-variabelen. */
+export function onlineBuildFouten(env: Record<string, string | undefined>, omgeving: OnlineOmgeving): string[] {
+  const fouten = onlineFouten(env, omgeving, isHuisplanRef);
   for (const [k, v] of Object.entries(env)) {
     if (!k.startsWith('VITE_')) continue;
     if (/SERVICE|SECRET/.test(k)) fouten.push(`${k}: een geheime sleutel hoort nooit in een browserbuild.`);
@@ -43,14 +48,37 @@ const HUISPLAN_HASHES = new Set([
 ]);
 export const isHuisplanRef = (ref: string) => HUISPLAN_HASHES.has(createHash('sha256').update(ref).digest('hex'));
 
-export function controleerOmgeving(mode: string, env: Record<string, string | undefined>): { staging: boolean; ref: string | null } {
-  if (mode === 'staging') {
-    const fouten = stagingBuildFouten({ ...env, VITE_OMGEVING: 'staging' });
-    if (fouten.length) throw new Error('Stagingbuild geweigerd:\n- ' + fouten.join('\n- '));
-    return { staging: true, ref: stagingRef(env.VITE_SUPABASE_URL, isHuisplanRef) };
+/**
+ * Het verzonnen project van de offline e2e (playwright.staging.config.ts en playwright.beta.config.ts). Alleen dit
+ * kenmerk mag, en alleen met KG_E2E_NEPPROJECT=1, langs de kenmerkcontrole van omgevingen.json: zo kan de uitzondering
+ * nooit een echt ander project in een build laten. Het staat bij geen enkele omgeving (zie de tests).
+ */
+export const NEP_REF = 'abcdefghijklmnopqrst';
+
+export interface OmgevingOpties {
+  /** thuisplanner/omgevingen.json (in tests een eigen variant). */
+  omgevingen?: Omgevingen;
+  /** De offline e2e: KG_E2E_NEPPROJECT=1 (alleen uit process.env, nooit uit een .env-bestand). */
+  nepproject?: boolean;
+}
+
+export function controleerOmgeving(mode: string, env: Record<string, string | undefined>, opties: OmgevingOpties = {}):
+  { omgeving: OnlineOmgeving | null; ref: string | null } {
+  if (isOnlineOmgeving(mode)) {
+    const fouten = onlineBuildFouten({ ...env, VITE_OMGEVING: mode }, mode);
+    if (env.VITE_OMGEVING !== undefined && env.VITE_OMGEVING !== mode) fouten.push(`VITE_OMGEVING=${env.VITE_OMGEVING} past niet bij --mode ${mode}.`);
+    const ref = projectRef(env.VITE_SUPABASE_URL, isHuisplanRef);
+    if (ref && opties.nepproject) {
+      if (ref !== NEP_REF) fouten.push('KG_E2E_NEPPROJECT is alleen voor de offline e2e met het verzonnen project; met een echt project geldt omgevingen.json.');
+    } else if (ref) {
+      fouten.push(...kenmerkFouten(env.VITE_SUPABASE_URL, opties.omgevingen ?? leesOmgevingen(), mode));
+    }
+    if (fouten.length) throw new Error(`${BUILDNAAM[mode]} geweigerd:\n- ` + fouten.join('\n- '));
+    return { omgeving: mode, ref };
   }
-  if (env.VITE_OMGEVING === 'staging') throw new Error('VITE_OMGEVING=staging kan alleen via `npm run build:staging`.');
-  return { staging: false, ref: null };
+  if (isOnlineOmgeving(env.VITE_OMGEVING)) throw new Error(`VITE_OMGEVING=${env.VITE_OMGEVING} kan alleen via \`npm run build:${env.VITE_OMGEVING}\`.`);
+  if (env.VITE_OMGEVING !== undefined && env.VITE_OMGEVING !== 'lokaal') throw new Error(`VITE_OMGEVING=${env.VITE_OMGEVING} is geen omgeving van Thuisplanner.`);
+  return { omgeving: null, ref: null };
 }
 
 /** Cloudflare Turnstile (de captcha bij het aanvragen van een code), alleen als er een sitekey is ingesteld. */
@@ -100,14 +128,18 @@ export function verbodenInhoud(code: string, toegestaneRef: string | null): stri
   return [...new Set(fouten)];
 }
 
-export function bewaking(mode: string, env: Record<string, string | undefined>): Plugin {
-  const { ref } = controleerOmgeving(mode, env);
+/** De titel in index.html (ook vóór het inloggen zichtbaar, in het tabblad en op het beginscherm). */
+const TITEL: Record<OnlineOmgeving, string> = { staging: 'Thuisplanner (testomgeving)', beta: 'Thuisplanner', productie: 'Thuisplanner' };
+
+export function bewaking(mode: string, env: Record<string, string | undefined>, opties: OmgevingOpties = {}): Plugin {
+  const { omgeving, ref } = controleerOmgeving(mode, env, opties);
   return {
     name: 'thuisplanner-bewaking',
     apply: 'build',
-    // Ook vóór het inloggen (tabblad, beginscherm) zichtbaar dat dit de testomgeving is.
+    // Staging: ook vóór het inloggen zichtbaar dat dit de testomgeving is. Bèta en productie: gewoon "Thuisplanner"
+    // (de rustige bètamarkering staat op het inlogscherm en in Meer, besluit O7), nooit "(demo)".
     transformIndexHtml(html) {
-      return ref ? html.replace(/<title>[^<]*<\/title>/, '<title>Thuisplanner (testomgeving)</title>') : html;
+      return omgeving ? html.replace(/<title>[^<]*<\/title>/, `<title>${TITEL[omgeving]}</title>`) : html;
     },
     generateBundle(_opties, bundel) {
       for (const [naam, deel] of Object.entries(bundel)) {

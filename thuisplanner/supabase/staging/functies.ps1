@@ -1,20 +1,23 @@
-# Thuisplanner-staging, stap 5: de zes Edge Functions naar het vastgelegde stagingproject. Verandert iets ONLINE: alleen
-# na een apart akkoord. docs/thuisplanner-staging-overstap.md, stap 5.
+# De zes Edge Functions naar het vastgelegde project van staging of de beta. Verandert iets ONLINE: alleen na een apart
+# akkoord. docs/thuisplanner-staging-overstap.md, stap 5 (staging); docs/thuisplanner-beta-voorbereiding.md 2.1 (beta).
 #
 #   controle (lokaal, niets online):  powershell -NoProfile -ExecutionPolicy Bypass -File .\thuisplanner\supabase\staging\functies.ps1 -Ref <kenmerk>
 #   deployen:                         ... -Ref <kenmerk> -Deploy   (vraagt het token en een getypte bevestiging)
+#   beta:                             ... -Ref <kenmerk> -Omgeving beta [-Deploy]   (zonder -Omgeving: staging)
 #
 # - De Supabase CLI op deze computer blijft ingelogd op het Huisplan-account; die inlog wordt NIET gebruikt. Het
 #   persoonlijke token van het Thuisplanner-account typ of plak je bij een verborgen prompt. Het staat alleen tijdens dit
 #   script in SUPABASE_ACCESS_TOKEN van dit proces (dat gaat voor de inlog van de CLI), en wordt aan het eind gewist, ook
 #   bij een fout. Trek het token na afloop in (Supabase: Account -> Access Tokens).
-# - Altijd met --project-ref (nooit `supabase link`), en het kenmerk moet precies het vastgelegde stagingproject uit
-#   thuisplanner/omgevingen.json zijn; een Huisplan-project wordt geweigerd. Alles in functions/ en config.toml moet
-#   gecommit zijn. Bundelen gebeurt bij Supabase (--use-api), zonder Docker.
+# - Altijd met --project-ref (nooit `supabase link`), en het kenmerk moet precies het vastgelegde project van de gekozen
+#   omgeving uit thuisplanner/omgevingen.json zijn; een project van een andere omgeving (staging en beta nooit door
+#   elkaar), een omgeving zonder vastgelegd kenmerk en een Huisplan-project worden geweigerd (functies.mjs). Productie
+#   kan hier niet. Alles in functions/ en config.toml moet gecommit zijn. Bundelen gebeurt bij Supabase (--use-api),
+#   zonder Docker.
 # - Na het deployen leest het script de functielijst terug (alleen lezen) en controleert: precies de zes functies,
 #   actief, verify_jwt uit. Bij een fout stopt het meteen; het herstelt niets zelf en doet geen tweede poging.
 # - Geheimen (stap 6) zet dit script NIET: die zet de producteigenaar zelf in het dashboard.
-param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging')][string]$Omgeving = 'staging', [switch]$Deploy)
+param([Parameter(Mandatory = $true)][string]$Ref, [ValidateSet('staging', 'beta')][string]$Omgeving = 'staging', [switch]$Deploy)
 $ErrorActionPreference = 'Stop'
 $hier = Split-Path -Parent $MyInvocation.MyCommand.Path
 $kg = (Resolve-Path (Join-Path $hier '..')).Path

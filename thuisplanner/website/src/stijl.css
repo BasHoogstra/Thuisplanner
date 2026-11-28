@@ -83,6 +83,10 @@ details p { color: var(--inkt-2); }
 .gegevens { display: grid; grid-template-columns: max-content 1fr; gap: 10px 20px; margin: 0 0 24px; }
 .gegevens dt { font-weight: 650; }
 .gegevens dd { margin: 0; }
+/* Een conceptnotitie: alleen in de voorbeeldbouw (bouw.mjs laat hem weg bij --publicatie). */
+.concept-noot { background: var(--demo-zacht); color: var(--demo); border-radius: var(--radius-klein); padding: 16px 20px; margin: 0 0 32px; }
+.concept-noot h2 { margin-top: 0; font-size: 1.2rem; }
+.concept-noot ol { padding-left: 1.2em; }
 .nog-invullen { background: var(--demo-zacht); color: var(--demo); padding: 1px 8px; border-radius: 6px; font-size: .9em; font-weight: 650; }
 
 /* Voet */

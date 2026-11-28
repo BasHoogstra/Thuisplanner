@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useApp } from '../lib/context';
 import type { Keuze } from '../lib/lokaal/staat';
-import type { Momentopname, Sessie } from '../lib/lokaal/sessie';
+import type { LokaleConfig, Momentopname, Sessie } from '../lib/lokaal/sessie';
 import type { SyncVelden } from '../lib/types';
 import { Venster } from './Venster';
 import { CodeInloggen } from './CodeInloggen';
@@ -25,7 +25,7 @@ const STATUS_TEKST: Record<string, string> = {
 export function Inloggen({ sessie, snap, uitnodiging = false }: { sessie: Sessie; snap: Momentopname; uitnodiging?: boolean }) {
   const { accounts, wachtwoord: lokaalWachtwoord } = sessie.config;
   const bezig = snap.fase === 'bezig' || snap.fase === 'start';
-  const staging = sessie.config.omgeving === 'staging';
+  const { omgeving } = sessie.config;
 
   return (
     <div className="schil">
@@ -51,7 +51,9 @@ export function Inloggen({ sessie, snap, uitnodiging = false }: { sessie: Sessie
             </section>
           )}
           <CodeInloggen key={snap.fout ?? 'start'} sessie={sessie} uitnodiging={uitnodiging} startFout={snap.fout} />
-          <p className="stil-tekst">{staging ? 'Testomgeving: Thuisplanner is nog in ontwikkeling.' : 'Alleen voor de lokale test: deze accounts en dit gezin zijn verzonnen.'}</p>
+          {omgeving === 'lokaal' && <p className="stil-tekst">Alleen voor de lokale test: deze accounts en dit gezin zijn verzonnen.</p>}
+          {omgeving === 'staging' && <p className="stil-tekst">Testomgeving: Thuisplanner is nog in ontwikkeling.</p>}
+          {omgeving === 'beta' && <BetaMarkering />}
         </div>
       </main>
     </div>
@@ -79,10 +81,20 @@ export function Wachten({ sessie, snap }: { sessie: Sessie; snap: Momentopname }
   );
 }
 
-const OMGEVING_LABEL = { lokaal: 'Lokaal', staging: 'Testomgeving' } as const;
+/** Het label bovenaan elk scherm. Bèta en productie hebben er geen (besluit O7: niet bovenaan elk scherm). */
+const OMGEVING_LABEL: Record<LokaleConfig['omgeving'], string | null> = { lokaal: 'Lokaal', staging: 'Testomgeving', beta: null, productie: null };
 
-/** Vaste markering op het inlogscherm: welke omgeving dit is. */
-export function OmgevingsBalk({ omgeving }: { omgeving: 'lokaal' | 'staging' }) {
+/**
+ * De rustige bètamarkering (besluit O7, docs/thuisplanner-beta-voorbereiding.md §10): alleen op het inlogscherm en in
+ * Meer, niet bovenaan elk scherm. Niet "Testomgeving · verzonnen gegevens": in de bèta zijn de gegevens echt.
+ */
+export function BetaMarkering() {
+  return <p className="stil-tekst" role="note"><span className="demo-label">Bèta</span> Thuisplanner is nog in ontwikkeling.</p>;
+}
+
+/** Vaste markering op het inlogscherm (en onboarding): welke omgeving dit is. Alleen lokaal en staging. */
+export function OmgevingsBalk({ omgeving }: { omgeving: LokaleConfig['omgeving'] }) {
+  if (omgeving !== 'lokaal' && omgeving !== 'staging') return null;
   return (
     <div className="demobalk" role="note">
       <span className="demo-label">{OMGEVING_LABEL[omgeving]}</span>
@@ -99,7 +111,7 @@ export function LokaleBalk() {
   return (
     <>
       <div className="demobalk" role="note">
-        <span className="demo-label">{OMGEVING_LABEL[lokaal.omgeving]}</span>
+        {OMGEVING_LABEL[lokaal.omgeving] && <span className="demo-label">{OMGEVING_LABEL[lokaal.omgeving]}</span>}
         <span className="demobalk-tekst">
           {lokaal.account} · <span className={'sync-status ' + status} data-status={status}>{STATUS_TEKST[status] ?? status}</span>
           {openstaand.length > 0 && <> · {openstaand.length} niet bevestigd</>}

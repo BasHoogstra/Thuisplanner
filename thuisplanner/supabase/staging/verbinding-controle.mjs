@@ -221,6 +221,20 @@ export const SCHEMA_PER_STAND = Object.freeze({
     Object.freeze({ schema: 'private', relaties: 10, functies: 137, policies: 0 }),
     Object.freeze({ schema: 'public', relaties: 21, functies: 49, policies: 46 }),
   ]),
+  // Plus de besloten bèta (migratie 20261125120000, pakket P2: registratie op uitnodiging, L1, R4, L4, L5; nog niet
+  // online): +2 relaties in private (uitnodigingsmail_grenzen, k1_webhooks), +6 functies in private
+  // (k1_registratie_toegestaan, k1_nieuwe_code met adres, uitnodigingsmail_ontvanger, uitnodigingsmail_plek,
+  // k1_webhook_nieuw, wachtrij_url_toegestaan) en +2 in public (de wrappers k1_nieuwe_code met adres en k1_webhook_nieuw);
+  // k1_nieuwe_code zonder adres, uitnodigingsmail_plannen, uitnodigingsmail_opnieuw, k1_opruimen,
+  // uitnodigingsmail_aanroepen en documenten_opruimen_ronde zijn vervangen (zelfde aantal); drie kolommen erbij (tellen
+  // hier niet).
+  // Gemeten op de lokale stack thuisplanner_p2 met alle 25 migraties (25 november 2026); de aantallen hieronder zijn
+  // die van ná 20261124120000 (persoonlijke instellingen) plus P2 (samengevoegd 26 november 2026, nagemeten op de stack
+  // thuisplanner_beta met alle 26 migraties).
+  '20261125120000': Object.freeze([
+    Object.freeze({ schema: 'private', relaties: 12, functies: 143, policies: 0 }),
+    Object.freeze({ schema: 'public', relaties: 21, functies: 51, policies: 46 }),
+  ]),
 });
 
 // De opslag (Storage) per stand: tot en met migratie 27 niets; vanaf migratie 29 precies de privé-bucket "documenten" en
@@ -363,15 +377,21 @@ export async function leesNa(client) {
         from pg_policy p join pg_class c on c.oid = p.polrelid join pg_namespace n on n.oid = c.relnamespace
         where n.nspname = 'storage' order by 1`),
     } : { buckets: [], policies: [] };
-    // D6, automatische verzending: pg_net aan, de twee namen in Vault (alleen of ze bestaan; de waarden worden nooit
-    // gelezen), en de stand van de wachtrij (alleen aantallen).
+    // D6, automatische verzending: pg_net aan, de twee namen in Vault (alleen of ze bestaan; de waarden komen nooit
+    // naar buiten), en de stand van de wachtrij (alleen aantallen).
     const pgNet = (await alle(`select count(*)::int as n from pg_extension where extname = 'pg_net'`))[0].n === 1;
     const metVault = (await alle(`select to_regclass('vault.secrets') is not null as er`))[0].er;
     const vaultNamen = metVault ? (await alle(`select name from vault.secrets where name in ('thuisplanner_wachtrij_url', 'thuisplanner_wachtrij_geheim') order by 1`)).map(r => r.name) : [];
+    // Stagingreview L5: het adres van de wachtrij moet online met https:// beginnen, anders gaat het wachtrijgeheim
+    // onversleuteld over het netwerk. De database toetst dat zelf; alleen ja of nee komt terug, nooit het adres.
+    const metOntsleuteld = metVault && (await alle(`select to_regclass('vault.decrypted_secrets') is not null as er`))[0].er;
+    const vaultUrlHttps = vaultNamen.includes('thuisplanner_wachtrij_url') && metOntsleuteld
+      ? (await alle(`select bool_and(coalesce(left(decrypted_secret, 8) = 'https://', false)) as ok from vault.decrypted_secrets
+          where name = 'thuisplanner_wachtrij_url'`))[0].ok : null;
     const metStand = (await alle(`select to_regprocedure('private.uitnodigingsmail_stand()') is not null as er`))[0].er;
     const wachtrij = metStand ? (await alle(`select * from private.uitnodigingsmail_stand()`))[0] : null;
     return { versies, zonderRls, zonderPolicy, anonRechten, anonPrivate, definerPubliek, realtime, cron, schema, adressen, instellingen, opslag,
-      pgNet, vaultNamen, wachtrij };
+      pgNet, vaultNamen, vaultUrlHttps, wachtrij };
   } finally {
     await client.query('rollback');
   }
@@ -410,14 +430,29 @@ export function naFouten(n, verwachteVersies, verwachtSchema) {
   }
   if (n.instellingen && n.instellingen.mail_testaanbieder != null) f.push('de testaanbieder voor mail staat aan: dat mag alleen lokaal');
   if (!n.pgNet) f.push('pg_net staat niet aan: uitnodigingsmails gaan niet automatisch');
-  for (const naam of ['thuisplanner_wachtrij_geheim', 'thuisplanner_wachtrij_url']) {
-    if (!(n.vaultNamen ?? []).includes(naam)) f.push(`Vault mist ${naam}: uitnodigingsmails blijven wachten`);
-  }
+  f.push(...vaultFouten(n.vaultNamen, n.vaultUrlHttps));
   if (n.wachtrij && (n.wachtrij.wacht_lang || n.wachtrij.bezig_over_termijn)) {
     f.push(`${n.wachtrij.wacht_lang} uitnodigingsmail(s) wachten langer dan 10 minuten en ${n.wachtrij.bezig_over_termijn} hangen: de verzending draait niet`);
   }
   if (n.opslag) f.push(...opslagFouten(n.opslag, verwachteOpslagVoor(n.versies)));
   if (verwachtSchema && JSON.stringify(n.schema) !== JSON.stringify(verwachtSchema)) f.push(`schema wijkt af van de lokale referentie: ${JSON.stringify(n.schema)} in plaats van ${JSON.stringify(verwachtSchema)}`);
+  return f;
+}
+
+/**
+ * De twee Vault-waarden van de wachtrij (alleen namen, en voor het adres alleen "begint met https://": ja, nee of niet te
+ * lezen). Fail-closed (stagingreview L5): staat het adres er, dan moet het aantoonbaar met https:// beginnen; "nee" en
+ * "niet te lezen" zijn allebei een afwijking. Lokaal is het adres bewust http:// (Kong in Docker); de nacontrole draait
+ * alleen online (staging, bèta, productie), de lokale tests en de generale repetitie noemen deze melding apart.
+ */
+export function vaultFouten(vaultNamen, vaultUrlHttps) {
+  const f = [];
+  for (const naam of ['thuisplanner_wachtrij_geheim', 'thuisplanner_wachtrij_url']) {
+    if (!(vaultNamen ?? []).includes(naam)) f.push(`Vault mist ${naam}: uitnodigingsmails blijven wachten`);
+  }
+  if ((vaultNamen ?? []).includes('thuisplanner_wachtrij_url') && vaultUrlHttps !== true) {
+    f.push('Vault-adres thuisplanner_wachtrij_url begint niet met https:// (of is niet te lezen): het wachtrijgeheim kan dan onversleuteld over het netwerk');
+  }
   return f;
 }
 

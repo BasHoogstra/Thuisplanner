@@ -73,8 +73,9 @@ function useKlok(): Date {
  * Twee modi met dezelfde schermen:
  * - demo (standaard): alles in het geheugen van dit tabblad, fictieve gegevens uit data/demo.ts;
  * - lokaal: een lokale Supabase met fictieve accounts (zie scripts/lokaal.mjs en docs/thuisplanner-app.md).
- * De modus volgt uit de bouwomgeving (VITE_SUPABASE_URL en VITE_SUPABASE_ANON_KEY; staging alleen met
- * VITE_OMGEVING=staging, zie lib/omgeving.ts). Een niet-toegestaan adres wordt geweigerd, nooit stil vervangen door de demo.
+ * De modus volgt uit de bouwomgeving (VITE_SUPABASE_URL en VITE_SUPABASE_ANON_KEY; staging, bèta en productie alleen
+ * met VITE_OMGEVING, zie lib/omgeving.ts). Een niet-toegestaan adres of een online build zonder configuratie wordt
+ * geweigerd, nooit stil vervangen door de demo (N4).
  */
 export function App() {
   const keuze = useMemo(() => {
@@ -158,6 +159,9 @@ function LokaleApp({ config }: { config: LokaleConfig }) {
   return <IngelogdeApp sessie={sessie} snap={snap} uitnodigingen={uitnodigingen} />;
 }
 
+/** De tabtitel per omgeving. Bèta en productie: gewoon "Thuisplanner" (besluit O7: geen markering bovenaan). */
+const TITELSOORT: Record<LokaleConfig['omgeving'], string | null> = { lokaal: 'lokaal', staging: 'testomgeving', beta: null, productie: null };
+
 function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: Momentopname; uitnodigingen: LokaalContext['uitnodigingen'] }) {
   const klok = useKlok();
   const vandaag = naarDatum(klok);
@@ -199,7 +203,7 @@ function IngelogdeApp({ sessie, snap, uitnodigingen }: { sessie: Sessie; snap: M
     uitloggen: (o?: { wissen?: boolean }) => { void sessie.uitloggen(o); },
   };
   const schil = (extra?: ReactNode) => (
-    <Schil klok={klok} data={data} huishouden={hh} lokaal={lokaal} voorkeuren={voorkeuren} balk={<LokaleBalk />} titelSoort={sessie.config.omgeving === 'staging' ? 'testomgeving' : 'lokaal'}>
+    <Schil klok={klok} data={data} huishouden={hh} lokaal={lokaal} voorkeuren={voorkeuren} balk={<LokaleBalk />} titelSoort={TITELSOORT[sessie.config.omgeving]}>
       {keuze && <KeuzeVenster keuze={keuze} sluit={sluitKeuze} />}
       {extra}
     </Schil>
@@ -220,7 +224,9 @@ function EchteSpullen({ sessie, toestand, meld, children }: { sessie: Sessie; to
 
 function Schil({ klok, data, demo, huishouden: hh, voorkeuren, balk, lokaal, titelSoort, children }: {
   klok: Date; data: Acties & { staat: Staat }; demo?: AppContext['demo']; huishouden: Huishouden; voorkeuren: VoorkeurenToegang | null;
-  balk: ReactNode; lokaal?: LokaalContext; titelSoort: string; children?: ReactNode;
+  balk: ReactNode; lokaal?: LokaalContext;
+  /** Tussen haakjes achter "Thuisplanner" in de tabtitel; null (bèta, productie): geen toevoeging. */
+  titelSoort: string | null; children?: ReactNode;
 }) {
   const vandaag = naarDatum(klok);
   // Besluit 20 (aangevuld 25 november 2026): het startscherm, hoogstens één keer per paginalading (neemStartBeurt), met de
@@ -266,7 +272,7 @@ function Schil({ klok, data, demo, huishouden: hh, voorkeuren, balk, lokaal, tit
     return () => window.removeEventListener('hashchange', opHash);
   }, []);
 
-  useEffect(() => { document.title = `${TITELS[scherm]} · Thuisplanner (${titelSoort})`; }, [scherm, titelSoort]);
+  useEffect(() => { document.title = `${TITELS[scherm]} · Thuisplanner${titelSoort ? ` (${titelSoort})` : ''}`; }, [scherm, titelSoort]);
 
   const gaNaar = useCallback((s: Scherm) => {
     if (window.location.hash !== `#/${s}`) window.location.hash = `#/${s}`;
