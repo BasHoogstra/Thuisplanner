@@ -19,7 +19,10 @@ const js = [...html.matchAll(/<script type="module"[^>]*src="([^"]+)"[^>]*><\/sc
 if (!css || !js) throw new Error('Geen CSS of JS gevonden in dist/index.html; eerst "npm run build".');
 
 const kop = (html.match(/<head>([\s\S]*?)<\/head>/) || [])[1]
-  .replace(/\s*<link rel="stylesheet"[^>]*>/g, '').replace(/\s*<script type="module"[^>]*><\/script>/g, '');
+  .replace(/\s*<link rel="stylesheet"[^>]*>/g, '').replace(/\s*<script type="module"[^>]*><\/script>/g, '')
+  // Een los bestand is geen installeerbare app (PWA, PR P0): het manifest en de pictogrammen staan er niet naast.
+  .replace(/\s*<link rel="(?:manifest|apple-touch-icon)"[^>]*>/g, '')
+  .replace(/\s*<!-- PWA[\s\S]*?-->/g, '');
 
 const inhoud = `<div id="root"></div>\n<noscript>Deze demo heeft JavaScript nodig.</noscript>\n<script type="module">\n${js}\n</script>`;
 writeFileSync(join(uit, 'thuisplanner-demo.html'),

@@ -8,6 +8,14 @@
     <meta name="theme-color" content="#f2f4f1" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#121614" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="%THUISPLANNER_PICTOGRAM%" />
+    <!-- PWA (PR P0): manifest en beginscherm. use-credentials: op staging staat Cloudflare Access ervoor, en zonder
+         cookie zou het manifest de inlogpagina van Access zijn. -->
+    <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
+    <link rel="apple-touch-icon" href="pictogrammen/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Thuisplanner" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Thuisplanner (demo)</title>
   </head>
   <body>

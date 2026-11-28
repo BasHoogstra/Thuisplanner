@@ -78,6 +78,83 @@ De tabel hieronder beschrijft de **demo-modus**.
 Alles staat in het geheugen van het tabblad. Herladen zet de demo terug. Er gaat niets naar een server.
 De browsertests controleren dat er geen enkele externe aanvraag wordt gedaan.
 
+## PWA en pushproef (PR P0)
+
+Besluit 20 (bouwvoorstel §5.3) en de pushproef van besluit 16. Wat er is:
+
+- `public/manifest.webmanifest` (`start_url` en `scope` `./`, `display: standalone`) met pictogrammen van 192, 512
+  en maskable, plus een beginschermpictogram voor iOS. Alles komt uit `../ontwerp/pictogram.svg`
+  (`node scripts/pictogrammen.mjs` maakt de PNG's opnieuw).
+- `public/sw.js`: een service worker die **alleen** `push` (melding tonen) en `notificationclick` (de app openen of
+  focussen op het adres uit de melding, nooit een adres buiten de app) afhandelt. Dat adres krijgt `?van=melding`, zodat
+  de startschermvoorkeur een meldingsdoel niet vervangt (`isNieuweStart` in `src/lib/voorkeuren.ts`). Geen fetch-handler en geen cache,
+  ook niet van statische bestanden (besluit 17). Registratie in `src/pwa/registreer.ts`: alleen in een productiebuild,
+  op https (of 127.0.0.1), via het vaste pad `./sw.js` met de hele app als scope.
+- De pushproef (`src/pwa/`): alleen in een build met `VITE_PUSHPROEF=1`. Dan staat boven de app één regel
+  "Pushproef", en `#/pushproef` toont de stand van het toestel, vraagt na een eigen uitleg om toestemming, maakt een
+  abonnement met `VITE_VAPID_PUBLIC_KEY` en toont of kopieert dat als JSON. Er gaat niets naar de database.
+- `scripts/pushproef-stuur.mjs`: stuurt vanaf de eigen computer één testmelding naar dat abonnement (Web Push,
+  aes128gcm en VAPID met alleen `node:crypto`).
+
+Nog **niet**: echte herinneringen, toestellen of een verzendlog in de database (dat is P1, met gate 9).
+
+De checklist voor de proef op de telefoons (vooraf, per toestel, afsluiten) staat in
+[`docs/thuisplanner-pushproef-checklist.md`](../../docs/thuisplanner-pushproef-checklist.md).
+
+### Wat er nodig is (elk met een eigen akkoord)
+
+1. **Een VAPID-sleutelpaar**, meteen het definitieve voor staging (= bèta; plan §2.10), zodat de abonnementen van de
+   proef in P1 blijven werken. Eenmalig, op de eigen computer (PowerShell of een andere terminal), zonder netwerk:
+
+   ```sh
+   cd thuisplanner/app
+   node scripts/vapid-maak.mjs
+   ```
+
+   Het script schrijft `.env.pushproef.local` zelf (UTF-8 zonder BOM), overschrijft nooit een bestaand bestand, stopt
+   als git het bestand niet negeert (`.env.*`), en toont **alleen de publieke sleutel**. Gebruik níet `> bestand` in
+   Windows PowerShell 5.1: dat schrijft UTF-16 of een BOM, en dan leest `node --env-file` de sleutels niet.
+
+   Zet daarna de private sleutel in de wachtwoordkluis: open het bestand (`notepad .env.pushproef.local`) en kopieer de
+   waarde achter `PUSHPROEF_VAPID_PRIVATE=`. Hij gaat nooit in chat, een log, een `VITE_`-variabele, de Cloudflare-build
+   of de repository; de stagingbuild weigert `VITE_…PRIVATE…`. P1 heeft hetzelfde paar nodig (dan als Supabase-geheim van
+   `stuur-meldingen`, met een eigen akkoord), anders moeten de abonnementen opnieuw.
+2. **Een stagingbuild met de vlag.** In Cloudflare Pages (project `thuisplanner-staging`, omgeving Production) twee
+   extra omgevingsvariabelen: `VITE_PUSHPROEF` = `1` en `VITE_VAPID_PUBLIC_KEY` = de publieke sleutel. Pages bouwt
+   `thuisplanner-staging` automatisch: staan de variabelen er vóór de merge van deze PR, dan is die merge meteen de
+   proefbuild; anders daarna opnieuw uitrollen (Retry deployment). Na de proef `VITE_PUSHPROEF` weer weghalen en opnieuw
+   uitrollen; de service worker, het manifest en `VITE_VAPID_PUBLIC_KEY` blijven.
+3. **De telefoons** van Bas en Sanne, en een computer met dit script.
+
+### De proef
+
+Per toestel: open de app, tik op **Pushproef**, dan **Meldingen aanzetten** → **Doorgaan** → **Abonnement maken** →
+**Kopiëren**. Zet het JSON op de computer in een bestand (bijvoorbeeld `abonnement-iphone.json`, niet in de repository)
+en stuur:
+
+```sh
+cd thuisplanner/app
+node --env-file=.env.pushproef.local scripts/pushproef-stuur.mjs abonnement-iphone.json --droog   # alleen controleren
+node --env-file=.env.pushproef.local scripts/pushproef-stuur.mjs abonnement-iphone.json --adres '#/agenda'
+```
+
+- **iPhone (iOS 16.4 of nieuwer):** alleen als app op het beginscherm. Open staging in Safari, log in bij
+  Cloudflare Access, tik op Deel → **Zet op beginscherm**, en open Thuisplanner vanaf het beginscherm. Die app heeft
+  eigen cookies: daar opnieuw inloggen bij Access en in de app. Pas daarna de stappen hierboven. Toestemming staat
+  daarna onder Instellingen → Meldingen → Thuisplanner.
+- **Android (Chrome):** werkt ook in een gewoon tabblad; installeren via het menu (⋮ → App installeren) is de echte
+  situatie en het beste om te proberen.
+- **Desktop (Chrome, Edge, Firefox, Safari):** in een gewoon tabblad. Lokaal kan het ook zonder staging:
+  `VITE_PUSHPROEF=1 VITE_VAPID_PUBLIC_KEY=… npm run build && npm run preview` en open `http://127.0.0.1:5181/#/pushproef`.
+
+Wat we per toestel noteren: komt de melding aan met de app open, op de achtergrond, helemaal dicht en met het scherm
+vergrendeld; opent tikken de app op het goede scherm; werkt het nog na een herstart van het toestel en na een dag; en
+wat er gebeurt als de Access-sessie verlopen is (dan komt eerst de inlog van Access, bouwvoorstel §5.3). De knop
+**Lokale testmelding** toont een melding zonder server, om toestemming en weergave los te testen.
+
+Na de proef: **Opzeggen** op elk toestel en de abonnementbestanden verwijderen (wie het JSON heeft, kan dat toestel
+meldingen sturen).
+
 ## Opbouw
 
 ```
@@ -98,6 +175,8 @@ thuisplanner/app/
     components/            navigatie, venster, item-venster (nieuw en bewerken), rijen, demobalk, iconen
     screens/               Vandaag, Agenda, Boodschappen, Meer
     styles/app.css         tokens (licht en donker), mobiel eerst, zijbalk vanaf 960 px
+    pwa/                   service worker registreren, pushproef achter de vlag VITE_PUSHPROEF (PR P0)
+  public/                  manifest, pictogrammen en sw.js (PR P0), ongewijzigd in de build
   tests/                   Vitest: logica en component
   e2e/                     Playwright: gedrag, schermbreedtes, privacy, screenshots
   scripts/losbestand.mjs   bouwt het losse HTML-bestand

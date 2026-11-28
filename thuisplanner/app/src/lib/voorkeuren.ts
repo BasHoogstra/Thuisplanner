@@ -119,12 +119,16 @@ export function startDoel(hash: string, v: Voorkeuren | null, nieuweStart = fals
 
 /**
  * Is dit een echte nieuwe start (geen herladen of terug/vooruit)? Een herlaadbeurt houdt het adres. Zonder Navigation
- * Timing (oude browser): geen nieuwe start, dus het adres wint (veilige kant).
+ * Timing (oude browser): geen nieuwe start, dus het adres wint (veilige kant). Een klik op een pushmelding opent een
+ * expliciet doel (public/sw.js zet ?van=melding in het adres): ook geen nieuwe start, zodat het startscherm dat doel
+ * niet vervangt (review PR #57).
  */
 export function isNieuweStart(): boolean {
   try {
     const n = globalThis.performance?.getEntriesByType?.('navigation')?.[0] as PerformanceNavigationTiming | undefined;
-    return n?.type === 'navigate';
+    if (n?.type !== 'navigate') return false;
+    const adres = typeof n.name === 'string' ? n.name : '';
+    return !adres || new URL(adres).searchParams.get('van') !== 'melding';
   } catch { return false; }
 }
 

@@ -1,0 +1,21 @@
+/* De pushproef (PR P0, src/pwa/PushProef.tsx). Alleen in een build met VITE_PUSHPROEF=1; verder de vormen uit app.css. */
+.pushproef { padding-bottom: 32px; }
+.pushproef-stand { margin: 0; padding: 4px 16px; }
+.pushproef-stand > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; }
+.pushproef-stand > div + div { border-top: 1px solid var(--lijn); }
+.pushproef-stand dt { color: var(--inkt-2); }
+.pushproef-stand dd { margin: 0; font-weight: 600; text-align: right; }
+.pushproef-noot { margin: 14px 2px 0; padding: 12px 14px; border-radius: var(--radius-klein); background: var(--vlak-2); color: var(--inkt-2); font-size: 15px; }
+.pushproef-uitleg, .pushproef-abonnement {
+  margin-top: 12px; padding: 16px; border-radius: var(--radius); border: 1px solid var(--lijn); background: var(--vlak);
+}
+.pushproef-uitleg h3, .pushproef-abonnement h3 { margin: 0 0 6px; font-size: 17px; }
+.pushproef-uitleg p { margin: 0 0 8px; color: var(--inkt-2); }
+.pushproef-knoppen { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.pushproef-abonnement textarea {
+  width: 100%; margin-top: 10px; padding: 10px; border-radius: var(--radius-klein); border: 1px solid var(--lijn-sterk);
+  background: var(--bg); color: var(--inkt); font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical;
+}
+.pushproef-melding { min-height: 1.5em; margin: 16px 2px 0; color: var(--inkt-2); }
+.pushproef-fout { margin: 8px 2px 0; color: var(--fout); }
+.pushproef-terug { margin: 24px 2px 0; }

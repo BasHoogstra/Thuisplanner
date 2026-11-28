@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "Thuisplanner",
+  "short_name": "Thuisplanner",
+  "description": "De gezinsplanner van het huishouden.",
+  "lang": "nl",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f4f1",
+  "theme_color": "#f2f4f1",
+  "icons": [
+    { "src": "pictogrammen/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "pictogrammen/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "pictogrammen/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "pictogrammen/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -134,6 +134,14 @@ describe('één startbeurt per paginalading', () => {
       expect(isNieuweStart()).toBe(false);
       performance.getEntriesByType = (() => []) as unknown as typeof performance.getEntriesByType;
       expect(isNieuweStart()).toBe(false);
+      // Een klik op een pushmelding (public/sw.js: ?van=melding) is een expliciet doel, geen nieuwe start (review #57).
+      const nav = (name: string) => (() => [{ type: 'navigate', name }]) as unknown as typeof performance.getEntriesByType;
+      performance.getEntriesByType = nav('https://thuisplanner-staging.pages.dev/?van=melding#/agenda');
+      expect(isNieuweStart()).toBe(false);
+      performance.getEntriesByType = nav('https://thuisplanner-staging.pages.dev/#/agenda');
+      expect(isNieuweStart()).toBe(true);
+      performance.getEntriesByType = nav('https://thuisplanner-staging.pages.dev/?nu=2026-11-26#/vandaag');
+      expect(isNieuweStart()).toBe(true);
     } finally { performance.getEntriesByType = echt; }
   });
 });
